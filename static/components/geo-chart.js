@@ -1,11 +1,16 @@
 /**
  * Geographic Allocation Chart Component
- * Displays pie chart and allows editing geographic targets
+ * Displays doughnut chart and allows editing geographic targets
+ *
+ * Uses Chart.js v4 properly:
+ * - Chart.getChart() for instance management
+ * - disconnectedCallback for cleanup
+ * - No recursive init/update calls
  */
 class GeoChart extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
-      <div class="card" x-data="geoChartComponent()">
+      <div class="card" x-data="geoChartComponent($el)">
         <div class="card__header">
           <h2 class="card__title">Geographic Allocation</h2>
           <button x-show="!$store.app.editingGeo"
@@ -16,7 +21,7 @@ class GeoChart extends HTMLElement {
         </div>
 
         <div class="chart-container">
-          <canvas id="geoChart" width="200" height="200"></canvas>
+          <canvas width="200" height="200"></canvas>
         </div>
 
         <!-- View Mode -->
@@ -111,49 +116,50 @@ class GeoChart extends HTMLElement {
       </div>
     `;
   }
+
+  disconnectedCallback() {
+    // Proper cleanup when component is removed from DOM
+    const canvas = this.querySelector('canvas');
+    if (canvas) {
+      const chart = Chart.getChart(canvas);
+      if (chart) {
+        chart.destroy();
+      }
+    }
+  }
 }
 
-// Alpine component for chart management
-function geoChartComponent() {
+/**
+ * Alpine.js component for chart management
+ * @param {HTMLElement} el - The component's root element
+ */
+function geoChartComponent(el) {
   return {
-    chart: null,
-    chartUpdating: false,
+    canvas: null,
 
     init() {
-      this.destroyChart();
-      setTimeout(() => {
-        this.initChart();
-        this.$watch('$store.app.allocation.geographic', () => this.updateChart());
-      }, 100);
-    },
-
-    destroyChart() {
-      if (this.chart && typeof this.chart.destroy === 'function') {
-        try {
-          this.chart.destroy();
-        } catch (e) {
-          console.error('Error destroying chart:', e);
+      // Use $nextTick to ensure DOM is ready
+      this.$nextTick(() => {
+        // Find canvas within this component (not globally by ID)
+        this.canvas = el.querySelector('canvas');
+        if (!this.canvas) {
+          console.warn('GeoChart: Canvas not found');
+          return;
         }
-      }
-      this.chart = null;
-    },
 
-    initChart() {
-      this.destroyChart();
+        // Destroy any existing chart on this canvas (safety check)
+        const existing = Chart.getChart(this.canvas);
+        if (existing) {
+          existing.destroy();
+        }
 
-      const canvas = document.getElementById('geoChart');
-      if (!canvas) return;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      try {
-        this.chart = new Chart(ctx, {
+        // Create chart once
+        new Chart(this.canvas, {
           type: 'doughnut',
           data: {
             labels: ['EU', 'Asia', 'US'],
             datasets: [{
-              data: [1, 1, 1],
+              data: [1, 1, 1],  // Initial placeholder data
               backgroundColor: ['#3B82F6', '#EF4444', '#22C55E'],
               borderWidth: 0
             }]
@@ -161,49 +167,52 @@ function geoChartComponent() {
           options: {
             responsive: true,
             maintainAspectRatio: true,
-            plugins: { legend: { display: false } },
-            cutout: '60%'
+            plugins: {
+              legend: { display: false }
+            },
+            cutout: '60%',
+            animation: {
+              duration: 300
+            }
           }
         });
-        this.updateChart();
-      } catch (e) {
-        console.error('Chart init error:', e);
-        this.chart = null;
-      }
-    },
 
-    updateChart() {
-      if (this.chartUpdating) return;
-
-      const geo = this.$store.app.allocation.geographic;
-      if (!Array.isArray(geo) || geo.length === 0) return;
-
-      this.chartUpdating = true;
-
-      try {
-        if (!this.chart) {
-          this.initChart();
-          this.chartUpdating = false;
-          return;
-        }
-
-        const data = geo.map(g => {
-          const value = g.current_value;
-          return (typeof value === 'number' && !isNaN(value) && value >= 0) ? value : 1;
+        // Watch for data changes and update (never recreate)
+        this.$watch('$store.app.allocation.geographic', (geo) => {
+          this.updateChart(geo);
         });
 
-        if (data.every(v => v === 0)) data[0] = 1;
+        // Initial update with current data
+        this.updateChart(this.$store.app.allocation.geographic);
+      });
+    },
 
-        if (this.chart?.data?.datasets?.[0]) {
-          this.chart.data.datasets[0].data = data;
-          this.chart.update();
-        }
-      } catch (e) {
-        console.error('Chart update error:', e);
-        this.destroyChart();
-      } finally {
-        this.chartUpdating = false;
+    updateChart(geo) {
+      // Safety checks
+      if (!this.canvas) return;
+      if (!this.canvas.isConnected) return;  // Canvas removed from DOM
+
+      // Get chart from Chart.js registry (the official way)
+      const chart = Chart.getChart(this.canvas);
+      if (!chart) return;
+
+      // Validate data
+      if (!Array.isArray(geo) || geo.length === 0) return;
+
+      // Extract values, ensure non-zero for valid pie chart
+      const data = geo.map(g => {
+        const val = g.current_value;
+        return (typeof val === 'number' && !isNaN(val) && val > 0) ? val : 1;
+      });
+
+      // Ensure at least one non-zero value
+      if (data.every(v => v <= 0)) {
+        data[0] = 1;
       }
+
+      // Update data and render without animation
+      chart.data.datasets[0].data = data;
+      chart.update('none');
     }
   };
 }
