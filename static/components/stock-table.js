@@ -102,6 +102,12 @@ class StockTable extends HTMLElement {
                   <span class="sort-indicator" x-show="$store.app.sortBy === 'total_score'"
                         x-text="$store.app.sortDesc ? '\\u25BC' : '\\u25B2'"></span>
                 </th>
+                <th @click="$store.app.sortStocks('priority_score')"
+                    class="table__col--sortable table__col--right">
+                  Priority
+                  <span class="sort-indicator" x-show="$store.app.sortBy === 'priority_score'"
+                        x-text="$store.app.sortDesc ? '\\u25BC' : '\\u25B2'"></span>
+                </th>
                 <th class="table__col--center">Actions</th>
               </tr>
             </thead>
@@ -124,6 +130,10 @@ class StockTable extends HTMLElement {
                   <td class="table__col--right">
                     <span class="score" :class="getScoreClass(stock.total_score)"
                           x-text="formatScore(stock.total_score)"></span>
+                  </td>
+                  <td class="table__col--right">
+                    <span class="priority" :class="getPriorityClass(stock.priority_score)"
+                          x-text="formatPriority(stock.priority_score)"></span>
                   </td>
                   <td class="table__col--center">
                     <div class="table-actions">

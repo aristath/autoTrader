@@ -76,6 +76,28 @@ function getScoreClass(score) {
 }
 
 /**
+ * Format a priority score value
+ * @param {number|null} value - Priority score (0-3 range)
+ * @returns {string} Formatted priority
+ */
+function formatPriority(value) {
+  if (value == null) return '-';
+  return value.toFixed(2);
+}
+
+/**
+ * Get CSS class for priority score value
+ * @param {number|null} score - Priority score (0-3 range)
+ * @returns {string} CSS class name
+ */
+function getPriorityClass(score) {
+  if (score == null) return 'priority--low';
+  if (score >= 2.0) return 'priority--high';    // Strong buy signal
+  if (score >= 1.0) return 'priority--medium';  // Moderate priority
+  return 'priority--low';                        // Low priority
+}
+
+/**
  * Get CSS class for allocation deviation
  * @param {number} deviation - Deviation value
  * @returns {string} CSS class suffix
@@ -115,7 +137,9 @@ window.formatDate = formatDate;
 window.formatDateTime = formatDateTime;
 window.formatPercent = formatPercent;
 window.formatScore = formatScore;
+window.formatPriority = formatPriority;
 window.getScoreClass = getScoreClass;
+window.getPriorityClass = getPriorityClass;
 window.getDeviationClass = getDeviationClass;
 window.getGeoTagClass = getGeoTagClass;
 window.getSideTagClass = getSideTagClass;

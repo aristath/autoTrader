@@ -953,6 +953,26 @@ body {
 }
 
 /* ========================================
+   Priority Score Display
+   ======================================== */
+.priority {
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+}
+
+.priority--high {
+  color: var(--color-success);
+}
+
+.priority--medium {
+  color: var(--color-warning);
+}
+
+.priority--low {
+  color: var(--color-text-muted);
+}
+
+/* ========================================
    Industry Bar
    ======================================== */
 .industry-item {

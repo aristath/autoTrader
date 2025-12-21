@@ -22,7 +22,7 @@ document.addEventListener('alpine:init', () => {
     industryFilter: 'all',
     searchQuery: '',
     minScore: 0,
-    sortBy: 'total_score',
+    sortBy: 'priority_score',
     sortDesc: true,
     showRebalanceModal: false,
     showAddStockModal: false,
@@ -304,6 +304,7 @@ document.addEventListener('alpine:init', () => {
           this.showMessage('Allocation targets updated', 'success');
           this.editingGeo = false;
           await this.fetchAllocation();
+          await this.fetchStocks();  // Refresh priority scores
         } else {
           this.showMessage('Failed to save targets', 'error');
         }
@@ -385,6 +386,7 @@ document.addEventListener('alpine:init', () => {
           this.showMessage('Industry targets updated', 'success');
           this.editingIndustry = false;
           await this.fetchAllocation();
+          await this.fetchStocks();  // Refresh priority scores
         } else {
           this.showMessage('Failed to save targets', 'error');
         }

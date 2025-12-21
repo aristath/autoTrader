@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import Optional
 import aiosqlite
 from app.database import get_db
+from app.services.allocator import get_portfolio_summary, parse_industries
 
 router = APIRouter()
 
@@ -29,7 +30,12 @@ class StockUpdate(BaseModel):
 
 @router.get("")
 async def get_stocks(db: aiosqlite.Connection = Depends(get_db)):
-    """Get all stocks in universe with current scores and position data."""
+    """Get all stocks in universe with current scores, position data, and priority."""
+    # Get allocation deviations for priority calculation
+    summary = await get_portfolio_summary(db)
+    geo_devs = {g.name: g.deviation for g in summary.geographic_allocations}
+    ind_devs = {i.name: i.deviation for i in summary.industry_allocations}
+
     cursor = await db.execute("""
         SELECT s.*, sc.technical_score, sc.analyst_score,
                sc.fundamental_score, sc.total_score, sc.calculated_at,
@@ -39,10 +45,31 @@ async def get_stocks(db: aiosqlite.Connection = Depends(get_db)):
         LEFT JOIN scores sc ON s.symbol = sc.symbol
         LEFT JOIN positions p ON s.symbol = p.symbol
         WHERE s.active = 1
-        ORDER BY sc.total_score DESC NULLS LAST
     """)
     rows = await cursor.fetchall()
-    return [dict(row) for row in rows]
+
+    stocks = []
+    for row in rows:
+        stock = dict(row)
+        stock_score = stock.get("total_score") or 0
+        geo = stock.get("geography")
+        industries = parse_industries(stock.get("industry"))
+
+        # Calculate needs (positive = underweight = higher priority)
+        # deviation is current% - target%, so negative means underweight
+        geo_need = max(0, -geo_devs.get(geo, 0))
+
+        ind_need = 0
+        if industries:
+            ind_needs = [max(0, -ind_devs.get(ind, 0)) for ind in industries]
+            ind_need = sum(ind_needs) / len(ind_needs)
+
+        priority_score = stock_score + geo_need + ind_need
+        stock["priority_score"] = round(priority_score, 3)
+
+        stocks.append(stock)
+
+    return stocks
 
 
 @router.get("/{symbol}")
