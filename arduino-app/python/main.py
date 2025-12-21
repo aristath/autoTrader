@@ -47,6 +47,7 @@ scroll_offset = 0
 syncing_frame = 0
 current_balance_arr = None  # Store current balance display
 api_call_phase = 0  # For pulsing animation on API calls
+heartbeat_phase = 0  # For heartbeat sine pulse animation
 
 def create_balance_arr(value):
     """Create big digits + progress bar array for portfolio value.
@@ -182,22 +183,20 @@ def fetch_display_state():
 
 last_mode = None
 last_update = 0
-last_heartbeat = 0
-heartbeat_on = False
 
-def combine_with_status(balance_arr, heartbeat_on=False, web_active=False, api_active=False, api_phase=0):
+def combine_with_status(balance_arr, heartbeat_phase=0, web_active=False, api_active=False, api_phase=0):
     """Combine balance display with all status indicators on bottom 2 rows.
 
     Layout (rows 6-7):
-    - Heartbeat: col 0 (bottom-left pixel, row 7)
+    - Heartbeat: col 0 (bottom-left pixel, row 7) - sine pulse
     - API call: cols 3-5 (middle 6 pixels, pulsing)
     - Web request: cols 11-12 (bottom-right 4 pixels)
     """
     arr = balance_arr.copy()
 
-    # Heartbeat - bottom-left pixel (row 7, col 0)
-    if heartbeat_on:
-        arr[7, 0] = PIXEL_ON
+    # Heartbeat - bottom-left pixel with sine pulse (row 7, col 0)
+    heartbeat_brightness = int(127 + 127 * math.sin(heartbeat_phase * 0.15))
+    arr[7, 0] = heartbeat_brightness
 
     # Web request - bottom-right 4 pixels (cols 11-12, rows 6-7)
     if web_active:
@@ -215,14 +214,14 @@ def combine_with_status(balance_arr, heartbeat_on=False, web_active=False, api_a
 
 def loop():
     global last_value, last_mode, scroll_offset, syncing_frame, last_update, current_balance_arr
-    global last_heartbeat, heartbeat_on, api_call_phase
+    global api_call_phase, heartbeat_phase
 
     try:
         state = fetch_display_state()
 
         if state is None:
             draw_frame(create_error_frame())
-            time.sleep(1)
+            time.sleep(0.1)
             return
 
         mode = state.get("mode", "balance")
@@ -230,19 +229,14 @@ def loop():
         web_active = state.get("web_request_active", False)
         api_active = state.get("api_call_active", False)
 
-        # Increment API call animation phase
+        # Increment animation phases
+        heartbeat_phase += 1
         if api_active:
             api_call_phase += 1
 
         # Update balance display if needed
         if mode == "balance":
-            now = time.time()
             value_changed = value != last_value or mode != last_mode or current_balance_arr is None
-
-            # Toggle heartbeat every 1 second
-            if now - last_heartbeat >= 1:
-                heartbeat_on = not heartbeat_on
-                last_heartbeat = now
 
             if value_changed:
                 logger.info(f"Balance: {int(value/1000)}k + {int(value%1000)} EUR")
@@ -253,7 +247,7 @@ def loop():
             if current_balance_arr is not None:
                 combined = combine_with_status(
                     current_balance_arr,
-                    heartbeat_on=heartbeat_on,
+                    heartbeat_phase=heartbeat_phase,
                     web_active=web_active,
                     api_active=api_active,
                     api_phase=api_call_phase
@@ -262,7 +256,7 @@ def loop():
 
         # Handle different modes
         if mode == "balance":
-            time.sleep(1)
+            time.sleep(0.1)
 
         elif mode == "syncing":
             if mode != last_mode:

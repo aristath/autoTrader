@@ -2,6 +2,7 @@
 
 import logging
 import requests
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Optional
 from dataclasses import dataclass
@@ -9,8 +10,22 @@ from dataclasses import dataclass
 from tradernet import Tradernet
 
 from app.config import settings
+from app.led.display import get_led_display
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _led_api_call():
+    """Context manager to show LED API call indicator during API calls."""
+    display = get_led_display()
+    display.set_api_call_active(True)
+    if display.is_connected:
+        display.show_api_call()
+    try:
+        yield
+    finally:
+        display.set_api_call_active(False)
 
 # Cache for exchange rates (refreshed every hour)
 _exchange_rates: dict[str, float] = {}
@@ -156,7 +171,8 @@ class TradernetClient:
             raise ConnectionError("Not connected to Tradernet")
 
         try:
-            return self._client.account_summary()
+            with _led_api_call():
+                return self._client.account_summary()
         except Exception as e:
             logger.error(f"Failed to get account summary: {e}")
             return {}
@@ -167,7 +183,8 @@ class TradernetClient:
             raise ConnectionError("Not connected to Tradernet")
 
         try:
-            summary = self._client.account_summary()
+            with _led_api_call():
+                summary = self._client.account_summary()
             positions = []
 
             # Parse positions from result.ps.pos
@@ -214,7 +231,8 @@ class TradernetClient:
             raise ConnectionError("Not connected to Tradernet")
 
         try:
-            summary = self._client.account_summary()
+            with _led_api_call():
+                summary = self._client.account_summary()
             balances = []
 
             # Parse cash from result.ps.acc
@@ -247,7 +265,8 @@ class TradernetClient:
             raise ConnectionError("Not connected to Tradernet")
 
         try:
-            summary = self._client.account_summary()
+            with _led_api_call():
+                summary = self._client.account_summary()
             total = 0.0
 
             # Parse cash from result.ps.acc
@@ -276,7 +295,8 @@ class TradernetClient:
             raise ConnectionError("Not connected to Tradernet")
 
         try:
-            quotes = self._client.get_quotes([symbol])
+            with _led_api_call():
+                quotes = self._client.get_quotes([symbol])
             if quotes and len(quotes) > 0:
                 data = quotes[0] if isinstance(quotes, list) else quotes
                 return Quote(
@@ -302,7 +322,8 @@ class TradernetClient:
             raise ConnectionError("Not connected to Tradernet")
 
         try:
-            data = self._client.get_candles(symbol, count=days)
+            with _led_api_call():
+                data = self._client.get_candles(symbol, count=days)
             result = []
 
             if isinstance(data, dict):
