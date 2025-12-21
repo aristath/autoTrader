@@ -703,6 +703,18 @@ body {
 }
 
 /* ========================================
+   SVG Doughnut Chart
+   ======================================== */
+.doughnut-chart {
+  width: 200px;
+  height: 200px;
+}
+
+.doughnut-chart__segment {
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+/* ========================================
    Actions List
    ======================================== */
 .actions-list {

@@ -1,16 +1,12 @@
 /**
  * Geographic Allocation Chart Component
- * Displays doughnut chart and allows editing geographic targets
- *
- * Uses Chart.js v4 properly:
- * - Chart.getChart() for instance management
- * - disconnectedCallback for cleanup
- * - No recursive init/update calls
+ * Displays SVG doughnut chart and allows editing geographic targets
+ * No external dependencies - pure SVG with Alpine.js reactivity
  */
 class GeoChart extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
-      <div class="card" x-data="geoChartComponent($el)">
+      <div class="card" x-data="geoChartComponent()">
         <div class="card__header">
           <h2 class="card__title">Geographic Allocation</h2>
           <button x-show="!$store.app.editingGeo"
@@ -21,7 +17,34 @@ class GeoChart extends HTMLElement {
         </div>
 
         <div class="chart-container">
-          <canvas width="200" height="200"></canvas>
+          <svg viewBox="0 0 100 100" class="doughnut-chart">
+            <!-- Background circle -->
+            <circle cx="50" cy="50" r="40" fill="none" stroke="#374151" stroke-width="16"/>
+
+            <!-- EU segment (blue) -->
+            <circle cx="50" cy="50" r="40" fill="none"
+                    stroke="#3B82F6" stroke-width="16"
+                    :stroke-dasharray="circumference"
+                    :stroke-dashoffset="getOffset(0)"
+                    :transform="'rotate(' + getRotation(0) + ' 50 50)'"
+                    class="doughnut-chart__segment"/>
+
+            <!-- ASIA segment (red) -->
+            <circle cx="50" cy="50" r="40" fill="none"
+                    stroke="#EF4444" stroke-width="16"
+                    :stroke-dasharray="circumference"
+                    :stroke-dashoffset="getOffset(1)"
+                    :transform="'rotate(' + getRotation(1) + ' 50 50)'"
+                    class="doughnut-chart__segment"/>
+
+            <!-- US segment (green) -->
+            <circle cx="50" cy="50" r="40" fill="none"
+                    stroke="#22C55E" stroke-width="16"
+                    :stroke-dasharray="circumference"
+                    :stroke-dashoffset="getOffset(2)"
+                    :transform="'rotate(' + getRotation(2) + ' 50 50)'"
+                    class="doughnut-chart__segment"/>
+          </svg>
         </div>
 
         <!-- View Mode -->
@@ -116,103 +139,43 @@ class GeoChart extends HTMLElement {
       </div>
     `;
   }
-
-  disconnectedCallback() {
-    // Proper cleanup when component is removed from DOM
-    const canvas = this.querySelector('canvas');
-    if (canvas) {
-      const chart = Chart.getChart(canvas);
-      if (chart) {
-        chart.destroy();
-      }
-    }
-  }
 }
 
 /**
- * Alpine.js component for chart management
- * @param {HTMLElement} el - The component's root element
+ * Alpine.js component for SVG doughnut chart
  */
-function geoChartComponent(el) {
+function geoChartComponent() {
   return {
-    canvas: null,
+    // Circumference of circle with radius 40
+    circumference: 2 * Math.PI * 40,
 
-    init() {
-      // Use $nextTick to ensure DOM is ready
-      this.$nextTick(() => {
-        // Find canvas within this component (not globally by ID)
-        this.canvas = el.querySelector('canvas');
-        if (!this.canvas) {
-          console.warn('GeoChart: Canvas not found');
-          return;
-        }
-
-        // Destroy any existing chart on this canvas (safety check)
-        const existing = Chart.getChart(this.canvas);
-        if (existing) {
-          existing.destroy();
-        }
-
-        // Create chart once
-        new Chart(this.canvas, {
-          type: 'doughnut',
-          data: {
-            labels: ['EU', 'Asia', 'US'],
-            datasets: [{
-              data: [1, 1, 1],  // Initial placeholder data
-              backgroundColor: ['#3B82F6', '#EF4444', '#22C55E'],
-              borderWidth: 0
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-              legend: { display: false }
-            },
-            cutout: '60%',
-            animation: {
-              duration: 300
-            }
-          }
-        });
-
-        // Watch for data changes and update (never recreate)
-        this.$watch('$store.app.allocation.geographic', (geo) => {
-          this.updateChart(geo);
-        });
-
-        // Initial update with current data
-        this.updateChart(this.$store.app.allocation.geographic);
-      });
+    /**
+     * Get the stroke-dashoffset for a segment
+     * @param {number} index - Segment index (0=EU, 1=ASIA, 2=US)
+     */
+    getOffset(index) {
+      const geo = this.$store.app.allocation.geographic;
+      if (!geo || !geo[index]) {
+        return this.circumference; // Full offset = invisible
+      }
+      const pct = geo[index].current_pct || 0;
+      return this.circumference * (1 - pct);
     },
 
-    updateChart(geo) {
-      // Safety checks
-      if (!this.canvas) return;
-      if (!this.canvas.isConnected) return;  // Canvas removed from DOM
+    /**
+     * Get the rotation for a segment (cumulative of previous segments)
+     * @param {number} index - Segment index
+     */
+    getRotation(index) {
+      const geo = this.$store.app.allocation.geographic;
+      if (!geo) return -90;
 
-      // Get chart from Chart.js registry (the official way)
-      const chart = Chart.getChart(this.canvas);
-      if (!chart) return;
-
-      // Validate data
-      if (!Array.isArray(geo) || geo.length === 0) return;
-
-      // Extract values, ensure non-zero for valid pie chart
-      const data = geo.map(g => {
-        const val = g.current_value;
-        return (typeof val === 'number' && !isNaN(val) && val > 0) ? val : 1;
-      });
-
-      // Ensure at least one non-zero value
-      if (data.every(v => v <= 0)) {
-        data[0] = 1;
+      let cumulative = 0;
+      for (let i = 0; i < index; i++) {
+        cumulative += (geo[i]?.current_pct || 0);
       }
-
-      // Update data and render without animation
-      chart.data.datasets[0].data = data;
-      chart.update('none');
+      // Start at top (-90 degrees) + cumulative percentage * 360
+      return -90 + (cumulative * 360);
     }
   };
 }
