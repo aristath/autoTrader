@@ -91,6 +91,29 @@ nano /home/arduino/arduino-trader/.env
 sudo systemctl restart arduino-trader
 ```
 
+### LED Display App Setup
+
+The LED display uses Arduino's App framework to show portfolio status on the 8x12 LED matrix.
+
+```bash
+# On Arduino Uno Q, copy the app to ArduinoApps folder
+cp -r /home/arduino/arduino-trader/arduino-app /home/arduino/ArduinoApps/trader-display
+
+# Start the LED display app
+arduino-app-cli app start user:trader-display
+
+# Check logs
+arduino-app-cli app logs user:trader-display
+
+# Stop the app
+arduino-app-cli app stop user:trader-display
+```
+
+The app automatically fetches portfolio data from the trading API every 30 seconds and displays:
+- **Idle mode**: Subtle wave animation
+- **Portfolio view**: Three vertical bars showing EU/Asia/US allocation percentages
+- **Error mode**: X pattern when API is unreachable
+
 ### Cloudflare Tunnel Setup
 
 ```bash
@@ -116,8 +139,8 @@ MONTHLY_DEPOSIT=1000.0
 MONTHLY_REBALANCE_DAY=1
 DAILY_SYNC_HOUR=18
 
-# LED Display
-LED_SERIAL_PORT=/dev/ttyACM0
+# LED Display (optional, uses Arduino App framework)
+# LED_ENABLED=true
 ```
 
 ## API Endpoints
