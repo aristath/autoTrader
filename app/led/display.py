@@ -65,6 +65,11 @@ class LEDDisplay:
         self._serial: Optional[serial.Serial] = None
         self._connected = False
         self._current_state: Optional[LEDState] = None
+        # For API-based display (Arduino Bridge apps)
+        self._display_mode: DisplayMode = DisplayMode.BALANCE
+        self._display_value: float = 0.0
+        self._rgb_flash: Optional[list[int]] = None
+        self._heartbeat_pending: bool = False
 
     def connect(self) -> bool:
         """Connect to MCU via serial."""
@@ -278,6 +283,41 @@ class LEDDisplay:
             return True
         except OSError:
             return False
+
+    def get_display_state(self) -> dict:
+        """
+        Get current display state for API-based display apps.
+
+        Returns dict with mode, value, and any pending animations.
+        """
+        state = {
+            "mode": self._display_mode.value,
+            "value": self._display_value,
+            "heartbeat": self._heartbeat_pending,
+            "rgb_flash": self._rgb_flash,
+            "system_status": self._current_state.system_status if self._current_state else "ok",
+        }
+        # Clear one-time events after reading
+        self._heartbeat_pending = False
+        self._rgb_flash = None
+        return state
+
+    def set_display_value(self, value: float):
+        """Set the portfolio value for balance display."""
+        self._display_value = value
+        self._display_mode = DisplayMode.BALANCE
+
+    def set_display_mode(self, mode: DisplayMode):
+        """Set the current display mode."""
+        self._display_mode = mode
+
+    def trigger_heartbeat(self):
+        """Trigger a heartbeat animation on next poll."""
+        self._heartbeat_pending = True
+
+    def trigger_rgb_flash(self, color: list[int]):
+        """Trigger an RGB flash on next poll."""
+        self._rgb_flash = color
 
 
 # Singleton instance

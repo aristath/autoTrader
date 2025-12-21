@@ -18,27 +18,34 @@ def heartbeat_job():
     from app.led.display import get_led_display
 
     display = get_led_display()
+    # Trigger heartbeat for API-based display
+    display.trigger_heartbeat()
+    # Also try serial if connected
     if display.is_connected:
         display.show_heartbeat()
-        logger.debug("Heartbeat pulse sent to LED")
+    logger.debug("Heartbeat pulse triggered")
 
 
 def wifi_check_job():
     """Check wifi connectivity and update LED display."""
-    from app.led.display import get_led_display, LEDDisplay
+    from app.led.display import get_led_display, LEDDisplay, DisplayMode
 
     display = get_led_display()
-    if not display.is_connected:
-        return
 
     if LEDDisplay.check_wifi():
-        # Wifi is OK - ensure we're not showing "NO WIFI"
-        state = display.get_state()
-        if state and state.system_status == "no_wifi":
-            display.set_system_status("ok")
+        # Wifi is OK - ensure we're in balance mode
+        if display._display_mode == DisplayMode.NO_WIFI:
+            display.set_display_mode(DisplayMode.BALANCE)
+        # Also try serial if connected
+        if display.is_connected:
+            state = display.get_state()
+            if state and state.system_status == "no_wifi":
+                display.set_system_status("ok")
     else:
-        # No wifi - show scrolling text
-        display.show_no_wifi()
+        # No wifi - show NO WIFI mode
+        display.set_display_mode(DisplayMode.NO_WIFI)
+        if display.is_connected:
+            display.show_no_wifi()
         logger.warning("WiFi disconnected - showing NO WIFI on LED")
 
 

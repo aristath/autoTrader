@@ -66,6 +66,34 @@ async def get_led_status():
     }
 
 
+@router.get("/led/display")
+async def get_led_display_state(db: aiosqlite.Connection = Depends(get_db)):
+    """
+    Get display state for Arduino Bridge apps.
+
+    Returns what the LED display should show including:
+    - mode: current display mode (balance, syncing, api_call, error, etc.)
+    - value: portfolio value for balance display
+    - heartbeat: true if a heartbeat pulse should be shown
+    - rgb_flash: RGB color array if RGB should flash
+    """
+    from app.led.display import get_led_display
+
+    display = get_led_display()
+
+    # Get current portfolio value if not set
+    cursor = await db.execute("""
+        SELECT SUM(market_value_eur) as total FROM positions
+    """)
+    row = await cursor.fetchone()
+    portfolio_value = row["total"] if row and row["total"] else 0
+
+    # Update display value
+    display.set_display_value(portfolio_value)
+
+    return display.get_display_state()
+
+
 @router.post("/led/connect")
 async def connect_led():
     """Attempt to connect to LED display."""
