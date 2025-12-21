@@ -619,23 +619,19 @@
                 },
 
                 adjustGeoSlider(changed, newValue) {
-                    const oldValue = this.geoTargets[changed];
-                    const delta = newValue - oldValue;
-                    if (delta === 0) return;
-
                     const others = ['EU', 'ASIA', 'US'].filter(r => r !== changed);
+                    const remaining = 100 - newValue;
                     const otherTotal = this.geoTargets[others[0]] + this.geoTargets[others[1]];
 
                     if (otherTotal === 0) {
                         // Edge case: split evenly
-                        this.geoTargets[others[0]] = Math.max(0, Math.round(-delta / 2));
-                        this.geoTargets[others[1]] = Math.max(0, Math.round(-delta / 2));
+                        this.geoTargets[others[0]] = Math.round(remaining / 2);
+                        this.geoTargets[others[1]] = remaining - Math.round(remaining / 2);
                     } else {
-                        // Distribute proportionally
+                        // Distribute remaining based on current ratio
                         const ratio0 = this.geoTargets[others[0]] / otherTotal;
-                        const ratio1 = this.geoTargets[others[1]] / otherTotal;
-                        this.geoTargets[others[0]] = Math.max(0, Math.round(this.geoTargets[others[0]] - delta * ratio0));
-                        this.geoTargets[others[1]] = Math.max(0, Math.round(this.geoTargets[others[1]] - delta * ratio1));
+                        this.geoTargets[others[0]] = Math.round(remaining * ratio0);
+                        this.geoTargets[others[1]] = remaining - this.geoTargets[others[0]];
                     }
                     this.geoTargets[changed] = newValue;
                 },
