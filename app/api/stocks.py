@@ -67,12 +67,14 @@ async def get_stocks(db: aiosqlite.Connection = Depends(get_db)):
         quality = stock_score + conviction_boost
 
         # 2. Non-linear urgency for allocation deviations
+        # Underweight (negative deviation) = high urgency to buy
+        # Overweight (positive deviation) = zero urgency
         geo_dev = geo_devs.get(geo, 0)
-        geo_urgency = calculate_urgency(-geo_dev)  # Negative dev = underweight
+        geo_urgency = calculate_urgency(geo_dev)
 
         ind_urgency = 0
         if industries:
-            ind_urgencies = [calculate_urgency(-ind_devs.get(ind, 0)) for ind in industries]
+            ind_urgencies = [calculate_urgency(ind_devs.get(ind, 0)) for ind in industries]
             ind_urgency = sum(ind_urgencies) / len(ind_urgencies)
 
         urgency = geo_urgency * 0.6 + ind_urgency * 0.4
@@ -104,7 +106,9 @@ async def get_stocks(db: aiosqlite.Connection = Depends(get_db)):
 
 
 def calculate_urgency(deviation: float) -> float:
-    """Non-linear urgency: larger deviations get higher priority."""
+    """Non-linear urgency: only underweight (negative deviation) gives urgency."""
+    if deviation >= 0:  # Overweight or balanced - no urgency to buy more
+        return 0
     abs_dev = abs(deviation)
     if abs_dev < 0.02:  # < 2%
         return abs_dev * 0.5  # Reduced urgency

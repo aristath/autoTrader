@@ -184,7 +184,9 @@ class StockPriority:
 
 
 def calculate_urgency(deviation: float) -> float:
-    """Non-linear urgency: larger deviations get higher priority."""
+    """Non-linear urgency: only underweight (negative deviation) gives urgency."""
+    if deviation >= 0:  # Overweight or balanced - no urgency to buy more
+        return 0
     abs_dev = abs(deviation)
     if abs_dev < 0.02:  # < 2%
         return abs_dev * 0.5  # Reduced urgency
@@ -333,14 +335,16 @@ async def calculate_rebalance_trades(
         quality = score + conviction_boost
 
         # 2. Non-linear urgency for allocation deviations
+        # Underweight (negative deviation) = high urgency to buy
+        # Overweight (positive deviation) = zero urgency
         geo_deviation = geo_deviations.get(geography, 0)
-        geo_urgency = calculate_urgency(-geo_deviation)  # Negative = underweight
+        geo_urgency = calculate_urgency(geo_deviation)
         geo_need = max(0, -geo_deviation)  # For logging
 
         ind_urgency = 0
         industry_need = 0
         if industries:
-            ind_urgencies = [calculate_urgency(-industry_deviations.get(ind, 0)) for ind in industries]
+            ind_urgencies = [calculate_urgency(industry_deviations.get(ind, 0)) for ind in industries]
             ind_urgency = sum(ind_urgencies) / len(ind_urgencies)
             industry_needs = [max(0, -industry_deviations.get(ind, 0)) for ind in industries]
             industry_need = sum(industry_needs) / len(industry_needs)
