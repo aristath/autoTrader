@@ -56,3 +56,39 @@ async def get_led_status():
         "mode": "idle",
         "message": "LED display not connected",
     }
+
+
+@router.post("/sync/portfolio")
+async def trigger_portfolio_sync():
+    """Manually trigger portfolio sync."""
+    from app.jobs.daily_sync import sync_portfolio
+
+    try:
+        await sync_portfolio()
+        return {"status": "success", "message": "Portfolio sync completed"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@router.post("/sync/prices")
+async def trigger_price_sync():
+    """Manually trigger price sync."""
+    from app.jobs.daily_sync import sync_prices
+
+    try:
+        await sync_prices()
+        return {"status": "success", "message": "Price sync completed"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@router.get("/tradernet")
+async def get_tradernet_status():
+    """Get Tradernet connection status."""
+    from app.services.tradernet import get_tradernet_client
+
+    client = get_tradernet_client()
+    return {
+        "connected": client.is_connected,
+        "message": "Connected to Tradernet" if client.is_connected else "Not connected",
+    }

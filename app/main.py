@@ -1,6 +1,8 @@
 """FastAPI application entry point."""
 
+import logging
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -8,15 +10,40 @@ from fastapi.responses import FileResponse
 from app.config import settings
 from app.database import init_db
 from app.api import portfolio, stocks, trades, status
+from app.jobs.scheduler import init_scheduler, start_scheduler, stop_scheduler
+from app.services.tradernet import get_tradernet_client
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG if settings.debug else logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown events."""
     # Startup
+    logger.info("Starting Arduino Trader...")
     await init_db()
+
+    # Initialize and start scheduler
+    init_scheduler()
+    start_scheduler()
+
+    # Try to connect to Tradernet
+    client = get_tradernet_client()
+    if client.connect():
+        logger.info("Tradernet connection established")
+    else:
+        logger.warning("Tradernet not connected - check credentials")
+
     yield
-    # Shutdown (cleanup if needed)
+
+    # Shutdown
+    logger.info("Shutting down Arduino Trader...")
+    stop_scheduler()
 
 
 app = FastAPI(
