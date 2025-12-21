@@ -165,17 +165,17 @@ if [ "$MAIN_APP_CHANGED" = true ]; then
         fi
     fi
     
-    # Restart systemd service
+    # Restart systemd service (using sudo)
     log "Restarting $SERVICE_NAME service"
-    if systemctl is-active --quiet "$SERVICE_NAME"; then
-        if ! systemctl restart "$SERVICE_NAME" >> "$LOG_FILE" 2>&1; then
+    if sudo systemctl is-active --quiet "$SERVICE_NAME"; then
+        if ! sudo systemctl restart "$SERVICE_NAME" >> "$LOG_FILE" 2>&1; then
             log "WARNING: Failed to restart $SERVICE_NAME service"
         else
             log "$SERVICE_NAME service restarted successfully"
         fi
     else
         log "WARNING: $SERVICE_NAME service is not active, attempting to start"
-        systemctl start "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || log "WARNING: Failed to start $SERVICE_NAME service"
+        sudo systemctl start "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || log "WARNING: Failed to start $SERVICE_NAME service"
     fi
 fi
 
