@@ -618,6 +618,7 @@
                 },
 
                 initChart() {
+                    if (this.geoChart) return;  // Already initialized
                     const canvas = document.getElementById('geoChart');
                     if (!canvas) return;
                     const ctx = canvas.getContext('2d');
