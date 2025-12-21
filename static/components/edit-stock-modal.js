@@ -44,19 +44,30 @@ class EditStockModal extends HTMLElement {
 
               <div class="form-group">
                 <label class="label">Region</label>
-                <select x-model="$store.app.editingStock.geography" class="input">
+                <input type="text"
+                       x-model="$store.app.editingStock.geography"
+                       list="edit-geographies-list"
+                       placeholder="e.g., EU, US, ASIA"
+                       class="input">
+                <datalist id="edit-geographies-list">
                   <template x-for="geo in $store.app.geographies" :key="geo">
-                    <option :value="geo" x-text="geo"></option>
+                    <option :value="geo"></option>
                   </template>
-                </select>
+                </datalist>
               </div>
 
               <div class="form-group">
                 <label class="label">Industry</label>
                 <input type="text"
                        x-model="$store.app.editingStock.industry"
+                       list="edit-industries-list"
                        placeholder="e.g., Industrial, Defense"
                        class="input">
+                <datalist id="edit-industries-list">
+                  <template x-for="ind in $store.app.industries" :key="ind">
+                    <option :value="ind"></option>
+                  </template>
+                </datalist>
                 <small class="text-muted">Comma-separated for multiple industries</small>
               </div>
 

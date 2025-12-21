@@ -261,17 +261,6 @@ async def create_stock(stock: StockCreate, db: aiosqlite.Connection = Depends(ge
     if await cursor.fetchone():
         raise HTTPException(status_code=400, detail="Stock already exists")
 
-    # Validate geography against allocation targets
-    cursor = await db.execute(
-        "SELECT name FROM allocation_targets WHERE type = 'geography'"
-    )
-    valid_geos = [row[0] for row in await cursor.fetchall()]
-    if stock.geography.upper() not in valid_geos:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Geography must be one of: {', '.join(valid_geos)}"
-        )
-
     # Auto-detect industry if not provided
     industry = stock.industry
     if not industry:
@@ -363,16 +352,6 @@ async def update_stock(
         values.append(update.yahoo_symbol if update.yahoo_symbol else None)
 
     if update.geography is not None:
-        # Validate geography against allocation targets
-        cursor = await db.execute(
-            "SELECT name FROM allocation_targets WHERE type = 'geography'"
-        )
-        valid_geos = [row[0] for row in await cursor.fetchall()]
-        if update.geography.upper() not in valid_geos:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Geography must be one of: {', '.join(valid_geos)}"
-            )
         updates.append("geography = ?")
         values.append(update.geography.upper())
 

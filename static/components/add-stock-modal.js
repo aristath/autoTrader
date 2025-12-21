@@ -34,19 +34,30 @@ class AddStockModal extends HTMLElement {
 
             <div class="form-group">
               <label class="label">Region *</label>
-              <select x-model="$store.app.newStock.geography" class="input">
+              <input type="text"
+                     x-model="$store.app.newStock.geography"
+                     list="geographies-list"
+                     placeholder="e.g., EU, US, ASIA"
+                     class="input">
+              <datalist id="geographies-list">
                 <template x-for="geo in $store.app.geographies" :key="geo">
-                  <option :value="geo" x-text="geo"></option>
+                  <option :value="geo"></option>
                 </template>
-              </select>
+              </datalist>
             </div>
 
             <div class="form-group">
               <label class="label">Industry (optional)</label>
               <input type="text"
                      x-model="$store.app.newStock.industry"
+                     list="industries-list"
                      placeholder="Auto-detected from Yahoo Finance"
                      class="input">
+              <datalist id="industries-list">
+                <template x-for="ind in $store.app.industries" :key="ind">
+                  <option :value="ind"></option>
+                </template>
+              </datalist>
             </div>
           </div>
 
