@@ -2,6 +2,7 @@
 # Shows portfolio value as big digits + progress bar
 
 from arduino.app_utils import App, Bridge, Logger, Frame
+from datetime import datetime
 import math
 import time
 import requests
@@ -15,9 +16,9 @@ ROWS = 8
 COLS = 13
 
 # Brightness constants (0 = off, 255 = brightest)
-PIXEL_ON = 255    # Lit pixel (brightest)
+PIXEL_ON = 150    # Reduced from 255 for LED longevity
 PIXEL_OFF = 0     # Unlit pixel (off)
-PIXEL_DIM = 100   # Dim pixel for heartbeat
+PIXEL_DIM = 60    # Dim pixel
 
 # 3x5 digit patterns
 DIGITS = {
@@ -212,6 +213,13 @@ def combine_with_status(balance_arr, heartbeat_phase=0, web_active=False, api_ac
 
     return arr
 
+def apply_night_mode(arr):
+    """Dim display during night hours (11pm-7am) for LED longevity."""
+    hour = datetime.now().hour
+    if hour >= 23 or hour < 7:
+        return (arr * 0.3).astype(np.uint8)
+    return arr
+
 def loop():
     global last_value, last_mode, scroll_offset, syncing_frame, last_update, current_balance_arr
     global api_call_phase, heartbeat_phase
@@ -252,6 +260,7 @@ def loop():
                     api_active=api_active,
                     api_phase=api_call_phase
                 )
+                combined = apply_night_mode(combined)
                 draw_frame(Frame(combined))
 
         # Handle different modes
