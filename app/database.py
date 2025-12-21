@@ -30,7 +30,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS stocks (
     symbol TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    industry TEXT NOT NULL,
+    industry TEXT,
     geography TEXT NOT NULL,
     active INTEGER DEFAULT 1
 );
@@ -42,6 +42,9 @@ CREATE TABLE IF NOT EXISTS positions (
     quantity REAL NOT NULL,
     avg_price REAL NOT NULL,
     current_price REAL,
+    currency TEXT DEFAULT 'EUR',
+    currency_rate REAL DEFAULT 1.0,
+    market_value_eur REAL,
     last_updated TEXT,
     FOREIGN KEY (symbol) REFERENCES stocks(symbol)
 );

@@ -216,6 +216,75 @@ def get_current_price(symbol: str) -> Optional[float]:
         return None
 
 
+def get_stock_industry(symbol: str) -> Optional[str]:
+    """
+    Get stock industry/sector from Yahoo Finance.
+
+    Args:
+        symbol: Stock symbol (Tradernet format)
+
+    Returns:
+        Industry name or None
+    """
+    yf_symbol = _normalize_symbol(symbol)
+
+    try:
+        ticker = yf.Ticker(yf_symbol)
+        info = ticker.info
+
+        # Try industry first, then sector
+        industry = info.get("industry") or info.get("sector")
+
+        # Normalize common industry names to our categories
+        if industry:
+            industry_lower = industry.lower()
+
+            # Technology
+            if any(term in industry_lower for term in [
+                "technology", "software", "semiconductor", "internet",
+                "computer", "electronic", "telecom"
+            ]):
+                return "Technology"
+
+            # Healthcare
+            if any(term in industry_lower for term in [
+                "health", "medical", "pharma", "biotech", "drug"
+            ]):
+                return "Healthcare"
+
+            # Finance
+            if any(term in industry_lower for term in [
+                "bank", "financial", "insurance", "capital", "asset"
+            ]):
+                return "Finance"
+
+            # Consumer
+            if any(term in industry_lower for term in [
+                "consumer", "retail", "food", "beverage", "apparel",
+                "luxury", "entertainment", "media"
+            ]):
+                return "Consumer"
+
+            # Industrial
+            if any(term in industry_lower for term in [
+                "industrial", "aerospace", "defense", "machinery",
+                "construction", "transport", "auto"
+            ]):
+                return "Industrial"
+
+            # Energy (map to Industrial for now)
+            if any(term in industry_lower for term in [
+                "energy", "oil", "gas", "utilities", "power"
+            ]):
+                return "Energy"
+
+        return industry  # Return original if no match
+
+    except Exception as e:
+        logger.error(f"Failed to get industry for {symbol}: {e}")
+        return None
+
+
 def get_batch_quotes(symbols: list[str]) -> dict[str, float]:
     """
     Get current prices for multiple symbols efficiently.
