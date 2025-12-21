@@ -57,5 +57,52 @@ async def refresh_stock_score(symbol: str, db: aiosqlite.Connection = Depends(ge
     if not await cursor.fetchone():
         raise HTTPException(status_code=404, detail="Stock not found")
 
-    # TODO: Trigger scoring service
-    return {"message": f"Score refresh queued for {symbol}"}
+    from app.services.scorer import calculate_stock_score
+
+    score = calculate_stock_score(symbol)
+    if score:
+        await db.execute(
+            """
+            INSERT OR REPLACE INTO scores
+            (symbol, technical_score, analyst_score, fundamental_score,
+             total_score, calculated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                symbol,
+                score.technical.total,
+                score.analyst.total,
+                score.fundamental.total,
+                score.total_score,
+                score.calculated_at.isoformat(),
+            ),
+        )
+        await db.commit()
+
+        return {
+            "symbol": symbol,
+            "total_score": score.total_score,
+            "technical": score.technical.total,
+            "analyst": score.analyst.total,
+            "fundamental": score.fundamental.total,
+        }
+
+    raise HTTPException(status_code=500, detail="Failed to calculate score")
+
+
+@router.post("/refresh-all")
+async def refresh_all_scores(db: aiosqlite.Connection = Depends(get_db)):
+    """Recalculate scores for all stocks in universe."""
+    from app.services.scorer import score_all_stocks
+
+    try:
+        scores = await score_all_stocks(db)
+        return {
+            "message": f"Refreshed scores for {len(scores)} stocks",
+            "scores": [
+                {"symbol": s.symbol, "total_score": s.total_score}
+                for s in scores
+            ],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
