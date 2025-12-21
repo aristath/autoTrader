@@ -160,7 +160,30 @@ chmod +x /home/arduino/bin/auto-deploy.sh
 (crontab -l 2>/dev/null; echo "*/5 * * * * /home/arduino/bin/auto-deploy.sh") | crontab -
 ```
 
-### 7. (Optional) Setup Cloudflare Tunnel
+### 7. Configure Sudo Permissions for Auto-Deploy
+
+The auto-deploy script needs passwordless sudo access to restart the `arduino-trader` service. Without this, deployments will pull the code but the service won't restart, leaving old code running.
+
+```bash
+# Create sudoers file for arduino-trader service commands
+sudo tee /etc/sudoers.d/arduino-trader << 'EOF'
+arduino ALL=(ALL) NOPASSWD: /usr/bin/systemctl start arduino-trader
+arduino ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop arduino-trader
+arduino ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart arduino-trader
+arduino ALL=(ALL) NOPASSWD: /usr/bin/systemctl is-active arduino-trader
+arduino ALL=(ALL) NOPASSWD: /usr/bin/systemctl status arduino-trader
+EOF
+
+# Set correct permissions
+sudo chmod 440 /etc/sudoers.d/arduino-trader
+
+# Verify the file is valid
+sudo visudo -c
+```
+
+> **Important:** Without this configuration, the auto-deploy script cannot restart the service after pulling updates, and changes won't take effect until manual restart.
+
+### 8. (Optional) Setup Cloudflare Tunnel
 
 For remote access without exposing ports:
 

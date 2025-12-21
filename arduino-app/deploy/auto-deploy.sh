@@ -24,6 +24,40 @@ error_exit() {
     exit 1
 }
 
+# Restart systemd service with retry logic
+restart_service() {
+    local max_attempts=3
+    local attempt=1
+
+    while [ $attempt -le $max_attempts ]; do
+        log "Attempt $attempt/$max_attempts: Restarting $SERVICE_NAME service"
+
+        if sudo systemctl restart "$SERVICE_NAME" 2>>"$LOG_FILE"; then
+            # Wait for service to start
+            sleep 2
+
+            # Verify service is running
+            if sudo systemctl is-active --quiet "$SERVICE_NAME"; then
+                log "$SERVICE_NAME service restarted successfully"
+                return 0
+            else
+                log "WARNING: Restart command succeeded but service is not active"
+            fi
+        else
+            log "WARNING: Failed to restart $SERVICE_NAME (attempt $attempt)"
+        fi
+
+        attempt=$((attempt + 1))
+        if [ $attempt -le $max_attempts ]; then
+            log "Waiting 5 seconds before retry..."
+            sleep 5
+        fi
+    done
+
+    log "ERROR: Failed to restart $SERVICE_NAME after $max_attempts attempts"
+    return 1
+}
+
 # Ensure log directory exists
 mkdir -p "$(dirname "$LOG_FILE")"
 
@@ -165,18 +199,8 @@ if [ "$MAIN_APP_CHANGED" = true ]; then
         fi
     fi
     
-    # Restart systemd service (using sudo)
-    log "Restarting $SERVICE_NAME service"
-    if sudo systemctl is-active --quiet "$SERVICE_NAME"; then
-        if ! sudo systemctl restart "$SERVICE_NAME" >> "$LOG_FILE" 2>&1; then
-            log "WARNING: Failed to restart $SERVICE_NAME service"
-        else
-            log "$SERVICE_NAME service restarted successfully"
-        fi
-    else
-        log "WARNING: $SERVICE_NAME service is not active, attempting to start"
-        sudo systemctl start "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || log "WARNING: Failed to start $SERVICE_NAME service"
-    fi
+    # Restart systemd service with retry logic
+    restart_service
 fi
 
 # Deploy Arduino app if needed
