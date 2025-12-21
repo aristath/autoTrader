@@ -51,11 +51,51 @@ async def get_status(db: aiosqlite.Connection = Depends(get_db)):
 @router.get("/led")
 async def get_led_status():
     """Get current LED matrix state."""
-    # TODO: Get actual LED state from MCU
+    from app.led.display import get_led_display
+
+    display = get_led_display()
+    state = display.get_state()
+
     return {
-        "mode": "idle",
-        "message": "LED display not connected",
+        "connected": display.is_connected,
+        "mode": state.mode.value if state else "disconnected",
+        "allocation": {
+            "eu": state.geo_eu if state else 0,
+            "asia": state.geo_asia if state else 0,
+            "us": state.geo_us if state else 0,
+        } if state else None,
+        "system_status": state.system_status if state else "unknown",
     }
+
+
+@router.post("/led/connect")
+async def connect_led():
+    """Attempt to connect to LED display."""
+    from app.led.display import get_led_display
+
+    display = get_led_display()
+    success = display.connect()
+
+    return {
+        "connected": success,
+        "message": "Connected to LED display" if success else "Failed to connect",
+    }
+
+
+@router.post("/led/test")
+async def test_led():
+    """Test LED display with success animation."""
+    from app.led.display import get_led_display
+
+    display = get_led_display()
+    if not display.is_connected:
+        display.connect()
+
+    if display.is_connected:
+        display.show_success()
+        return {"status": "success", "message": "Test animation sent"}
+
+    return {"status": "error", "message": "LED display not connected"}
 
 
 @router.post("/sync/portfolio")

@@ -11,13 +11,23 @@
 <body class="bg-gray-900 text-gray-100 min-h-screen">
     <div x-data="dashboard()" x-init="init()" class="container mx-auto px-4 py-8">
         <!-- Header -->
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-blue-400">Arduino Trader</h1>
-            <p class="text-gray-400">Automated Portfolio Management</p>
+        <header class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-blue-400">Arduino Trader</h1>
+                <p class="text-gray-400">Automated Portfolio Management</p>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span class="flex items-center px-3 py-1 rounded-full text-sm"
+                      :class="tradernet.connected ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'">
+                    <span class="w-2 h-2 rounded-full mr-2"
+                          :class="tradernet.connected ? 'bg-green-500' : 'bg-red-500'"></span>
+                    <span x-text="tradernet.connected ? 'Tradernet Connected' : 'Tradernet Offline'"></span>
+                </span>
+            </div>
         </header>
 
         <!-- Status Bar -->
-        <div class="bg-gray-800 rounded-lg p-4 mb-6 flex items-center justify-between">
+        <div class="bg-gray-800 rounded-lg p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center space-x-4">
                 <span class="flex items-center">
                     <span class="w-3 h-3 rounded-full mr-2"
@@ -34,15 +44,15 @@
             </div>
         </div>
 
-        <!-- Portfolio Summary -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <!-- Portfolio Summary Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div class="bg-gray-800 rounded-lg p-4">
                 <p class="text-gray-400 text-sm">Total Value</p>
-                <p class="text-2xl font-bold text-green-400" x-text="formatCurrency(summary.total_value)"></p>
+                <p class="text-2xl font-bold text-green-400" x-text="formatCurrency(allocation.total_value)"></p>
             </div>
             <div class="bg-gray-800 rounded-lg p-4">
                 <p class="text-gray-400 text-sm">Cash Balance</p>
-                <p class="text-2xl font-bold" x-text="formatCurrency(summary.cash_balance)"></p>
+                <p class="text-2xl font-bold" x-text="formatCurrency(allocation.cash_balance)"></p>
             </div>
             <div class="bg-gray-800 rounded-lg p-4">
                 <p class="text-gray-400 text-sm">Active Positions</p>
@@ -54,25 +64,49 @@
             </div>
         </div>
 
-        <!-- Allocation Charts -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <!-- Geographic Allocation -->
+        <!-- Allocation & Actions Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Geographic Allocation Chart -->
             <div class="bg-gray-800 rounded-lg p-4">
                 <h2 class="text-lg font-semibold mb-4">Geographic Allocation</h2>
+                <div class="flex items-center justify-center">
+                    <canvas id="geoChart" width="200" height="200"></canvas>
+                </div>
+                <div class="mt-4 space-y-2">
+                    <template x-for="geo in allocation.geographic" :key="geo.name">
+                        <div class="flex justify-between text-sm">
+                            <span class="flex items-center">
+                                <span class="w-3 h-3 rounded-full mr-2"
+                                      :class="{
+                                          'bg-blue-500': geo.name === 'EU',
+                                          'bg-red-500': geo.name === 'ASIA',
+                                          'bg-green-500': geo.name === 'US'
+                                      }"></span>
+                                <span x-text="geo.name"></span>
+                            </span>
+                            <span :class="geo.deviation < -0.05 ? 'text-yellow-400' : geo.deviation > 0.05 ? 'text-blue-400' : 'text-green-400'">
+                                <span x-text="(geo.current_pct * 100).toFixed(1)"></span>% / <span x-text="(geo.target_pct * 100).toFixed(0)"></span>%
+                            </span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Industry Allocation -->
+            <div class="bg-gray-800 rounded-lg p-4">
+                <h2 class="text-lg font-semibold mb-4">Industry Allocation</h2>
                 <div class="space-y-3">
-                    <template x-for="(target, geo) in {EU: 0.50, ASIA: 0.30, US: 0.20}" :key="geo">
+                    <template x-for="ind in allocation.industry" :key="ind.name">
                         <div>
                             <div class="flex justify-between text-sm mb-1">
-                                <span x-text="geo"></span>
-                                <span>
-                                    <span x-text="((summary.allocations?.[geo] || 0) * 100).toFixed(1)"></span>%
-                                    / <span x-text="(target * 100)"></span>%
+                                <span x-text="ind.name"></span>
+                                <span :class="Math.abs(ind.deviation) < 0.05 ? 'text-green-400' : 'text-yellow-400'">
+                                    <span x-text="(ind.current_pct * 100).toFixed(1)"></span>%
                                 </span>
                             </div>
                             <div class="w-full bg-gray-700 rounded-full h-2">
-                                <div class="h-2 rounded-full transition-all"
-                                     :class="Math.abs((summary.allocations?.[geo] || 0) - target) < 0.05 ? 'bg-green-500' : 'bg-yellow-500'"
-                                     :style="`width: ${Math.min((summary.allocations?.[geo] || 0) / target * 100, 100)}%`"></div>
+                                <div class="h-2 rounded-full transition-all bg-purple-500"
+                                     :style="`width: ${Math.min(ind.current_pct / ind.target_pct * 100, 100)}%`"></div>
                             </div>
                         </div>
                     </template>
@@ -83,45 +117,66 @@
             <div class="bg-gray-800 rounded-lg p-4">
                 <h2 class="text-lg font-semibold mb-4">Quick Actions</h2>
                 <div class="space-y-3">
-                    <button @click="previewRebalance()"
-                            class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">
+                    <button @click="showRebalanceModal = true; previewRebalance()"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded flex items-center justify-center"
+                            :disabled="loading.rebalance">
+                        <span x-show="loading.rebalance" class="animate-spin mr-2">&#9696;</span>
                         Preview Rebalance
                     </button>
                     <button @click="refreshScores()"
-                            class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded">
+                            class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded flex items-center justify-center"
+                            :disabled="loading.scores">
+                        <span x-show="loading.scores" class="animate-spin mr-2">&#9696;</span>
                         Refresh All Scores
                     </button>
-                    <button @click="syncPortfolio()"
-                            class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded">
-                        Sync Portfolio
+                    <button @click="syncPrices()"
+                            class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded flex items-center justify-center"
+                            :disabled="loading.sync">
+                        <span x-show="loading.sync" class="animate-spin mr-2">&#9696;</span>
+                        Sync Prices
                     </button>
+                </div>
+                <div x-show="message" x-text="message"
+                     class="mt-4 p-2 rounded text-sm text-center"
+                     :class="messageType === 'success' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'">
                 </div>
             </div>
         </div>
 
         <!-- Stock Universe -->
         <div class="bg-gray-800 rounded-lg p-4 mb-8">
-            <h2 class="text-lg font-semibold mb-4">Stock Universe</h2>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold">Stock Universe</h2>
+                <div class="flex space-x-2">
+                    <select x-model="stockFilter" class="bg-gray-700 text-sm rounded px-2 py-1">
+                        <option value="all">All Regions</option>
+                        <option value="EU">EU</option>
+                        <option value="ASIA">Asia</option>
+                        <option value="US">US</option>
+                    </select>
+                </div>
+            </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="text-left text-gray-400 border-b border-gray-700">
-                            <th class="pb-2">Symbol</th>
+                            <th class="pb-2 cursor-pointer" @click="sortStocks('symbol')">Symbol</th>
                             <th class="pb-2">Name</th>
                             <th class="pb-2">Industry</th>
                             <th class="pb-2">Region</th>
-                            <th class="pb-2 text-right">Score</th>
-                            <th class="pb-2 text-right">Technical</th>
+                            <th class="pb-2 text-right cursor-pointer" @click="sortStocks('total_score')">Score</th>
+                            <th class="pb-2 text-right">Tech</th>
                             <th class="pb-2 text-right">Analyst</th>
-                            <th class="pb-2 text-right">Fundamental</th>
+                            <th class="pb-2 text-right">Fund</th>
+                            <th class="pb-2 text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <template x-for="stock in stocks" :key="stock.symbol">
+                        <template x-for="stock in filteredStocks" :key="stock.symbol">
                             <tr class="border-b border-gray-700 hover:bg-gray-750">
                                 <td class="py-2 font-mono text-blue-400" x-text="stock.symbol"></td>
                                 <td class="py-2" x-text="stock.name"></td>
-                                <td class="py-2" x-text="stock.industry"></td>
+                                <td class="py-2 text-gray-400" x-text="stock.industry"></td>
                                 <td class="py-2">
                                     <span class="px-2 py-1 rounded text-xs"
                                           :class="{
@@ -131,12 +186,20 @@
                                           }"
                                           x-text="stock.geography"></span>
                                 </td>
-                                <td class="py-2 text-right font-bold"
-                                    :class="stock.total_score > 0.7 ? 'text-green-400' : stock.total_score > 0.4 ? 'text-yellow-400' : 'text-gray-400'"
-                                    x-text="stock.total_score ? stock.total_score.toFixed(2) : '-'"></td>
+                                <td class="py-2 text-right">
+                                    <span class="font-bold"
+                                          :class="stock.total_score > 0.7 ? 'text-green-400' : stock.total_score > 0.4 ? 'text-yellow-400' : 'text-gray-400'"
+                                          x-text="stock.total_score ? stock.total_score.toFixed(2) : '-'"></span>
+                                </td>
                                 <td class="py-2 text-right text-gray-400" x-text="stock.technical_score?.toFixed(2) || '-'"></td>
                                 <td class="py-2 text-right text-gray-400" x-text="stock.analyst_score?.toFixed(2) || '-'"></td>
                                 <td class="py-2 text-right text-gray-400" x-text="stock.fundamental_score?.toFixed(2) || '-'"></td>
+                                <td class="py-2 text-center">
+                                    <button @click="refreshSingleScore(stock.symbol)"
+                                            class="text-blue-400 hover:text-blue-300 text-xs">
+                                        Refresh
+                                    </button>
+                                </td>
                             </tr>
                         </template>
                     </tbody>
@@ -156,26 +219,112 @@
                         <tr class="text-left text-gray-400 border-b border-gray-700">
                             <th class="pb-2">Date</th>
                             <th class="pb-2">Symbol</th>
+                            <th class="pb-2">Name</th>
                             <th class="pb-2">Side</th>
                             <th class="pb-2 text-right">Quantity</th>
                             <th class="pb-2 text-right">Price</th>
+                            <th class="pb-2 text-right">Value</th>
                         </tr>
                     </thead>
                     <tbody>
                         <template x-for="trade in trades" :key="trade.id">
                             <tr class="border-b border-gray-700">
-                                <td class="py-2" x-text="formatDate(trade.executed_at)"></td>
+                                <td class="py-2" x-text="formatDateTime(trade.executed_at)"></td>
                                 <td class="py-2 font-mono text-blue-400" x-text="trade.symbol"></td>
+                                <td class="py-2 text-gray-400" x-text="trade.name"></td>
                                 <td class="py-2">
-                                    <span :class="trade.side === 'BUY' ? 'text-green-400' : 'text-red-400'"
+                                    <span class="px-2 py-1 rounded text-xs"
+                                          :class="trade.side === 'BUY' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'"
                                           x-text="trade.side"></span>
                                 </td>
                                 <td class="py-2 text-right" x-text="trade.quantity"></td>
                                 <td class="py-2 text-right" x-text="formatCurrency(trade.price)"></td>
+                                <td class="py-2 text-right font-semibold" x-text="formatCurrency(trade.quantity * trade.price)"></td>
                             </tr>
                         </template>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Rebalance Modal -->
+        <div x-show="showRebalanceModal"
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+             x-transition>
+            <div class="bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">Rebalance Preview</h2>
+                    <button @click="showRebalanceModal = false" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </div>
+
+                <div x-show="loading.rebalance" class="text-center py-8">
+                    <div class="animate-spin text-4xl">&#9696;</div>
+                    <p class="mt-2 text-gray-400">Calculating optimal trades...</p>
+                </div>
+
+                <div x-show="!loading.rebalance && rebalancePreview">
+                    <div class="bg-gray-700 rounded p-4 mb-4">
+                        <div class="grid grid-cols-3 gap-4 text-center">
+                            <div>
+                                <p class="text-gray-400 text-sm">Deposit</p>
+                                <p class="text-xl font-bold text-blue-400" x-text="formatCurrency(rebalancePreview.deposit_amount)"></p>
+                            </div>
+                            <div>
+                                <p class="text-gray-400 text-sm">Trades</p>
+                                <p class="text-xl font-bold" x-text="rebalancePreview.total_trades"></p>
+                            </div>
+                            <div>
+                                <p class="text-gray-400 text-sm">Total Value</p>
+                                <p class="text-xl font-bold text-green-400" x-text="formatCurrency(rebalancePreview.total_value)"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div x-show="rebalancePreview.trades?.length === 0" class="text-center py-4 text-gray-400">
+                        No trades recommended. Portfolio is well balanced.
+                    </div>
+
+                    <div x-show="rebalancePreview.trades?.length > 0">
+                        <table class="w-full text-sm mb-4">
+                            <thead>
+                                <tr class="text-left text-gray-400 border-b border-gray-600">
+                                    <th class="pb-2">Symbol</th>
+                                    <th class="pb-2">Name</th>
+                                    <th class="pb-2 text-right">Qty</th>
+                                    <th class="pb-2 text-right">Price</th>
+                                    <th class="pb-2 text-right">Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="trade in rebalancePreview.trades" :key="trade.symbol">
+                                    <tr class="border-b border-gray-700">
+                                        <td class="py-2 font-mono text-blue-400" x-text="trade.symbol"></td>
+                                        <td class="py-2">
+                                            <span x-text="trade.name"></span>
+                                            <p class="text-xs text-gray-500" x-text="trade.reason"></p>
+                                        </td>
+                                        <td class="py-2 text-right text-green-400" x-text="'+' + trade.quantity"></td>
+                                        <td class="py-2 text-right" x-text="formatCurrency(trade.estimated_price)"></td>
+                                        <td class="py-2 text-right font-semibold" x-text="formatCurrency(trade.estimated_value)"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+
+                        <div class="flex justify-end space-x-3">
+                            <button @click="showRebalanceModal = false"
+                                    class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded">
+                                Cancel
+                            </button>
+                            <button @click="executeRebalance()"
+                                    class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded flex items-center"
+                                    :disabled="loading.execute">
+                                <span x-show="loading.execute" class="animate-spin mr-2">&#9696;</span>
+                                Execute Trades
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -184,23 +333,35 @@
         function dashboard() {
             return {
                 status: {},
-                summary: { allocations: {} },
+                allocation: { geographic: [], industry: [], total_value: 0, cash_balance: 0 },
                 stocks: [],
                 trades: [],
+                tradernet: { connected: false },
+                stockFilter: 'all',
+                sortBy: 'total_score',
+                sortDesc: true,
+                showRebalanceModal: false,
+                rebalancePreview: null,
+                loading: { rebalance: false, scores: false, sync: false, execute: false },
+                message: '',
+                messageType: 'success',
+                geoChart: null,
 
                 async init() {
                     await this.fetchAll();
-                    // Refresh every 60 seconds
+                    this.initChart();
                     setInterval(() => this.fetchAll(), 60000);
                 },
 
                 async fetchAll() {
                     await Promise.all([
                         this.fetchStatus(),
-                        this.fetchSummary(),
+                        this.fetchAllocation(),
                         this.fetchStocks(),
-                        this.fetchTrades()
+                        this.fetchTrades(),
+                        this.fetchTradernet()
                     ]);
+                    this.updateChart();
                 },
 
                 async fetchStatus() {
@@ -212,12 +373,12 @@
                     }
                 },
 
-                async fetchSummary() {
+                async fetchAllocation() {
                     try {
-                        const res = await fetch('/api/portfolio/summary');
-                        this.summary = await res.json();
+                        const res = await fetch('/api/trades/allocation');
+                        this.allocation = await res.json();
                     } catch (e) {
-                        console.error('Failed to fetch summary:', e);
+                        console.error('Failed to fetch allocation:', e);
                     }
                 },
 
@@ -239,18 +400,131 @@
                     }
                 },
 
+                async fetchTradernet() {
+                    try {
+                        const res = await fetch('/api/status/tradernet');
+                        this.tradernet = await res.json();
+                    } catch (e) {
+                        console.error('Failed to fetch tradernet status:', e);
+                    }
+                },
+
+                get filteredStocks() {
+                    let filtered = this.stocks;
+                    if (this.stockFilter !== 'all') {
+                        filtered = filtered.filter(s => s.geography === this.stockFilter);
+                    }
+                    return filtered.sort((a, b) => {
+                        const aVal = a[this.sortBy] || 0;
+                        const bVal = b[this.sortBy] || 0;
+                        return this.sortDesc ? bVal - aVal : aVal - bVal;
+                    });
+                },
+
+                sortStocks(field) {
+                    if (this.sortBy === field) {
+                        this.sortDesc = !this.sortDesc;
+                    } else {
+                        this.sortBy = field;
+                        this.sortDesc = true;
+                    }
+                },
+
+                initChart() {
+                    const ctx = document.getElementById('geoChart').getContext('2d');
+                    this.geoChart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['EU', 'Asia', 'US'],
+                            datasets: [{
+                                data: [0, 0, 0],
+                                backgroundColor: ['#3B82F6', '#EF4444', '#22C55E'],
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            cutout: '60%'
+                        }
+                    });
+                },
+
+                updateChart() {
+                    if (this.geoChart && this.allocation.geographic) {
+                        const data = this.allocation.geographic.map(g => g.current_value || 0);
+                        this.geoChart.data.datasets[0].data = data;
+                        this.geoChart.update();
+                    }
+                },
+
                 async previewRebalance() {
-                    const res = await fetch('/api/trades/rebalance/preview', { method: 'POST' });
-                    const data = await res.json();
-                    alert(data.message);
+                    this.loading.rebalance = true;
+                    this.rebalancePreview = null;
+                    try {
+                        const res = await fetch('/api/trades/rebalance/preview', { method: 'POST' });
+                        this.rebalancePreview = await res.json();
+                    } catch (e) {
+                        this.showMessage('Failed to preview rebalance', 'error');
+                    }
+                    this.loading.rebalance = false;
+                },
+
+                async executeRebalance() {
+                    this.loading.execute = true;
+                    try {
+                        const res = await fetch('/api/trades/rebalance/execute', { method: 'POST' });
+                        const data = await res.json();
+                        this.showMessage(`Executed ${data.successful_trades} trades`, 'success');
+                        this.showRebalanceModal = false;
+                        await this.fetchAll();
+                    } catch (e) {
+                        this.showMessage('Failed to execute rebalance', 'error');
+                    }
+                    this.loading.execute = false;
                 },
 
                 async refreshScores() {
-                    alert('Score refresh not yet implemented');
+                    this.loading.scores = true;
+                    try {
+                        const res = await fetch('/api/stocks/refresh-all', { method: 'POST' });
+                        const data = await res.json();
+                        this.showMessage(data.message, 'success');
+                        await this.fetchStocks();
+                    } catch (e) {
+                        this.showMessage('Failed to refresh scores', 'error');
+                    }
+                    this.loading.scores = false;
                 },
 
-                async syncPortfolio() {
-                    alert('Portfolio sync not yet implemented');
+                async refreshSingleScore(symbol) {
+                    try {
+                        await fetch(`/api/stocks/${symbol}/refresh`, { method: 'POST' });
+                        await this.fetchStocks();
+                    } catch (e) {
+                        this.showMessage('Failed to refresh score', 'error');
+                    }
+                },
+
+                async syncPrices() {
+                    this.loading.sync = true;
+                    try {
+                        const res = await fetch('/api/status/sync/prices', { method: 'POST' });
+                        const data = await res.json();
+                        this.showMessage(data.message, 'success');
+                    } catch (e) {
+                        this.showMessage('Failed to sync prices', 'error');
+                    }
+                    this.loading.sync = false;
+                },
+
+                showMessage(msg, type) {
+                    this.message = msg;
+                    this.messageType = type;
+                    setTimeout(() => { this.message = ''; }, 5000);
                 },
 
                 formatCurrency(value) {
@@ -264,6 +538,14 @@
                 formatDate(dateStr) {
                     if (!dateStr) return '-';
                     return new Date(dateStr).toLocaleDateString('de-DE');
+                },
+
+                formatDateTime(dateStr) {
+                    if (!dateStr) return '-';
+                    return new Date(dateStr).toLocaleString('de-DE', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                    });
                 }
             };
         }
