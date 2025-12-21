@@ -102,6 +102,12 @@ class StockTable extends HTMLElement {
                   <span class="sort-indicator" x-show="$store.app.sortBy === 'total_score'"
                         x-text="$store.app.sortDesc ? '\\u25BC' : '\\u25B2'"></span>
                 </th>
+                <th @click="$store.app.sortStocks('priority_multiplier')"
+                    class="table__col--sortable table__col--center">
+                  Mult
+                  <span class="sort-indicator" x-show="$store.app.sortBy === 'priority_multiplier'"
+                        x-text="$store.app.sortDesc ? '\\u25BC' : '\\u25B2'"></span>
+                </th>
                 <th @click="$store.app.sortStocks('priority_score')"
                     class="table__col--sortable table__col--right">
                   Priority
@@ -130,6 +136,16 @@ class StockTable extends HTMLElement {
                   <td class="table__col--right">
                     <span class="score" :class="getScoreClass(stock.total_score)"
                           x-text="formatScore(stock.total_score)"></span>
+                  </td>
+                  <td class="table__col--center">
+                    <input type="number"
+                           class="multiplier-input"
+                           :value="stock.priority_multiplier || 1"
+                           min="0.1"
+                           max="3"
+                           step="0.1"
+                           @change="$store.app.updateMultiplier(stock.symbol, $event.target.value)"
+                           title="Priority multiplier (0.1-3.0)">
                   </td>
                   <td class="table__col--right">
                     <span class="priority" :class="getPriorityClass(stock.priority_score)"

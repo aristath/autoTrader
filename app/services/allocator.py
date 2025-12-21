@@ -176,9 +176,78 @@ class StockPriority:
     geography: str
     industry: str
     stock_score: float
+    volatility: float  # Raw volatility (0.0-1.0)
+    multiplier: float  # Manual priority multiplier
     geo_need: float  # How underweight is this geography (0 to 1)
     industry_need: float  # How underweight is this industry (0 to 1)
-    combined_priority: float  # geo_need + industry_need + stock_score
+    combined_priority: float  # Enhanced priority score
+
+
+def calculate_urgency(deviation: float) -> float:
+    """Non-linear urgency: larger deviations get higher priority."""
+    abs_dev = abs(deviation)
+    if abs_dev < 0.02:  # < 2%
+        return abs_dev * 0.5  # Reduced urgency
+    elif abs_dev < 0.05:  # 2-5%
+        return 0.01 + (abs_dev - 0.02) * 2
+    else:  # > 5%
+        return 0.07 + (abs_dev - 0.05) * 3
+
+
+def calculate_diversification_penalty(
+    position_pct: float,
+    geo_overweight: float,
+    industry_overweight: float
+) -> float:
+    """Penalty for concentrated positions."""
+    position_penalty = min(0.3, position_pct * 3)  # 10% position = 0.3 penalty
+    geo_penalty = max(0, geo_overweight * 0.5)
+    industry_penalty = max(0, industry_overweight * 0.5)
+
+    total_penalty = position_penalty * 0.4 + geo_penalty * 0.3 + industry_penalty * 0.3
+    return min(0.5, total_penalty)  # Cap at 0.5
+
+
+def calculate_risk_adjustment(volatility: float) -> float:
+    """Lower score for higher volatility."""
+    if volatility is None:
+        return 0.5  # Neutral if unknown
+    # 15% vol = 1.0, 50% vol = 0.0
+    return max(0, min(1, 1 - (volatility - 0.15) / 0.35))
+
+
+def calculate_position_size(
+    candidate: StockPriority,
+    base_size: float,
+    min_size: float,
+) -> float:
+    """
+    Calculate position size based on conviction and risk.
+
+    Args:
+        candidate: Stock priority data
+        base_size: Base investment amount per trade
+        min_size: Minimum trade size
+
+    Returns:
+        Adjusted position size (0.8x to 1.2x of base)
+    """
+    # Conviction multiplier: 0.8 to 1.2 based on stock score
+    conviction_mult = 0.8 + (candidate.stock_score - 0.5) * 0.8
+    conviction_mult = max(0.8, min(1.2, conviction_mult))
+
+    # Priority multiplier: 0.9 to 1.1 based on combined priority
+    priority_mult = 0.9 + (candidate.combined_priority / 3.0) * 0.2
+    priority_mult = max(0.9, min(1.1, priority_mult))
+
+    # Volatility penalty (if available)
+    if candidate.volatility is not None:
+        vol_mult = max(0.7, 1.0 - (candidate.volatility - 0.15) * 0.5)
+    else:
+        vol_mult = 1.0
+
+    size = base_size * conviction_mult * priority_mult * vol_mult
+    return max(min_size, min(size, base_size * 1.2))
 
 
 def get_max_trades(cash: float) -> int:
@@ -194,15 +263,20 @@ async def calculate_rebalance_trades(
     available_cash: float
 ) -> list[TradeRecommendation]:
     """
-    Calculate optimal trades using hybrid allocation logic.
+    Calculate optimal trades using enhanced multi-factor priority algorithm.
 
     Strategy:
-    1. Only consider stocks with score > 0.5 (min_stock_score)
-    2. Calculate geo_need and industry_need for each stock
-    3. Combined priority = geo_need + industry_need + stock_score
+    1. Only consider stocks with score > min_stock_score
+    2. Calculate enhanced priority:
+       - Quality (35%): stock score + conviction boost
+       - Urgency (30%): non-linear allocation deviation
+       - Diversification (20%): penalty for concentrated positions
+       - Risk (15%): volatility-based adjustment
+    3. Apply manual multiplier from user
     4. Select top N stocks by combined priority
-    5. Minimum €400 per trade (min_trade_size)
-    6. Maximum 5 trades per cycle (max_trades_per_cycle)
+    5. Dynamic position sizing based on conviction/risk
+    6. Minimum €400 per trade (min_trade_size)
+    7. Maximum 5 trades per cycle (max_trades_per_cycle)
     """
     # Check minimum cash threshold
     if available_cash < settings.min_cash_threshold:
@@ -215,15 +289,18 @@ async def calculate_rebalance_trades(
 
     # Get current portfolio summary for deviation calculations
     summary = await get_portfolio_summary(db)
+    total_value = summary.total_value or 1  # Avoid division by zero
 
     # Build deviation maps for quick lookup
     geo_deviations = {a.name: a.deviation for a in summary.geographic_allocations}
     industry_deviations = {a.name: a.deviation for a in summary.industry_allocations}
 
-    # Get scored stocks from universe
+    # Get scored stocks from universe with volatility and multiplier
     cursor = await db.execute("""
         SELECT s.symbol, s.name, s.geography, s.industry,
-               sc.total_score, p.quantity, p.current_price
+               s.priority_multiplier,
+               sc.total_score, sc.volatility,
+               p.quantity, p.current_price, p.market_value_eur
         FROM stocks s
         LEFT JOIN scores sc ON s.symbol = sc.symbol
         LEFT JOIN positions p ON s.symbol = p.symbol
@@ -239,30 +316,56 @@ async def calculate_rebalance_trades(
         name = stock[1]
         geography = stock[2]
         industry = stock[3]
-        score = stock[4] or 0
+        multiplier = stock[4] or 1.0
+        score = stock[5] or 0
+        volatility = stock[6]
+        position_value = stock[9] or 0
 
         # Only consider stocks with score above threshold
         if score < settings.min_stock_score:
             logger.debug(f"Skipping {symbol}: score {score:.2f} < {settings.min_stock_score}")
             continue
 
-        # Get geography need (negative deviation = underweight = positive need)
-        geo_deviation = geo_deviations.get(geography, 0)
-        geo_need = max(0, -geo_deviation)  # Convert negative deviation to positive need
-
-        # Get industry need - average across all industries for multi-industry stocks
         industries = parse_industries(industry)
-        if industries:
-            industry_needs = [
-                max(0, -industry_deviations.get(ind, 0))
-                for ind in industries
-            ]
-            industry_need = sum(industry_needs) / len(industry_needs)
-        else:
-            industry_need = 0
 
-        # Combined priority: balance geography + industry + stock quality
-        combined_priority = geo_need + industry_need + score
+        # 1. Quality with conviction boost
+        conviction_boost = max(0, (score - 0.5) * 0.4) if score > 0.5 else 0
+        quality = score + conviction_boost
+
+        # 2. Non-linear urgency for allocation deviations
+        geo_deviation = geo_deviations.get(geography, 0)
+        geo_urgency = calculate_urgency(-geo_deviation)  # Negative = underweight
+        geo_need = max(0, -geo_deviation)  # For logging
+
+        ind_urgency = 0
+        industry_need = 0
+        if industries:
+            ind_urgencies = [calculate_urgency(-industry_deviations.get(ind, 0)) for ind in industries]
+            ind_urgency = sum(ind_urgencies) / len(ind_urgencies)
+            industry_needs = [max(0, -industry_deviations.get(ind, 0)) for ind in industries]
+            industry_need = sum(industry_needs) / len(industry_needs)
+
+        urgency = geo_urgency * 0.6 + ind_urgency * 0.4
+
+        # 3. Diversification penalty
+        position_pct = position_value / total_value if total_value > 0 else 0
+        geo_overweight = max(0, geo_deviation)
+        ind_overweight = max(0, sum(industry_deviations.get(ind, 0) for ind in industries) / max(1, len(industries))) if industries else 0
+        diversification = 1.0 - calculate_diversification_penalty(position_pct, geo_overweight, ind_overweight)
+
+        # 4. Risk adjustment based on volatility
+        risk_adj = calculate_risk_adjustment(volatility)
+
+        # Weighted combination
+        raw_priority = (
+            quality * 0.35 +
+            urgency * 0.30 +
+            diversification * 0.20 +
+            risk_adj * 0.15
+        )
+
+        # Apply manual multiplier
+        combined_priority = raw_priority * multiplier
 
         candidates.append(StockPriority(
             symbol=symbol,
@@ -270,6 +373,8 @@ async def calculate_rebalance_trades(
             geography=geography,
             industry=industry or "Unknown",
             stock_score=score,
+            volatility=volatility,
+            multiplier=multiplier,
             geo_need=round(geo_need, 4),
             industry_need=round(industry_need, 4),
             combined_priority=round(combined_priority, 4),
@@ -287,11 +392,10 @@ async def calculate_rebalance_trades(
     # Select top N candidates
     selected = candidates[:max_trades]
 
-    # Calculate trade size per stock
-    # Distribute cash evenly, respecting minimum trade size
-    trade_size = max(settings.min_trade_size, available_cash / len(selected))
+    # Calculate base trade size per stock
+    base_trade_size = available_cash / len(selected)
 
-    # Get current prices and generate recommendations
+    # Get current prices and generate recommendations with dynamic sizing
     from app.services import yahoo
 
     recommendations = []
@@ -307,8 +411,13 @@ async def calculate_rebalance_trades(
             logger.warning(f"Could not get price for {candidate.symbol}, skipping")
             continue
 
-        # Calculate quantity - ensure minimum trade value
-        invest_amount = min(trade_size, remaining_cash)
+        # Dynamic position sizing based on conviction and risk
+        dynamic_size = calculate_position_size(
+            candidate,
+            base_trade_size,
+            settings.min_trade_size
+        )
+        invest_amount = min(dynamic_size, remaining_cash)
         if invest_amount < settings.min_trade_size:
             continue
 
@@ -318,16 +427,17 @@ async def calculate_rebalance_trades(
 
         actual_value = qty * price
 
-        # Build reason string
+        # Build reason string with more detail
         reason_parts = []
         if candidate.geo_need > 0:
             reason_parts.append(f"{candidate.geography} underweight")
         if candidate.industry_need > 0:
-            # Show first industry for brevity (all are underweight if need > 0)
             industries = parse_industries(candidate.industry)
             if industries:
                 reason_parts.append(f"{industries[0]} underweight")
         reason_parts.append(f"score: {candidate.stock_score:.2f}")
+        if candidate.multiplier != 1.0:
+            reason_parts.append(f"mult: {candidate.multiplier:.1f}x")
         reason = ", ".join(reason_parts)
 
         recommendations.append(TradeRecommendation(

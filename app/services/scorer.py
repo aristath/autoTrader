@@ -24,6 +24,7 @@ class TechnicalScore:
     trend_score: float  # 0-1, price vs moving averages
     momentum_score: float  # 0-1, rate of change
     volatility_score: float  # 0-1, lower volatility = higher score
+    volatility_raw: float  # Raw annualized volatility (0.0-1.0)
     total: float  # Weighted combination
 
 
@@ -131,6 +132,7 @@ def calculate_technical_score(symbol: str, yahoo_symbol: str = None) -> Optional
             trend_score=round(trend_score, 3),
             momentum_score=round(momentum_score, 3),
             volatility_score=round(volatility_score, 3),
+            volatility_raw=round(volatility, 4),
             total=round(total, 3),
         )
 
@@ -279,7 +281,7 @@ def calculate_stock_score(symbol: str, yahoo_symbol: str = None) -> Optional[Sto
 
     # Create default scores if missing
     if not technical:
-        technical = TechnicalScore(0.5, 0.5, 0.5, 0.5)
+        technical = TechnicalScore(0.5, 0.5, 0.5, 0.25, 0.5)  # Default 25% volatility
     if not analyst:
         analyst = AnalystScore(0.5, 0.5, 0.5)
     if not fundamental:
@@ -328,8 +330,8 @@ async def score_all_stocks(db) -> list[StockScore]:
                 """
                 INSERT OR REPLACE INTO scores
                 (symbol, technical_score, analyst_score, fundamental_score,
-                 total_score, calculated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                 total_score, volatility, calculated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     symbol,
@@ -337,6 +339,7 @@ async def score_all_stocks(db) -> list[StockScore]:
                     score.analyst.total,
                     score.fundamental.total,
                     score.total_score,
+                    score.technical.volatility_raw,
                     score.calculated_at.isoformat(),
                 ),
             )

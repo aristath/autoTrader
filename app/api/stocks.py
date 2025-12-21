@@ -25,6 +25,7 @@ class StockUpdate(BaseModel):
     yahoo_symbol: Optional[str] = None  # Explicit Yahoo Finance symbol override
     geography: Optional[str] = None
     industry: Optional[str] = None
+    priority_multiplier: Optional[float] = None  # Manual priority adjustment (0.1 to 3.0)
     active: Optional[bool] = None
 
 
@@ -36,9 +37,12 @@ async def get_stocks(db: aiosqlite.Connection = Depends(get_db)):
     geo_devs = {g.name: g.deviation for g in summary.geographic_allocations}
     ind_devs = {i.name: i.deviation for i in summary.industry_allocations}
 
+    total_value = summary.total_value or 1  # Avoid division by zero
+
     cursor = await db.execute("""
         SELECT s.*, sc.technical_score, sc.analyst_score,
-               sc.fundamental_score, sc.total_score, sc.calculated_at,
+               sc.fundamental_score, sc.total_score, sc.volatility,
+               sc.calculated_at,
                p.quantity as shares, p.current_price, p.avg_price,
                p.market_value_eur as position_value
         FROM stocks s
@@ -52,24 +56,84 @@ async def get_stocks(db: aiosqlite.Connection = Depends(get_db)):
     for row in rows:
         stock = dict(row)
         stock_score = stock.get("total_score") or 0
+        volatility = stock.get("volatility")
+        multiplier = stock.get("priority_multiplier") or 1.0
         geo = stock.get("geography")
         industries = parse_industries(stock.get("industry"))
+        position_value = stock.get("position_value") or 0
 
-        # Calculate needs (positive = underweight = higher priority)
-        # deviation is current% - target%, so negative means underweight
-        geo_need = max(0, -geo_devs.get(geo, 0))
+        # 1. Stock quality with conviction boost (high scorers get extra)
+        conviction_boost = max(0, (stock_score - 0.5) * 0.4) if stock_score > 0.5 else 0
+        quality = stock_score + conviction_boost
 
-        ind_need = 0
+        # 2. Non-linear urgency for allocation deviations
+        geo_dev = geo_devs.get(geo, 0)
+        geo_urgency = calculate_urgency(-geo_dev)  # Negative dev = underweight
+
+        ind_urgency = 0
         if industries:
-            ind_needs = [max(0, -ind_devs.get(ind, 0)) for ind in industries]
-            ind_need = sum(ind_needs) / len(ind_needs)
+            ind_urgencies = [calculate_urgency(-ind_devs.get(ind, 0)) for ind in industries]
+            ind_urgency = sum(ind_urgencies) / len(ind_urgencies)
 
-        priority_score = stock_score + geo_need + ind_need
+        urgency = geo_urgency * 0.6 + ind_urgency * 0.4
+
+        # 3. Diversification penalty (reduce priority for concentrated positions)
+        position_pct = position_value / total_value if total_value > 0 else 0
+        geo_overweight = max(0, geo_dev)
+        ind_overweight = max(0, sum(ind_devs.get(ind, 0) for ind in industries) / max(1, len(industries))) if industries else 0
+        diversification = 1.0 - calculate_diversification_penalty(position_pct, geo_overweight, ind_overweight)
+
+        # 4. Risk adjustment based on volatility (lower vol = higher score)
+        risk_adj = calculate_risk_adjustment(volatility)
+
+        # Weighted combination (quality 35%, urgency 30%, diversification 20%, risk 15%)
+        raw_priority = (
+            quality * 0.35 +
+            urgency * 0.30 +
+            diversification * 0.20 +
+            risk_adj * 0.15
+        )
+
+        # Apply manual multiplier
+        priority_score = raw_priority * multiplier
         stock["priority_score"] = round(priority_score, 3)
 
         stocks.append(stock)
 
     return stocks
+
+
+def calculate_urgency(deviation: float) -> float:
+    """Non-linear urgency: larger deviations get higher priority."""
+    abs_dev = abs(deviation)
+    if abs_dev < 0.02:  # < 2%
+        return abs_dev * 0.5  # Reduced urgency
+    elif abs_dev < 0.05:  # 2-5%
+        return 0.01 + (abs_dev - 0.02) * 2
+    else:  # > 5%
+        return 0.07 + (abs_dev - 0.05) * 3
+
+
+def calculate_diversification_penalty(
+    position_pct: float,
+    geo_overweight: float,
+    industry_overweight: float
+) -> float:
+    """Penalty for concentrated positions."""
+    position_penalty = min(0.3, position_pct * 3)  # 10% position = 0.3 penalty
+    geo_penalty = max(0, geo_overweight * 0.5)
+    industry_penalty = max(0, industry_overweight * 0.5)
+
+    total_penalty = position_penalty * 0.4 + geo_penalty * 0.3 + industry_penalty * 0.3
+    return min(0.5, total_penalty)  # Cap at 0.5
+
+
+def calculate_risk_adjustment(volatility: float) -> float:
+    """Lower score for higher volatility."""
+    if volatility is None:
+        return 0.5  # Neutral if unknown
+    # 15% vol = 1.0, 50% vol = 0.0
+    return max(0, min(1, 1 - (volatility - 0.15) / 0.35))
 
 
 @router.get("/{symbol}")
@@ -121,8 +185,8 @@ async def refresh_stock_score(symbol: str, db: aiosqlite.Connection = Depends(ge
             """
             INSERT OR REPLACE INTO scores
             (symbol, technical_score, analyst_score, fundamental_score,
-             total_score, calculated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+             total_score, volatility, calculated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 symbol,
@@ -130,6 +194,7 @@ async def refresh_stock_score(symbol: str, db: aiosqlite.Connection = Depends(ge
                 score.analyst.total,
                 score.fundamental.total,
                 score.total_score,
+                score.technical.volatility_raw,
                 score.calculated_at.isoformat(),
             ),
         )
@@ -141,6 +206,7 @@ async def refresh_stock_score(symbol: str, db: aiosqlite.Connection = Depends(ge
             "technical": score.technical.total,
             "analyst": score.analyst.total,
             "fundamental": score.fundamental.total,
+            "volatility": score.technical.volatility_raw,
         }
 
     raise HTTPException(status_code=500, detail="Failed to calculate score")
@@ -279,6 +345,12 @@ async def update_stock(
     if update.industry is not None:
         updates.append("industry = ?")
         values.append(update.industry)
+
+    if update.priority_multiplier is not None:
+        # Clamp multiplier between 0.1 and 3.0
+        multiplier = max(0.1, min(3.0, update.priority_multiplier))
+        updates.append("priority_multiplier = ?")
+        values.append(multiplier)
 
     if update.active is not None:
         updates.append("active = ?")

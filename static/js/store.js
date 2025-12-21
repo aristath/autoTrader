@@ -501,6 +501,34 @@ document.addEventListener('alpine:init', () => {
       this.loading.stockSave = false;
     },
 
+    // Update stock multiplier (inline editing)
+    async updateMultiplier(symbol, value) {
+      const multiplier = parseFloat(value) || 1.0;
+      // Clamp between 0.1 and 3.0
+      const clamped = Math.max(0.1, Math.min(3.0, multiplier));
+
+      try {
+        const res = await fetch(`/api/stocks/${symbol}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ priority_multiplier: clamped })
+        });
+
+        if (res.ok) {
+          // Update local state
+          const stock = this.stocks.find(s => s.symbol === symbol);
+          if (stock) {
+            stock.priority_multiplier = clamped;
+          }
+          await this.fetchStocks();  // Refresh to get updated priority scores
+        } else {
+          this.showMessage('Failed to update multiplier', 'error');
+        }
+      } catch (e) {
+        this.showMessage('Failed to update multiplier', 'error');
+      }
+    },
+
     // Utilities
     showMessage(msg, type) {
       this.message = msg;

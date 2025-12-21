@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS stocks (
     name TEXT NOT NULL,
     industry TEXT,
     geography TEXT NOT NULL,
+    priority_multiplier REAL DEFAULT 1,
     active INTEGER DEFAULT 1
 );
 
@@ -69,6 +70,7 @@ CREATE TABLE IF NOT EXISTS scores (
     analyst_score REAL,
     fundamental_score REAL,
     total_score REAL,
+    volatility REAL,
     calculated_at TEXT,
     FOREIGN KEY (symbol) REFERENCES stocks(symbol)
 );

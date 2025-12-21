@@ -87,13 +87,13 @@ function formatPriority(value) {
 
 /**
  * Get CSS class for priority score value
- * @param {number|null} score - Priority score (0-3 range)
+ * @param {number|null} score - Priority score (0-1.5 range, can be higher with multipliers)
  * @returns {string} CSS class name
  */
 function getPriorityClass(score) {
   if (score == null) return 'priority--low';
-  if (score >= 2.0) return 'priority--high';    // Strong buy signal
-  if (score >= 1.0) return 'priority--medium';  // Moderate priority
+  if (score >= 0.6) return 'priority--high';    // Strong buy signal
+  if (score >= 0.4) return 'priority--medium';  // Moderate priority
   return 'priority--low';                        // Low priority
 }
 

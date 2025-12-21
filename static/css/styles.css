@@ -972,6 +972,40 @@ body {
   color: var(--color-text-muted);
 }
 
+/* Multiplier Input */
+.multiplier-input {
+  width: 3.5rem;
+  padding: 0.25rem 0.35rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-family: ui-monospace, monospace;
+  text-align: center;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.multiplier-input:hover {
+  border-color: var(--color-text-muted);
+}
+
+.multiplier-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* Hide number input spinners */
+.multiplier-input::-webkit-outer-spin-button,
+.multiplier-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.multiplier-input[type=number] {
+  -moz-appearance: textfield;
+}
+
 /* ========================================
    Industry Bar
    ======================================== */

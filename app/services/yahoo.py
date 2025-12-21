@@ -344,7 +344,7 @@ def get_stock_industry(symbol: str, yahoo_symbol: str = None) -> Optional[str]:
         return None
 
 
-def get_batch_quotes(symbol_yahoo_map: dict[str, str | None]) -> dict[str, float]:
+def get_batch_quotes(symbol_yahoo_map: dict[str, Optional[str]]) -> dict[str, float]:
     """
     Get current prices for multiple symbols efficiently.
 
