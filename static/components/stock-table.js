@@ -78,18 +78,6 @@ class StockTable extends HTMLElement {
                   <span class="sort-indicator" x-show="$store.app.sortBy === 'industry'"
                         x-text="$store.app.sortDesc ? '\\u25BC' : '\\u25B2'"></span>
                 </th>
-                <th @click="$store.app.sortStocks('current_price')"
-                    class="table__col--sortable table__col--right">
-                  Price
-                  <span class="sort-indicator" x-show="$store.app.sortBy === 'current_price'"
-                        x-text="$store.app.sortDesc ? '\\u25BC' : '\\u25B2'"></span>
-                </th>
-                <th @click="$store.app.sortStocks('shares')"
-                    class="table__col--sortable table__col--right">
-                  Shares
-                  <span class="sort-indicator" x-show="$store.app.sortBy === 'shares'"
-                        x-text="$store.app.sortDesc ? '\\u25BC' : '\\u25B2'"></span>
-                </th>
                 <th @click="$store.app.sortStocks('position_value')"
                     class="table__col--sortable table__col--right">
                   Value
@@ -126,10 +114,6 @@ class StockTable extends HTMLElement {
                     <span class="tag" :class="getGeoTagClass(stock.geography)" x-text="stock.geography"></span>
                   </td>
                   <td class="table__col--muted table__col--truncate" x-text="stock.industry || '-'"></td>
-                  <td class="table__col--right table__col--mono"
-                      x-text="stock.current_price ? formatCurrency(stock.current_price) : '-'"></td>
-                  <td class="table__col--right"
-                      x-text="stock.shares || '-'"></td>
                   <td class="table__col--right table__col--mono"
                       :class="stock.position_value ? 'table__col--value' : ''"
                       x-text="stock.position_value ? formatCurrency(stock.position_value) : '-'"></td>
