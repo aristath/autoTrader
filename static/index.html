@@ -169,14 +169,22 @@
 
             <!-- Industry Allocation -->
             <div class="bg-gray-800 rounded-lg p-4">
-                <h2 class="text-lg font-semibold mb-4">Industry Allocation</h2>
-                <div class="space-y-3">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold">Industry Allocation</h2>
+                    <button x-show="!editingIndustry" @click="startEditIndustry()"
+                            class="text-sm text-purple-400 hover:text-purple-300">
+                        Edit Targets
+                    </button>
+                </div>
+
+                <!-- View Mode -->
+                <div x-show="!editingIndustry" class="space-y-3">
                     <template x-for="ind in allocation.industry" :key="ind.name">
                         <div>
                             <div class="flex justify-between text-sm mb-1">
                                 <span x-text="ind.name"></span>
                                 <span :class="Math.abs(ind.deviation) < 0.05 ? 'text-green-400' : 'text-yellow-400'">
-                                    <span x-text="(ind.current_pct * 100).toFixed(1)"></span>%
+                                    <span x-text="(ind.current_pct * 100).toFixed(1)"></span>% / <span x-text="(ind.target_pct * 100).toFixed(0)"></span>%
                                 </span>
                             </div>
                             <div class="w-full bg-gray-700 rounded-full h-2">
@@ -185,6 +193,42 @@
                             </div>
                         </div>
                     </template>
+                </div>
+
+                <!-- Edit Mode: Sliders -->
+                <div x-show="editingIndustry" x-transition class="space-y-3">
+                    <template x-for="name in ['Technology', 'Healthcare', 'Finance', 'Consumer', 'Industrial']" :key="name">
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-sm">
+                                <span x-text="name"></span>
+                                <span class="text-purple-400 font-mono" x-text="industryTargets[name] + '%'"></span>
+                            </div>
+                            <input type="range" min="0" max="100" :value="industryTargets[name]"
+                                   @input="adjustIndustrySlider(name, parseInt($event.target.value))"
+                                   class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500">
+                        </div>
+                    </template>
+
+                    <!-- Total & Validation -->
+                    <div class="flex justify-between text-sm border-t border-gray-700 pt-3">
+                        <span class="text-gray-400">Total</span>
+                        <span :class="industryTotal === 100 ? 'text-green-400' : 'text-red-400'" class="font-mono font-bold"
+                              x-text="industryTotal + '%'"></span>
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="flex space-x-2 pt-2">
+                        <button @click="cancelEditIndustry()"
+                                class="flex-1 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+                            Cancel
+                        </button>
+                        <button @click="saveIndustryTargets()"
+                                :disabled="industryTotal !== 100 || loading.industrySave"
+                                class="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-sm flex items-center justify-center">
+                            <span x-show="loading.industrySave" class="animate-spin mr-2">&#9696;</span>
+                            Save
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -417,12 +461,14 @@
                 sortDesc: true,
                 showRebalanceModal: false,
                 rebalancePreview: null,
-                loading: { rebalance: false, scores: false, sync: false, execute: false, geoSave: false },
+                loading: { rebalance: false, scores: false, sync: false, execute: false, geoSave: false, industrySave: false },
                 message: '',
                 messageType: 'success',
                 geoChart: null,
                 editingGeo: false,
                 geoTargets: { EU: 50, ASIA: 30, US: 20 },
+                editingIndustry: false,
+                industryTargets: { Technology: 20, Healthcare: 20, Finance: 20, Consumer: 20, Industrial: 20 },
 
                 async init() {
                     await this.fetchAll();
@@ -664,6 +710,87 @@
                         this.showMessage('Failed to save targets', 'error');
                     }
                     this.loading.geoSave = false;
+                },
+
+                get industryTotal() {
+                    return Math.round(
+                        this.industryTargets.Technology + this.industryTargets.Healthcare +
+                        this.industryTargets.Finance + this.industryTargets.Consumer +
+                        this.industryTargets.Industrial
+                    );
+                },
+
+                startEditIndustry() {
+                    if (this.allocation.industry) {
+                        this.allocation.industry.forEach(ind => {
+                            if (this.industryTargets.hasOwnProperty(ind.name)) {
+                                this.industryTargets[ind.name] = Math.round(ind.target_pct * 100);
+                            }
+                        });
+                    }
+                    this.editingIndustry = true;
+                },
+
+                cancelEditIndustry() {
+                    this.editingIndustry = false;
+                },
+
+                adjustIndustrySlider(changed, newValue) {
+                    const industries = ['Technology', 'Healthcare', 'Finance', 'Consumer', 'Industrial'];
+                    const others = industries.filter(i => i !== changed);
+                    const remaining = 100 - newValue;
+                    const otherTotal = others.reduce((sum, i) => sum + this.industryTargets[i], 0);
+
+                    if (otherTotal === 0) {
+                        const each = Math.floor(remaining / others.length);
+                        others.forEach((i, idx) => {
+                            this.industryTargets[i] = idx === others.length - 1 ? remaining - each * (others.length - 1) : each;
+                        });
+                    } else {
+                        let distributed = 0;
+                        others.forEach((i, idx) => {
+                            if (idx === others.length - 1) {
+                                this.industryTargets[i] = remaining - distributed;
+                            } else {
+                                const ratio = this.industryTargets[i] / otherTotal;
+                                const val = Math.round(remaining * ratio);
+                                this.industryTargets[i] = val;
+                                distributed += val;
+                            }
+                        });
+                    }
+                    this.industryTargets[changed] = newValue;
+                },
+
+                async saveIndustryTargets() {
+                    if (this.industryTotal !== 100) {
+                        this.showMessage('Targets must sum to 100%', 'error');
+                        return;
+                    }
+                    this.loading.industrySave = true;
+                    try {
+                        const res = await fetch('/api/allocation/targets/industry', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                Technology: this.industryTargets.Technology / 100,
+                                Healthcare: this.industryTargets.Healthcare / 100,
+                                Finance: this.industryTargets.Finance / 100,
+                                Consumer: this.industryTargets.Consumer / 100,
+                                Industrial: this.industryTargets.Industrial / 100
+                            })
+                        });
+                        if (res.ok) {
+                            this.showMessage('Industry targets updated', 'success');
+                            this.editingIndustry = false;
+                            await this.fetchAllocation();
+                        } else {
+                            this.showMessage('Failed to save targets', 'error');
+                        }
+                    } catch (e) {
+                        this.showMessage('Failed to save targets', 'error');
+                    }
+                    this.loading.industrySave = false;
                 },
 
                 showMessage(msg, type) {
