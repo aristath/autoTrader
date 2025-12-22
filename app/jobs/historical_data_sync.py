@@ -143,9 +143,13 @@ async def _fetch_and_store_prices(
         ohlc_data = client.get_historical_prices(symbol, start=start, end=end)
         
         if not ohlc_data:
+            logger.debug(f"No price data returned for {symbol} from {start.date()} to {end.date()}")
             return
         
+        logger.debug(f"Fetched {len(ohlc_data)} price records for {symbol} from {start.date()} to {end.date()}")
+        
         now = datetime.now().isoformat()
+        stored_count = 0
         for ohlc in ohlc_data:
             date = ohlc.timestamp.strftime("%Y-%m-%d")
             await db.execute("""
