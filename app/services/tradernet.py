@@ -410,12 +410,14 @@ class TradernetClient:
 
     def get_cash_movements(self) -> dict:
         """
-        Get total deposits and withdrawals from account.
+        Get withdrawal history from account.
+
+        Note: The Tradernet API only returns withdrawal records (type_doc_id=337).
+        Deposits are NOT available via API and must be tracked manually.
 
         Returns dict with:
-        - total_deposits: Sum of all deposits in EUR
-        - total_withdrawals: Sum of all withdrawals in EUR
-        - net_deposits: total_deposits - total_withdrawals
+        - total_withdrawals: Sum of all completed withdrawals in EUR
+        - withdrawals: List of individual withdrawal transactions
         """
         import json as json_lib
 
@@ -424,22 +426,23 @@ class TradernetClient:
 
         try:
             with _led_api_call():
-                # Get cash movement history
-                # status_c: 3 = completed transactions
+                # Get client history - only withdrawals (337) are returned
                 history = self._client.authorized_request(
                     "getClientCpsHistory",
                     {"limit": 500},
                     version=2
                 )
 
-            total_deposits = 0.0
             total_withdrawals = 0.0
+            withdrawals = []
 
             # Parse the response - it's a list of transactions
             records = history if isinstance(history, list) else []
 
             for record in records:
-                # Only process completed transactions (status_c = 3)
+                # Only process completed withdrawals (type_doc_id=337, status_c=3)
+                if record.get("type_doc_id") != 337:
+                    continue
                 if record.get("status_c") != 3:
                     continue
 
@@ -450,38 +453,31 @@ class TradernetClient:
                 except json_lib.JSONDecodeError:
                     continue
 
-                type_doc_id = record.get("type_doc_id")
                 currency = params.get("currency", "EUR")
+                amount = float(params.get("totalMoneyOut", 0))
 
-                # Determine amount and type
-                # type_doc_id 337 = withdrawal
-                # type_doc_id 336 or others = deposit
-                if type_doc_id == 337:  # Withdrawal
-                    amount = float(params.get("totalMoneyOut", 0))
-                    if currency != "EUR" and amount > 0:
-                        rate = get_exchange_rate(currency, "EUR")
-                        if rate > 0:
-                            amount = amount / rate
-                    total_withdrawals += abs(amount)
-                elif type_doc_id in [336, 335, 334]:  # Various deposit types
-                    amount = float(params.get("amount", params.get("totalMoneyIn", 0)))
-                    if currency != "EUR" and amount > 0:
-                        rate = get_exchange_rate(currency, "EUR")
-                        if rate > 0:
-                            amount = amount / rate
-                    total_deposits += abs(amount)
+                # Convert to EUR if needed
+                if currency != "EUR" and amount > 0:
+                    rate = get_exchange_rate(currency, "EUR")
+                    if rate > 0:
+                        amount = amount / rate
+
+                total_withdrawals += amount
+                withdrawals.append({
+                    "date": record.get("date_crt", "")[:10],
+                    "amount_eur": round(amount, 2),
+                    "currency": currency,
+                })
 
             return {
-                "total_deposits": round(total_deposits, 2),
                 "total_withdrawals": round(total_withdrawals, 2),
-                "net_deposits": round(total_deposits - total_withdrawals, 2),
+                "withdrawals": withdrawals,
             }
         except Exception as e:
             logger.error(f"Failed to get cash movements: {e}")
             return {
-                "total_deposits": 0,
                 "total_withdrawals": 0,
-                "net_deposits": 0,
+                "withdrawals": [],
                 "error": str(e),
             }
 

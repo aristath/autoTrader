@@ -119,9 +119,13 @@ async def set_manual_deposits(
     return {"message": "Manual deposits updated", "amount": deposits.amount}
 
 
-@router.get("/debug/cashflows")
-async def debug_cashflows():
-    """Debug endpoint to inspect Tradernet cashflows API response."""
+@router.get("/transactions")
+async def get_transaction_history():
+    """
+    Get withdrawal transaction history from Tradernet API.
+
+    Note: Only withdrawals are available via API. Deposits must be tracked manually.
+    """
     from app.services.tradernet import get_tradernet_client
 
     client = get_tradernet_client()
@@ -130,29 +134,14 @@ async def debug_cashflows():
             return {"error": "Not connected to Tradernet"}
 
     try:
-        # Try the getCashflows endpoint
-        result = client._client.authorized_request("getCashflows", {"limit": 100}, version=2)
-        return {"endpoint": "getCashflows", "raw_response": result}
+        cash_movements = client.get_cash_movements()
+        return {
+            "total_withdrawals": cash_movements.get("total_withdrawals", 0),
+            "withdrawals": cash_movements.get("withdrawals", []),
+            "note": "Deposits are not available via API - use manual deposits setting",
+        }
     except Exception as e:
-        return {"error": str(e), "endpoint": "getCashflows"}
-
-
-@router.get("/debug/cps-history")
-async def debug_cps_history():
-    """Debug endpoint to inspect Tradernet CPS history API response."""
-    from app.services.tradernet import get_tradernet_client
-
-    client = get_tradernet_client()
-    if not client.is_connected:
-        if not client.connect():
-            return {"error": "Not connected to Tradernet"}
-
-    try:
-        # Current endpoint we're using
-        result = client._client.authorized_request("getClientCpsHistory", {"limit": 100}, version=2)
-        return {"endpoint": "getClientCpsHistory", "raw_response": result}
-    except Exception as e:
-        return {"error": str(e), "endpoint": "getClientCpsHistory"}
+        return {"error": str(e)}
 
 
 @router.get("/pnl")
@@ -160,8 +149,11 @@ async def get_portfolio_pnl(db: aiosqlite.Connection = Depends(get_db)):
     """
     Get portfolio profit/loss.
 
-    Calculates: Total P&L = Current Total Value - Net Deposits
-    Where Net Deposits = Manual Deposits - Withdrawals
+    Formula: P&L = Current Portfolio Value - Net Investment
+    Where: Net Investment = Manual Deposits - Total Withdrawals
+
+    Note: The Tradernet API only provides withdrawal history.
+    Deposits must be entered manually via the /deposits endpoint.
     """
     from app.services.tradernet import get_tradernet_client
 
@@ -189,18 +181,19 @@ async def get_portfolio_pnl(db: aiosqlite.Connection = Depends(get_db)):
         row = await cursor.fetchone()
         manual_deposits = float(row["value"]) if row else 0.0
 
-        # Calculate net deposits (manual deposits - withdrawals)
-        net_deposits = manual_deposits - total_withdrawals
+        # Calculate net investment (what's still invested after withdrawals)
+        net_investment = manual_deposits - total_withdrawals
 
         # Calculate P&L
-        pnl = total_value - net_deposits
-        pnl_pct = (pnl / net_deposits * 100) if net_deposits > 0 else 0
+        # Positive = profit, Negative = loss
+        pnl = total_value - net_investment
+        pnl_pct = (pnl / net_investment * 100) if net_investment > 0 else 0
 
         return {
             "total_value": round(total_value, 2),
             "manual_deposits": manual_deposits,
             "total_withdrawals": total_withdrawals,
-            "net_deposits": round(net_deposits, 2),
+            "net_investment": round(net_investment, 2),
             "pnl": round(pnl, 2),
             "pnl_pct": round(pnl_pct, 2),
             "deposits_set": manual_deposits > 0,
