@@ -89,9 +89,9 @@ class EditStockModal extends HTMLElement {
                   <button type="button"
                           @click="$store.app.editingStock.allow_buy = !$store.app.editingStock.allow_buy"
                           :class="$store.app.editingStock.allow_buy ? 'bg-green-600' : 'bg-gray-600'"
-                          class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors">
-                    <span :class="$store.app.editingStock.allow_buy ? 'translate-x-6' : 'translate-x-1'"
-                          class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"></span>
+                          class="relative w-11 h-6 rounded-full transition-colors flex-shrink-0">
+                    <span :class="$store.app.editingStock.allow_buy ? 'left-6' : 'left-1'"
+                          class="absolute top-1 w-4 h-4 rounded-full bg-white transition-all"></span>
                   </button>
                 </div>
 
@@ -103,9 +103,9 @@ class EditStockModal extends HTMLElement {
                   <button type="button"
                           @click="$store.app.editingStock.allow_sell = !$store.app.editingStock.allow_sell"
                           :class="$store.app.editingStock.allow_sell ? 'bg-red-600' : 'bg-gray-600'"
-                          class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors">
-                    <span :class="$store.app.editingStock.allow_sell ? 'translate-x-6' : 'translate-x-1'"
-                          class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"></span>
+                          class="relative w-11 h-6 rounded-full transition-colors flex-shrink-0">
+                    <span :class="$store.app.editingStock.allow_sell ? 'left-6' : 'left-1'"
+                          class="absolute top-1 w-4 h-4 rounded-full bg-white transition-all"></span>
                   </button>
                 </div>
               </div>
