@@ -76,7 +76,9 @@ async def execute_monthly_rebalance(deposit_amount: float):
             # Step 4: Execute trades using application service
             logger.info("Step 4: Executing trades...")
             trade_repo = get_trade_repository(db)
-            trade_execution_service = TradeExecutionService(trade_repo)
+            trade_execution_service = TradeExecutionService(
+                trade_repo, db=db, position_repo=position_repo
+            )
             results = await trade_execution_service.execute_trades(trades)
 
             successful = sum(1 for r in results if r["status"] == "success")

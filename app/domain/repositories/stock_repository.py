@@ -16,6 +16,8 @@ class Stock:
     priority_multiplier: float
     min_lot: int
     active: bool
+    allow_buy: bool = True
+    allow_sell: bool = False
 
 
 class StockRepository(ABC):

@@ -38,6 +38,8 @@ class StockCreate(BaseModel):
     geography: str  # EU, ASIA, US
     industry: Optional[str] = None  # Auto-detect if not provided
     min_lot: Optional[int] = 1  # Minimum lot size (e.g., 100 for Japanese stocks)
+    allow_buy: Optional[bool] = True  # Include in buy recommendations
+    allow_sell: Optional[bool] = False  # Include in sell recommendations
 
 
 class StockUpdate(BaseModel):
@@ -50,6 +52,8 @@ class StockUpdate(BaseModel):
     priority_multiplier: Optional[float] = None  # Manual priority adjustment (0.1 to 3.0)
     min_lot: Optional[int] = None  # Minimum lot size for trading
     active: Optional[bool] = None
+    allow_buy: Optional[bool] = None  # Include in buy recommendations
+    allow_sell: Optional[bool] = None  # Include in sell recommendations
 
 
 @router.get("")
@@ -158,6 +162,8 @@ async def get_stock(
         "priority_multiplier": stock.priority_multiplier,
         "min_lot": stock.min_lot,
         "active": stock.active,
+        "allow_buy": stock.allow_buy,
+        "allow_sell": stock.allow_sell,
     }
 
     if score:
@@ -226,6 +232,8 @@ async def create_stock(
         priority_multiplier=1.0,
         min_lot=min_lot,
         active=True,
+        allow_buy=stock.allow_buy if stock.allow_buy is not None else True,
+        allow_sell=stock.allow_sell if stock.allow_sell is not None else False,
     )
 
     # Insert stock
@@ -376,6 +384,10 @@ async def update_stock(
         updates["min_lot"] = max(1, update.min_lot)
     if update.active is not None:
         updates["active"] = update.active
+    if update.allow_buy is not None:
+        updates["allow_buy"] = update.allow_buy
+    if update.allow_sell is not None:
+        updates["allow_sell"] = update.allow_sell
 
     # Include symbol rename in updates if requested
     if new_symbol and new_symbol != old_symbol:
@@ -413,6 +425,8 @@ async def update_stock(
         "priority_multiplier": updated_stock.priority_multiplier,
         "min_lot": updated_stock.min_lot,
         "active": updated_stock.active,
+        "allow_buy": updated_stock.allow_buy,
+        "allow_sell": updated_stock.allow_sell,
     }
 
     if score:

@@ -1,0 +1,483 @@
+"""Sell scoring module for determining when and how much to sell.
+
+This module implements a 4-component weighted scoring model for SELL decisions:
+- Underperformance Score (40%): How poorly stock performed vs target (8-15% annual)
+- Time Held Score (25%): Longer hold with underperformance = higher sell priority
+- Portfolio Balance Score (20%): Overweight positions score higher
+- Profit Taking Score (15%): For profitable positions, lock in gains
+
+Hard Blocks (NEVER sell if any apply):
+- allow_sell=false
+- Loss >20%
+- Held <3 months
+- Last sold <6 months ago
+"""
+
+import logging
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Optional, Dict, List
+
+logger = logging.getLogger(__name__)
+
+# Constants for sell scoring
+MIN_HOLD_DAYS = 90  # 3 months minimum hold
+SELL_COOLDOWN_DAYS = 180  # 6 months between sells
+MAX_LOSS_THRESHOLD = -0.20  # Never sell if down more than 20%
+MIN_SELL_VALUE_EUR = 100  # Minimum sell value in EUR
+MIN_SELL_PCT = 0.10  # Minimum 10% of position
+MAX_SELL_PCT = 0.50  # Maximum 50% of position
+
+# Target annual return range (ideal performance)
+TARGET_RETURN_MIN = 0.08  # 8%
+TARGET_RETURN_MAX = 0.15  # 15%
+
+
+@dataclass
+class SellScore:
+    """Result of sell score calculation."""
+    symbol: str
+    eligible: bool  # Whether sell is allowed at all
+    block_reason: Optional[str]  # If not eligible, why
+    underperformance_score: float
+    time_held_score: float
+    portfolio_balance_score: float
+    profit_taking_score: float
+    total_score: float
+    suggested_sell_pct: float  # 0.10 to 0.50
+    suggested_sell_quantity: int
+    suggested_sell_value: float
+    profit_pct: float
+    days_held: int
+
+
+def calculate_underperformance_score(
+    current_price: float,
+    avg_price: float,
+    days_held: int
+) -> tuple[float, float]:
+    """
+    Calculate underperformance score based on annualized return vs target.
+
+    Returns:
+        (score, profit_pct) tuple
+    """
+    if avg_price <= 0 or days_held <= 0:
+        return 0.5, 0.0
+
+    # Calculate profit percentage
+    profit_pct = (current_price - avg_price) / avg_price
+
+    # Calculate annualized return (CAGR)
+    years_held = days_held / 365.0
+    if years_held < 0.25:  # Less than 3 months - not enough data
+        annualized_return = profit_pct  # Use simple return
+    else:
+        try:
+            annualized_return = ((current_price / avg_price) ** (1 / years_held)) - 1
+        except (ValueError, ZeroDivisionError):
+            annualized_return = profit_pct
+
+    # Score based on return vs target (8-15% annual ideal)
+    # Higher score = more reason to sell
+    if profit_pct < MAX_LOSS_THRESHOLD:
+        # BLOCKED - loss too big
+        return 0.0, profit_pct
+    elif annualized_return < -0.05:
+        # Loss of -5% to -20%: high sell priority (cut losses)
+        return 0.9, profit_pct
+    elif annualized_return < 0:
+        # Small loss (-5% to 0%): stagnant, free up capital
+        return 0.7, profit_pct
+    elif annualized_return < TARGET_RETURN_MIN:
+        # 0-8%: underperforming target
+        return 0.5, profit_pct
+    elif annualized_return <= TARGET_RETURN_MAX:
+        # 8-15%: ideal range, don't sell
+        return 0.1, profit_pct
+    else:
+        # >15%: exceeding target, consider taking profits
+        return 0.3, profit_pct
+
+
+def calculate_time_held_score(first_bought_at: Optional[str]) -> tuple[float, int]:
+    """
+    Calculate time held score. Longer hold with underperformance = higher sell priority.
+
+    Returns:
+        (score, days_held) tuple
+    """
+    if not first_bought_at:
+        # Unknown hold time - assume long enough
+        return 0.6, 365
+
+    try:
+        bought_date = datetime.fromisoformat(first_bought_at.replace('Z', '+00:00'))
+        if bought_date.tzinfo:
+            bought_date = bought_date.replace(tzinfo=None)
+        days_held = (datetime.now() - bought_date).days
+    except (ValueError, TypeError):
+        return 0.6, 365
+
+    if days_held < MIN_HOLD_DAYS:
+        # BLOCKED - held less than 3 months
+        return 0.0, days_held
+    elif days_held < 180:
+        # 3-6 months
+        return 0.3, days_held
+    elif days_held < 365:
+        # 6-12 months
+        return 0.6, days_held
+    elif days_held < 730:
+        # 12-24 months
+        return 0.8, days_held
+    else:
+        # 24+ months - if still underperforming, time to cut
+        return 1.0, days_held
+
+
+def calculate_portfolio_balance_score(
+    position_value: float,
+    total_portfolio_value: float,
+    geography: str,
+    industry: str,
+    geo_allocations: Dict[str, float],
+    ind_allocations: Dict[str, float]
+) -> float:
+    """
+    Calculate portfolio balance score. Overweight positions score higher.
+
+    Args:
+        position_value: Current position value in EUR
+        total_portfolio_value: Total portfolio value in EUR
+        geography: Stock's geography (EU, US, ASIA)
+        industry: Stock's industry
+        geo_allocations: Current geography allocation percentages
+        ind_allocations: Current industry allocation percentages
+    """
+    if total_portfolio_value <= 0:
+        return 0.5
+
+    score = 0.0
+
+    # Geography overweight (50% of this component)
+    geo_current = geo_allocations.get(geography, 0)
+    # Higher allocation = more reason to sell from this region
+    geo_score = min(1.0, geo_current / 0.5)  # Normalize to ~1.0 at 50% allocation
+    score += geo_score * 0.5
+
+    # Industry overweight (30% of this component)
+    # Handle multiple industries
+    if industry:
+        industries = [i.strip() for i in industry.split(',')]
+        ind_scores = []
+        for ind in industries:
+            ind_current = ind_allocations.get(ind, 0)
+            ind_scores.append(min(1.0, ind_current / 0.3))  # Normalize to ~1.0 at 30%
+        ind_score = sum(ind_scores) / len(ind_scores) if ind_scores else 0.5
+    else:
+        ind_score = 0.5
+    score += ind_score * 0.3
+
+    # Concentration risk (20% of this component)
+    position_pct = position_value / total_portfolio_value
+    if position_pct > 0.10:
+        # >10% in one position - high concentration
+        conc_score = min(1.0, position_pct / 0.15)
+    else:
+        conc_score = position_pct / 0.10
+    score += conc_score * 0.2
+
+    return score
+
+
+def calculate_profit_taking_score(profit_pct: float) -> float:
+    """
+    Calculate profit taking score for profitable positions.
+    Higher profit = more reason to lock in gains.
+    """
+    if profit_pct < 0.05:
+        # Not profitable enough - no profit-taking score
+        return 0.0
+    elif profit_pct < 0.15:
+        # 5-15% profit
+        return 0.2
+    elif profit_pct < 0.30:
+        # 15-30% profit
+        return 0.4
+    elif profit_pct < 0.50:
+        # 30-50% profit
+        return 0.7
+    else:
+        # >50% profit - excellent time to take profits
+        return 1.0
+
+
+def check_sell_eligibility(
+    allow_sell: bool,
+    profit_pct: float,
+    first_bought_at: Optional[str],
+    last_sold_at: Optional[str]
+) -> tuple[bool, Optional[str]]:
+    """
+    Check if selling is allowed based on hard blocks.
+
+    Returns:
+        (is_eligible, block_reason) tuple
+    """
+    # Check allow_sell flag
+    if not allow_sell:
+        return False, "allow_sell=false"
+
+    # Check loss threshold
+    if profit_pct < MAX_LOSS_THRESHOLD:
+        return False, f"Loss {profit_pct*100:.1f}% exceeds -20% threshold"
+
+    # Check minimum hold time
+    if first_bought_at:
+        try:
+            bought_date = datetime.fromisoformat(first_bought_at.replace('Z', '+00:00'))
+            if bought_date.tzinfo:
+                bought_date = bought_date.replace(tzinfo=None)
+            days_held = (datetime.now() - bought_date).days
+            if days_held < MIN_HOLD_DAYS:
+                return False, f"Held only {days_held} days (min {MIN_HOLD_DAYS})"
+        except (ValueError, TypeError):
+            pass  # Unknown date - allow
+
+    # Check cooldown from last sell
+    if last_sold_at:
+        try:
+            sold_date = datetime.fromisoformat(last_sold_at.replace('Z', '+00:00'))
+            if sold_date.tzinfo:
+                sold_date = sold_date.replace(tzinfo=None)
+            days_since_sell = (datetime.now() - sold_date).days
+            if days_since_sell < SELL_COOLDOWN_DAYS:
+                return False, f"Sold {days_since_sell} days ago (cooldown {SELL_COOLDOWN_DAYS})"
+        except (ValueError, TypeError):
+            pass  # Unknown date - allow
+
+    return True, None
+
+
+def determine_sell_quantity(
+    sell_score: float,
+    quantity: float,
+    min_lot: int,
+    current_price: float
+) -> tuple[int, float]:
+    """
+    Determine how much to sell based on score.
+
+    Returns:
+        (quantity_to_sell, sell_pct) tuple
+    """
+    # Calculate sell percentage based on score (10% to 50%)
+    sell_pct = min(MAX_SELL_PCT, max(MIN_SELL_PCT, MIN_SELL_PCT + (sell_score * 0.40)))
+
+    # Calculate raw quantity
+    raw_quantity = quantity * sell_pct
+
+    # Round to min_lot
+    if min_lot > 1:
+        sell_quantity = int(raw_quantity // min_lot) * min_lot
+    else:
+        sell_quantity = int(raw_quantity)
+
+    # Ensure we don't sell everything (keep at least 1 lot)
+    max_sell = quantity - min_lot
+    if sell_quantity >= max_sell:
+        sell_quantity = int(max_sell // min_lot) * min_lot if min_lot > 1 else int(max_sell)
+
+    # Ensure minimum sell quantity
+    if sell_quantity < min_lot:
+        sell_quantity = 0  # Can't sell less than min_lot
+
+    # Check minimum value
+    sell_value = sell_quantity * current_price
+    if sell_value < MIN_SELL_VALUE_EUR:
+        sell_quantity = 0  # Below minimum value threshold
+        sell_pct = 0
+    else:
+        # Recalculate actual sell percentage
+        sell_pct = sell_quantity / quantity if quantity > 0 else 0
+
+    return sell_quantity, sell_pct
+
+
+def calculate_sell_score(
+    symbol: str,
+    quantity: float,
+    avg_price: float,
+    current_price: float,
+    min_lot: int,
+    allow_sell: bool,
+    first_bought_at: Optional[str],
+    last_sold_at: Optional[str],
+    geography: str,
+    industry: str,
+    total_portfolio_value: float,
+    geo_allocations: Dict[str, float],
+    ind_allocations: Dict[str, float]
+) -> SellScore:
+    """
+    Calculate complete sell score for a position.
+
+    Args:
+        symbol: Stock symbol
+        quantity: Current position quantity
+        avg_price: Average purchase price
+        current_price: Current market price
+        min_lot: Minimum lot size for this stock
+        allow_sell: Whether selling is enabled for this stock
+        first_bought_at: When position was first opened
+        last_sold_at: When position was last sold (for cooldown)
+        geography: Stock's geography
+        industry: Stock's industry (comma-separated if multiple)
+        total_portfolio_value: Total portfolio value in EUR
+        geo_allocations: Current geography allocation percentages
+        ind_allocations: Current industry allocation percentages
+
+    Returns:
+        SellScore with all components and recommendations
+    """
+    # Calculate position value
+    position_value = quantity * current_price
+
+    # Calculate profit percentage
+    profit_pct = (current_price - avg_price) / avg_price if avg_price > 0 else 0
+
+    # Check eligibility (hard blocks)
+    eligible, block_reason = check_sell_eligibility(
+        allow_sell, profit_pct, first_bought_at, last_sold_at
+    )
+
+    # Calculate time held
+    time_held_score, days_held = calculate_time_held_score(first_bought_at)
+
+    # If blocked by time held, mark as ineligible
+    if time_held_score == 0.0 and first_bought_at and days_held < MIN_HOLD_DAYS:
+        eligible = False
+        block_reason = block_reason or f"Held only {days_held} days (min {MIN_HOLD_DAYS})"
+
+    if not eligible:
+        return SellScore(
+            symbol=symbol,
+            eligible=False,
+            block_reason=block_reason,
+            underperformance_score=0,
+            time_held_score=0,
+            portfolio_balance_score=0,
+            profit_taking_score=0,
+            total_score=0,
+            suggested_sell_pct=0,
+            suggested_sell_quantity=0,
+            suggested_sell_value=0,
+            profit_pct=profit_pct,
+            days_held=days_held
+        )
+
+    # Calculate component scores
+    underperformance_score, _ = calculate_underperformance_score(
+        current_price, avg_price, days_held
+    )
+
+    # If underperformance score is 0 (big loss), block the sell
+    if underperformance_score == 0.0 and profit_pct < MAX_LOSS_THRESHOLD:
+        return SellScore(
+            symbol=symbol,
+            eligible=False,
+            block_reason=f"Loss {profit_pct*100:.1f}% exceeds -20% threshold",
+            underperformance_score=0,
+            time_held_score=time_held_score,
+            portfolio_balance_score=0,
+            profit_taking_score=0,
+            total_score=0,
+            suggested_sell_pct=0,
+            suggested_sell_quantity=0,
+            suggested_sell_value=0,
+            profit_pct=profit_pct,
+            days_held=days_held
+        )
+
+    portfolio_balance_score = calculate_portfolio_balance_score(
+        position_value, total_portfolio_value,
+        geography, industry,
+        geo_allocations, ind_allocations
+    )
+
+    profit_taking_score = calculate_profit_taking_score(profit_pct)
+
+    # Calculate total score (weighted)
+    total_score = (
+        (underperformance_score * 0.40) +
+        (time_held_score * 0.25) +
+        (portfolio_balance_score * 0.20) +
+        (profit_taking_score * 0.15)
+    )
+
+    # Determine sell quantity
+    sell_quantity, sell_pct = determine_sell_quantity(
+        total_score, quantity, min_lot, current_price
+    )
+    sell_value = sell_quantity * current_price
+
+    return SellScore(
+        symbol=symbol,
+        eligible=sell_quantity > 0,
+        block_reason=None if sell_quantity > 0 else "Below minimum sell value",
+        underperformance_score=round(underperformance_score, 3),
+        time_held_score=round(time_held_score, 3),
+        portfolio_balance_score=round(portfolio_balance_score, 3),
+        profit_taking_score=round(profit_taking_score, 3),
+        total_score=round(total_score, 3),
+        suggested_sell_pct=round(sell_pct, 3),
+        suggested_sell_quantity=sell_quantity,
+        suggested_sell_value=round(sell_value, 2),
+        profit_pct=round(profit_pct, 4),
+        days_held=days_held
+    )
+
+
+def calculate_all_sell_scores(
+    positions: List[dict],
+    total_portfolio_value: float,
+    geo_allocations: Dict[str, float],
+    ind_allocations: Dict[str, float]
+) -> List[SellScore]:
+    """
+    Calculate sell scores for all positions.
+
+    Args:
+        positions: List of position dicts with stock info (from get_with_stock_info)
+        total_portfolio_value: Total portfolio value in EUR
+        geo_allocations: Current geography allocation percentages
+        ind_allocations: Current industry allocation percentages
+
+    Returns:
+        List of SellScore objects, sorted by total_score descending
+    """
+    scores = []
+
+    for pos in positions:
+        score = calculate_sell_score(
+            symbol=pos['symbol'],
+            quantity=pos['quantity'],
+            avg_price=pos['avg_price'],
+            current_price=pos['current_price'] or pos['avg_price'],
+            min_lot=pos.get('min_lot', 1),
+            allow_sell=bool(pos.get('allow_sell', False)),
+            first_bought_at=pos.get('first_bought_at'),
+            last_sold_at=pos.get('last_sold_at'),
+            geography=pos.get('geography', ''),
+            industry=pos.get('industry', ''),
+            total_portfolio_value=total_portfolio_value,
+            geo_allocations=geo_allocations,
+            ind_allocations=ind_allocations
+        )
+        scores.append(score)
+
+    # Sort by total_score descending (highest sell priority first)
+    scores.sort(key=lambda s: s.total_score, reverse=True)
+
+    return scores

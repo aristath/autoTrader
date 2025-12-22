@@ -81,6 +81,9 @@ class PortfolioContext:
     stock_industries: dict = None  # symbol -> industry
     stock_scores: dict = None  # symbol -> quality_score
     stock_dividends: dict = None  # symbol -> dividend_yield
+    # Cost basis data for averaging down
+    position_avg_prices: dict = None  # symbol -> avg_purchase_price
+    current_prices: dict = None  # symbol -> current_market_price
 
 
 @dataclass
@@ -494,6 +497,7 @@ def calculate_allocation_fit_score(
 
     # 3. Averaging Down Score (30%)
     # Bonus for stocks we own that have high quality + high opportunity (buying the dip)
+    # PLUS extra bonus when current price is below our average purchase price
     position_value = portfolio_context.positions.get(symbol, 0)
 
     if position_value > 0:
@@ -509,6 +513,30 @@ def calculate_allocation_fit_score(
             averaging_down_score = 0.5 + (avg_down_potential - 0.3) * 1.0  # 0.5-0.7
         else:
             averaging_down_score = 0.3  # Low potential, slight penalty
+
+        # COST BASIS BONUS: If current price < avg purchase price, boost priority
+        # This helps improve our average cost on positions we're underwater on
+        if (portfolio_context.position_avg_prices and
+            portfolio_context.current_prices):
+            avg_price = portfolio_context.position_avg_prices.get(symbol)
+            current_price = portfolio_context.current_prices.get(symbol)
+
+            if avg_price and current_price and avg_price > 0:
+                price_vs_avg = (current_price - avg_price) / avg_price
+
+                if price_vs_avg < 0:
+                    # We're underwater - buying more will lower our average cost
+                    # The deeper underwater, the bigger the boost (up to 20% loss)
+                    loss_pct = abs(price_vs_avg)
+                    if loss_pct <= 0.20:
+                        # Linear boost: 5% loss = +0.1, 10% loss = +0.2, 20% loss = +0.4
+                        cost_basis_boost = min(0.4, loss_pct * 2)
+                        averaging_down_score = min(1.0, averaging_down_score + cost_basis_boost)
+                        logger.debug(
+                            f"{symbol}: price {price_vs_avg*100:.1f}% below avg, "
+                            f"cost basis boost +{cost_basis_boost:.2f}"
+                        )
+                    # Note: if loss > 20%, no boost (might be a falling knife)
 
         # Also consider position size - avoid over-concentration
         total_value = portfolio_context.total_value

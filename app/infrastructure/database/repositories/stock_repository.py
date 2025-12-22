@@ -32,6 +32,8 @@ class SQLiteStockRepository(StockRepository):
             priority_multiplier=row["priority_multiplier"] or 1.0,
             min_lot=row["min_lot"] or 1,
             active=bool(row["active"]),
+            allow_buy=bool(row["allow_buy"]) if row["allow_buy"] is not None else True,
+            allow_sell=bool(row["allow_sell"]) if row["allow_sell"] is not None else False,
         )
 
     async def get_all_active(self) -> List[Stock]:
@@ -50,6 +52,8 @@ class SQLiteStockRepository(StockRepository):
                 priority_multiplier=row["priority_multiplier"] or 1.0,
                 min_lot=row["min_lot"] or 1,
                 active=bool(row["active"]),
+                allow_buy=bool(row["allow_buy"]) if row["allow_buy"] is not None else True,
+                allow_sell=bool(row["allow_sell"]) if row["allow_sell"] is not None else False,
             )
             for row in rows
         ]
@@ -64,8 +68,8 @@ class SQLiteStockRepository(StockRepository):
         """
         await self.db.execute(
             """
-            INSERT INTO stocks (symbol, yahoo_symbol, name, geography, industry, min_lot, active)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO stocks (symbol, yahoo_symbol, name, geography, industry, min_lot, active, allow_buy, allow_sell)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 stock.symbol.upper(),
@@ -75,6 +79,8 @@ class SQLiteStockRepository(StockRepository):
                 stock.industry,
                 stock.min_lot,
                 1 if stock.active else 0,
+                1 if stock.allow_buy else 0,
+                1 if stock.allow_sell else 0,
             ),
         )
         if auto_commit:
@@ -132,7 +138,7 @@ class SQLiteStockRepository(StockRepository):
             updates_list = []
             values = []
             for key, value in updates.items():
-                if key == "active":
+                if key in ("active", "allow_buy", "allow_sell"):
                     value = 1 if value else 0
                 updates_list.append(f"{key} = ?")
                 values.append(value)

@@ -17,6 +17,7 @@ document.addEventListener('alpine:init', () => {
     trades: [],
     tradernet: { connected: false },
     recommendations: [],
+    sellRecommendations: [],
     settings: { min_trade_size: 400 },
     sparklines: {},  // {symbol: [{time, value}, ...]}
 
@@ -33,12 +34,14 @@ document.addEventListener('alpine:init', () => {
     selectedStockSymbol: null,
     editingStock: null,
     executingSymbol: null,
+    executingSellSymbol: null,
     message: '',
     messageType: 'success',
 
     // Loading States
     loading: {
       recommendations: false,
+      sellRecommendations: false,
       scores: false,
       sync: false,
       historical: false,
@@ -69,6 +72,7 @@ document.addEventListener('alpine:init', () => {
         this.fetchTradernet(),
         this.fetchGeographies(),
         this.fetchRecommendations(),
+        this.fetchSellRecommendations(),
         this.fetchSettings(),
         this.fetchSparklines()
       ]);
@@ -142,6 +146,17 @@ document.addEventListener('alpine:init', () => {
       this.loading.recommendations = false;
     },
 
+    async fetchSellRecommendations() {
+      this.loading.sellRecommendations = true;
+      try {
+        const data = await API.fetchSellRecommendations();
+        this.sellRecommendations = data.recommendations || [];
+      } catch (e) {
+        console.error('Failed to fetch sell recommendations:', e);
+      }
+      this.loading.sellRecommendations = false;
+    },
+
     async fetchSettings() {
       try {
         this.settings = await API.fetchSettings();
@@ -182,6 +197,20 @@ document.addEventListener('alpine:init', () => {
         this.showMessage('Failed to execute trade', 'error');
       }
       this.executingSymbol = null;
+      this.loading.execute = false;
+    },
+
+    async executeSellRecommendation(symbol) {
+      this.loading.execute = true;
+      this.executingSellSymbol = symbol;
+      try {
+        const result = await API.executeSellRecommendation(symbol);
+        this.showMessage(`Sold: ${result.quantity} ${symbol} @ €${result.price}`, 'success');
+        await this.fetchAll();
+      } catch (e) {
+        this.showMessage('Failed to execute sell', 'error');
+      }
+      this.executingSellSymbol = null;
       this.loading.execute = false;
     },
 
@@ -441,7 +470,9 @@ document.addEventListener('alpine:init', () => {
         name: stock.name,
         geography: stock.geography,
         industry: stock.industry || '',
-        min_lot: stock.min_lot || 1
+        min_lot: stock.min_lot || 1,
+        allow_buy: stock.allow_buy !== false,  // Default true
+        allow_sell: stock.allow_sell === true   // Default false
       };
       this.showEditStockModal = true;
     },
@@ -461,7 +492,9 @@ document.addEventListener('alpine:init', () => {
           yahoo_symbol: this.editingStock.yahoo_symbol || null,
           geography: this.editingStock.geography,
           industry: this.editingStock.industry || null,
-          min_lot: parseInt(this.editingStock.min_lot) || 1
+          min_lot: parseInt(this.editingStock.min_lot) || 1,
+          allow_buy: this.editingStock.allow_buy,
+          allow_sell: this.editingStock.allow_sell
         };
 
         // Include new_symbol if symbol was changed

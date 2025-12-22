@@ -131,7 +131,9 @@ async def _check_and_rebalance_internal(
         # Step 4: Execute trades using application service with transaction
         logger.info("Step 4: Executing trades...")
         trade_repo = get_trade_repository(db)
-        trade_execution_service = TradeExecutionService(trade_repo, db=db)
+        trade_execution_service = TradeExecutionService(
+            trade_repo, db=db, position_repo=position_repo
+        )
         results = await trade_execution_service.execute_trades(
             trades,
             use_transaction=True,

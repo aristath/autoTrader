@@ -304,3 +304,147 @@ async def execute_recommendation(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/sell-recommendations")
+async def get_sell_recommendations(
+    limit: int = 3,
+    stock_repo: StockRepository = Depends(get_stock_repository),
+    position_repo: PositionRepository = Depends(get_position_repository),
+    allocation_repo: AllocationRepository = Depends(get_allocation_repository),
+    portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
+):
+    """
+    Get top N sell recommendations based on sell scoring system.
+
+    Returns prioritized list of positions to sell, with quantities and reasons.
+    Cached for 5 minutes.
+    """
+    cache_key = f"sell_recommendations:{limit}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    from app.application.services.rebalancing_service import RebalancingService
+
+    try:
+        rebalancing_service = RebalancingService(
+            stock_repo,
+            position_repo,
+            allocation_repo,
+            portfolio_repo,
+        )
+        recommendations = await rebalancing_service.calculate_sell_recommendations(
+            limit=limit
+        )
+
+        result = {
+            "recommendations": [
+                {
+                    "symbol": r.symbol,
+                    "name": r.name,
+                    "side": r.side,
+                    "quantity": r.quantity,
+                    "estimated_price": r.estimated_price,
+                    "estimated_value": r.estimated_value,
+                    "reason": r.reason,
+                    "currency": r.currency,
+                }
+                for r in recommendations
+            ],
+        }
+
+        cache.set(cache_key, result, ttl_seconds=300)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/sell-recommendations/{symbol}/execute")
+async def execute_sell_recommendation(
+    symbol: str,
+    stock_repo: StockRepository = Depends(get_stock_repository),
+    position_repo: PositionRepository = Depends(get_position_repository),
+    allocation_repo: AllocationRepository = Depends(get_allocation_repository),
+    portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
+    trade_repo: TradeRepository = Depends(get_trade_repository),
+):
+    """
+    Execute a sell recommendation for a specific symbol.
+
+    Gets the current sell recommendation and executes it via Tradernet.
+    """
+    from app.application.services.rebalancing_service import RebalancingService
+    from app.services.tradernet import get_tradernet_client
+    from app.domain.repositories import Trade
+
+    try:
+        rebalancing_service = RebalancingService(
+            stock_repo,
+            position_repo,
+            allocation_repo,
+            portfolio_repo,
+        )
+
+        # Get sell recommendations (fetch more to find the symbol)
+        recommendations = await rebalancing_service.calculate_sell_recommendations(
+            limit=20
+        )
+
+        # Find the recommendation for the requested symbol
+        rec = next((r for r in recommendations if r.symbol == symbol.upper()), None)
+        if not rec:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No sell recommendation found for {symbol}"
+            )
+
+        # Connect to Tradernet and execute
+        client = get_tradernet_client()
+        if not client.is_connected:
+            if not client.connect():
+                raise HTTPException(
+                    status_code=503,
+                    detail="Failed to connect to Tradernet"
+                )
+
+        result = client.place_order(
+            symbol=rec.symbol,
+            side=TRADE_SIDE_SELL,
+            quantity=rec.quantity,
+        )
+
+        if result:
+            # Record the trade
+            trade_record = Trade(
+                symbol=symbol.upper(),
+                side=TRADE_SIDE_SELL,
+                quantity=rec.quantity,
+                price=result.price,
+                executed_at=datetime.now(),
+                order_id=result.order_id,
+            )
+            await trade_repo.create(trade_record)
+
+            # Update last_sold_at
+            if hasattr(position_repo, 'update_last_sold_at'):
+                await position_repo.update_last_sold_at(symbol.upper())
+
+            # Clear cache
+            cache.delete(f"sell_recommendations:3")
+            cache.delete(f"sell_recommendations:20")
+
+            return {
+                "status": "success",
+                "order_id": result.order_id,
+                "symbol": symbol.upper(),
+                "side": TRADE_SIDE_SELL,
+                "quantity": rec.quantity,
+                "price": result.price,
+                "estimated_value": rec.estimated_value,
+            }
+
+        raise HTTPException(status_code=500, detail="Trade execution failed")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

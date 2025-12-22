@@ -159,6 +159,50 @@ async def apply_migrations(db: aiosqlite.Connection, current_version: int):
         )
         logger.info("Migration 3 complete")
 
+    # Migration 4: Add allow_buy/allow_sell to stocks, first_bought_at/last_sold_at to positions
+    if current_version < 4:
+        logger.info("Applying migration 4: Adding sell feature columns...")
+
+        # Add columns to stocks table
+        cursor = await db.execute("PRAGMA table_info(stocks)")
+        stock_columns = {row[1] for row in await cursor.fetchall()}
+
+        if 'allow_buy' not in stock_columns:
+            await db.execute("ALTER TABLE stocks ADD COLUMN allow_buy INTEGER DEFAULT 1")
+            logger.info("  Added column: stocks.allow_buy")
+        if 'allow_sell' not in stock_columns:
+            await db.execute("ALTER TABLE stocks ADD COLUMN allow_sell INTEGER DEFAULT 0")
+            logger.info("  Added column: stocks.allow_sell")
+
+        # Add columns to positions table
+        cursor = await db.execute("PRAGMA table_info(positions)")
+        pos_columns = {row[1] for row in await cursor.fetchall()}
+
+        if 'first_bought_at' not in pos_columns:
+            await db.execute("ALTER TABLE positions ADD COLUMN first_bought_at TEXT")
+            logger.info("  Added column: positions.first_bought_at")
+        if 'last_sold_at' not in pos_columns:
+            await db.execute("ALTER TABLE positions ADD COLUMN last_sold_at TEXT")
+            logger.info("  Added column: positions.last_sold_at")
+
+        # Backfill first_bought_at from trades table for existing positions
+        await db.execute("""
+            UPDATE positions
+            SET first_bought_at = (
+                SELECT MIN(executed_at)
+                FROM trades
+                WHERE trades.symbol = positions.symbol AND trades.side = 'BUY'
+            )
+            WHERE first_bought_at IS NULL
+        """)
+        logger.info("  Backfilled first_bought_at from trade history")
+
+        await db.execute(
+            "INSERT INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
+            (4, datetime.now().isoformat(), "Add sell feature columns: allow_buy, allow_sell, first_bought_at, last_sold_at")
+        )
+        logger.info("Migration 4 complete")
+
 
 SCHEMA = """
 -- Stock universe
@@ -170,7 +214,9 @@ CREATE TABLE IF NOT EXISTS stocks (
     geography TEXT NOT NULL,
     priority_multiplier REAL DEFAULT 1,
     min_lot INTEGER DEFAULT 1,
-    active INTEGER DEFAULT 1
+    active INTEGER DEFAULT 1,
+    allow_buy INTEGER DEFAULT 1,
+    allow_sell INTEGER DEFAULT 0
 );
 
 -- Current positions
@@ -184,6 +230,8 @@ CREATE TABLE IF NOT EXISTS positions (
     currency_rate REAL DEFAULT 1.0,
     market_value_eur REAL,
     last_updated TEXT,
+    first_bought_at TEXT,  -- Track when position was first opened
+    last_sold_at TEXT,     -- Track last sell for cooldown
     FOREIGN KEY (symbol) REFERENCES stocks(symbol)
 );
 

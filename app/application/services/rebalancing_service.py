@@ -34,7 +34,8 @@ from app.services.scorer import (
 )
 from app.services import yahoo
 from app.services.tradernet import get_exchange_rate
-from app.domain.constants import TRADE_SIDE_BUY
+from app.services.sell_scorer import calculate_all_sell_scores, SellScore
+from app.domain.constants import TRADE_SIDE_BUY, TRADE_SIDE_SELL
 
 logger = logging.getLogger(__name__)
 
@@ -142,12 +143,19 @@ class RebalancingService:
         stock_industries = {}
         stock_scores = {}
         stock_dividends = {}
+        position_avg_prices = {}
+        current_prices = {}
 
         for stock in stocks_data:
             symbol = stock["symbol"]
             position_value = stock.get("position_value") or 0
             if position_value > 0:
                 positions[symbol] = position_value
+                # Track cost basis data for averaging down
+                if stock.get("avg_price"):
+                    position_avg_prices[symbol] = stock["avg_price"]
+                if stock.get("current_price"):
+                    current_prices[symbol] = stock["current_price"]
             stock_geographies[symbol] = stock["geography"]
             stock_industries[symbol] = stock.get("industry")
             stock_scores[symbol] = stock.get("quality_score") or stock.get("total_score") or 0.5
@@ -164,6 +172,8 @@ class RebalancingService:
             stock_industries=stock_industries,
             stock_scores=stock_scores,
             stock_dividends=stock_dividends,
+            position_avg_prices=position_avg_prices,
+            current_prices=current_prices,
         )
 
         # Calculate current portfolio score
@@ -180,6 +190,11 @@ class RebalancingService:
             multiplier = stock.get("priority_multiplier") or 1.0
             min_lot = stock.get("min_lot") or 1
             yahoo_symbol = stock.get("yahoo_symbol")
+
+            # Skip stocks where allow_buy is disabled
+            allow_buy = stock.get("allow_buy")
+            if allow_buy is not None and not allow_buy:
+                continue
 
             quality_score = stock.get("quality_score") or stock.get("total_score") or 0
             opportunity_score = stock.get("opportunity_score") or stock.get("fundamental_score") or 0.5
@@ -347,12 +362,20 @@ class RebalancingService:
         # Get scored stocks from universe with volatility, multiplier, and min_lot
         stocks_data = await self._stock_repo.get_with_scores()
 
-        # Build positions map for portfolio context
+        # Build positions map and cost basis data for portfolio context
         positions = {}
+        position_avg_prices = {}
+        current_prices = {}
         for stock in stocks_data:
+            symbol = stock["symbol"]
             position_value = stock.get("position_value") or 0
             if position_value > 0:
-                positions[stock["symbol"]] = position_value
+                positions[symbol] = position_value
+                # Track cost basis data for averaging down
+                if stock.get("avg_price"):
+                    position_avg_prices[symbol] = stock["avg_price"]
+                if stock.get("current_price"):
+                    current_prices[symbol] = stock["current_price"]
 
         # Create portfolio context for allocation fit calculation
         portfolio_context = PortfolioContext(
@@ -360,6 +383,8 @@ class RebalancingService:
             industry_weights=industry_weights,
             positions=positions,
             total_value=total_value,
+            position_avg_prices=position_avg_prices,
+            current_prices=current_prices,
         )
 
         # Calculate priority for each stock with allocation fit
@@ -375,6 +400,12 @@ class RebalancingService:
             multiplier = stock.get("priority_multiplier") or 1.0
             min_lot = stock.get("min_lot") or 1
             volatility = stock.get("volatility")
+
+            # Skip stocks where allow_buy is disabled
+            allow_buy = stock.get("allow_buy")
+            if allow_buy is not None and not allow_buy:
+                logger.debug(f"Skipping {symbol}: allow_buy=false")
+                continue
 
             # Use cached base scores from database
             quality_score = stock.get("quality_score") or stock.get("total_score") or 0
@@ -545,6 +576,106 @@ class RebalancingService:
         logger.info(
             f"Generated {len(recommendations)} trade recommendations, "
             f"total value: €{total_invested:.2f} from €{available_cash:.2f}"
+        )
+
+        return recommendations
+
+    async def calculate_sell_recommendations(
+        self,
+        limit: int = 3
+    ) -> List[TradeRecommendation]:
+        """
+        Calculate optimal SELL recommendations based on sell scoring system.
+
+        Strategy:
+        1. Get all positions with stock info (including allow_sell flag)
+        2. Calculate sell scores using the 4-component weighted model
+        3. Filter to eligible sells (passes hard blocks)
+        4. Return top N sell candidates
+
+        Returns:
+            List of TradeRecommendation with side=SELL
+        """
+        # Get portfolio summary for allocation context
+        from app.application.services.portfolio_service import PortfolioService
+        portfolio_service = PortfolioService(
+            self._portfolio_repo,
+            self._position_repo,
+            self._allocation_repo,
+        )
+        summary = await portfolio_service.get_portfolio_summary()
+        total_value = summary.total_value if summary.total_value and summary.total_value > 0 else 1.0
+
+        # Build allocation maps (current allocations)
+        geo_allocations = {a.name: a.current_pct for a in summary.geographic_allocations}
+        ind_allocations = {a.name: a.current_pct for a in summary.industry_allocations}
+
+        # Get all positions with stock info
+        positions = await self._position_repo.get_with_stock_info()
+
+        if not positions:
+            logger.info("No positions to evaluate for selling")
+            return []
+
+        # Calculate sell scores for all positions
+        sell_scores = calculate_all_sell_scores(
+            positions=positions,
+            total_portfolio_value=total_value,
+            geo_allocations=geo_allocations,
+            ind_allocations=ind_allocations
+        )
+
+        # Filter to eligible sells
+        eligible_sells = [s for s in sell_scores if s.eligible]
+
+        if not eligible_sells:
+            logger.info("No positions eligible for selling")
+            return []
+
+        logger.info(f"Found {len(eligible_sells)} positions eligible for selling")
+
+        # Build recommendations for top N
+        recommendations = []
+        for score in eligible_sells[:limit]:
+            # Get position data
+            pos = next((p for p in positions if p['symbol'] == score.symbol), None)
+            if not pos:
+                continue
+
+            # Determine currency
+            currency = pos.get('currency', 'EUR')
+
+            # Get current price
+            current_price = pos.get('current_price') or pos.get('avg_price', 0)
+
+            # Build reason string
+            reason_parts = []
+            if score.profit_pct > 0.30:
+                reason_parts.append(f"profit {score.profit_pct*100:.1f}%")
+            elif score.profit_pct < 0:
+                reason_parts.append(f"loss {score.profit_pct*100:.1f}%")
+            if score.underperformance_score >= 0.7:
+                reason_parts.append("underperforming")
+            if score.time_held_score >= 0.8:
+                reason_parts.append(f"held {score.days_held} days")
+            if score.portfolio_balance_score >= 0.7:
+                reason_parts.append("overweight")
+            reason_parts.append(f"sell score: {score.total_score:.2f}")
+            reason = ", ".join(reason_parts) if reason_parts else "eligible for sell"
+
+            recommendations.append(TradeRecommendation(
+                symbol=score.symbol,
+                name=pos.get('name', score.symbol),
+                side=TRADE_SIDE_SELL,
+                quantity=score.suggested_sell_quantity,
+                estimated_price=round(current_price, 2),
+                estimated_value=round(score.suggested_sell_value, 2),
+                reason=reason,
+                currency=currency,
+            ))
+
+        logger.info(
+            f"Generated {len(recommendations)} sell recommendations"
         )
 
         return recommendations

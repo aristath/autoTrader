@@ -16,6 +16,8 @@ class Position:
     currency_rate: float
     market_value_eur: Optional[float]
     last_updated: Optional[str]
+    first_bought_at: Optional[str] = None  # When position was first opened
+    last_sold_at: Optional[str] = None     # Last sell date for cooldown
 
 
 class PositionRepository(ABC):
@@ -55,4 +57,15 @@ class PositionRepository(ABC):
     @abstractmethod
     async def get_with_stock_info(self) -> List[dict]:
         """Get all positions with stock information."""
+        pass
+
+    @abstractmethod
+    async def update_last_sold_at(self, symbol: str, auto_commit: bool = True) -> None:
+        """
+        Update the last_sold_at timestamp for a position after a sell.
+
+        Args:
+            symbol: Stock symbol
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         pass
