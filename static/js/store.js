@@ -16,6 +16,7 @@ document.addEventListener('alpine:init', () => {
     stocks: [],
     trades: [],
     tradernet: { connected: false },
+    recommendations: [],
 
     // UI State - Filters
     stockFilter: 'all',
@@ -24,19 +25,18 @@ document.addEventListener('alpine:init', () => {
     minScore: 0,
     sortBy: 'priority_score',
     sortDesc: true,
-    showRebalanceModal: false,
     showAddStockModal: false,
     showEditStockModal: false,
     showStockChart: false,
     selectedStockSymbol: null,
     editingStock: null,
-    rebalancePreview: null,
+    executingSymbol: null,
     message: '',
     messageType: 'success',
 
     // Loading States
     loading: {
-      rebalance: false,
+      recommendations: false,
       scores: false,
       sync: false,
       execute: false,
@@ -64,7 +64,8 @@ document.addEventListener('alpine:init', () => {
         this.fetchStocks(),
         this.fetchTrades(),
         this.fetchTradernet(),
-        this.fetchGeographies()
+        this.fetchGeographies(),
+        this.fetchRecommendations()
       ]);
     },
 
@@ -123,6 +124,31 @@ document.addEventListener('alpine:init', () => {
       } catch (e) {
         console.error('Failed to fetch geographies:', e);
       }
+    },
+
+    async fetchRecommendations() {
+      this.loading.recommendations = true;
+      try {
+        const data = await API.fetchRecommendations();
+        this.recommendations = data.recommendations || [];
+      } catch (e) {
+        console.error('Failed to fetch recommendations:', e);
+      }
+      this.loading.recommendations = false;
+    },
+
+    async executeRecommendation(symbol) {
+      this.loading.execute = true;
+      this.executingSymbol = symbol;
+      try {
+        const result = await API.executeRecommendation(symbol);
+        this.showMessage(`Executed: ${result.quantity} ${symbol} @ €${result.price}`, 'success');
+        await this.fetchAll();
+      } catch (e) {
+        this.showMessage('Failed to execute trade', 'error');
+      }
+      this.executingSymbol = null;
+      this.loading.execute = false;
     },
 
     // Computed Properties
@@ -206,30 +232,6 @@ document.addEventListener('alpine:init', () => {
     },
 
     // Actions
-    async previewRebalance() {
-      this.loading.rebalance = true;
-      this.rebalancePreview = null;
-      try {
-        this.rebalancePreview = await API.previewRebalance();
-      } catch (e) {
-        this.showMessage('Failed to preview rebalance', 'error');
-      }
-      this.loading.rebalance = false;
-    },
-
-    async executeRebalance() {
-      this.loading.execute = true;
-      try {
-        const data = await API.executeRebalance();
-        this.showMessage(`Executed ${data.successful_trades} trades`, 'success');
-        this.showRebalanceModal = false;
-        await this.fetchAll();
-      } catch (e) {
-        this.showMessage('Failed to execute rebalance', 'error');
-      }
-      this.loading.execute = false;
-    },
-
     async refreshScores() {
       this.loading.scores = true;
       try {

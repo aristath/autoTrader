@@ -55,8 +55,8 @@ const API = {
 
   // Trades
   fetchTrades: () => fetch('/api/trades').then(r => r.json()),
-  previewRebalance: () => API._post('/api/trades/rebalance/preview'),
-  executeRebalance: () => API._post('/api/trades/rebalance/execute'),
+  fetchRecommendations: () => fetch('/api/trades/recommendations').then(r => r.json()),
+  executeRecommendation: (symbol) => API._post(`/api/trades/recommendations/${symbol}/execute`),
 
   // Charts
   fetchPortfolioChart: (range = 'all') => {

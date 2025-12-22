@@ -1,11 +1,9 @@
 """Trade execution API endpoints."""
 
 from datetime import datetime
-import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from enum import Enum
-from app.database import get_db
 from app.domain.constants import TRADE_SIDE_BUY, TRADE_SIDE_SELL
 from app.infrastructure.dependencies import (
     get_portfolio_repository,
@@ -50,20 +48,6 @@ class TradeRequest(BaseModel):
             raise ValueError("Quantity must be greater than 0")
         if v > 1000000:  # Reasonable upper limit
             raise ValueError("Quantity exceeds maximum allowed (1,000,000)")
-        return v
-
-
-class RebalancePreview(BaseModel):
-    deposit_amount: float = Field(..., gt=0, description="Deposit amount in EUR (must be positive)")
-
-    @field_validator('deposit_amount')
-    @classmethod
-    def validate_deposit_amount(cls, v: float) -> float:
-        """Validate deposit amount is reasonable."""
-        if v <= 0:
-            raise ValueError("Deposit amount must be greater than 0")
-        if v > 1000000:  # Reasonable upper limit
-            raise ValueError("Deposit amount exceeds maximum allowed (€1,000,000)")
         return v
 
 
@@ -181,18 +165,21 @@ async def get_allocation(
     }
 
 
-@router.post("/rebalance/preview")
-async def preview_rebalance(
-    request: RebalancePreview,
+@router.get("/recommendations")
+async def get_recommendations(
+    limit: int = 3,
     stock_repo: StockRepository = Depends(get_stock_repository),
     position_repo: PositionRepository = Depends(get_position_repository),
     allocation_repo: AllocationRepository = Depends(get_allocation_repository),
     portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
 ):
-    """Preview rebalance trades for deposit."""
-    from app.application.services.rebalancing_service import RebalancingService
+    """
+    Get top N trade recommendations based on current portfolio state.
 
-    deposit = request.deposit_amount
+    Returns prioritized list of stocks to buy next, with fixed trade amounts.
+    Independent of current cash balance - shows what to buy when cash is available.
+    """
+    from app.application.services.rebalancing_service import RebalancingService
 
     try:
         rebalancing_service = RebalancingService(
@@ -201,76 +188,104 @@ async def preview_rebalance(
             allocation_repo,
             portfolio_repo,
         )
-        trades = await rebalancing_service.calculate_rebalance_trades(deposit)
+        recommendations = await rebalancing_service.get_recommendations(limit=limit)
 
         return {
-            "deposit_amount": deposit,
-            "total_trades": len(trades),
-            "total_value": sum(t.estimated_value for t in trades),
-            "trades": [
+            "recommendations": [
                 {
-                    "symbol": t.symbol,
-                    "name": t.name,
-                    "side": t.side,
-                    "quantity": t.quantity,
-                    "estimated_price": t.estimated_price,
-                    "estimated_value": t.estimated_value,
-                    "reason": t.reason,
+                    "symbol": r.symbol,
+                    "name": r.name,
+                    "amount": r.amount,
+                    "priority": r.priority,
+                    "reason": r.reason,
+                    "geography": r.geography,
+                    "industry": r.industry,
+                    "current_price": r.current_price,
+                    "quantity": r.quantity,
                 }
-                for t in trades
+                for r in recommendations
             ],
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/rebalance/execute")
-async def execute_rebalance(
-    request: RebalancePreview,
-    db: aiosqlite.Connection = Depends(get_db),
+@router.post("/recommendations/{symbol}/execute")
+async def execute_recommendation(
+    symbol: str,
     stock_repo: StockRepository = Depends(get_stock_repository),
     position_repo: PositionRepository = Depends(get_position_repository),
     allocation_repo: AllocationRepository = Depends(get_allocation_repository),
     portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
     trade_repo: TradeRepository = Depends(get_trade_repository),
 ):
-    """Execute rebalance trades."""
-    from app.application.services.rebalancing_service import RebalancingService
-    from app.application.services.trade_execution_service import TradeExecutionService
+    """
+    Execute a single recommendation by symbol.
 
-    deposit = request.deposit_amount
+    Gets the current recommendation for the symbol and executes it.
+    """
+    from app.application.services.rebalancing_service import RebalancingService
+    from app.services.tradernet import get_tradernet_client
+    from app.domain.repositories import Trade
+
+    symbol = symbol.upper()
 
     try:
-        # Calculate trades using application service
+        # Get recommendations to find this symbol
         rebalancing_service = RebalancingService(
             stock_repo,
             position_repo,
             allocation_repo,
             portfolio_repo,
         )
-        trades = await rebalancing_service.calculate_rebalance_trades(deposit)
+        recommendations = await rebalancing_service.get_recommendations(limit=10)
 
-        if not trades:
+        # Find the recommendation for this symbol
+        rec = next((r for r in recommendations if r.symbol == symbol), None)
+        if not rec:
+            raise HTTPException(status_code=404, detail=f"No recommendation found for {symbol}")
+
+        if not rec.quantity or not rec.current_price:
+            raise HTTPException(status_code=400, detail=f"Cannot execute: no valid price/quantity for {symbol}")
+
+        # Execute the trade
+        client = get_tradernet_client()
+        if not client.is_connected:
+            raise HTTPException(status_code=503, detail="Tradernet not connected")
+
+        result = client.place_order(
+            symbol=symbol,
+            side=TRADE_SIDE_BUY,
+            quantity=rec.quantity,
+        )
+
+        if result:
+            # Record trade
+            trade_record = Trade(
+                symbol=symbol,
+                side=TRADE_SIDE_BUY,
+                quantity=rec.quantity,
+                price=result.price,
+                executed_at=datetime.now(),
+                order_id=result.order_id,
+            )
+            await trade_repo.create(trade_record)
+
             return {
-                "status": "no_trades",
-                "message": "No rebalance trades needed",
+                "status": "success",
+                "order_id": result.order_id,
+                "symbol": symbol,
+                "side": TRADE_SIDE_BUY,
+                "quantity": rec.quantity,
+                "price": result.price,
+                "estimated_value": rec.amount,
             }
 
-        # Execute trades using application service with transaction support
-        trade_execution_service = TradeExecutionService(trade_repo, db=db)
-        results = await trade_execution_service.execute_trades(trades, use_transaction=True)
+        raise HTTPException(status_code=500, detail="Trade execution failed")
 
-        successful = sum(1 for r in results if r["status"] == "success")
-        failed = sum(1 for r in results if r["status"] != "success")
-
-        return {
-            "status": "completed",
-            "successful_trades": successful,
-            "failed_trades": failed,
-            "results": results,
-        }
-
-    except ConnectionError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+

@@ -1,6 +1,6 @@
 /**
  * Quick Actions Component
- * Provides action buttons for rebalance, refresh scores, sync prices
+ * Provides action buttons for refresh scores, sync prices
  */
 class QuickActions extends HTMLElement {
   connectedCallback() {
@@ -11,13 +11,6 @@ class QuickActions extends HTMLElement {
         </div>
 
         <div class="flex flex-col gap-2">
-          <button @click="$store.app.showRebalanceModal = true; $store.app.previewRebalance()"
-                  class="w-full px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded transition-colors disabled:opacity-50"
-                  :disabled="$store.app.loading.rebalance">
-            <span x-show="$store.app.loading.rebalance" class="inline-block animate-spin mr-1">&#9696;</span>
-            Preview Rebalance
-          </button>
-
           <button @click="$store.app.refreshScores()"
                   class="w-full px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded transition-colors disabled:opacity-50"
                   :disabled="$store.app.loading.scores">
