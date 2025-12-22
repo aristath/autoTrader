@@ -15,12 +15,18 @@ from app.services.tradernet import get_tradernet_client
 from app.infrastructure.hardware.led_display import get_led_display
 
 # Configure logging with correlation ID support
-from app.infrastructure.logging_context import setup_correlation_logging
-setup_correlation_logging()
+# Add filter to handler (not logger) to ensure ALL log records get correlation_id
+from app.infrastructure.logging_context import CorrelationIDFilter
+
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter(
+    "%(asctime)s - [%(correlation_id)s] - %(name)s - %(levelname)s - %(message)s"
+))
+handler.addFilter(CorrelationIDFilter())
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
-    format="%(asctime)s - [%(correlation_id)s] - %(name)s - %(levelname)s - %(message)s",
+    handlers=[handler],
 )
 logger = logging.getLogger(__name__)
 
