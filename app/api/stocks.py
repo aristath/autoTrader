@@ -42,6 +42,7 @@ class StockCreate(BaseModel):
 
 class StockUpdate(BaseModel):
     """Request model for updating a stock."""
+    new_symbol: Optional[str] = None  # New symbol for renaming
     name: Optional[str] = None
     yahoo_symbol: Optional[str] = None  # Explicit Yahoo Finance symbol override
     geography: Optional[str] = None
@@ -337,10 +338,25 @@ async def update_stock(
     score_repo: ScoreRepository = Depends(get_score_repository),
 ):
     """Update stock details."""
+    old_symbol = symbol.upper()
+
     # Check stock exists
-    stock = await stock_repo.get_by_symbol(symbol.upper())
+    stock = await stock_repo.get_by_symbol(old_symbol)
     if not stock:
         raise HTTPException(status_code=404, detail="Stock not found")
+
+    # Handle symbol rename if new_symbol is provided
+    new_symbol = None
+    if update.new_symbol is not None:
+        new_symbol = update.new_symbol.upper()
+        if new_symbol != old_symbol:
+            # Check if new symbol already exists
+            existing = await stock_repo.get_by_symbol(new_symbol)
+            if existing:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Symbol {new_symbol} already exists"
+                )
 
     # Build update dict
     updates = {}
@@ -361,20 +377,27 @@ async def update_stock(
     if update.active is not None:
         updates["active"] = update.active
 
+    # Include symbol rename in updates if requested
+    if new_symbol and new_symbol != old_symbol:
+        updates["symbol"] = new_symbol
+
     if not updates:
         raise HTTPException(status_code=400, detail="No updates provided")
 
-    # Update stock
-    await stock_repo.update(symbol.upper(), **updates)
+    # Update stock (repository handles symbol rename with cascading updates)
+    await stock_repo.update(old_symbol, **updates)
+
+    # Determine the final symbol
+    final_symbol = new_symbol if new_symbol and new_symbol != old_symbol else old_symbol
 
     # Get updated stock
-    updated_stock = await stock_repo.get_by_symbol(symbol.upper())
+    updated_stock = await stock_repo.get_by_symbol(final_symbol)
 
     # Auto-refresh score after update
     from app.application.services.scoring_service import ScoringService
     scoring_service = ScoringService(stock_repo, score_repo)
     score = await scoring_service.calculate_and_save_score(
-        symbol.upper(),
+        final_symbol,
         updated_stock.yahoo_symbol
     )
 

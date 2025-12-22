@@ -83,28 +83,66 @@ class SQLiteStockRepository(StockRepository):
     async def update(self, symbol: str, auto_commit: bool = True, **updates) -> None:
         """
         Update stock fields.
-        
+
         Args:
             symbol: Stock symbol to update
             auto_commit: If True, commit immediately. If False, caller manages transaction.
-            **updates: Field updates (name, industry, geography, etc.)
+            **updates: Field updates (name, industry, geography, symbol for rename, etc.)
         """
         if not updates:
             return
 
-        updates_list = []
-        values = []
-        for key, value in updates.items():
-            if key == "active":
-                value = 1 if value else 0
-            updates_list.append(f"{key} = ?")
-            values.append(value)
+        old_symbol = symbol.upper()
+        new_symbol = updates.pop("symbol", None)  # Extract symbol rename if present
 
-        values.append(symbol.upper())
-        await self.db.execute(
-            f"UPDATE stocks SET {', '.join(updates_list)} WHERE symbol = ?",
-            values
-        )
+        # Handle symbol rename with cascading updates
+        if new_symbol and new_symbol.upper() != old_symbol:
+            new_symbol = new_symbol.upper()
+
+            # Update all related tables first (before changing the primary key)
+            # Tables that reference symbol: scores, positions, trades, stock_price_history
+            await self.db.execute(
+                "UPDATE scores SET symbol = ? WHERE symbol = ?",
+                (new_symbol, old_symbol)
+            )
+            await self.db.execute(
+                "UPDATE positions SET symbol = ? WHERE symbol = ?",
+                (new_symbol, old_symbol)
+            )
+            await self.db.execute(
+                "UPDATE trades SET symbol = ? WHERE symbol = ?",
+                (new_symbol, old_symbol)
+            )
+            await self.db.execute(
+                "UPDATE stock_price_history SET symbol = ? WHERE symbol = ?",
+                (new_symbol, old_symbol)
+            )
+
+            # Update the stock symbol itself
+            await self.db.execute(
+                "UPDATE stocks SET symbol = ? WHERE symbol = ?",
+                (new_symbol, old_symbol)
+            )
+
+            # Use new symbol for remaining updates
+            old_symbol = new_symbol
+
+        # Apply remaining field updates
+        if updates:
+            updates_list = []
+            values = []
+            for key, value in updates.items():
+                if key == "active":
+                    value = 1 if value else 0
+                updates_list.append(f"{key} = ?")
+                values.append(value)
+
+            values.append(old_symbol)
+            await self.db.execute(
+                f"UPDATE stocks SET {', '.join(updates_list)} WHERE symbol = ?",
+                values
+            )
+
         if auto_commit:
             await self.db.commit()
 

@@ -20,10 +20,9 @@ class EditStockModal extends HTMLElement {
               <div>
                 <label class="block text-sm text-gray-400 mb-1">Symbol (Tradernet)</label>
                 <input type="text"
-                       :value="$store.app.editingStock.symbol"
-                       disabled
-                       class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm text-gray-500 cursor-not-allowed">
-                <p class="text-xs text-gray-500 mt-1">Primary identifier (read-only)</p>
+                       x-model="$store.app.editingStock.symbol"
+                       class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm text-gray-100 focus:border-blue-500 focus:outline-none">
+                <p class="text-xs text-gray-500 mt-1">Tradernet ticker symbol (e.g., ASML.NL, RHM.DE)</p>
               </div>
 
               <div>

@@ -435,6 +435,7 @@ document.addEventListener('alpine:init', () => {
 
     openEditStock(stock) {
       this.editingStock = {
+        originalSymbol: stock.symbol,  // Track original for rename detection
         symbol: stock.symbol,
         yahoo_symbol: stock.yahoo_symbol || '',
         name: stock.name,
@@ -455,13 +456,20 @@ document.addEventListener('alpine:init', () => {
 
       this.loading.stockSave = true;
       try {
-        await API.updateStock(this.editingStock.symbol, {
+        const payload = {
           name: this.editingStock.name,
           yahoo_symbol: this.editingStock.yahoo_symbol || null,
           geography: this.editingStock.geography,
           industry: this.editingStock.industry || null,
           min_lot: parseInt(this.editingStock.min_lot) || 1
-        });
+        };
+
+        // Include new_symbol if symbol was changed
+        if (this.editingStock.symbol !== this.editingStock.originalSymbol) {
+          payload.new_symbol = this.editingStock.symbol.toUpperCase();
+        }
+
+        await API.updateStock(this.editingStock.originalSymbol, payload);
         this.showMessage('Stock updated successfully', 'success');
         this.closeEditStock();
         await this.fetchStocks();
