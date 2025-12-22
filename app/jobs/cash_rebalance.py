@@ -12,6 +12,7 @@ import aiosqlite
 from app.config import settings
 from app.services.tradernet import get_tradernet_client
 from app.infrastructure.locking import file_lock
+from app.infrastructure.hardware.led_display import get_led_display
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,9 @@ async def check_and_rebalance():
         if not client.is_connected:
             if not client.connect():
                 logger.warning("Cannot connect to Tradernet, skipping cash check")
+                display = get_led_display()
+                if display.is_connected:
+                    display.show_error("BROKER DOWN")
                 return
 
         cash_balance = client.get_total_cash_eur()
@@ -59,6 +63,9 @@ async def check_and_rebalance():
             await _check_and_rebalance_internal(cash_balance)
     except Exception as e:
         logger.error(f"Error during cash rebalance check: {e}", exc_info=True)
+        display = get_led_display()
+        if display.is_connected:
+            display.show_error("REBAL FAIL")
 
 
 async def _check_and_rebalance_internal(cash_balance: float):

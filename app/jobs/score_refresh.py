@@ -4,6 +4,7 @@ import logging
 import aiosqlite
 from app.config import settings
 from app.services.scorer import score_all_stocks
+from app.infrastructure.hardware.led_display import get_led_display
 
 logger = logging.getLogger(__name__)
 
@@ -19,3 +20,6 @@ async def refresh_all_scores():
             logger.info(f"Refreshed scores for {len(scores)} stocks")
     except Exception as e:
         logger.error(f"Score refresh failed: {e}")
+        display = get_led_display()
+        if display.is_connected:
+            display.show_error("SCORE FAIL")

@@ -10,6 +10,7 @@ import aiosqlite
 from app.config import settings
 from app.services.tradernet import get_tradernet_client
 from app.infrastructure.locking import file_lock
+from app.infrastructure.hardware.led_display import get_led_display
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,9 @@ async def _sync_historical_data_internal():
         logger.info("Historical data sync complete")
     except Exception as e:
         logger.error(f"Historical data sync failed: {e}")
+        display = get_led_display()
+        if display.is_connected:
+            display.show_error("HIST FAIL")
         raise
 
 
@@ -57,6 +61,9 @@ async def _sync_stock_price_history():
     if not client.is_connected:
         if not client.connect():
             logger.error("Failed to connect to Tradernet, skipping stock price history sync")
+            display = get_led_display()
+            if display.is_connected:
+                display.show_error("BROKER DOWN")
             return
     
     async with aiosqlite.connect(settings.database_path) as db:

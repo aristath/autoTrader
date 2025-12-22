@@ -48,7 +48,7 @@ async def _sync_portfolio_internal():
         if not client.connect():
             logger.error("Failed to connect to Tradernet, skipping sync")
             if display.is_connected:
-                display.set_system_status("error")
+                display.show_error("BROKER DOWN")
             return
 
     try:
@@ -149,7 +149,7 @@ async def _sync_portfolio_internal():
     except Exception as e:
         logger.error(f"Portfolio sync failed: {e}")
         if display.is_connected:
-            display.set_system_status("error")
+            display.show_error("SYNC FAIL")
         raise
 
 
@@ -216,5 +216,5 @@ async def sync_prices():
     except Exception as e:
         logger.error(f"Price sync failed: {e}")
         if display.is_connected:
-            display.set_system_status("error")
+            display.show_error("PRICE FAIL")
         raise

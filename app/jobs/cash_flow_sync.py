@@ -5,6 +5,7 @@ import aiosqlite
 from app.services.tradernet import get_tradernet_client
 from app.infrastructure.database.repositories import SQLiteCashFlowRepository
 from app.infrastructure.locking import file_lock
+from app.infrastructure.hardware.led_display import get_led_display
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,9 @@ async def _sync_cash_flows_internal():
     if not client.is_connected:
         if not client.connect():
             logger.warning("Failed to connect to Tradernet, skipping cash flow sync")
+            display = get_led_display()
+            if display.is_connected:
+                display.show_error("BROKER DOWN")
             return
     
     try:
@@ -58,5 +62,8 @@ async def _sync_cash_flows_internal():
         
     except Exception as e:
         logger.error(f"Cash flow sync failed: {e}", exc_info=True)
+        display = get_led_display()
+        if display.is_connected:
+            display.show_error("CASH FAIL")
         # Don't raise - allow other jobs to continue
         return

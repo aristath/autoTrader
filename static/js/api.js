@@ -13,6 +13,20 @@ const API = {
         ...options.headers,
       },
     });
+    
+    // Check if response is OK before parsing JSON
+    if (!res.ok) {
+      let errorMessage = `Request failed with status ${res.status}`;
+      try {
+        const errorData = await res.json();
+        errorMessage = errorData.detail || errorData.message || errorMessage;
+      } catch (e) {
+        // If response isn't JSON, use status text
+        errorMessage = res.statusText || errorMessage;
+      }
+      throw new Error(errorMessage);
+    }
+    
     return res.json();
   },
 

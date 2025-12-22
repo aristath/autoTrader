@@ -12,6 +12,7 @@ from app.domain.repositories import TradeRepository, Trade
 from app.services.allocator import TradeRecommendation
 from app.services.tradernet import get_tradernet_client
 from app.database import transaction
+from app.infrastructure.hardware.led_display import get_led_display
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,9 @@ class TradeExecutionService:
 
         if not client.is_connected:
             if not client.connect():
+                display = get_led_display()
+                if display.is_connected:
+                    display.show_error("TRADE FAIL")
                 raise ConnectionError("Failed to connect to Tradernet")
 
         # Use transaction if available and requested
@@ -99,6 +103,9 @@ class TradeExecutionService:
                         "order_id": result.order_id,
                     })
                 else:
+                    display = get_led_display()
+                    if display.is_connected:
+                        display.show_error("ORDER FAIL")
                     results.append({
                         "symbol": trade.symbol,
                         "status": "failed",
@@ -107,6 +114,9 @@ class TradeExecutionService:
 
             except Exception as e:
                 logger.error(f"Failed to execute trade for {trade.symbol}: {e}")
+                display = get_led_display()
+                if display.is_connected:
+                    display.show_error("ORDER FAIL")
                 results.append({
                     "symbol": trade.symbol,
                     "status": "error",

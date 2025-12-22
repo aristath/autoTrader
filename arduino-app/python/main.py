@@ -35,11 +35,32 @@ DIGITS = {
 }
 
 LETTERS = {
+    'A': ['010','101','111','101','101'],
+    'B': ['110','101','110','101','110'],
+    'C': ['011','100','100','100','011'],
+    'D': ['110','101','101','101','110'],
+    'E': ['111','100','110','100','111'],
+    'F': ['111','100','110','100','100'],
+    'G': ['011','100','101','101','011'],
+    'H': ['101','101','111','101','101'],
+    'I': ['111','010','010','010','111'],
+    'J': ['001','001','001','101','010'],
+    'K': ['101','110','100','110','101'],
+    'L': ['100','100','100','100','111'],
+    'M': ['101','111','101','101','101'],
     'N': ['101','111','111','101','101'],
     'O': ['111','101','101','101','111'],
-    'W': ['101','101','111','111','101'],
-    'I': ['111','010','010','010','111'],
-    'F': ['111','100','110','100','100'],
+    'P': ['110','101','110','100','100'],
+    'Q': ['010','101','101','110','011'],
+    'R': ['110','101','110','101','101'],
+    'S': ['011','100','010','001','110'],
+    'T': ['111','010','010','010','010'],
+    'U': ['101','101','101','101','111'],
+    'V': ['101','101','101','101','010'],
+    'W': ['101','101','101','111','101'],
+    'X': ['101','101','010','101','101'],
+    'Y': ['101','101','010','010','010'],
+    'Z': ['111','001','010','100','111'],
 }
 
 # State
@@ -49,6 +70,8 @@ syncing_frame = 0
 current_balance_arr = None  # Store current balance display
 api_call_phase = 0  # For pulsing animation on API calls
 heartbeat_phase = 0  # For heartbeat sine pulse animation
+error_offset = 0  # For scrolling error messages
+error_message = ""  # Current error message to display
 
 def create_balance_arr(value):
     """Create big digits + progress bar array for portfolio value.
@@ -129,16 +152,15 @@ def create_syncing_frame(phase):
                 arr[r][c] = max(0, 255 - dist * 80)
     return Frame(arr)
 
-def create_no_wifi_frame(offset):
-    """Create scrolling NO WIFI text."""
+def create_scroll_frame(text, offset):
+    """Create scrolling text frame for any message."""
     arr = np.zeros((ROWS, COLS), dtype=np.uint8)
-    text = "NO WIFI"
     text_width = len(text) * 4
     start_col = COLS - (offset % (text_width + COLS))
     start_row = 1
 
     col = start_col
-    for char in text:
+    for char in text.upper():
         if char == ' ':
             col += 2
             continue
@@ -153,6 +175,10 @@ def create_no_wifi_frame(offset):
                             arr[r][c] = PIXEL_ON
             col += 4
     return Frame(arr)
+
+def create_no_wifi_frame(offset):
+    """Create scrolling NO WIFI text."""
+    return create_scroll_frame("NO WIFI", offset)
 
 def create_error_frame():
     """Create X pattern for errors."""
@@ -222,15 +248,32 @@ def apply_night_mode(arr):
 
 def loop():
     global last_value, last_mode, scroll_offset, syncing_frame, last_update, current_balance_arr
-    global api_call_phase, heartbeat_phase
+    global api_call_phase, heartbeat_phase, error_offset, error_message
 
     try:
         state = fetch_display_state()
 
         if state is None:
-            draw_frame(create_error_frame())
-            time.sleep(0.1)
+            # API unreachable - scroll error message
+            error_message = "API DOWN"
+            draw_frame(create_scroll_frame(error_message, error_offset))
+            error_offset += 1
+            time.sleep(0.12)
             return
+
+        # Check for error status from API
+        system_status = state.get("system_status", "ok")
+        if system_status == "error":
+            error_message = state.get("error_message", "ERROR")
+            if error_message:
+                draw_frame(create_scroll_frame(error_message, error_offset))
+                error_offset += 1
+                time.sleep(0.12)
+                return
+
+        # Reset error state on success
+        error_offset = 0
+        error_message = ""
 
         mode = state.get("mode", "balance")
         value = state.get("value", 0)

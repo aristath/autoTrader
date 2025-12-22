@@ -74,6 +74,9 @@ class LEDDisplay:
         # Status indicators for bottom rows
         self._web_request_time: float = 0.0  # Timestamp of last web request
         self._api_call_active: bool = False   # Currently making external API call
+        # Error message for scrolling display
+        self._error_message: str = ""
+        self._system_status: str = "ok"  # ok, syncing, error
 
     def connect(self) -> bool:
         """Connect to MCU via serial."""
@@ -160,6 +163,11 @@ class LEDDisplay:
         Args:
             status: "ok", "syncing", "error"
         """
+        self._system_status = status
+        # Clear error message when status becomes ok
+        if status == "ok":
+            self._error_message = ""
+
         color_map = {
             "ok": [0, 255, 0],      # Green
             "syncing": [0, 0, 255],  # Blue
@@ -181,13 +189,21 @@ class LEDDisplay:
             "side": side
         })
 
-    def show_error(self, message: str = "") -> bool:
-        """Show error state."""
+    def show_error(self, message: str = "ERROR") -> bool:
+        """Show error state with scrolling message."""
+        self._error_message = message
+        self._system_status = "error"
+        self._display_mode = DisplayMode.ERROR
         self.set_mode(DisplayMode.ERROR)
         return self._send_command({
             "cmd": "error",
             "message": message[:20]  # Truncate
         })
+
+    def clear_error(self) -> None:
+        """Clear error state."""
+        self._error_message = ""
+        self._system_status = "ok"
 
     def show_success(self) -> bool:
         """Show success animation."""
@@ -299,7 +315,8 @@ class LEDDisplay:
             "value": self._display_value,
             "heartbeat": self._heartbeat_pending,
             "rgb_flash": self._rgb_flash,
-            "system_status": self._current_state.system_status if self._current_state else "ok",
+            "system_status": self._system_status,
+            "error_message": self._error_message,
             # Status indicators for bottom rows
             "web_request_active": (time.time() - self._web_request_time) < 0.5,
             "api_call_active": self._api_call_active,

@@ -1,5 +1,6 @@
 """Stock universe API endpoints."""
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -26,6 +27,7 @@ from app.domain.services.priority_calculator import (
 from app.services.allocator import parse_industries
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class StockCreate(BaseModel):
@@ -191,82 +193,6 @@ async def get_stock(
     return result
 
 
-@router.post("/{symbol}/refresh")
-async def refresh_stock_score(
-    symbol: str,
-    stock_repo: StockRepository = Depends(get_stock_repository),
-    score_repo: ScoreRepository = Depends(get_score_repository),
-):
-    """Trigger score recalculation for a stock."""
-    # Check stock exists
-    stock = await stock_repo.get_by_symbol(symbol)
-    if not stock:
-        raise HTTPException(status_code=404, detail="Stock not found")
-
-    # Calculate and save score using application service
-    from app.application.services.scoring_service import ScoringService
-    scoring_service = ScoringService(stock_repo, score_repo)
-    
-    score = await scoring_service.calculate_and_save_score(
-        symbol,
-        stock.yahoo_symbol,
-        geography=stock.geography,
-        industry=stock.industry,
-    )
-    if score:
-        return {
-            "symbol": symbol,
-            "total_score": score.total_score,
-            "quality": score.quality.total,
-            "opportunity": score.opportunity.total,
-            "analyst": score.analyst.total,
-            "allocation_fit": score.allocation_fit.total if score.allocation_fit else None,
-            "volatility": score.volatility,
-            # Quality breakdown
-            "cagr_score": score.quality.total_return_score,
-            "consistency_score": score.quality.consistency_score,
-            "dividend_bonus": score.quality.dividend_bonus,
-            "history_years": score.quality.history_years,
-        }
-
-    raise HTTPException(status_code=500, detail="Failed to calculate score")
-
-
-@router.post("/refresh-all")
-async def refresh_all_scores(
-    stock_repo: StockRepository = Depends(get_stock_repository),
-    score_repo: ScoreRepository = Depends(get_score_repository),
-):
-    """Recalculate scores for all stocks in universe and update industries."""
-    from app.services import yahoo
-
-    try:
-        # Get all active stocks
-        stocks = await stock_repo.get_all_active()
-
-        # Update industries from Yahoo Finance for stocks without industry
-        for stock in stocks:
-            if not stock.industry:  # No industry set
-                detected_industry = yahoo.get_stock_industry(stock.symbol, stock.yahoo_symbol)
-                if detected_industry:
-                    await stock_repo.update(stock.symbol, industry=detected_industry)
-
-        # Calculate scores using application service
-        from app.application.services.scoring_service import ScoringService
-        scoring_service = ScoringService(stock_repo, score_repo)
-        scores = await scoring_service.score_all_stocks()
-        
-        return {
-            "message": f"Refreshed scores for {len(scores)} stocks",
-            "scores": [
-                {"symbol": s.symbol, "total_score": s.total_score}
-                for s in scores
-            ],
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.post("")
 async def create_stock(
     stock: StockCreate,
@@ -325,6 +251,82 @@ async def create_stock(
         "min_lot": min_lot,
         "total_score": score.total_score if score else None,
     }
+
+
+@router.post("/refresh-all")
+async def refresh_all_scores(
+    stock_repo: StockRepository = Depends(get_stock_repository),
+    score_repo: ScoreRepository = Depends(get_score_repository),
+):
+    """Recalculate scores for all stocks in universe and update industries."""
+    from app.services import yahoo
+
+    try:
+        # Get all active stocks
+        stocks = await stock_repo.get_all_active()
+
+        # Update industries from Yahoo Finance for stocks without industry
+        for stock in stocks:
+            if not stock.industry:  # No industry set
+                detected_industry = yahoo.get_stock_industry(stock.symbol, stock.yahoo_symbol)
+                if detected_industry:
+                    await stock_repo.update(stock.symbol, industry=detected_industry)
+
+        # Calculate scores using application service
+        from app.application.services.scoring_service import ScoringService
+        scoring_service = ScoringService(stock_repo, score_repo)
+        scores = await scoring_service.score_all_stocks()
+        
+        return {
+            "message": f"Refreshed scores for {len(scores)} stocks",
+            "scores": [
+                {"symbol": s.symbol, "total_score": s.total_score}
+                for s in scores
+            ],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{symbol}/refresh")
+async def refresh_stock_score(
+    symbol: str,
+    stock_repo: StockRepository = Depends(get_stock_repository),
+    score_repo: ScoreRepository = Depends(get_score_repository),
+):
+    """Trigger score recalculation for a stock."""
+    # Check stock exists
+    stock = await stock_repo.get_by_symbol(symbol)
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+
+    # Calculate and save score using application service
+    from app.application.services.scoring_service import ScoringService
+    scoring_service = ScoringService(stock_repo, score_repo)
+    
+    score = await scoring_service.calculate_and_save_score(
+        symbol,
+        stock.yahoo_symbol,
+        geography=stock.geography,
+        industry=stock.industry,
+    )
+    if score:
+        return {
+            "symbol": symbol,
+            "total_score": score.total_score,
+            "quality": score.quality.total,
+            "opportunity": score.opportunity.total,
+            "analyst": score.analyst.total,
+            "allocation_fit": score.allocation_fit.total if score.allocation_fit else None,
+            "volatility": score.volatility,
+            # Quality breakdown
+            "cagr_score": score.quality.total_return_score,
+            "consistency_score": score.quality.consistency_score,
+            "dividend_bonus": score.quality.dividend_bonus,
+            "history_years": score.quality.history_years,
+        }
+
+    raise HTTPException(status_code=500, detail="Failed to calculate score")
 
 
 @router.put("/{symbol}")
@@ -402,15 +404,20 @@ async def delete_stock(
     stock_repo: StockRepository = Depends(get_stock_repository),
 ):
     """Remove a stock from the universe (soft delete by setting active=0)."""
+    logger.info(f"DELETE /api/stocks/{symbol} - Attempting to delete stock")
+    
     # Check stock exists
     stock = await stock_repo.get_by_symbol(symbol.upper())
     if not stock:
+        logger.warning(f"DELETE /api/stocks/{symbol} - Stock not found")
         raise HTTPException(status_code=404, detail="Stock not found")
 
     # Soft delete - set active = 0
+    logger.info(f"DELETE /api/stocks/{symbol} - Soft deleting stock (setting active=0)")
     await stock_repo.delete(symbol.upper())
 
     # Invalidate cache
     cache.invalidate("stocks_with_scores")
 
+    logger.info(f"DELETE /api/stocks/{symbol} - Stock successfully deleted")
     return {"message": f"Stock {symbol.upper()} removed from universe"}
