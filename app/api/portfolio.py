@@ -1,30 +1,22 @@
 """Portfolio API endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 from typing import Optional
 from app.infrastructure.dependencies import (
     get_portfolio_repository,
     get_position_repository,
     get_allocation_repository,
     get_stock_repository,
-    get_settings_repository,
 )
 from app.domain.repositories import (
     PortfolioRepository,
     PositionRepository,
     AllocationRepository,
     StockRepository,
-    SettingsRepository,
 )
 from app.application.services.portfolio_service import PortfolioService
 
 router = APIRouter()
-
-
-class ManualDeposits(BaseModel):
-    """Model for setting manual deposits."""
-    amount: float
 
 
 @router.get("")
@@ -121,25 +113,6 @@ async def get_portfolio_history(
     ]
 
 
-@router.get("/deposits")
-async def get_manual_deposits(
-    settings_repo: SettingsRepository = Depends(get_settings_repository),
-):
-    """Get manual deposits setting."""
-    amount = await settings_repo.get_float("manual_deposits", 0.0)
-    return {"amount": amount}
-
-
-@router.put("/deposits")
-async def set_manual_deposits(
-    deposits: ManualDeposits,
-    settings_repo: SettingsRepository = Depends(get_settings_repository),
-):
-    """Set manual deposits amount (EUR)."""
-    await settings_repo.set_float("manual_deposits", deposits.amount)
-    return {"message": "Manual deposits updated", "amount": deposits.amount}
-
-
 @router.get("/transactions")
 async def get_transaction_history():
     """
@@ -159,66 +132,7 @@ async def get_transaction_history():
         return {
             "total_withdrawals": cash_movements.get("total_withdrawals", 0),
             "withdrawals": cash_movements.get("withdrawals", []),
-            "note": "Deposits are not available via API - use manual deposits setting",
+            "note": "Deposits are not available via API",
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get transaction history: {str(e)}")
-
-
-@router.get("/pnl")
-async def get_portfolio_pnl(
-    settings_repo: SettingsRepository = Depends(get_settings_repository),
-):
-    """
-    Get portfolio profit/loss.
-
-    Formula: P&L = Current Portfolio Value - Net Investment
-    Where: Net Investment = Manual Deposits - Total Withdrawals
-
-    Note: The Tradernet API only provides withdrawal history.
-    Deposits must be entered manually via the /deposits endpoint.
-    """
-    from app.services.tradernet import get_tradernet_client
-
-    client = get_tradernet_client()
-    if not client.is_connected:
-        if not client.connect():
-            raise HTTPException(
-                status_code=503,
-                detail="Not connected to Tradernet"
-            )
-
-    try:
-        # Get current total portfolio value (positions + cash)
-        total_value = client.get_total_portfolio_value_eur()
-
-        # Get withdrawal history from API
-        cash_movements = client.get_cash_movements()
-        total_withdrawals = cash_movements.get("total_withdrawals", 0)
-
-        # Get manual deposits from settings repository
-        manual_deposits = await settings_repo.get_float("manual_deposits", 0.0)
-
-        # Calculate net investment (what's still invested after withdrawals)
-        net_investment = manual_deposits - total_withdrawals
-
-        # Calculate P&L
-        # Positive = profit, Negative = loss
-        pnl = total_value - net_investment
-        # Avoid division by zero - only calculate percentage if we have positive net investment
-        pnl_pct = (pnl / net_investment * 100) if net_investment > 0.01 else 0.0
-
-        return {
-            "total_value": round(total_value, 2),
-            "manual_deposits": manual_deposits,
-            "total_withdrawals": total_withdrawals,
-            "net_investment": round(net_investment, 2),
-            "pnl": round(pnl, 2),
-            "pnl_pct": round(pnl_pct, 2),
-            "deposits_set": manual_deposits > 0,
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to calculate portfolio P&L: {str(e)}"
-        )

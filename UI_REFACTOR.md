@@ -73,13 +73,12 @@ module.exports = {
 
 ## Component Migration
 
-All 12 components were migrated from BEM classes to Tailwind utilities:
+All 11 components were migrated from BEM classes to Tailwind utilities:
 
 ### Tier 1 (Simple Components)
 - `app-header.js` - Header with connection status
 - `status-bar.js` - System status display
 - `summary-cards.js` - Portfolio statistics grid
-- `pnl-card.js` - Profit/loss display with deposit editing
 
 ### Tier 2 (Charts)
 - `geo-chart.js` - SVG doughnut chart for geographic allocation
@@ -142,10 +141,6 @@ const API = {
   fetchTrades: () => fetch('/api/trades').then(r => r.json()),
   previewRebalance: () => API._post('/api/trades/rebalance/preview'),
   executeRebalance: () => API._post('/api/trades/rebalance/execute'),
-
-  // Portfolio
-  fetchPnl: () => fetch('/api/portfolio/pnl').then(r => r.json()),
-  setDeposits: (amount) => API._put('/api/portfolio/deposits', { amount }),
 };
 ```
 

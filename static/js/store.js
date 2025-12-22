@@ -16,14 +16,6 @@ document.addEventListener('alpine:init', () => {
     stocks: [],
     trades: [],
     tradernet: { connected: false },
-    pnl: {
-      pnl: null,
-      pnl_pct: null,
-      total_value: null,
-      net_deposits: null,
-      loading: false,
-      error: null
-    },
 
     // UI State - Filters
     stockFilter: 'all',
@@ -72,8 +64,7 @@ document.addEventListener('alpine:init', () => {
         this.fetchStocks(),
         this.fetchTrades(),
         this.fetchTradernet(),
-        this.fetchGeographies(),
-        this.fetchPnl()
+        this.fetchGeographies()
       ]);
     },
 
@@ -132,31 +123,6 @@ document.addEventListener('alpine:init', () => {
       } catch (e) {
         console.error('Failed to fetch geographies:', e);
       }
-    },
-
-    async fetchPnl() {
-      this.pnl.loading = true;
-      this.pnl.error = null;
-      try {
-        const data = await API.fetchPnl();
-        if (data.error) {
-          this.pnl.error = data.error;
-        } else {
-          Object.assign(this.pnl, {
-            pnl: data.pnl,
-            pnl_pct: data.pnl_pct,
-            total_value: data.total_value,
-            net_deposits: data.net_deposits,
-            deposits_set: data.deposits_set,
-            manual_deposits: data.manual_deposits,
-            total_withdrawals: data.total_withdrawals
-          });
-        }
-      } catch (e) {
-        console.error('Failed to fetch P&L:', e);
-        this.pnl.error = 'Failed to fetch P&L data';
-      }
-      this.pnl.loading = false;
     },
 
     // Computed Properties
@@ -240,16 +206,6 @@ document.addEventListener('alpine:init', () => {
     },
 
     // Actions
-    async setManualDeposits(amount) {
-      try {
-        await API.setDeposits(parseFloat(amount));
-        this.showMessage('Deposits updated', 'success');
-        await this.fetchPnl();
-      } catch (e) {
-        this.showMessage('Failed to update deposits', 'error');
-      }
-    },
-
     async previewRebalance() {
       this.loading.rebalance = true;
       this.rebalancePreview = null;

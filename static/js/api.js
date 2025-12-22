@@ -58,10 +58,6 @@ const API = {
   previewRebalance: () => API._post('/api/trades/rebalance/preview'),
   executeRebalance: () => API._post('/api/trades/rebalance/execute'),
 
-  // Portfolio
-  fetchPnl: () => fetch('/api/portfolio/pnl').then(r => r.json()),
-  setDeposits: (amount) => API._put('/api/portfolio/deposits', { amount }),
-
   // Charts
   fetchPortfolioChart: (range = 'all') => {
     const params = new URLSearchParams({ range });
