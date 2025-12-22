@@ -22,7 +22,7 @@ class GeoChart extends HTMLElement {
             <circle cx="50" cy="50" r="40" fill="none" stroke="#374151" stroke-width="16"/>
 
             <!-- Dynamic segments based on active geographies -->
-            <template x-for="(geo, index) in $store.app.allocation.geographic" :key="geo.name">
+            <template x-for="(geo, index) in geographicAllocations" :key="geo.name">
               <circle cx="50" cy="50" r="40" fill="none"
                       :stroke="getGeoColor(geo.name)"
                       stroke-width="16"
@@ -36,7 +36,7 @@ class GeoChart extends HTMLElement {
 
         <!-- View Mode - Only show active geographies (with stocks) -->
         <div x-show="!$store.app.editingGeo" class="space-y-1.5">
-          <template x-for="geo in $store.app.allocation.geographic.filter(g => $store.app.activeGeographies.includes(g.name))" :key="geo.name">
+          <template x-for="geo in geographicAllocations.filter(g => $store.app.activeGeographies.includes(g.name))" :key="geo.name">
             <div class="flex items-center justify-between text-sm">
               <span class="flex items-center gap-2">
                 <span class="w-2.5 h-2.5 rounded-full" :style="'background-color: ' + getGeoColor(geo.name)"></span>
@@ -116,19 +116,25 @@ function geoChartComponent() {
   return {
     circumference: 2 * Math.PI * 40,
 
+    get geographicAllocations() {
+      const allocation = this.$store.app.allocation;
+      if (!allocation || !allocation.geographic) return [];
+      return Array.isArray(allocation.geographic) ? allocation.geographic : [];
+    },
+
     getGeoColor(name) {
       return geoColors[name] || '#6B7280';
     },
 
     getOffset(index) {
-      const geo = this.$store.app.allocation.geographic;
-      if (!geo || !geo[index]) return this.circumference;
+      const geo = this.geographicAllocations;
+      if (!geo || !Array.isArray(geo) || !geo[index]) return this.circumference;
       return this.circumference * (1 - (geo[index].current_pct || 0));
     },
 
     getRotation(index) {
-      const geo = this.$store.app.allocation.geographic;
-      if (!geo) return -90;
+      const geo = this.geographicAllocations;
+      if (!geo || !Array.isArray(geo)) return -90;
       let cumulative = 0;
       for (let i = 0; i < index; i++) {
         cumulative += (geo[i]?.current_pct || 0);
