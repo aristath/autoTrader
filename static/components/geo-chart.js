@@ -1,6 +1,6 @@
 /**
- * Geographic Allocation Chart Component
- * Displays SVG doughnut chart and allows editing geographic weights
+ * Geographic Allocation Component
+ * Displays geographic weights and allows editing
  * Weight scale: -1 (avoid) to +1 (prioritize), 0 = neutral
  */
 class GeoChart extends HTMLElement {
@@ -14,24 +14,6 @@ class GeoChart extends HTMLElement {
                   class="text-xs text-blue-400 hover:text-blue-300 transition-colors">
             Edit Weights
           </button>
-        </div>
-
-        <div class="flex justify-center mb-3">
-          <svg viewBox="0 0 100 100" class="w-32 h-32">
-            <!-- Background circle -->
-            <circle cx="50" cy="50" r="40" fill="none" stroke="#374151" stroke-width="16"/>
-
-            <!-- Dynamic segments based on active geographies -->
-            <template x-for="(geo, index) in (geographicAllocations || [])" :key="geo.name">
-              <circle cx="50" cy="50" r="40" fill="none"
-                      :stroke="getGeoColor(geo.name)"
-                      stroke-width="16"
-                      :stroke-dasharray="circumference"
-                      :stroke-dashoffset="getOffset(index)"
-                      :transform="'rotate(' + getRotation(index) + ' 50 50)'"
-                      class="doughnut-chart__segment"/>
-            </template>
-          </svg>
         </div>
 
         <!-- View Mode - Only show active geographies (with stocks) -->
@@ -100,7 +82,7 @@ class GeoChart extends HTMLElement {
 }
 
 /**
- * Alpine.js component for SVG doughnut chart
+ * Alpine.js component for geographic allocation
  */
 function geoChartComponent() {
   const geoColors = {
@@ -114,8 +96,6 @@ function geoChartComponent() {
   };
 
   return {
-    circumference: 2 * Math.PI * 40,
-
     get geographicAllocations() {
       const allocation = this.$store.app.allocation;
       if (!allocation || !allocation.geographic) return [];
@@ -124,22 +104,6 @@ function geoChartComponent() {
 
     getGeoColor(name) {
       return geoColors[name] || '#6B7280';
-    },
-
-    getOffset(index) {
-      const geo = this.geographicAllocations;
-      if (!geo || !Array.isArray(geo) || !geo[index]) return this.circumference;
-      return this.circumference * (1 - (geo[index].current_pct || 0));
-    },
-
-    getRotation(index) {
-      const geo = this.geographicAllocations;
-      if (!geo || !Array.isArray(geo)) return -90;
-      let cumulative = 0;
-      for (let i = 0; i < index; i++) {
-        cumulative += (geo[i]?.current_pct || 0);
-      }
-      return -90 + (cumulative * 360);
     },
 
     formatWeight(weight) {
