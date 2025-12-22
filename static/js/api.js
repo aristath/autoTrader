@@ -68,6 +68,10 @@ const API = {
     const params = new URLSearchParams({ range, source });
     return fetch(`/api/charts/stocks/${symbol}?${params}`).then(r => r.json());
   },
+
+  // Settings
+  fetchSettings: () => fetch('/api/settings').then(r => r.json()),
+  updateMinTradeSize: (value) => API._put('/api/settings/min_trade_size', { value }),
 };
 
 // Make available globally

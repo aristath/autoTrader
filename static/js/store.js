@@ -17,6 +17,7 @@ document.addEventListener('alpine:init', () => {
     trades: [],
     tradernet: { connected: false },
     recommendations: [],
+    settings: { min_trade_size: 400 },
 
     // UI State - Filters
     stockFilter: 'all',
@@ -66,7 +67,8 @@ document.addEventListener('alpine:init', () => {
         this.fetchTrades(),
         this.fetchTradernet(),
         this.fetchGeographies(),
-        this.fetchRecommendations()
+        this.fetchRecommendations(),
+        this.fetchSettings()
       ]);
     },
 
@@ -136,6 +138,27 @@ document.addEventListener('alpine:init', () => {
         console.error('Failed to fetch recommendations:', e);
       }
       this.loading.recommendations = false;
+    },
+
+    async fetchSettings() {
+      try {
+        this.settings = await API.fetchSettings();
+      } catch (e) {
+        console.error('Failed to fetch settings:', e);
+      }
+    },
+
+    async updateMinTradeSize(value) {
+      const numValue = parseFloat(value);
+      if (isNaN(numValue) || numValue <= 0) return;
+      try {
+        await API.updateMinTradeSize(numValue);
+        this.settings.min_trade_size = numValue;
+        this.showMessage('Min trade size updated', 'success');
+        await this.fetchRecommendations();
+      } catch (e) {
+        this.showMessage('Failed to update min trade size', 'error');
+      }
     },
 
     async executeRecommendation(symbol) {
