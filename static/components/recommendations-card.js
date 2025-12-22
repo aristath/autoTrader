@@ -7,7 +7,7 @@ class RecommendationsCard extends HTMLElement {
     this.innerHTML = `
       <div class="bg-gray-800 border border-gray-700 rounded p-3" x-data>
         <div class="flex items-center justify-between mb-3">
-          <h2 class="text-xs text-gray-400 uppercase tracking-wide">Next Actions</h2>
+          <h2 class="text-xs text-gray-400 uppercase tracking-wide">Buy Recommendations</h2>
           <button @click="$store.app.fetchRecommendations()"
                   class="p-1 text-gray-400 hover:text-gray-200 rounded hover:bg-gray-700 transition-colors"
                   :disabled="$store.app.loading.recommendations"
