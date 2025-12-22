@@ -6,39 +6,39 @@ class AddStockModal extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
       <div x-data x-show="$store.app.showAddStockModal"
-           class="modal-overlay"
+           class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center p-4"
            x-transition>
-        <div class="modal modal--sm">
-          <div class="modal__header">
-            <h2 class="modal__title">Add Stock to Universe</h2>
+        <div class="bg-gray-800 border border-gray-700 rounded-lg w-full max-w-md" @click.stop>
+          <div class="flex items-center justify-between p-4 border-b border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-100">Add Stock to Universe</h2>
             <button @click="$store.app.showAddStockModal = false; $store.app.resetNewStock()"
-                    class="modal__close">&times;</button>
+                    class="text-gray-400 hover:text-gray-200 text-2xl leading-none">&times;</button>
           </div>
 
-          <div class="modal__body">
-            <div class="form-group">
-              <label class="label">Symbol *</label>
+          <div class="p-4 space-y-4">
+            <div>
+              <label class="block text-sm text-gray-400 mb-1">Symbol *</label>
               <input type="text"
                      x-model="$store.app.newStock.symbol"
                      placeholder="e.g., AAPL, MSFT.US"
-                     class="input">
+                     class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm text-gray-100 focus:border-blue-500 focus:outline-none">
             </div>
 
-            <div class="form-group">
-              <label class="label">Name *</label>
+            <div>
+              <label class="block text-sm text-gray-400 mb-1">Name *</label>
               <input type="text"
                      x-model="$store.app.newStock.name"
                      placeholder="e.g., Apple Inc."
-                     class="input">
+                     class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm text-gray-100 focus:border-blue-500 focus:outline-none">
             </div>
 
-            <div class="form-group">
-              <label class="label">Region *</label>
+            <div>
+              <label class="block text-sm text-gray-400 mb-1">Region *</label>
               <input type="text"
                      x-model="$store.app.newStock.geography"
                      list="geographies-list"
                      placeholder="e.g., EU, US, ASIA"
-                     class="input">
+                     class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm text-gray-100 focus:border-blue-500 focus:outline-none">
               <datalist id="geographies-list">
                 <template x-for="geo in $store.app.geographies" :key="geo">
                   <option :value="geo"></option>
@@ -46,13 +46,13 @@ class AddStockModal extends HTMLElement {
               </datalist>
             </div>
 
-            <div class="form-group">
-              <label class="label">Industry (optional)</label>
+            <div>
+              <label class="block text-sm text-gray-400 mb-1">Industry (optional)</label>
               <input type="text"
                      x-model="$store.app.newStock.industry"
                      list="industries-list"
                      placeholder="Auto-detected from Yahoo Finance"
-                     class="input">
+                     class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm text-gray-100 focus:border-blue-500 focus:outline-none">
               <datalist id="industries-list">
                 <template x-for="ind in $store.app.industries" :key="ind">
                   <option :value="ind"></option>
@@ -61,15 +61,15 @@ class AddStockModal extends HTMLElement {
             </div>
           </div>
 
-          <div class="modal__footer">
+          <div class="flex justify-end gap-2 p-4 border-t border-gray-700">
             <button @click="$store.app.showAddStockModal = false; $store.app.resetNewStock()"
-                    class="btn btn--secondary">
+                    class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded transition-colors">
               Cancel
             </button>
             <button @click="$store.app.addStock()"
                     :disabled="$store.app.addingStock || !$store.app.newStock.symbol || !$store.app.newStock.name"
-                    class="btn btn--success">
-              <span x-show="$store.app.addingStock" class="btn__spinner">&#9696;</span>
+                    class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-sm rounded transition-colors disabled:opacity-50">
+              <span x-show="$store.app.addingStock" class="inline-block animate-spin mr-1">&#9696;</span>
               Add Stock
             </button>
           </div>

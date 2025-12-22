@@ -30,3 +30,6 @@ Thumbs.db
 .coverage
 htmlcov/
 .env.aristath
+
+# Tailwind CLI binary
+tailwindcss

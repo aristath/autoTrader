@@ -41,7 +41,7 @@ Automated portfolio management system for Arduino Uno Q with monthly rebalancing
 ## Tech Stack
 
 - **Backend**: Python 3.10+, FastAPI, SQLite
-- **Frontend**: Alpine.js, Tailwind CSS, Chart.js (CDN)
+- **Frontend**: Alpine.js, Tailwind CSS (standalone CLI), Lightweight Charts
 - **APIs**: Freedom24/Tradernet, Yahoo Finance (yfinance)
 - **Scheduling**: APScheduler
 - **MCU**: Arduino sketch for STM32U585

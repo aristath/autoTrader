@@ -6,49 +6,49 @@ class EditStockModal extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
       <div x-data x-show="$store.app.showEditStockModal"
-           class="modal-overlay"
+           class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center p-4"
            x-transition>
-        <div class="modal modal--sm">
-          <div class="modal__header">
-            <h2 class="modal__title">Edit Stock</h2>
+        <div class="bg-gray-800 border border-gray-700 rounded-lg w-full max-w-md" @click.stop>
+          <div class="flex items-center justify-between p-4 border-b border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-100">Edit Stock</h2>
             <button @click="$store.app.closeEditStock()"
-                    class="modal__close">&times;</button>
+                    class="text-gray-400 hover:text-gray-200 text-2xl leading-none">&times;</button>
           </div>
 
           <template x-if="$store.app.editingStock">
-            <div class="modal__body">
-              <div class="form-group">
-                <label class="label">Symbol (Tradernet)</label>
+            <div class="p-4 space-y-4">
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">Symbol (Tradernet)</label>
                 <input type="text"
                        :value="$store.app.editingStock.symbol"
                        disabled
-                       class="input input--disabled">
-                <small class="text-muted">Primary identifier (read-only)</small>
+                       class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm text-gray-500 cursor-not-allowed">
+                <p class="text-xs text-gray-500 mt-1">Primary identifier (read-only)</p>
               </div>
 
-              <div class="form-group">
-                <label class="label">Yahoo Symbol (override)</label>
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">Yahoo Symbol (override)</label>
                 <input type="text"
                        x-model="$store.app.editingStock.yahoo_symbol"
                        placeholder="Leave empty to use convention"
-                       class="input">
-                <small class="text-muted">e.g., 1810.HK for Xiaomi, 300750.SZ for CATL</small>
+                       class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm text-gray-100 focus:border-blue-500 focus:outline-none">
+                <p class="text-xs text-gray-500 mt-1">e.g., 1810.HK for Xiaomi, 300750.SZ for CATL</p>
               </div>
 
-              <div class="form-group">
-                <label class="label">Name</label>
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">Name</label>
                 <input type="text"
                        x-model="$store.app.editingStock.name"
-                       class="input">
+                       class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm text-gray-100 focus:border-blue-500 focus:outline-none">
               </div>
 
-              <div class="form-group">
-                <label class="label">Region</label>
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">Region</label>
                 <input type="text"
                        x-model="$store.app.editingStock.geography"
                        list="edit-geographies-list"
                        placeholder="e.g., EU, US, ASIA"
-                       class="input">
+                       class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm text-gray-100 focus:border-blue-500 focus:outline-none">
                 <datalist id="edit-geographies-list">
                   <template x-for="geo in $store.app.geographies" :key="geo">
                     <option :value="geo"></option>
@@ -56,42 +56,42 @@ class EditStockModal extends HTMLElement {
                 </datalist>
               </div>
 
-              <div class="form-group">
-                <label class="label">Industry</label>
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">Industry</label>
                 <input type="text"
                        x-model="$store.app.editingStock.industry"
                        list="edit-industries-list"
                        placeholder="e.g., Industrial, Defense"
-                       class="input">
+                       class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm text-gray-100 focus:border-blue-500 focus:outline-none">
                 <datalist id="edit-industries-list">
                   <template x-for="ind in $store.app.industries" :key="ind">
                     <option :value="ind"></option>
                   </template>
                 </datalist>
-                <small class="text-muted">Comma-separated for multiple industries</small>
+                <p class="text-xs text-gray-500 mt-1">Comma-separated for multiple industries</p>
               </div>
 
-              <div class="form-group">
-                <label class="label">Min Lot Size</label>
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">Min Lot Size</label>
                 <input type="number"
                        x-model="$store.app.editingStock.min_lot"
                        min="1"
                        step="1"
-                       class="input">
-                <small class="text-muted">Minimum shares per trade (e.g., 100 for Japanese stocks)</small>
+                       class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-sm text-gray-100 focus:border-blue-500 focus:outline-none">
+                <p class="text-xs text-gray-500 mt-1">Minimum shares per trade (e.g., 100 for Japanese stocks)</p>
               </div>
             </div>
           </template>
 
-          <div class="modal__footer">
+          <div class="flex justify-end gap-2 p-4 border-t border-gray-700">
             <button @click="$store.app.closeEditStock()"
-                    class="btn btn--secondary">
+                    class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded transition-colors">
               Cancel
             </button>
             <button @click="$store.app.saveStock()"
                     :disabled="$store.app.loading.stockSave"
-                    class="btn btn--primary">
-              <span x-show="$store.app.loading.stockSave" class="btn__spinner">&#9696;</span>
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded transition-colors disabled:opacity-50">
+              <span x-show="$store.app.loading.stockSave" class="inline-block animate-spin mr-1">&#9696;</span>
               Save Changes
             </button>
           </div>

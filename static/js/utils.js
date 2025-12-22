@@ -64,15 +64,15 @@ function formatScore(value) {
 }
 
 /**
- * Get CSS class for score value
+ * Get Tailwind class for score value
  * @param {number|null} score - Score value (0-1)
- * @returns {string} CSS class name
+ * @returns {string} Tailwind class names
  */
 function getScoreClass(score) {
-  if (score == null) return 'score--low';
-  if (score > 0.7) return 'score--high';
-  if (score > 0.4) return 'score--medium';
-  return 'score--low';
+  if (score == null) return 'bg-gray-700 text-gray-400';
+  if (score > 0.7) return 'bg-green-900/50 text-green-400';
+  if (score > 0.4) return 'bg-yellow-900/50 text-yellow-400';
+  return 'bg-gray-700 text-gray-400';
 }
 
 /**
@@ -86,15 +86,15 @@ function formatPriority(value) {
 }
 
 /**
- * Get CSS class for priority score value
+ * Get Tailwind class for priority score value
  * @param {number|null} score - Priority score (0-1.5 range, can be higher with multipliers)
- * @returns {string} CSS class name
+ * @returns {string} Tailwind class names
  */
 function getPriorityClass(score) {
-  if (score == null) return 'priority--low';
-  if (score >= 0.6) return 'priority--high';    // Strong buy signal
-  if (score >= 0.4) return 'priority--medium';  // Moderate priority
-  return 'priority--low';                        // Low priority
+  if (score == null) return 'bg-gray-700 text-gray-400';
+  if (score >= 0.6) return 'bg-green-900/50 text-green-400';
+  if (score >= 0.4) return 'bg-blue-900/50 text-blue-400';
+  return 'bg-gray-700 text-gray-400';
 }
 
 /**
@@ -103,32 +103,32 @@ function getPriorityClass(score) {
  * @returns {string} CSS class suffix
  */
 function getDeviationClass(deviation) {
-  if (deviation < -0.05) return 'under';
-  if (deviation > 0.05) return 'over';
-  return 'balanced';
+  if (deviation < -0.05) return 'text-red-400';
+  if (deviation > 0.05) return 'text-green-400';
+  return 'text-gray-400';
 }
 
 /**
- * Get tag class for geography
+ * Get Tailwind class for geography tag
  * @param {string} geography - Region code (EU, ASIA, US)
- * @returns {string} CSS class name
+ * @returns {string} Tailwind class names
  */
 function getGeoTagClass(geography) {
   const map = {
-    'EU': 'tag--eu',
-    'ASIA': 'tag--asia',
-    'US': 'tag--us'
+    'EU': 'bg-blue-900/50 text-blue-400',
+    'ASIA': 'bg-red-900/50 text-red-400',
+    'US': 'bg-green-900/50 text-green-400'
   };
-  return map[geography] || '';
+  return map[geography] || 'bg-gray-700 text-gray-400';
 }
 
 /**
- * Get tag class for trade side
+ * Get Tailwind class for trade side tag
  * @param {string} side - Trade side (BUY, SELL)
- * @returns {string} CSS class name
+ * @returns {string} Tailwind class names
  */
 function getSideTagClass(side) {
-  return side === 'BUY' ? 'tag--buy' : 'tag--sell';
+  return side === 'BUY' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400';
 }
 
 // Make functions available globally for Alpine.js

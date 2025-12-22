@@ -5,20 +5,20 @@
 class StatusBar extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
-      <div class="status-bar" x-data>
-        <div class="status-bar__left">
-          <span class="status-bar__item">
-            <span class="status-bar__dot"
-                  :class="$store.app.status.status === 'healthy' ? 'status-bar__dot--success' : 'status-bar__dot--danger'"></span>
+      <div class="flex items-center justify-between py-2 px-3 bg-gray-800/50 rounded text-xs text-gray-400" x-data>
+        <div class="flex items-center gap-3">
+          <span class="flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full"
+                  :class="$store.app.status.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'"></span>
             <span x-text="$store.app.status.status === 'healthy' ? 'System Online' : 'System Offline'"></span>
           </span>
-          <span class="status-bar__divider">|</span>
-          <span class="status-bar__label">
-            Last sync: <span x-text="$store.app.status.last_sync || 'Never'"></span>
+          <span class="text-gray-600">|</span>
+          <span>
+            Last sync: <span class="text-gray-300" x-text="$store.app.status.last_sync || 'Never'"></span>
           </span>
         </div>
-        <div class="status-bar__label">
-          Next rebalance: <span x-text="formatDate($store.app.status.next_rebalance)"></span>
+        <div>
+          Next rebalance: <span class="text-gray-300" x-text="formatDate($store.app.status.next_rebalance)"></span>
         </div>
       </div>
     `;

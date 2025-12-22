@@ -5,23 +5,23 @@
 class SummaryCards extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
-      <div class="layout__row layout__row--4col" x-data>
-        <div class="stat-card stat-card--success">
-          <p class="stat-card__label">Total Value</p>
-          <p class="stat-card__value" x-text="formatCurrency($store.app.allocation.total_value)"></p>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3" x-data>
+        <div class="bg-gray-800 border border-gray-700 rounded p-3">
+          <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Total Value</p>
+          <p class="text-xl font-mono font-bold text-green-400" x-text="formatCurrency($store.app.allocation.total_value)"></p>
         </div>
-        <div class="stat-card">
-          <p class="stat-card__label">Cash Balance</p>
-          <p class="stat-card__value" x-text="formatCurrency($store.app.allocation.cash_balance)"></p>
+        <div class="bg-gray-800 border border-gray-700 rounded p-3">
+          <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Cash Balance</p>
+          <p class="text-xl font-mono font-bold text-gray-100" x-text="formatCurrency($store.app.allocation.cash_balance)"></p>
         </div>
-        <div class="stat-card">
-          <p class="stat-card__label">Active Positions</p>
-          <p class="stat-card__value" x-text="$store.app.status.active_positions || 0"></p>
+        <div class="bg-gray-800 border border-gray-700 rounded p-3">
+          <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Active Positions</p>
+          <p class="text-xl font-mono font-bold text-gray-100" x-text="$store.app.status.active_positions || 0"></p>
         </div>
-        <div class="stat-card">
-          <p class="stat-card__label">Rebalance Status</p>
-          <p class="stat-card__value"
-             :class="$store.app.status.rebalance_ready ? 'stat-card--success' : ''"
+        <div class="bg-gray-800 border border-gray-700 rounded p-3">
+          <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Rebalance Status</p>
+          <p class="text-xl font-mono font-bold"
+             :class="$store.app.status.rebalance_ready ? 'text-green-400' : 'text-yellow-400'"
              x-text="$store.app.status.rebalance_ready ? 'Ready' : 'Cash < ' + formatCurrency($store.app.status.min_cash_threshold || 400)"></p>
         </div>
       </div>
