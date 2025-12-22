@@ -51,8 +51,14 @@ class SQLitePositionRepository(PositionRepository):
             for row in rows
         ]
 
-    async def upsert(self, position: Position) -> None:
-        """Insert or update a position."""
+    async def upsert(self, position: Position, auto_commit: bool = True) -> None:
+        """
+        Insert or update a position.
+        
+        Args:
+            position: Position to upsert
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         await self.db.execute(
             """
             INSERT OR REPLACE INTO positions
@@ -70,12 +76,19 @@ class SQLitePositionRepository(PositionRepository):
                 position.last_updated or datetime.now().isoformat(),
             ),
         )
-        await self.db.commit()
+        if auto_commit:
+            await self.db.commit()
 
-    async def delete_all(self) -> None:
-        """Delete all positions (used during sync)."""
+    async def delete_all(self, auto_commit: bool = True) -> None:
+        """
+        Delete all positions (used during sync).
+        
+        Args:
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         await self.db.execute("DELETE FROM positions")
-        await self.db.commit()
+        if auto_commit:
+            await self.db.commit()
 
     async def get_with_stock_info(self) -> List[dict]:
         """Get all positions with stock information."""

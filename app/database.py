@@ -1,8 +1,13 @@
 """SQLite database connection and initialization."""
 
+import logging
 import aiosqlite
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import AsyncIterator
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 async def get_db():
@@ -15,13 +20,65 @@ async def get_db():
         await db.close()
 
 
+@asynccontextmanager
+async def transaction(db: aiosqlite.Connection) -> AsyncIterator[aiosqlite.Connection]:
+    """
+    Transaction context manager for atomic operations.
+    
+    Usage:
+        async with transaction(db) as tx_db:
+            # All operations are atomic
+            await repo1.create(...)
+            await repo2.update(...)
+            # Commits on success, rolls back on exception
+    """
+    savepoint_id = f"sp_{id(db)}"
+    try:
+        await db.execute(f"SAVEPOINT {savepoint_id}")
+        yield db
+        await db.execute(f"RELEASE SAVEPOINT {savepoint_id}")
+    except Exception:
+        await db.execute(f"ROLLBACK TO SAVEPOINT {savepoint_id}")
+        raise
+
+
 async def init_db():
-    """Initialize database with schema."""
+    """Initialize database with schema and version tracking."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     # Ensure data directory exists
     settings.database_path.parent.mkdir(parents=True, exist_ok=True)
 
     async with aiosqlite.connect(settings.database_path) as db:
+        db.row_factory = aiosqlite.Row
+        
+        # Create schema version table first
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS schema_version (
+                version INTEGER PRIMARY KEY,
+                applied_at TEXT NOT NULL,
+                description TEXT
+            )
+        """)
+        
+        # Get current schema version
+        cursor = await db.execute("SELECT MAX(version) as max_version FROM schema_version")
+        row = await cursor.fetchone()
+        current_version = row["max_version"] if row and row["max_version"] is not None else 0
+        
+        # Apply schema
         await db.executescript(SCHEMA)
+        
+        # Record schema version if this is a new database
+        if current_version == 0:
+            from datetime import datetime
+            await db.execute(
+                "INSERT INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
+                (1, datetime.now().isoformat(), "Initial schema")
+            )
+            logger.info("Database initialized with schema version 1")
+        
         await db.commit()
 
 
@@ -45,7 +102,7 @@ CREATE TABLE IF NOT EXISTS positions (
     quantity REAL NOT NULL,
     avg_price REAL NOT NULL,
     current_price REAL,
-    currency TEXT DEFAULT 'EUR',
+    currency TEXT DEFAULT 'EUR',  -- Default currency (see app.domain.constants.DEFAULT_CURRENCY)
     currency_rate REAL DEFAULT 1.0,
     market_value_eur REAL,
     last_updated TEXT,
@@ -97,6 +154,7 @@ CREATE TABLE IF NOT EXISTS allocation_targets (
 );
 
 -- Insert default allocation targets
+-- Note: Geography targets sum to 1.0 (100%), Industry targets also sum to 1.0 (100%)
 INSERT OR IGNORE INTO allocation_targets (type, name, target_pct) VALUES
     ('geography', 'EU', 0.50),
     ('geography', 'ASIA', 0.30),

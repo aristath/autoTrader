@@ -24,6 +24,11 @@ from app.services.allocator import (
     get_max_trades,
     parse_industries,
 )
+from app.domain.constants import (
+    HIGH_GEO_NEED_THRESHOLD,
+    LOW_GEO_NEED_THRESHOLD,
+    HIGH_INDUSTRY_NEED_THRESHOLD,
+)
 from app.services import yahoo
 
 logger = logging.getLogger(__name__)
@@ -76,7 +81,7 @@ class RebalancingService:
             self._allocation_repo,
         )
         summary = await portfolio_service.get_portfolio_summary()
-        total_value = summary.total_value or 1  # Avoid division by zero
+        total_value = summary.total_value if summary.total_value and summary.total_value > 0 else 1.0  # Avoid division by zero
 
         # Build weight maps for quick lookup (target_pct now stores weights -1 to +1)
         geo_weights = {a.name: a.target_pct for a in summary.geographic_allocations}
@@ -153,14 +158,15 @@ class RebalancingService:
 
             metadata = stock_metadata[result.symbol]
 
-            # Get current price from Yahoo Finance
+            # Get current price from Yahoo Finance with retry logic
             # Note: This could be moved to a price service in the future
             # We need yahoo_symbol for proper price lookup - get it from stock data
             stock_data = next((s for s in stocks_data if s["symbol"] == result.symbol), None)
             yahoo_symbol = stock_data.get("yahoo_symbol") if stock_data else None
+            # Use config value for retries
             price = yahoo.get_current_price(result.symbol, yahoo_symbol)
             if not price or price <= 0:
-                logger.warning(f"Could not get price for {result.symbol}, skipping")
+                logger.warning(f"Could not get valid price for {result.symbol} after retries, skipping")
                 continue
 
             # Create StockPriority for position sizing calculation
@@ -211,11 +217,11 @@ class RebalancingService:
 
             # Build reason string with more detail
             reason_parts = []
-            if result.geo_need > 0.6:
+            if result.geo_need > HIGH_GEO_NEED_THRESHOLD:
                 reason_parts.append(f"{result.geography} prioritized")
-            elif result.geo_need < 0.4:
+            elif result.geo_need < LOW_GEO_NEED_THRESHOLD:
                 reason_parts.append(f"{result.geography} neutral")
-            if result.industry_need > 0.6:
+            if result.industry_need > HIGH_INDUSTRY_NEED_THRESHOLD:
                 industries = parse_industries(result.industry)
                 if industries:
                     reason_parts.append(f"{industries[0]} prioritized")
@@ -224,10 +230,12 @@ class RebalancingService:
                 reason_parts.append(f"mult: {result.multiplier:.1f}x")
             reason = ", ".join(reason_parts)
 
+            from app.domain.constants import TRADE_SIDE_BUY
+            
             recommendations.append(TradeRecommendation(
                 symbol=result.symbol,
                 name=result.name,
-                side="BUY",
+                side=TRADE_SIDE_BUY,
                 quantity=qty,
                 estimated_price=round(price, 2),
                 estimated_value=round(actual_value, 2),

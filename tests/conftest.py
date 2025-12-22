@@ -71,3 +71,17 @@ async def score_repo(db):
 async def trade_repo(db):
     """Create a trade repository instance."""
     return SQLiteTradeRepository(db)
+
+
+@pytest.fixture(autouse=True)
+def setup_test_environment(monkeypatch, tmp_path):
+    """Setup test environment variables and directories."""
+    # Set lock directory to temporary path for tests
+    lock_dir = tmp_path / "locks"
+    lock_dir.mkdir()
+    monkeypatch.setenv("LOCK_DIR", str(lock_dir))
+    
+    # Ensure LOCK_DIR is updated in the module
+    from app.infrastructure import locking
+    locking.LOCK_DIR = lock_dir
+    locking.LOCK_DIR.mkdir(parents=True, exist_ok=True)

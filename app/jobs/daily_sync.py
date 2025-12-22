@@ -10,6 +10,9 @@ from app.services.tradernet import get_tradernet_client
 from app.services import yahoo
 from app.infrastructure.hardware.led_display import get_led_display, update_balance_display
 from app.infrastructure.dependencies import get_position_repository
+from app.infrastructure.locking import file_lock
+from app.domain.constants import DEFAULT_CURRENCY
+from app.domain.repositories import Position
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +25,15 @@ async def sync_portfolio():
     1. Fetches current positions from Tradernet
     2. Updates local positions table
     3. Creates a daily portfolio snapshot
+    
+    Uses file locking to prevent concurrent syncs.
     """
+    async with file_lock("portfolio_sync", timeout=60.0):
+        await _sync_portfolio_internal()
+
+
+async def _sync_portfolio_internal():
+    """Internal portfolio sync implementation."""
     logger.info("Starting portfolio sync")
 
     # Show syncing animation on LED
@@ -46,77 +57,80 @@ async def sync_portfolio():
         cash_balance = client.get_total_cash_eur()
 
         async with aiosqlite.connect(settings.database_path) as db:
-            # Clear old positions
-            await db.execute("DELETE FROM positions")
+            db.row_factory = aiosqlite.Row
+            # Use transaction for atomic position update
+            # Clear old positions and insert new ones atomically
+            await db.execute("BEGIN TRANSACTION")
+            try:
+                # Clear old positions (no commit - part of transaction)
+                position_repo = get_position_repository(db)
+                await position_repo.delete_all(auto_commit=False)
 
-            # Insert current positions
-            total_value = 0.0
-            geo_values = {"EU": 0.0, "ASIA": 0.0, "US": 0.0}
+                # Insert current positions
+                total_value = 0.0
+                geo_values = {"EU": 0.0, "ASIA": 0.0, "US": 0.0}
+                
+                for pos in positions:
+                    position = Position(
+                        symbol=pos.symbol,
+                        quantity=pos.quantity,
+                        avg_price=pos.avg_price,
+                        current_price=pos.current_price,
+                        currency=pos.currency or DEFAULT_CURRENCY,
+                        currency_rate=pos.currency_rate,
+                        market_value_eur=pos.market_value_eur,
+                        last_updated=datetime.now().isoformat(),
+                    )
+                    await position_repo.upsert(position, auto_commit=False)
 
-            for pos in positions:
+                    # Use market_value_eur (converted to EUR)
+                    market_value = pos.market_value_eur
+                    total_value += market_value
+
+                    # Determine geography from symbol suffix or stocks table
+                    geo = None
+                    cursor = await db.execute(
+                        "SELECT geography FROM stocks WHERE symbol = ?",
+                        (pos.symbol,)
+                    )
+                    row = await cursor.fetchone()
+                    if row:
+                        geo = row[0]
+                    else:
+                        # Infer geography from symbol suffix
+                        symbol = pos.symbol.upper()
+                        if symbol.endswith(".GR") or symbol.endswith(".DE") or symbol.endswith(".PA"):
+                            geo = "EU"
+                        elif symbol.endswith(".AS") or symbol.endswith(".HK") or symbol.endswith(".T"):
+                            geo = "ASIA"
+                        elif symbol.endswith(".US"):
+                            geo = "US"
+
+                    if geo:
+                        geo_values[geo] = geo_values.get(geo, 0) + market_value
+
+                # Create daily snapshot
+                today = datetime.now().strftime("%Y-%m-%d")
                 await db.execute(
                     """
-                    INSERT INTO positions
-                    (symbol, quantity, avg_price, current_price, currency, currency_rate, market_value_eur, last_updated)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO portfolio_snapshots
+                    (date, total_value, cash_balance, geo_eu_pct, geo_asia_pct, geo_us_pct)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        pos.symbol,
-                        pos.quantity,
-                        pos.avg_price,
-                        pos.current_price,
-                        pos.currency,
-                        pos.currency_rate,
-                        pos.market_value_eur,
-                        datetime.now().isoformat(),
+                        today,
+                        total_value,
+                        cash_balance,
+                        geo_values["EU"] / total_value if total_value else 0,
+                        geo_values["ASIA"] / total_value if total_value else 0,
+                        geo_values["US"] / total_value if total_value else 0,
                     ),
                 )
 
-                # Use market_value_eur (converted to EUR)
-                market_value = pos.market_value_eur
-                total_value += market_value
-
-                # Determine geography from symbol suffix or stocks table
-                geo = None
-                cursor = await db.execute(
-                    "SELECT geography FROM stocks WHERE symbol = ?",
-                    (pos.symbol,)
-                )
-                row = await cursor.fetchone()
-                if row:
-                    geo = row[0]
-                else:
-                    # Infer geography from symbol suffix
-                    symbol = pos.symbol.upper()
-                    if symbol.endswith(".GR") or symbol.endswith(".DE") or symbol.endswith(".PA"):
-                        geo = "EU"
-                    elif symbol.endswith(".AS") or symbol.endswith(".HK") or symbol.endswith(".T"):
-                        geo = "ASIA"
-                    elif symbol.endswith(".US"):
-                        geo = "US"
-
-                if geo:
-                    geo_values[geo] = geo_values.get(geo, 0) + market_value
-
-            # Create daily snapshot
-            today = datetime.now().strftime("%Y-%m-%d")
-            await db.execute(
-                """
-                INSERT OR REPLACE INTO portfolio_snapshots
-                (date, total_value, cash_balance, geo_eu_pct, geo_asia_pct, geo_us_pct)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    today,
-                    total_value,
-                    cash_balance,
-                    geo_values["EU"] / total_value if total_value else 0,
-                    geo_values["ASIA"] / total_value if total_value else 0,
-                    geo_values["US"] / total_value if total_value else 0,
-                ),
-            )
-
-            await db.commit()
+                await db.commit()
+            except Exception:
+                await db.rollback()
+                raise
 
             # Update LED with new balance
             position_repo = get_position_repository(db)

@@ -32,13 +32,24 @@ class PositionRepository(ABC):
         pass
 
     @abstractmethod
-    async def upsert(self, position: Position) -> None:
-        """Insert or update a position."""
+    async def upsert(self, position: Position, auto_commit: bool = True) -> None:
+        """
+        Insert or update a position.
+        
+        Args:
+            position: Position to upsert
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         pass
 
     @abstractmethod
-    async def delete_all(self) -> None:
-        """Delete all positions (used during sync)."""
+    async def delete_all(self, auto_commit: bool = True) -> None:
+        """
+        Delete all positions (used during sync).
+        
+        Args:
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         pass
 
     @abstractmethod

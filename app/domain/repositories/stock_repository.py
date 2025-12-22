@@ -32,18 +32,37 @@ class StockRepository(ABC):
         pass
 
     @abstractmethod
-    async def create(self, stock: Stock) -> None:
-        """Create a new stock."""
+    async def create(self, stock: Stock, auto_commit: bool = True) -> None:
+        """
+        Create a new stock.
+        
+        Args:
+            stock: Stock to create
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         pass
 
     @abstractmethod
-    async def update(self, symbol: str, **updates) -> None:
-        """Update stock fields."""
+    async def update(self, symbol: str, auto_commit: bool = True, **updates) -> None:
+        """
+        Update stock fields.
+        
+        Args:
+            symbol: Stock symbol to update
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+            **updates: Field updates
+        """
         pass
 
     @abstractmethod
-    async def delete(self, symbol: str) -> None:
-        """Soft delete a stock (set active=False)."""
+    async def delete(self, symbol: str, auto_commit: bool = True) -> None:
+        """
+        Soft delete a stock (set active=False).
+        
+        Args:
+            symbol: Stock symbol to delete
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         pass
 
     @abstractmethod

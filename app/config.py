@@ -33,6 +33,20 @@ class Settings(BaseSettings):
     min_trade_size: float = 400.0  # EUR - keeps commission at 0.5% (€2 fee)
     max_trades_per_cycle: int = 5  # Maximum trades per rebalance cycle
     min_stock_score: float = 0.5  # Minimum score to consider buying a stock
+    
+    # Price fetching / Retry configuration
+    price_fetch_max_retries: int = 3  # Maximum retries for price fetching
+    price_fetch_retry_delay_base: float = 1.0  # Base delay in seconds for exponential backoff
+    
+    # Rate limiting
+    rate_limit_max_requests: int = 60  # General API rate limit per window
+    rate_limit_window_seconds: int = 60  # Rate limit window in seconds
+    rate_limit_trade_max: int = 10  # Trade execution rate limit per window
+    rate_limit_trade_window: int = 60  # Trade execution rate limit window in seconds
+    
+    # Job failure tracking
+    job_failure_threshold: int = 5  # Consecutive failures before alerting
+    job_failure_window_hours: int = 1  # Time window for failure tracking
 
     class Config:
         env_file = ".env"

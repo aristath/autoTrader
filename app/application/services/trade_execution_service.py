@@ -4,12 +4,14 @@ Orchestrates trade execution via Tradernet and records trades.
 """
 
 import logging
-from typing import List
+from typing import List, Optional
 from datetime import datetime
+import aiosqlite
 
 from app.domain.repositories import TradeRepository, Trade
 from app.services.allocator import TradeRecommendation
 from app.services.tradernet import get_tradernet_client
+from app.database import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -17,18 +19,24 @@ logger = logging.getLogger(__name__)
 class TradeExecutionService:
     """Application service for trade execution."""
 
-    def __init__(self, trade_repo: TradeRepository):
+    def __init__(self, trade_repo: TradeRepository, db: Optional[aiosqlite.Connection] = None):
         self._trade_repo = trade_repo
+        self._db = db
+        # Try to get db from repository if it has one
+        if db is None and hasattr(trade_repo, 'db'):
+            self._db = trade_repo.db
 
     async def execute_trades(
         self,
-        trades: List[TradeRecommendation]
+        trades: List[TradeRecommendation],
+        use_transaction: bool = True
     ) -> List[dict]:
         """
         Execute a list of trade recommendations via Tradernet.
 
         Args:
             trades: List of trade recommendations to execute
+            use_transaction: If True and db is available, wrap all trades in a transaction
 
         Returns:
             List of execution results with status for each trade
@@ -39,6 +47,20 @@ class TradeExecutionService:
             if not client.connect():
                 raise ConnectionError("Failed to connect to Tradernet")
 
+        # Use transaction if available and requested
+        if use_transaction and self._db:
+            async with transaction(self._db) as tx_db:
+                return await self._execute_trades_internal(trades, client, auto_commit=False)
+        else:
+            return await self._execute_trades_internal(trades, client, auto_commit=True)
+
+    async def _execute_trades_internal(
+        self,
+        trades: List[TradeRecommendation],
+        client,
+        auto_commit: bool = True
+    ) -> List[dict]:
+        """Internal method to execute trades."""
         results = []
 
         for trade in trades:
@@ -59,7 +81,17 @@ class TradeExecutionService:
                         executed_at=datetime.now(),
                         order_id=result.order_id,
                     )
-                    await self._trade_repo.create(trade_record)
+                    # Only auto-commit if not in transaction
+                    if hasattr(self._trade_repo, 'create'):
+                        # Check if create method supports auto_commit parameter
+                        import inspect
+                        sig = inspect.signature(self._trade_repo.create)
+                        if 'auto_commit' in sig.parameters:
+                            await self._trade_repo.create(trade_record, auto_commit=auto_commit)
+                        else:
+                            await self._trade_repo.create(trade_record)
+                    else:
+                        await self._trade_repo.create(trade_record)
 
                     results.append({
                         "symbol": trade.symbol,
@@ -80,5 +112,8 @@ class TradeExecutionService:
                     "status": "error",
                     "error": str(e),
                 })
+                # Note: If place_order() succeeded but DB write failed, the trade
+                # is executed externally but not recorded. We log this but continue.
+                # The transaction ensures DB consistency for recorded trades.
 
         return results

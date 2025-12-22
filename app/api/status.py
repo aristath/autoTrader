@@ -160,3 +160,22 @@ async def get_tradernet_status():
         "connected": client.is_connected,
         "message": "Connected to Tradernet" if client.is_connected else "Not connected",
     }
+
+
+@router.get("/jobs")
+async def get_job_status():
+    """Get status of all scheduled jobs."""
+    from app.jobs.scheduler import get_job_health_status
+    
+    try:
+        job_status = get_job_health_status()
+        return {
+            "status": "ok",
+            "jobs": job_status,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "jobs": {},
+        }

@@ -10,17 +10,22 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-async def execute_monthly_rebalance():
+async def execute_monthly_rebalance(deposit_amount: float):
     """
-    Execute monthly portfolio rebalance.
+    Execute portfolio rebalance for a specified deposit amount.
+
+    Note: This job is not currently scheduled. Use cash_rebalance job instead.
 
     This job:
     1. Syncs portfolio from Tradernet
     2. Refreshes stock scores
-    3. Calculates optimal trades for the monthly deposit
+    3. Calculates optimal trades for the deposit amount
     4. Executes trades via Tradernet
+
+    Args:
+        deposit_amount: Amount in EUR to invest
     """
-    logger.info("Starting monthly rebalance")
+    logger.info(f"Starting rebalance with deposit amount: €{deposit_amount:.2f}")
 
     try:
         from app.jobs.daily_sync import sync_portfolio
@@ -55,7 +60,7 @@ async def execute_monthly_rebalance():
             rebalancing_service = RebalancingService(
                 stock_repo, position_repo, allocation_repo, portfolio_repo
             )
-            trades = await rebalancing_service.calculate_rebalance_trades(settings.monthly_deposit)
+            trades = await rebalancing_service.calculate_rebalance_trades(deposit_amount)
 
             if not trades:
                 logger.info("No rebalance trades needed")

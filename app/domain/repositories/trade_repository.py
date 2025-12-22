@@ -21,8 +21,14 @@ class TradeRepository(ABC):
     """Abstract repository for trade operations."""
 
     @abstractmethod
-    async def create(self, trade: Trade) -> None:
-        """Create a new trade record."""
+    async def create(self, trade: Trade, auto_commit: bool = True) -> None:
+        """
+        Create a new trade record.
+        
+        Args:
+            trade: Trade to create
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         pass
 
     @abstractmethod

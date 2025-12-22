@@ -27,8 +27,14 @@ class ScoreRepository(ABC):
         pass
 
     @abstractmethod
-    async def upsert(self, score: StockScore) -> None:
-        """Insert or update a score."""
+    async def upsert(self, score: StockScore, auto_commit: bool = True) -> None:
+        """
+        Insert or update a score.
+        
+        Args:
+            score: Stock score to upsert
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         pass
 
     @abstractmethod

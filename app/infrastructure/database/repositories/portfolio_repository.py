@@ -53,8 +53,14 @@ class SQLitePortfolioRepository(PortfolioRepository):
             for row in rows
         ]
 
-    async def create(self, snapshot: PortfolioSnapshot) -> None:
-        """Create a new portfolio snapshot."""
+    async def create(self, snapshot: PortfolioSnapshot, auto_commit: bool = True) -> None:
+        """
+        Create a new portfolio snapshot.
+        
+        Args:
+            snapshot: Portfolio snapshot to create
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         await self.db.execute(
             """
             INSERT OR REPLACE INTO portfolio_snapshots
@@ -70,7 +76,8 @@ class SQLitePortfolioRepository(PortfolioRepository):
                 snapshot.geo_us_pct,
             ),
         )
-        await self.db.commit()
+        if auto_commit:
+            await self.db.commit()
 
     async def get_latest_cash_balance(self) -> float:
         """Get cash balance from latest snapshot."""

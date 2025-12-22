@@ -1,9 +1,12 @@
 """APScheduler setup for background jobs."""
 
 import logging
+from collections import defaultdict
+from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 
 from app.config import settings
 
@@ -11,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 # Global scheduler instance
 scheduler: AsyncIOScheduler = None
+
+# Job failure tracking (job_id -> list of failure timestamps)
+_job_failures: dict[str, list[datetime]] = defaultdict(list)
 
 
 def heartbeat_job():
@@ -49,11 +55,50 @@ def wifi_check_job():
         logger.warning("WiFi disconnected - showing NO WIFI on LED")
 
 
+def job_listener(event):
+    """Listen to job execution events and track failures."""
+    from app.config import settings
+    
+    if event.exception:
+        job_id = event.job_id
+        failure_time = datetime.now()
+        
+        # Add failure to tracking
+        _job_failures[job_id].append(failure_time)
+        
+        # Clean up old failures outside the window
+        failure_window = timedelta(hours=settings.job_failure_window_hours)
+        cutoff = failure_time - failure_window
+        _job_failures[job_id] = [
+            ft for ft in _job_failures[job_id] if ft > cutoff
+        ]
+        
+        # Check if we've exceeded the threshold
+        recent_failures = len(_job_failures[job_id])
+        if recent_failures >= settings.job_failure_threshold:
+            logger.error(
+                f"Job '{job_id}' has failed {recent_failures} times in the last {settings.job_failure_window_hours} hour(s). "
+                f"Last error: {event.exception}"
+            )
+            # Could add alerting here (email, webhook, etc.)
+        else:
+            logger.warning(
+                f"Job '{job_id}' failed (failure {recent_failures}/{settings.job_failure_threshold}): {event.exception}"
+            )
+    else:
+        # Job succeeded - clear failure history
+        if event.job_id in _job_failures:
+            _job_failures[event.job_id].clear()
+
+
 def init_scheduler() -> AsyncIOScheduler:
-    """Initialize the APScheduler."""
+    """Initialize the APScheduler with error tracking."""
     global scheduler
 
     scheduler = AsyncIOScheduler()
+    
+    # Add event listeners for job execution tracking
+    scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
 
     # Import jobs here to avoid circular imports
     from app.jobs.daily_sync import sync_portfolio, sync_prices
@@ -140,3 +185,34 @@ def get_scheduler() -> AsyncIOScheduler:
     if scheduler is None:
         scheduler = init_scheduler()
     return scheduler
+
+
+def get_job_health_status() -> dict:
+    """
+    Get health status of all scheduled jobs.
+    
+    Returns:
+        Dict with job_id -> status info (failures, last_run, etc.)
+    """
+    global scheduler, _job_failures
+    
+    if not scheduler:
+        return {}
+    
+    status = {}
+    jobs = scheduler.get_jobs()
+    
+    for job in jobs:
+        job_id = job.id
+        recent_failures = len(_job_failures.get(job_id, []))
+        
+        from app.config import settings
+        
+        status[job_id] = {
+            "name": job.name,
+            "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
+            "recent_failures": recent_failures,
+            "healthy": recent_failures < settings.job_failure_threshold,
+        }
+    
+    return status

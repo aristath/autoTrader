@@ -2,6 +2,7 @@
 
 import logging
 import requests
+import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Optional
@@ -30,50 +31,57 @@ def _led_api_call():
 # Cache for exchange rates (refreshed every hour)
 _exchange_rates: dict[str, float] = {}
 _rates_updated: Optional[datetime] = None
+_rates_lock = threading.Lock()
 
 
-def get_exchange_rate(from_currency: str, to_currency: str = "EUR") -> float:
-    """Get exchange rate from currency to EUR using real-time data."""
+def get_exchange_rate(from_currency: str, to_currency: str = None) -> float:
+    """Get exchange rate from currency to target currency using real-time data (thread-safe)."""
+    from app.domain.constants import DEFAULT_CURRENCY
+    
     global _exchange_rates, _rates_updated
+    
+    if to_currency is None:
+        to_currency = DEFAULT_CURRENCY
 
     if from_currency == to_currency:
         return 1.0
 
-    # Check if cache is valid (less than 1 hour old)
-    if _rates_updated and datetime.now() - _rates_updated < timedelta(hours=1):
-        cache_key = f"{from_currency}_{to_currency}"
-        if cache_key in _exchange_rates:
-            return _exchange_rates[cache_key]
-
-    # Fetch fresh rates
-    try:
-        # Use exchangerate-api (free tier)
-        url = f"https://api.exchangerate-api.com/v4/latest/{to_currency}"
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            rates = data.get("rates", {})
-
-            # Update cache with all rates
-            _exchange_rates = {}
-            for curr, rate in rates.items():
-                # Store as "how many units of curr per 1 EUR"
-                _exchange_rates[f"{curr}_{to_currency}"] = rate
-            _rates_updated = datetime.now()
-
+    with _rates_lock:
+        # Check if cache is valid (less than 1 hour old)
+        if _rates_updated and datetime.now() - _rates_updated < timedelta(hours=1):
             cache_key = f"{from_currency}_{to_currency}"
             if cache_key in _exchange_rates:
                 return _exchange_rates[cache_key]
-    except Exception as e:
-        logger.warning(f"Failed to fetch exchange rates: {e}")
 
-    # Fallback rates if API fails
-    fallback_rates = {
-        "HKD_EUR": 8.5,   # ~8.5 HKD per EUR
-        "USD_EUR": 1.05,  # ~1.05 USD per EUR
-        "GBP_EUR": 0.85,  # ~0.85 GBP per EUR
-    }
-    return fallback_rates.get(f"{from_currency}_{to_currency}", 1.0)
+        # Fetch fresh rates
+        try:
+            # Use exchangerate-api (free tier)
+            url = f"https://api.exchangerate-api.com/v4/latest/{to_currency}"
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                rates = data.get("rates", {})
+
+                # Update cache with all rates
+                _exchange_rates = {}
+                for curr, rate in rates.items():
+                    # Store as "how many units of curr per 1 EUR"
+                    _exchange_rates[f"{curr}_{to_currency}"] = rate
+                _rates_updated = datetime.now()
+
+                cache_key = f"{from_currency}_{to_currency}"
+                if cache_key in _exchange_rates:
+                    return _exchange_rates[cache_key]
+        except Exception as e:
+            logger.warning(f"Failed to fetch exchange rates: {e}")
+
+        # Fallback rates if API fails
+        fallback_rates = {
+            "HKD_EUR": 8.5,   # ~8.5 HKD per EUR
+            "USD_EUR": 1.05,  # ~1.05 USD per EUR
+            "GBP_EUR": 0.85,  # ~0.85 GBP per EUR
+        }
+        return fallback_rates.get(f"{from_currency}_{to_currency}", 1.0)
 
 
 @dataclass
@@ -191,21 +199,23 @@ class TradernetClient:
             ps_data = summary.get("result", {}).get("ps", {})
             pos_data = ps_data.get("pos", [])
 
+            from app.domain.constants import DEFAULT_CURRENCY
+            
             for item in pos_data:
                 avg_price = float(item.get("bal_price_a", 0))
                 current_price = float(item.get("mkt_price", 0))
                 quantity = float(item.get("q", 0))
                 market_value = float(item.get("market_value", 0))
-                currency = item.get("curr", "EUR")
+                currency = item.get("curr", DEFAULT_CURRENCY)
 
                 # Get real-time exchange rate instead of API's currval
-                currency_rate = get_exchange_rate(currency, "EUR")
+                currency_rate = get_exchange_rate(currency, DEFAULT_CURRENCY)
 
-                # Convert market_value to EUR
-                if currency == "EUR":
+                # Convert market_value to default currency (EUR)
+                if currency == DEFAULT_CURRENCY:
                     market_value_eur = market_value
                 else:
-                    market_value_eur = market_value / currency_rate
+                    market_value_eur = market_value / currency_rate if currency_rate > 0 else market_value
 
                 positions.append(Position(
                     symbol=item.get("i", ""),
@@ -273,15 +283,17 @@ class TradernetClient:
             ps_data = summary.get("result", {}).get("ps", {})
             acc_data = ps_data.get("acc", [])
 
+            from app.domain.constants import DEFAULT_CURRENCY
+            
             for item in acc_data:
                 amount = float(item.get("s", 0))
-                currency = item.get("curr", "")
+                currency = item.get("curr", DEFAULT_CURRENCY)
 
-                if currency == "EUR":
+                if currency == DEFAULT_CURRENCY:
                     total += amount
                 elif amount > 0:
                     # Convert to EUR using real-time exchange rate
-                    rate = get_exchange_rate(currency, "EUR")
+                    rate = get_exchange_rate(currency, DEFAULT_CURRENCY)
                     total += amount / rate
 
             return total
@@ -453,12 +465,13 @@ class TradernetClient:
                 except json_lib.JSONDecodeError:
                     continue
 
-                currency = params.get("currency", "EUR")
+                from app.domain.constants import DEFAULT_CURRENCY
+                currency = params.get("currency", DEFAULT_CURRENCY)
                 amount = float(params.get("totalMoneyOut", 0))
 
-                # Convert to EUR if needed
-                if currency != "EUR" and amount > 0:
-                    rate = get_exchange_rate(currency, "EUR")
+                # Convert to default currency (EUR) if needed
+                if currency != DEFAULT_CURRENCY and amount > 0:
+                    rate = get_exchange_rate(currency, DEFAULT_CURRENCY)
                     if rate > 0:
                         amount = amount / rate
 

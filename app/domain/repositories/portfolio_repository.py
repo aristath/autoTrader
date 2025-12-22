@@ -30,8 +30,14 @@ class PortfolioRepository(ABC):
         pass
 
     @abstractmethod
-    async def create(self, snapshot: PortfolioSnapshot) -> None:
-        """Create a new portfolio snapshot."""
+    async def create(self, snapshot: PortfolioSnapshot, auto_commit: bool = True) -> None:
+        """
+        Create a new portfolio snapshot.
+        
+        Args:
+            snapshot: Portfolio snapshot to create
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         pass
 
     @abstractmethod

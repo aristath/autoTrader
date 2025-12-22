@@ -148,7 +148,7 @@ async def get_stock(
             "analyst_score": score.analyst_score,
             "fundamental_score": score.fundamental_score,
             "total_score": score.total_score,
-            "calculated_at": score.calculated_at.isoformat() if score.calculated_at else None,
+            "calculated_at": score.calculated_at.isoformat() if score.calculated_at is not None else None,
         })
 
     if position:

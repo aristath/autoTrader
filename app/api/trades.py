@@ -1,9 +1,12 @@
 """Trade execution API endpoints."""
 
 from datetime import datetime
+import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from app.config import settings
+from pydantic import BaseModel, Field, field_validator
+from enum import Enum
+from app.database import get_db
+from app.domain.constants import TRADE_SIDE_BUY, TRADE_SIDE_SELL
 from app.infrastructure.dependencies import (
     get_portfolio_repository,
     get_position_repository,
@@ -22,14 +25,46 @@ from app.domain.repositories import (
 router = APIRouter()
 
 
+class TradeSide(str, Enum):
+    """Trade side enumeration."""
+    BUY = TRADE_SIDE_BUY
+    SELL = TRADE_SIDE_SELL
+
+
 class TradeRequest(BaseModel):
-    symbol: str
-    side: str  # BUY or SELL
-    quantity: float
+    symbol: str = Field(..., min_length=1, description="Stock symbol")
+    side: TradeSide = Field(..., description="Trade side: BUY or SELL")
+    quantity: float = Field(..., gt=0, description="Quantity to trade (must be positive)")
+
+    @field_validator('symbol')
+    @classmethod
+    def validate_symbol(cls, v: str) -> str:
+        """Validate and normalize symbol."""
+        return v.upper().strip()
+
+    @field_validator('quantity')
+    @classmethod
+    def validate_quantity(cls, v: float) -> float:
+        """Validate quantity is reasonable."""
+        if v <= 0:
+            raise ValueError("Quantity must be greater than 0")
+        if v > 1000000:  # Reasonable upper limit
+            raise ValueError("Quantity exceeds maximum allowed (1,000,000)")
+        return v
 
 
 class RebalancePreview(BaseModel):
-    deposit_amount: float = None
+    deposit_amount: float = Field(..., gt=0, description="Deposit amount in EUR (must be positive)")
+
+    @field_validator('deposit_amount')
+    @classmethod
+    def validate_deposit_amount(cls, v: float) -> float:
+        """Validate deposit amount is reasonable."""
+        if v <= 0:
+            raise ValueError("Deposit amount must be greater than 0")
+        if v > 1000000:  # Reasonable upper limit
+            raise ValueError("Deposit amount exceeds maximum allowed (€1,000,000)")
+        return v
 
 
 @router.get("")
@@ -60,8 +95,7 @@ async def execute_trade(
     trade_repo: TradeRepository = Depends(get_trade_repository),
 ):
     """Execute a manual trade."""
-    if trade.side not in ("BUY", "SELL"):
-        raise HTTPException(status_code=400, detail="Side must be BUY or SELL")
+    # Side is now validated by Pydantic enum
 
     # Check stock exists
     stock = await stock_repo.get_by_symbol(trade.symbol)
@@ -149,7 +183,7 @@ async def get_allocation(
 
 @router.post("/rebalance/preview")
 async def preview_rebalance(
-    request: RebalancePreview = None,
+    request: RebalancePreview,
     stock_repo: StockRepository = Depends(get_stock_repository),
     position_repo: PositionRepository = Depends(get_position_repository),
     allocation_repo: AllocationRepository = Depends(get_allocation_repository),
@@ -158,7 +192,7 @@ async def preview_rebalance(
     """Preview rebalance trades for deposit."""
     from app.application.services.rebalancing_service import RebalancingService
 
-    deposit = request.deposit_amount if request and request.deposit_amount else settings.monthly_deposit
+    deposit = request.deposit_amount
 
     try:
         rebalancing_service = RebalancingService(
@@ -192,18 +226,19 @@ async def preview_rebalance(
 
 @router.post("/rebalance/execute")
 async def execute_rebalance(
-    request: RebalancePreview = None,
+    request: RebalancePreview,
+    db: aiosqlite.Connection = Depends(get_db),
     stock_repo: StockRepository = Depends(get_stock_repository),
     position_repo: PositionRepository = Depends(get_position_repository),
     allocation_repo: AllocationRepository = Depends(get_allocation_repository),
     portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
     trade_repo: TradeRepository = Depends(get_trade_repository),
 ):
-    """Execute monthly rebalance."""
+    """Execute rebalance trades."""
     from app.application.services.rebalancing_service import RebalancingService
     from app.application.services.trade_execution_service import TradeExecutionService
 
-    deposit = request.deposit_amount if request and request.deposit_amount else settings.monthly_deposit
+    deposit = request.deposit_amount
 
     try:
         # Calculate trades using application service
@@ -221,9 +256,9 @@ async def execute_rebalance(
                 "message": "No rebalance trades needed",
             }
 
-        # Execute trades using application service
-        trade_execution_service = TradeExecutionService(trade_repo)
-        results = await trade_execution_service.execute_trades(trades)
+        # Execute trades using application service with transaction support
+        trade_execution_service = TradeExecutionService(trade_repo, db=db)
+        results = await trade_execution_service.execute_trades(trades, use_transaction=True)
 
         successful = sum(1 for r in results if r["status"] == "success")
         failed = sum(1 for r in results if r["status"] != "success")

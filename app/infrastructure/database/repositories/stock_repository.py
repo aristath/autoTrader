@@ -54,8 +54,14 @@ class SQLiteStockRepository(StockRepository):
             for row in rows
         ]
 
-    async def create(self, stock: Stock) -> None:
-        """Create a new stock."""
+    async def create(self, stock: Stock, auto_commit: bool = True) -> None:
+        """
+        Create a new stock.
+        
+        Args:
+            stock: Stock to create
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         await self.db.execute(
             """
             INSERT INTO stocks (symbol, yahoo_symbol, name, geography, industry, min_lot, active)
@@ -71,10 +77,18 @@ class SQLiteStockRepository(StockRepository):
                 1 if stock.active else 0,
             ),
         )
-        await self.db.commit()
+        if auto_commit:
+            await self.db.commit()
 
-    async def update(self, symbol: str, **updates) -> None:
-        """Update stock fields."""
+    async def update(self, symbol: str, auto_commit: bool = True, **updates) -> None:
+        """
+        Update stock fields.
+        
+        Args:
+            symbol: Stock symbol to update
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+            **updates: Field updates (name, industry, geography, etc.)
+        """
         if not updates:
             return
 
@@ -91,15 +105,23 @@ class SQLiteStockRepository(StockRepository):
             f"UPDATE stocks SET {', '.join(updates_list)} WHERE symbol = ?",
             values
         )
-        await self.db.commit()
+        if auto_commit:
+            await self.db.commit()
 
-    async def delete(self, symbol: str) -> None:
-        """Soft delete a stock (set active=False)."""
+    async def delete(self, symbol: str, auto_commit: bool = True) -> None:
+        """
+        Soft delete a stock (set active=False).
+        
+        Args:
+            symbol: Stock symbol to delete
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         await self.db.execute(
             "UPDATE stocks SET active = 0 WHERE symbol = ?",
             (symbol.upper(),)
         )
-        await self.db.commit()
+        if auto_commit:
+            await self.db.commit()
 
     async def get_with_scores(self) -> List[dict]:
         """Get all active stocks with their scores and positions."""

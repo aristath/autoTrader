@@ -14,10 +14,13 @@ from app.jobs.scheduler import init_scheduler, start_scheduler, stop_scheduler
 from app.services.tradernet import get_tradernet_client
 from app.infrastructure.hardware.led_display import get_led_display
 
-# Configure logging
+# Configure logging with correlation ID support
+from app.infrastructure.logging_context import setup_correlation_logging
+setup_correlation_logging()
+
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - [%(correlation_id)s] - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -27,6 +30,12 @@ async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown events."""
     # Startup
     logger.info("Starting Arduino Trader...")
+    
+    # Validate required configuration
+    if not settings.tradernet_api_key or not settings.tradernet_api_secret:
+        logger.error("Missing Tradernet API credentials. Please set TRADERNET_API_KEY and TRADERNET_API_SECRET in .env file")
+        raise ValueError("Missing required Tradernet API credentials")
+    
     await init_db()
 
     # Initialize and start scheduler
@@ -67,10 +76,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Add rate limiting middleware (must be before other middleware)
+from app.infrastructure.rate_limit import RateLimitMiddleware
+app.add_middleware(RateLimitMiddleware)  # Uses values from config
+
 
 @app.middleware("http")
-async def led_request_indicator(request: Request, call_next):
-    """Flash RGB LEDs on web requests to show activity."""
+async def request_context_middleware(request: Request, call_next):
+    """Add correlation ID and LED indicators to requests."""
+    from app.infrastructure.logging_context import set_correlation_id, clear_correlation_id
+    
+    # Set correlation ID for this request
+    correlation_id = set_correlation_id()
+    
+    # Flash RGB LEDs on web requests to show activity
     display = get_led_display()
     # Don't mark LED polling as a web request (it polls every second)
     if not request.url.path.startswith("/api/status/led"):
@@ -79,8 +98,13 @@ async def led_request_indicator(request: Request, call_next):
         if display.is_connected:
             display.flash_web_request()
 
-    response = await call_next(request)
-    return response
+    try:
+        response = await call_next(request)
+        # Add correlation ID to response headers for debugging
+        response.headers["X-Correlation-ID"] = correlation_id
+        return response
+    finally:
+        clear_correlation_id()
 
 
 # Mount static files
@@ -102,5 +126,73 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Health check endpoint."""
-    return {"status": "healthy", "app": settings.app_name}
+    """
+    Health check endpoint with external service status.
+    
+    Returns:
+        - status: Overall health status
+        - app: Application name
+        - database: Database connectivity status
+        - tradernet: Tradernet API connectivity status
+        - yahoo_finance: Yahoo Finance API status (basic check)
+    """
+    health_status = {
+        "status": "healthy",
+        "app": settings.app_name,
+        "database": "unknown",
+        "tradernet": "unknown",
+        "yahoo_finance": "unknown",
+    }
+    
+    # Check database
+    try:
+        from app.database import get_db
+        async for db in get_db():
+            await db.execute("SELECT 1")
+            health_status["database"] = "connected"
+            break
+    except Exception as e:
+        health_status["database"] = f"error: {str(e)}"
+        health_status["status"] = "degraded"
+    
+    # Check Tradernet
+    try:
+        from app.services.tradernet import get_tradernet_client
+        client = get_tradernet_client()
+        if client.is_connected:
+            health_status["tradernet"] = "connected"
+        elif client.connect():
+            health_status["tradernet"] = "connected"
+        else:
+            health_status["tradernet"] = "disconnected"
+            health_status["status"] = "degraded"
+    except Exception as e:
+        health_status["tradernet"] = f"error: {str(e)}"
+        health_status["status"] = "degraded"
+    
+    # Check Yahoo Finance (basic connectivity test)
+    try:
+        import yfinance as yf
+        # Quick test with a known symbol
+        ticker = yf.Ticker("AAPL")
+        info = ticker.info
+        if info:
+            health_status["yahoo_finance"] = "available"
+        else:
+            health_status["yahoo_finance"] = "unavailable"
+            health_status["status"] = "degraded"
+    except Exception as e:
+        health_status["yahoo_finance"] = f"error: {str(e)}"
+        health_status["status"] = "degraded"
+    
+    from fastapi import status as http_status
+    
+    # Return appropriate status code based on health
+    if health_status["status"] == "healthy":
+        return health_status
+    else:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            content=health_status,
+            status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE
+        )

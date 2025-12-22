@@ -243,27 +243,48 @@ def get_historical_prices(
         return []
 
 
-def get_current_price(symbol: str, yahoo_symbol: str = None) -> Optional[float]:
+def get_current_price(symbol: str, yahoo_symbol: str = None, max_retries: int = None) -> Optional[float]:
     """
-    Get current stock price.
+    Get current stock price with retry logic.
 
     Args:
         symbol: Stock symbol (Tradernet format)
         yahoo_symbol: Optional explicit Yahoo symbol override
+        max_retries: Maximum number of retry attempts (default: from config)
 
     Returns:
-        Current price or None
+        Current price or None if all retries fail
     """
+    import time
+    from app.config import settings
+    
+    if max_retries is None:
+        max_retries = settings.price_fetch_max_retries
+    
     yf_symbol = get_yahoo_symbol(symbol, yahoo_symbol)
 
-    try:
-        with _led_api_call():
-            ticker = yf.Ticker(yf_symbol)
-            info = ticker.info
-            return info.get("currentPrice") or info.get("regularMarketPrice")
-    except Exception as e:
-        logger.error(f"Failed to get current price for {symbol}: {e}")
-        return None
+    for attempt in range(max_retries):
+        try:
+            with _led_api_call():
+                ticker = yf.Ticker(yf_symbol)
+                info = ticker.info
+                price = info.get("currentPrice") or info.get("regularMarketPrice")
+                if price and price > 0:
+                    return price
+                # If price is 0 or None, retry
+                if attempt < max_retries - 1:
+                    wait_time = settings.price_fetch_retry_delay_base * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"Price fetch returned invalid value for {symbol}, retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait_time = settings.price_fetch_retry_delay_base * (2 ** attempt)  # Exponential backoff
+                logger.warning(f"Failed to get current price for {symbol} (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                logger.error(f"Failed to get current price for {symbol} after {max_retries} attempts: {e}")
+    
+    return None
 
 
 def get_stock_industry(symbol: str, yahoo_symbol: str = None) -> Optional[str]:

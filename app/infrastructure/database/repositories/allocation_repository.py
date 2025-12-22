@@ -43,8 +43,25 @@ class SQLiteAllocationRepository(AllocationRepository):
             for row in rows
         ]
 
-    async def upsert(self, target: AllocationTarget) -> None:
-        """Insert or update an allocation target."""
+    async def upsert(self, target: AllocationTarget, auto_commit: bool = True) -> None:
+        """
+        Insert or update an allocation target.
+        
+        Validates that target_pct is between 0 and 1 (0% to 100%).
+        Note: It's recommended that targets of the same type sum to approximately 1.0 (100%),
+        but this is not enforced here to allow flexibility.
+        
+        Args:
+            target: Allocation target to upsert
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
+        # Validate target percentage
+        if target.target_pct < 0 or target.target_pct > 1:
+            raise ValueError(
+                f"Allocation target percentage must be between 0 and 1 (0% to 100%), "
+                f"got {target.target_pct} for {target.type}:{target.name}"
+            )
+        
         await self.db.execute(
             """
             INSERT OR REPLACE INTO allocation_targets (type, name, target_pct)
@@ -52,4 +69,5 @@ class SQLiteAllocationRepository(AllocationRepository):
             """,
             (target.type, target.name, target.target_pct),
         )
-        await self.db.commit()
+        if auto_commit:
+            await self.db.commit()

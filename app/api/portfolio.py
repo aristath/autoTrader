@@ -152,7 +152,7 @@ async def get_transaction_history():
     client = get_tradernet_client()
     if not client.is_connected:
         if not client.connect():
-            return {"error": "Not connected to Tradernet"}
+            raise HTTPException(status_code=503, detail="Not connected to Tradernet")
 
     try:
         cash_movements = client.get_cash_movements()
@@ -162,7 +162,7 @@ async def get_transaction_history():
             "note": "Deposits are not available via API - use manual deposits setting",
         }
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=f"Failed to get transaction history: {str(e)}")
 
 
 @router.get("/pnl")
@@ -183,11 +183,10 @@ async def get_portfolio_pnl(
     client = get_tradernet_client()
     if not client.is_connected:
         if not client.connect():
-            return {
-                "error": "Not connected to Tradernet",
-                "pnl": None,
-                "pnl_pct": None,
-            }
+            raise HTTPException(
+                status_code=503,
+                detail="Not connected to Tradernet"
+            )
 
     try:
         # Get current total portfolio value (positions + cash)
@@ -206,7 +205,8 @@ async def get_portfolio_pnl(
         # Calculate P&L
         # Positive = profit, Negative = loss
         pnl = total_value - net_investment
-        pnl_pct = (pnl / net_investment * 100) if net_investment > 0 else 0
+        # Avoid division by zero - only calculate percentage if we have positive net investment
+        pnl_pct = (pnl / net_investment * 100) if net_investment > 0.01 else 0.0
 
         return {
             "total_value": round(total_value, 2),
@@ -218,8 +218,7 @@ async def get_portfolio_pnl(
             "deposits_set": manual_deposits > 0,
         }
     except Exception as e:
-        return {
-            "error": str(e),
-            "pnl": None,
-            "pnl_pct": None,
-        }
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate portfolio P&L: {str(e)}"
+        )

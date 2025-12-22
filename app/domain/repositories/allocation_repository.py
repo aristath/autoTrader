@@ -27,6 +27,12 @@ class AllocationRepository(ABC):
         pass
 
     @abstractmethod
-    async def upsert(self, target: AllocationTarget) -> None:
-        """Insert or update an allocation target."""
+    async def upsert(self, target: AllocationTarget, auto_commit: bool = True) -> None:
+        """
+        Insert or update an allocation target.
+        
+        Args:
+            target: Allocation target to upsert
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         pass

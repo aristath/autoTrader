@@ -40,8 +40,14 @@ class SQLiteScoreRepository(ScoreRepository):
             calculated_at=calculated_at,
         )
 
-    async def upsert(self, score: StockScore) -> None:
-        """Insert or update a score."""
+    async def upsert(self, score: StockScore, auto_commit: bool = True) -> None:
+        """
+        Insert or update a score.
+        
+        Args:
+            score: Stock score to upsert
+            auto_commit: If True, commit immediately. If False, caller manages transaction.
+        """
         calculated_at_str = None
         if score.calculated_at:
             if isinstance(score.calculated_at, datetime):
@@ -66,7 +72,8 @@ class SQLiteScoreRepository(ScoreRepository):
                 calculated_at_str,
             ),
         )
-        await self.db.commit()
+        if auto_commit:
+            await self.db.commit()
 
     async def get_all(self) -> List[StockScore]:
         """Get all scores."""
