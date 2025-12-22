@@ -309,6 +309,16 @@ document.addEventListener('alpine:init', () => {
       this.loading.historical = false;
     },
 
+    async resetCache() {
+      try {
+        await API.resetCache();
+        this.showMessage('Caches cleared', 'success');
+        await this.fetchAll();
+      } catch (e) {
+        this.showMessage('Failed to clear caches', 'error');
+      }
+    },
+
     // Geographic Allocation
     startEditGeo() {
       this.geoTargets = {};

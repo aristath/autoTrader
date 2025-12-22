@@ -18,6 +18,13 @@ class SettingsCard extends HTMLElement {
           </div>
         </div>
         <div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-700">
+          <span class="text-sm text-gray-300">Caches</span>
+          <button @click="$store.app.resetCache()"
+                  class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded transition-colors">
+            Reset
+          </button>
+        </div>
+        <div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-700">
           <span class="text-sm text-gray-300">System</span>
           <button @click="if(confirm('Reboot the system?')) API.restartSystem()"
                   class="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs rounded transition-colors">

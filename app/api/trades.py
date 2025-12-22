@@ -19,6 +19,7 @@ from app.domain.repositories import (
     TradeRepository,
     StockRepository,
 )
+from app.infrastructure.cache import cache
 
 router = APIRouter()
 
@@ -178,7 +179,14 @@ async def get_recommendations(
 
     Returns prioritized list of stocks to buy next, with fixed trade amounts.
     Independent of current cash balance - shows what to buy when cash is available.
+    Cached for 5 minutes.
     """
+    # Check cache first
+    cache_key = f"recommendations:{limit}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     from app.application.services.rebalancing_service import RebalancingService
 
     try:
@@ -190,7 +198,7 @@ async def get_recommendations(
         )
         recommendations = await rebalancing_service.get_recommendations(limit=limit)
 
-        return {
+        result = {
             "recommendations": [
                 {
                     "symbol": r.symbol,
@@ -209,6 +217,10 @@ async def get_recommendations(
                 for r in recommendations
             ],
         }
+
+        # Cache for 5 minutes
+        cache.set(cache_key, result, ttl_seconds=300)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

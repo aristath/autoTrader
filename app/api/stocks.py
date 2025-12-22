@@ -10,6 +10,7 @@ from app.infrastructure.dependencies import (
     get_position_repository,
     get_portfolio_repository,
 )
+from app.infrastructure.cache import cache
 from app.domain.repositories import (
     StockRepository,
     ScoreRepository,
@@ -55,7 +56,14 @@ async def get_stocks(
     position_repo: PositionRepository = Depends(get_position_repository),
     allocation_repo: AllocationRepository = Depends(get_allocation_repository),
 ):
-    """Get all stocks in universe with current scores, position data, and priority."""
+    """Get all stocks in universe with current scores, position data, and priority.
+    Cached for 2 minutes.
+    """
+    # Check cache first
+    cached = cache.get("stocks_with_scores")
+    if cached is not None:
+        return cached
+
     # Get portfolio summary for allocation weights
     portfolio_service = PortfolioService(
         portfolio_repo,
@@ -115,6 +123,8 @@ async def get_stocks(
     for stock_dict in stock_dicts:
         stock_dict["priority_score"] = round(priority_map.get(stock_dict["symbol"], 0), 3)
 
+    # Cache for 2 minutes
+    cache.set("stocks_with_scores", stock_dicts, ttl_seconds=120)
     return stock_dicts
 
 
@@ -302,6 +312,9 @@ async def create_stock(
         stock.yahoo_symbol
     )
 
+    # Invalidate cache
+    cache.invalidate("stocks_with_scores")
+
     return {
         "message": f"Stock {stock.symbol.upper()} added to universe",
         "symbol": stock.symbol.upper(),
@@ -363,6 +376,9 @@ async def update_stock(
         updated_stock.yahoo_symbol
     )
 
+    # Invalidate cache
+    cache.invalidate("stocks_with_scores")
+
     stock_data = {
         "symbol": updated_stock.symbol,
         "yahoo_symbol": updated_stock.yahoo_symbol,
@@ -393,5 +409,8 @@ async def delete_stock(
 
     # Soft delete - set active = 0
     await stock_repo.delete(symbol.upper())
+
+    # Invalidate cache
+    cache.invalidate("stocks_with_scores")
 
     return {"message": f"Stock {symbol.upper()} removed from universe"}

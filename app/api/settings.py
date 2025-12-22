@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.config import settings
+from app.infrastructure.cache import cache
 
 router = APIRouter()
 
@@ -72,3 +73,10 @@ async def restart_system():
     import subprocess
     subprocess.Popen(["sudo", "reboot"])
     return {"status": "rebooting"}
+
+
+@router.post("/reset-cache")
+async def reset_cache():
+    """Clear all cached data."""
+    cache.clear()
+    return {"status": "ok", "message": "All caches cleared"}

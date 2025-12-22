@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.infrastructure.dependencies import get_db
+from app.infrastructure.cache import cache
 from app.services.tradernet import get_tradernet_client
 from app.services import yahoo
 import aiosqlite
@@ -105,7 +106,13 @@ async def get_all_stock_sparklines(
     """
     Get 1-year sparkline data for all active stocks.
     Returns dict: {symbol: [{time, value}, ...]}
+    Cached for 12 hours.
     """
+    # Check cache first
+    cached = cache.get("sparklines")
+    if cached is not None:
+        return cached
+
     try:
         start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
 
@@ -132,6 +139,8 @@ async def get_all_stock_sparklines(
                     "value": row["close_price"]
                 })
 
+        # Cache for 12 hours
+        cache.set("sparklines", result, ttl_seconds=43200)
         return result
     except Exception as e:
         logger.error(f"Failed to get sparklines data: {e}")
