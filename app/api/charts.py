@@ -172,11 +172,14 @@ async def get_stock_chart(
         
         fetched_data = []
         if need_fetch:
-            # Calculate days to fetch
+            # Determine date range to fetch
             if start_date:
-                days = (datetime.now() - start_date).days
+                fetch_start = start_date
             else:
-                days = 365  # Default to 1 year for 'all'
+                # For "all" range, fetch from 2010-01-01
+                fetch_start = datetime(2010, 1, 1)
+            
+            fetch_end = datetime.now()
             
             # Try to fetch from API
             if source == "tradernet":
@@ -186,7 +189,11 @@ async def get_stock_chart(
                         tradernet_client.connect()
                     
                     if tradernet_client.is_connected:
-                        ohlc_data = tradernet_client.get_historical_prices(symbol, days=min(days, 200))
+                        ohlc_data = tradernet_client.get_historical_prices(
+                            symbol,
+                            start=fetch_start,
+                            end=fetch_end
+                        )
                         if ohlc_data:
                             fetched_data = [
                                 {"time": ohlc.timestamp.strftime("%Y-%m-%d"), "value": ohlc.close}

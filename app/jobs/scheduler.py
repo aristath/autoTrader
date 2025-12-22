@@ -105,6 +105,7 @@ def init_scheduler() -> AsyncIOScheduler:
     from app.jobs.cash_rebalance import check_and_rebalance
     from app.jobs.score_refresh import refresh_all_scores
     from app.jobs.cash_flow_sync import sync_cash_flows
+    from app.jobs.historical_data_sync import sync_historical_data
 
     # Tradernet portfolio sync (every 2 minutes)
     scheduler.add_job(
@@ -166,6 +167,15 @@ def init_scheduler() -> AsyncIOScheduler:
         CronTrigger(hour=1, minute=0),
         id="cash_flow_sync",
         name="Cash Flow Sync",
+        replace_existing=True,
+    )
+
+    # Historical data sync (daily at 8 PM, after market close)
+    scheduler.add_job(
+        sync_historical_data,
+        CronTrigger(hour=20, minute=0),
+        id="historical_data_sync",
+        name="Historical Data Sync",
         replace_existing=True,
     )
 

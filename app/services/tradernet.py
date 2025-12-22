@@ -331,15 +331,36 @@ class TradernetClient:
     def get_historical_prices(
         self,
         symbol: str,
-        days: int = 200
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        days: Optional[int] = None  # Backward compatibility
     ) -> list[OHLC]:
-        """Get historical OHLC data for a symbol."""
+        """
+        Get historical OHLC data for a symbol.
+        
+        Args:
+            symbol: Stock symbol
+            start: Start date (defaults to 2010-01-01 if not provided)
+            end: End date (defaults to now if not provided)
+            days: Optional backward compatibility - calculates start date from days ago
+        """
         if not self.is_connected:
             raise ConnectionError("Not connected to Tradernet")
 
+        # Handle backward compatibility with days parameter
+        if days is not None:
+            end = datetime.now()
+            start = end - timedelta(days=days)
+        else:
+            # Default to 2010-01-01 if start not provided
+            if start is None:
+                start = datetime(2010, 1, 1)
+            if end is None:
+                end = datetime.now()
+
         try:
             with _led_api_call():
-                data = self._client.get_candles(symbol, count=days)
+                data = self._client.get_candles(symbol, start=start, end=end)
             result = []
 
             if isinstance(data, dict):
@@ -354,7 +375,7 @@ class TradernetClient:
                         volume=int(candle.get("v", 0)),
                     ))
 
-            return result[-days:] if len(result) > days else result
+            return result
         except Exception as e:
             logger.error(f"Failed to get historical prices for {symbol}: {e}")
             return []
