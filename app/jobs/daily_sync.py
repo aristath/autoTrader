@@ -145,6 +145,7 @@ async def _sync_portfolio_internal():
 
     except Exception as e:
         logger.error(f"Portfolio sync failed: {e}")
+        emit(SystemEvent.SYNC_COMPLETE)
         emit(SystemEvent.ERROR_OCCURRED, message="SYNC FAIL")
         raise
 
@@ -205,5 +206,6 @@ async def _sync_prices_internal():
 
     except Exception as e:
         logger.error(f"Price sync failed: {e}")
+        emit(SystemEvent.SYNC_COMPLETE)
         emit(SystemEvent.ERROR_OCCURRED, message="PRICE FAIL")
         raise

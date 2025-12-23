@@ -113,6 +113,7 @@ async def _check_and_rebalance_internal():
                     logger.error(f"SELL failed for {trade.symbol}: {error}")
                     emit(SystemEvent.ERROR_OCCURRED, message="SELL FAIL")
 
+                emit(SystemEvent.SYNC_COMPLETE)
                 await sync_portfolio()
                 return
 
@@ -158,6 +159,7 @@ async def _check_and_rebalance_internal():
                     logger.error(f"BUY failed for {trade.symbol}: {error}")
                     emit(SystemEvent.ERROR_OCCURRED, message="BUY FAIL")
 
+                emit(SystemEvent.SYNC_COMPLETE)
                 await sync_portfolio()
                 return
 
