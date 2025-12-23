@@ -53,7 +53,17 @@ async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown events."""
     # Startup
     logger.info("Starting Arduino Trader...")
-    
+
+    # Clean up stale lock files from previous crashes
+    lock_dir = Path(settings.database_path).parent / "locks"
+    if lock_dir.exists():
+        for lock_file in lock_dir.glob("*.lock"):
+            try:
+                lock_file.unlink()
+                logger.info(f"Cleaned up stale lock file: {lock_file.name}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up lock file {lock_file.name}: {e}")
+
     # Validate required configuration
     if not settings.tradernet_api_key or not settings.tradernet_api_secret:
         logger.error("Missing Tradernet API credentials. Please set TRADERNET_API_KEY and TRADERNET_API_SECRET in .env file")
