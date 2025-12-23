@@ -206,7 +206,9 @@ class TradernetClient:
                 avg_price = float(item.get("bal_price_a", 0))
                 current_price = float(item.get("mkt_price", 0))
                 quantity = float(item.get("q", 0))
-                market_value = float(item.get("market_value", 0))
+                # Calculate market_value ourselves - don't trust API's market_value
+                # (Tradernet sometimes returns wrong values, e.g., ETF's AUM instead of position value)
+                market_value = quantity * current_price
                 currency = item.get("curr", DEFAULT_CURRENCY)
 
                 # Get real-time exchange rate instead of API's currval
