@@ -9,6 +9,9 @@ from dataclasses import dataclass
 from typing import List, Dict, Optional
 
 import numpy as np
+import pandas as pd
+import empyrical
+import pandas_ta as ta
 
 from app.config import settings
 from app.database import get_db_connection
@@ -149,23 +152,29 @@ class RebalancingService:
                         continue
 
                     closes = np.array([p['close'] for p in daily_prices])
+                    closes_series = pd.Series(closes)
 
-                    # Current volatility (last 60 days)
+                    # Current volatility (last 60 days) using empyrical
                     if len(closes) >= 60:
                         recent_returns = np.diff(closes[-60:]) / closes[-61:-1]
-                        current_vol = float(np.std(recent_returns) * np.sqrt(252))
+                        current_vol = float(empyrical.annual_volatility(recent_returns))
                     else:
                         current_vol = 0.20
 
-                    # Historical volatility (full period, up to 365 days)
+                    # Historical volatility (full period, up to 365 days) using empyrical
                     returns = np.diff(closes) / closes[:-1]
-                    historical_vol = float(np.std(returns) * np.sqrt(252))
+                    historical_vol = float(empyrical.annual_volatility(returns))
 
-                    # Distance from 200-day MA
+                    # Distance from 200-day EMA using pandas-ta (more responsive than SMA)
                     if len(closes) >= 200:
-                        ma_200 = float(np.mean(closes[-200:]))
+                        ema_200 = ta.ema(closes_series, length=200)
+                        if ema_200 is not None and len(ema_200) > 0 and not pd.isna(ema_200.iloc[-1]):
+                            ema_value = float(ema_200.iloc[-1])
+                        else:
+                            # Fallback to SMA
+                            ema_value = float(np.mean(closes[-200:]))
                         current_price = float(closes[-1])
-                        distance = (current_price - ma_200) / ma_200 if ma_200 > 0 else 0.0
+                        distance = (current_price - ema_value) / ema_value if ema_value > 0 else 0.0
                     else:
                         distance = 0.0
 

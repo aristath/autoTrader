@@ -23,6 +23,9 @@ from dataclasses import dataclass
 
 import aiosqlite
 import numpy as np
+import pandas as pd
+import empyrical
+import pandas_ta as ta
 
 from app.services import yahoo
 from app.config import settings
@@ -40,13 +43,17 @@ class QualityScore:
     total_return_score: float  # 0-1, bell curve for CAGR + dividend
     consistency_score: float  # 0-1, 5y vs 10y CAGR similarity
     financial_strength_score: float  # 0-1, margins, debt, liquidity
-    dividend_bonus: float  # 0-0.15, extra for high dividend stocks
+    dividend_bonus: float  # 0-0.10, extra for high dividend stocks
+    sharpe_ratio_score: float  # 0-1, risk-adjusted return quality
+    max_drawdown_score: float  # 0-1, resilience to losses
     total: float
     # Metadata
     cagr_5y: Optional[float]  # 5-year CAGR
     cagr_10y: Optional[float]  # 10-year CAGR (if available)
     total_return: Optional[float]  # CAGR + dividend yield
     dividend_yield: Optional[float]
+    sharpe_ratio: Optional[float]  # Actual Sharpe ratio value
+    max_drawdown: Optional[float]  # Actual max drawdown value (negative)
     history_years: float  # Years of price data available
 
 
@@ -54,8 +61,10 @@ class QualityScore:
 class OpportunityScore:
     """Buy-the-dip opportunity score components."""
     below_52w_high: float  # 0-1, further below = higher (BUY signal)
-    ma_distance: float  # 0-1, below 200-MA = higher (BUY signal)
+    ema_distance: float  # 0-1, below 200-EMA = higher (BUY signal)
     pe_vs_historical: float  # 0-1, below avg P/E = higher (BUY signal)
+    rsi_score: float  # 0-1, RSI < 30 = 1.0, RSI > 70 = 0.0
+    bollinger_score: float  # 0-1, near lower band = higher
     total: float
 
 
@@ -160,17 +169,17 @@ def calculate_dividend_bonus(dividend_yield: Optional[float]) -> float:
         dividend_yield: Current dividend yield as decimal (e.g., 0.09 for 9%)
 
     Returns:
-        Bonus from 0 to 0.15
+        Bonus from 0 to 0.10
     """
     if not dividend_yield or dividend_yield <= 0:
         return 0.0
 
     if dividend_yield >= 0.06:  # 6%+ yield
-        return 0.15
-    elif dividend_yield >= 0.03:  # 3-6% yield
         return 0.10
+    elif dividend_yield >= 0.03:  # 3-6% yield
+        return 0.07
     else:  # Any dividend
-        return 0.05
+        return 0.03
 
 
 # =============================================================================
@@ -332,10 +341,12 @@ async def calculate_quality_score(
     Uses local monthly price data when available, falls back to Yahoo API.
 
     Components:
-    - Total Return (50%): CAGR + Dividend Yield, bell curve with 11% peak
-    - Consistency (25%): 5-year vs 10-year CAGR similarity
-    - Financial Strength (25%): Profit margin, debt/equity, current ratio
-    - Dividend Bonus: +0.15 max for high-yield stocks (DRIP priority)
+    - Total Return (40%): CAGR + Dividend Yield, bell curve with 11% peak
+    - Consistency (20%): 5-year vs 10-year CAGR similarity
+    - Financial Strength (20%): Profit margin, debt/equity, current ratio
+    - Sharpe Ratio (10%): Risk-adjusted return quality (empyrical)
+    - Max Drawdown (10%): Resilience to losses (empyrical)
+    - Dividend Bonus: +0.10 max for high-yield stocks (DRIP priority)
 
     Args:
         db: Database connection
@@ -363,6 +374,33 @@ async def calculate_quality_score(
 
         # Calculate history in years (12 months = 1 year)
         history_years = len(monthly_prices) / 12.0
+
+        # Fetch daily prices for Sharpe ratio and max drawdown (need 1 year minimum)
+        daily_prices = await _get_daily_prices_from_db(db, symbol, days=365)
+        if len(daily_prices) < 50:
+            # Fetch from Yahoo if insufficient local data
+            yahoo_prices = yahoo.get_historical_prices(symbol, yahoo_symbol=yahoo_symbol, period="1y")
+            if len(yahoo_prices) >= 50:
+                await _store_daily_prices(db, symbol, yahoo_prices)
+                daily_prices = [
+                    {
+                        "date": p.date.strftime("%Y-%m-%d"),
+                        "close": p.close,
+                    }
+                    for p in yahoo_prices
+                ]
+
+        # Calculate daily returns for risk metrics
+        sharpe_ratio = None
+        max_drawdown = None
+        if len(daily_prices) >= 50:
+            closes = np.array([p["close"] for p in daily_prices])
+            returns = np.diff(closes) / closes[:-1]
+            try:
+                sharpe_ratio = float(empyrical.sharpe_ratio(returns, annualization=252))
+                max_drawdown = float(empyrical.max_drawdown(returns))
+            except Exception as e:
+                logger.debug(f"Could not calculate risk metrics for {symbol}: {e}")
 
         # Calculate CAGRs from monthly data
         # 5-year CAGR: use last 60 months or all available
@@ -428,14 +466,51 @@ async def calculate_quality_score(
         else:
             financial_strength_score = 0.5  # Neutral
 
-        # 4. Dividend Bonus (DRIP priority)
+        # 4. Dividend Bonus (DRIP priority) - reduced from 0.15 to 0.10 max
         dividend_bonus = calculate_dividend_bonus(dividend_yield)
 
+        # 5. Sharpe Ratio Score (10%): Risk-adjusted returns
+        # Sharpe > 1.0 is good, > 2.0 is excellent
+        if sharpe_ratio is not None:
+            if sharpe_ratio >= 2.0:
+                sharpe_ratio_score = 1.0
+            elif sharpe_ratio >= 1.0:
+                sharpe_ratio_score = 0.7 + (sharpe_ratio - 1.0) * 0.3  # 0.7-1.0
+            elif sharpe_ratio >= 0.5:
+                sharpe_ratio_score = 0.4 + (sharpe_ratio - 0.5) * 0.6  # 0.4-0.7
+            elif sharpe_ratio >= 0:
+                sharpe_ratio_score = sharpe_ratio * 0.8  # 0.0-0.4
+            else:
+                sharpe_ratio_score = 0.0  # Negative Sharpe = poor
+        else:
+            sharpe_ratio_score = 0.5  # Neutral if no data
+
+        # 6. Max Drawdown Score (10%): Resilience to losses
+        # Drawdown is negative, so -0.10 = 10% drawdown
+        # < 10% drawdown is excellent, > 50% is very bad
+        if max_drawdown is not None:
+            dd_pct = abs(max_drawdown)  # Convert to positive percentage
+            if dd_pct <= 0.10:
+                max_drawdown_score = 1.0  # < 10% drawdown
+            elif dd_pct <= 0.20:
+                max_drawdown_score = 0.8 + (0.20 - dd_pct) * 2  # 0.8-1.0
+            elif dd_pct <= 0.30:
+                max_drawdown_score = 0.6 + (0.30 - dd_pct) * 2  # 0.6-0.8
+            elif dd_pct <= 0.50:
+                max_drawdown_score = 0.2 + (0.50 - dd_pct) * 2  # 0.2-0.6
+            else:
+                max_drawdown_score = max(0.0, 0.2 - (dd_pct - 0.50))  # 0.0-0.2
+        else:
+            max_drawdown_score = 0.5  # Neutral if no data
+
         # Combined Quality Score (capped at 1.0)
+        # Weights: Total Return 40%, Consistency 20%, Financial 20%, Sharpe 10%, Max DD 10%
         total = min(1.0, (
-            total_return_score * 0.50 +
-            consistency_score * 0.25 +
-            financial_strength_score * 0.25 +
+            total_return_score * 0.40 +
+            consistency_score * 0.20 +
+            financial_strength_score * 0.20 +
+            sharpe_ratio_score * 0.10 +
+            max_drawdown_score * 0.10 +
             dividend_bonus
         ))
 
@@ -444,11 +519,15 @@ async def calculate_quality_score(
             consistency_score=round(consistency_score, 3),
             financial_strength_score=round(financial_strength_score, 3),
             dividend_bonus=round(dividend_bonus, 3),
+            sharpe_ratio_score=round(sharpe_ratio_score, 3),
+            max_drawdown_score=round(max_drawdown_score, 3),
             total=round(total, 3),
             cagr_5y=round(cagr_5y, 4) if cagr_5y else None,
             cagr_10y=round(cagr_10y, 4) if cagr_10y else None,
             total_return=round(total_return, 4) if total_return else None,
             dividend_yield=round(dividend_yield, 4) if dividend_yield else None,
+            sharpe_ratio=round(sharpe_ratio, 4) if sharpe_ratio else None,
+            max_drawdown=round(max_drawdown, 4) if max_drawdown else None,
             history_years=round(history_years, 1),
         )
 
@@ -473,13 +552,17 @@ async def calculate_opportunity_score(
 
     INVERTED from typical momentum scoring - we WANT stocks that are:
     - Below their 52-week high (temporary dip)
-    - Below their 200-day moving average (undervalued)
+    - Below their 200-day EMA (undervalued)
     - Trading at low P/E vs historical (cheap)
+    - RSI indicates oversold (< 30 is ideal)
+    - Near lower Bollinger Band (buy opportunity)
 
     Components:
-    - Below 52-week High (35%): Distance from peak
-    - MA Distance (30%): Below 200-MA = opportunity
-    - P/E vs Historical (35%): Below average = opportunity
+    - Below 52-week High (30%): Distance from peak
+    - EMA Distance (25%): Below 200-EMA = opportunity (pandas-ta)
+    - P/E vs Historical (25%): Below average = opportunity
+    - RSI Position (10%): Oversold = opportunity (pandas-ta)
+    - Bollinger Position (10%): Near lower band = opportunity (pandas-ta)
 
     Args:
         db: Database connection
@@ -522,7 +605,10 @@ async def calculate_opportunity_score(
             highs = closes  # Fallback to close prices
         current_price = closes[-1]
 
-        # 1. Below 52-week High Score (35%)
+        # Convert to pandas Series for pandas-ta indicators
+        closes_series = pd.Series(closes)
+
+        # 1. Below 52-week High Score (30%)
         # Further below = HIGHER score (buying opportunity)
         high_52w = max(highs[-252:]) if len(highs) >= 252 else max(highs)
         pct_below_high = (high_52w - current_price) / high_52w if high_52w > 0 else 0
@@ -538,23 +624,30 @@ async def calculate_opportunity_score(
         else:
             below_52w_score = 1.0  # 30%+ below
 
-        # 2. Distance from 200-day MA Score (30%)
-        # Below MA = HIGHER score (INVERTED from typical momentum)
-        ma_200 = np.mean(closes[-200:]) if len(closes) >= 200 else np.mean(closes)
-        pct_from_ma = (current_price - ma_200) / ma_200 if ma_200 > 0 else 0
-
-        if pct_from_ma >= 0.10:
-            ma_score = 0.2  # 10%+ above MA = expensive
-        elif pct_from_ma >= 0:
-            ma_score = 0.5 - (pct_from_ma / 0.10) * 0.3  # 0-10% above -> 0.5-0.2
-        elif pct_from_ma >= -0.05:
-            ma_score = 0.5 + (abs(pct_from_ma) / 0.05) * 0.2  # 0-5% below -> 0.5-0.7
-        elif pct_from_ma >= -0.10:
-            ma_score = 0.7 + ((abs(pct_from_ma) - 0.05) / 0.05) * 0.3  # 5-10% below -> 0.7-1.0
+        # 2. Distance from 200-day EMA Score (25%)
+        # Using EMA instead of SMA - more responsive to recent price action
+        # Below EMA = HIGHER score (INVERTED from typical momentum)
+        ema_200 = ta.ema(closes_series, length=200)
+        if ema_200 is not None and len(ema_200) > 0 and not pd.isna(ema_200.iloc[-1]):
+            ema_value = float(ema_200.iloc[-1])
         else:
-            ma_score = 1.0  # 10%+ below MA
+            # Fallback to SMA if EMA not available (not enough data)
+            ema_value = float(np.mean(closes[-200:])) if len(closes) >= 200 else float(np.mean(closes))
 
-        # 3. P/E vs Historical Score (35%)
+        pct_from_ema = (current_price - ema_value) / ema_value if ema_value > 0 else 0
+
+        if pct_from_ema >= 0.10:
+            ema_score = 0.2  # 10%+ above EMA = expensive
+        elif pct_from_ema >= 0:
+            ema_score = 0.5 - (pct_from_ema / 0.10) * 0.3  # 0-10% above -> 0.5-0.2
+        elif pct_from_ema >= -0.05:
+            ema_score = 0.5 + (abs(pct_from_ema) / 0.05) * 0.2  # 0-5% below -> 0.5-0.7
+        elif pct_from_ema >= -0.10:
+            ema_score = 0.7 + ((abs(pct_from_ema) - 0.05) / 0.05) * 0.3  # 5-10% below -> 0.7-1.0
+        else:
+            ema_score = 1.0  # 10%+ below EMA
+
+        # 3. P/E vs Historical Score (25%)
         # Below average P/E = HIGHER score (cheap)
         if fundamentals and fundamentals.pe_ratio and fundamentals.pe_ratio > 0:
             current_pe = fundamentals.pe_ratio
@@ -582,17 +675,54 @@ async def calculate_opportunity_score(
         else:
             pe_score = 0.5  # Neutral if no P/E available
 
+        # 4. RSI Score (10%): Oversold = buying opportunity
+        # RSI < 30 = oversold (1.0), RSI > 70 = overbought (0.0)
+        rsi = ta.rsi(closes_series, length=14)
+        if rsi is not None and len(rsi) > 0 and not pd.isna(rsi.iloc[-1]):
+            rsi_value = float(rsi.iloc[-1])
+            if rsi_value < 30:
+                rsi_score = 1.0  # Oversold - good buying opportunity
+            elif rsi_value > 70:
+                rsi_score = 0.0  # Overbought - poor time to buy
+            else:
+                # Linear scale between 30-70: RSI 30 -> 1.0, RSI 70 -> 0.0
+                rsi_score = 1.0 - ((rsi_value - 30) / 40)
+        else:
+            rsi_score = 0.5  # Neutral if no RSI data
+
+        # 5. Bollinger Band Score (10%): Near lower band = opportunity
+        # Position within bands: 0=lower band, 1=upper band
+        bbands = ta.bbands(closes_series, length=20, std=2)
+        if bbands is not None and 'BBL_20_2.0_2.0' in bbands.columns and 'BBU_20_2.0_2.0' in bbands.columns:
+            bb_lower = bbands['BBL_20_2.0_2.0'].iloc[-1]
+            bb_upper = bbands['BBU_20_2.0_2.0'].iloc[-1]
+            if not pd.isna(bb_lower) and not pd.isna(bb_upper) and bb_upper > bb_lower:
+                # Where is price within the bands? (0=lower, 1=upper)
+                bb_position = (current_price - bb_lower) / (bb_upper - bb_lower)
+                # Lower position = better score (buying opportunity)
+                bollinger_score = 1.0 - bb_position
+                bollinger_score = max(0.0, min(1.0, bollinger_score))  # Clamp to 0-1
+            else:
+                bollinger_score = 0.5  # Neutral
+        else:
+            bollinger_score = 0.5  # Neutral if no Bollinger data
+
         # Combined Opportunity Score
+        # Weights: 52w High 30%, EMA 25%, P/E 25%, RSI 10%, Bollinger 10%
         total = (
-            below_52w_score * 0.35 +
-            ma_score * 0.30 +
-            pe_score * 0.35
+            below_52w_score * 0.30 +
+            ema_score * 0.25 +
+            pe_score * 0.25 +
+            rsi_score * 0.10 +
+            bollinger_score * 0.10
         )
 
         return OpportunityScore(
             below_52w_high=round(below_52w_score, 3),
-            ma_distance=round(ma_score, 3),
+            ema_distance=round(ema_score, 3),
             pe_vs_historical=round(pe_score, 3),
+            rsi_score=round(rsi_score, 3),
+            bollinger_score=round(bollinger_score, 3),
             total=round(total, 3),
         )
 
@@ -994,22 +1124,22 @@ async def calculate_stock_score(
         )
         total_score = base_score / 0.85
 
-    # Get volatility from local daily price data (already fetched by opportunity score)
+    # Get volatility from local daily price data using empyrical
     volatility = None
     try:
         daily_prices = await _get_daily_prices_from_db(db, symbol, days=365)
         if len(daily_prices) >= 30:
             closes = np.array([p["close"] for p in daily_prices])
             returns = np.diff(closes) / closes[:-1]
-            volatility = float(np.std(returns) * np.sqrt(252))  # Annualized
+            volatility = float(empyrical.annual_volatility(returns))
     except Exception:
         pass
 
     # Create default scores if missing
     if not quality:
-        quality = QualityScore(0.5, 0.5, 0.5, 0.0, 0.5, None, None, None, None, 0)
+        quality = QualityScore(0.5, 0.5, 0.5, 0.0, 0.5, 0.5, 0.5, None, None, None, None, None, None, 0)
     if not opportunity:
-        opportunity = OpportunityScore(0.5, 0.5, 0.5, 0.5)
+        opportunity = OpportunityScore(0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
     if not analyst:
         analyst = AnalystScore(0.5, 0.5, 0.5)
 
