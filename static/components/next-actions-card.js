@@ -24,8 +24,7 @@ class NextActionsCard extends HTMLElement {
 
         <!-- SELL SECTION -->
         <template x-if="$store.app.sellRecommendations.length > 0">
-          <div class="mb-4">
-            <div class="text-xs text-red-400 uppercase tracking-wide mb-2">Sell Queue</div>
+          <div class="mb-3">
             <div class="space-y-2">
               <template x-for="rec in ($store.app.sellRecommendations || [])" :key="rec.symbol">
                 <div class="bg-gray-900 rounded p-2 border border-red-900/50">
@@ -52,7 +51,6 @@ class NextActionsCard extends HTMLElement {
         <!-- BUY SECTION -->
         <template x-if="$store.app.recommendations.length > 0">
           <div>
-            <div class="text-xs text-green-400 uppercase tracking-wide mb-2">Buy Queue</div>
             <div class="space-y-2">
               <template x-for="(rec, index) in ($store.app.recommendations || [])" :key="rec.symbol">
                 <div class="bg-gray-900 rounded p-2 border border-gray-700">
