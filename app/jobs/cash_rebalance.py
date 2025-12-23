@@ -149,7 +149,9 @@ async def _check_and_rebalance_internal():
                     results = await trade_execution.execute_trades(
                         [trade],
                         use_transaction=True,
-                        currency_balances=currency_balances
+                        currency_balances=currency_balances,
+                        auto_convert_currency=True,
+                        source_currency="EUR"
                     )
 
                     if results and results[0]["status"] == "success":

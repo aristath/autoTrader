@@ -141,6 +141,9 @@ async def _sync_portfolio_internal():
             f"total value: {total_value:.2f}, cash: {cash_balance:.2f}"
         )
 
+        # Sync stock currencies (do this during portfolio sync)
+        await sync_stock_currencies()
+
         emit(SystemEvent.SYNC_COMPLETE)
 
     except Exception as e:
@@ -208,4 +211,57 @@ async def _sync_prices_internal():
         logger.error(f"Price sync failed: {e}")
         emit(SystemEvent.SYNC_COMPLETE)
         emit(SystemEvent.ERROR_OCCURRED, message="PRICE FAIL")
+        raise
+
+
+async def sync_stock_currencies():
+    """
+    Fetch and store trading currency for all stocks from Tradernet.
+
+    Uses the x_curr field from get_quotes() which contains the actual
+    trading currency (e.g., BA.EU trades in GBP, not EUR).
+    """
+    logger.info("Starting stock currency sync")
+
+    client = get_tradernet_client()
+
+    if not client.is_connected:
+        if not client.connect():
+            logger.error("Failed to connect to Tradernet for currency sync")
+            return
+
+    try:
+        async with aiosqlite.connect(settings.database_path) as db:
+            db.row_factory = aiosqlite.Row
+            await db.execute("PRAGMA journal_mode=WAL")
+            await db.execute("PRAGMA busy_timeout=30000")
+
+            # Get all active stock symbols
+            cursor = await db.execute("SELECT symbol FROM stocks WHERE active=1")
+            symbols = [row[0] for row in await cursor.fetchall()]
+
+            if not symbols:
+                logger.info("No stocks to sync currencies for")
+                return
+
+            # Fetch quotes to get x_curr
+            quotes = client.get_quotes(symbols)
+            q_list = quotes.get("result", {}).get("q", [])
+
+            updated = 0
+            for q in q_list:
+                symbol = q.get("c")
+                currency = q.get("x_curr")
+                if symbol and currency:
+                    await db.execute(
+                        "UPDATE stocks SET currency = ? WHERE symbol = ?",
+                        (currency, symbol)
+                    )
+                    updated += 1
+
+            await db.commit()
+            logger.info(f"Stock currency sync complete: updated {updated} stocks")
+
+    except Exception as e:
+        logger.error(f"Stock currency sync failed: {e}")
         raise

@@ -50,39 +50,32 @@ logger = logging.getLogger(__name__)
 
 def _determine_stock_currency(stock: dict) -> str:
     """
-    Determine the currency for a stock.
-    
-    First checks if stock has a position with currency, otherwise infers from geography/symbol.
-    
+    Determine the trading currency for a stock.
+
+    Priority:
+    1. Stored currency from stocks.currency (synced from Tradernet x_curr)
+    2. Position currency (from broker sync)
+    3. Default to EUR
+
     Args:
         stock: Stock dict from get_with_scores()
-        
+
     Returns:
-        Currency code (EUR, USD, HKD, CNY, etc.)
+        Currency code (EUR, USD, HKD, GBP, etc.)
     """
-    # First, check if stock has a position with currency
+    # Use stored currency from Tradernet sync (most accurate)
     currency = stock.get("currency")
     if currency:
         return currency
-    
-    # Infer from geography and yahoo_symbol
-    geography = stock.get("geography", "").upper()
-    yahoo_symbol = stock.get("yahoo_symbol", "")
-    
-    if geography == "EU":
-        return "EUR"
-    elif geography == "US":
-        return "USD"
-    elif geography == "ASIA":
-        # Check yahoo_symbol for exchange indicators
-        if yahoo_symbol and ".HK" in yahoo_symbol:
-            return "HKD"
-        elif yahoo_symbol and ".SZ" in yahoo_symbol:
-            return "CNY"
-        # Default for ASIA if no specific indicator
-        return "HKD"
-    
-    # Default fallback
+
+    # Fallback: position currency from broker (for existing positions)
+    pos_currency = stock.get("pos_currency")
+    if pos_currency:
+        return pos_currency
+
+    # Last resort: default to EUR and log warning
+    symbol = stock.get("symbol", "unknown")
+    logger.warning(f"No currency found for {symbol}, defaulting to EUR")
     return "EUR"
 
 

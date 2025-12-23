@@ -255,6 +255,23 @@ async def apply_migrations(db: aiosqlite.Connection, current_version: int):
         )
         logger.info("Migration 5 complete")
 
+    # Migration 6: Add currency column to stocks
+    if current_version < 6:
+        logger.info("Applying migration 6: Adding currency column to stocks...")
+
+        cursor = await db.execute("PRAGMA table_info(stocks)")
+        existing_columns = {row[1] for row in await cursor.fetchall()}
+
+        if 'currency' not in existing_columns:
+            await db.execute("ALTER TABLE stocks ADD COLUMN currency TEXT")
+            logger.info("  Added column: stocks.currency")
+
+        await db.execute(
+            "INSERT INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
+            (6, datetime.now().isoformat(), "Add currency column to stocks")
+        )
+        logger.info("Migration 6 complete")
+
 
 SCHEMA = """
 -- Stock universe
@@ -268,7 +285,8 @@ CREATE TABLE IF NOT EXISTS stocks (
     min_lot INTEGER DEFAULT 1,
     active INTEGER DEFAULT 1,
     allow_buy INTEGER DEFAULT 1,
-    allow_sell INTEGER DEFAULT 0
+    allow_sell INTEGER DEFAULT 0,
+    currency TEXT
 );
 
 -- Current positions
