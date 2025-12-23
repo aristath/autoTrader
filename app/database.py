@@ -11,7 +11,24 @@ logger = logging.getLogger(__name__)
 
 
 async def get_db():
-    """Get database connection."""
+    """Get database connection for FastAPI dependency injection."""
+    async with get_db_connection() as db:
+        yield db
+
+
+@asynccontextmanager
+async def get_db_connection() -> AsyncIterator[aiosqlite.Connection]:
+    """
+    Get a database connection with WAL mode and busy timeout configured.
+
+    This is the preferred way to get a database connection for jobs and services.
+    It properly sets up WAL mode and busy timeout for better concurrency.
+
+    Usage:
+        async with get_db_connection() as db:
+            cursor = await db.execute("SELECT * FROM stocks")
+            rows = await cursor.fetchall()
+    """
     db = await aiosqlite.connect(settings.database_path)
     db.row_factory = aiosqlite.Row
     # Enable WAL mode for better concurrency and busy timeout for retries
@@ -49,16 +66,11 @@ async def init_db():
     """Initialize database with schema and version tracking."""
     import logging
     logger = logging.getLogger(__name__)
-    
+
     # Ensure data directory exists
     settings.database_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async with aiosqlite.connect(settings.database_path) as db:
-        db.row_factory = aiosqlite.Row
-        # Enable WAL mode for better concurrency and busy timeout for retries
-        await db.execute("PRAGMA journal_mode=WAL")
-        await db.execute("PRAGMA busy_timeout=30000")  # 30 seconds
-
+    async with get_db_connection() as db:
         # Create schema version table first
         await db.execute("""
             CREATE TABLE IF NOT EXISTS schema_version (
