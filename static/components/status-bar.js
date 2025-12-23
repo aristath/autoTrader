@@ -17,9 +17,6 @@ class StatusBar extends HTMLElement {
             Last sync: <span class="text-gray-300" x-text="$store.app.status.last_sync || 'Never'"></span>
           </span>
         </div>
-        <div>
-          Next rebalance: <span class="text-gray-300" x-text="formatDate($store.app.status.next_rebalance)"></span>
-        </div>
       </div>
     `;
   }
