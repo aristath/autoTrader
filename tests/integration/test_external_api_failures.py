@@ -83,13 +83,15 @@ async def test_rebalancing_service_handles_price_fetch_failure(db):
         SQLiteStockRepository,
         SQLitePositionRepository,
         SQLiteAllocationRepository,
+        SQLitePortfolioRepository,
     )
     from app.domain.repositories import Stock, Position
-    
+
     # Setup test data
     stock_repo = SQLiteStockRepository(db)
     position_repo = SQLitePositionRepository(db)
     allocation_repo = SQLiteAllocationRepository(db)
+    portfolio_repo = SQLitePortfolioRepository(db)
     
     stock = Stock(
         symbol="AAPL",
@@ -123,6 +125,7 @@ async def test_rebalancing_service_handles_price_fetch_failure(db):
             stock_repo=stock_repo,
             position_repo=position_repo,
             allocation_repo=allocation_repo,
+            portfolio_repo=portfolio_repo,
         )
         
         # Should handle error gracefully (skip stocks with price fetch failures)

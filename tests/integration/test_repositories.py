@@ -141,8 +141,21 @@ async def test_score_repository_upsert(score_repo):
 
 
 @pytest.mark.asyncio
-async def test_trade_repository_create(trade_repo):
+async def test_trade_repository_create(stock_repo, trade_repo):
     """Test creating a trade."""
+    # Create stock first (required for trade history JOIN)
+    stock = Stock(
+        symbol="AAPL",
+        yahoo_symbol="AAPL",
+        name="Apple Inc.",
+        industry="Technology",
+        geography="US",
+        priority_multiplier=1.0,
+        min_lot=1,
+        active=True,
+    )
+    await stock_repo.create(stock)
+
     trade = Trade(
         symbol="AAPL",
         side="BUY",

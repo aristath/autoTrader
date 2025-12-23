@@ -32,7 +32,7 @@ async def test_trade_execution_rollback_on_database_error(db):
     )
     
     # Mock external trade execution to succeed, but database write to fail
-    with patch('app.services.tradernet.get_tradernet_client') as mock_get_client:
+    with patch('app.application.services.trade_execution_service.get_tradernet_client') as mock_get_client:
         mock_client = MagicMock()
         mock_client.is_connected = True
         mock_client.place_order.return_value = MagicMock(
@@ -84,7 +84,7 @@ async def test_trade_execution_handles_external_failure(db):
     )
     
     # Mock external trade execution to fail
-    with patch('app.services.tradernet.get_tradernet_client') as mock_get_client:
+    with patch('app.application.services.trade_execution_service.get_tradernet_client') as mock_get_client:
         mock_client = MagicMock()
         mock_client.is_connected = True
         mock_client.place_order.side_effect = Exception("API Error")
@@ -165,47 +165,45 @@ async def test_position_sync_recovery_after_partial_failure(db):
     assert msft is None
 
 
-@pytest.mark.asyncio
-async def test_price_fetch_retry_logic():
+def test_price_fetch_retry_logic():
     """Test that price fetching retries on failure."""
     from app.services import yahoo
-    from app.config import settings
-    
+
     # Mock yfinance to fail first two times, then succeed
     call_count = 0
-    
-    def mock_ticker_info(symbol):
+
+    def mock_ticker_factory(symbol):
         nonlocal call_count
         call_count += 1
+        mock = MagicMock()
         if call_count < 3:
-            raise Exception("API Error")
-        return {"currentPrice": 150.0}
-    
-    with patch('yfinance.Ticker') as mock_ticker_class:
-        mock_ticker = MagicMock()
-        mock_ticker.info = mock_ticker_info
-        mock_ticker_class.return_value = mock_ticker
-        
-        # Should succeed after retries
-        price = await yahoo.get_current_price("AAPL")
+            # Make info property raise an exception
+            type(mock).info = property(lambda self: (_ for _ in ()).throw(Exception("API Error")))
+        else:
+            mock.info = {"currentPrice": 150.0}
+        return mock
+
+    with patch('yfinance.Ticker', side_effect=mock_ticker_factory):
+        # Should succeed after retries (function is synchronous)
+        price = yahoo.get_current_price("AAPL")
         assert price == 150.0
         assert call_count == 3  # Should have retried
 
 
-@pytest.mark.asyncio
-async def test_price_fetch_fails_after_max_retries():
-    """Test that price fetching fails after max retries."""
+def test_price_fetch_fails_after_max_retries():
+    """Test that price fetching returns None after max retries."""
     from app.services import yahoo
-    
+
     # Mock yfinance to always fail
-    with patch('yfinance.Ticker') as mock_ticker_class:
-        mock_ticker = MagicMock()
-        mock_ticker.info.side_effect = Exception("API Error")
-        mock_ticker_class.return_value = mock_ticker
-        
-        # Should raise exception after max retries
-        with pytest.raises(Exception):
-            await yahoo.get_current_price("AAPL")
+    def mock_ticker_factory(symbol):
+        mock = MagicMock()
+        type(mock).info = property(lambda self: (_ for _ in ()).throw(Exception("API Error")))
+        return mock
+
+    with patch('yfinance.Ticker', side_effect=mock_ticker_factory):
+        # Should return None after max retries (function is synchronous)
+        price = yahoo.get_current_price("AAPL")
+        assert price is None
 
 
 @pytest.mark.asyncio

@@ -9,8 +9,8 @@ from datetime import datetime
 
 from app.infrastructure.locking import file_lock, LOCK_DIR
 from app.database import transaction
-from app.domain.repositories import Position
-from app.infrastructure.database.repositories import SQLitePositionRepository
+from app.domain.repositories import Position, Stock
+from app.infrastructure.database.repositories import SQLitePositionRepository, SQLiteStockRepository
 
 
 @pytest.mark.asyncio
@@ -114,7 +114,22 @@ async def test_concurrent_trade_execution_atomicity(db):
     """Test that concurrent trade executions maintain atomicity."""
     from app.infrastructure.database.repositories import SQLiteTradeRepository
     from app.domain.repositories import Trade
-    
+
+    # Create stocks first (required for trade history JOIN)
+    stock_repo = SQLiteStockRepository(db)
+    for symbol in ["AAPL", "MSFT", "GOOGL"]:
+        stock = Stock(
+            symbol=symbol,
+            yahoo_symbol=symbol,
+            name=f"{symbol} Inc.",
+            industry="Technology",
+            geography="US",
+            priority_multiplier=1.0,
+            min_lot=1,
+            active=True,
+        )
+        await stock_repo.create(stock)
+
     trade_repo = SQLiteTradeRepository(db)
     trades_created = []
     

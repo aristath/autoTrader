@@ -119,24 +119,39 @@ def get_max_temperature() -> float:
 # =============================================================================
 
 def animate_normal(phase: int, temp: float = 0) -> np.ndarray:
-    """Slow breathing wave - speed varies with temperature.
+    """Slow breathing wave - speed and brightness vary with temperature.
 
-    - Cool (<45°C): 3 second cycle, brightness 80 (calm)
-    - Warm (45-55°C): 2.5 second cycle, brightness 80
-    - Hot (>55°C): 1.5 second cycle, brightness 100 (alert)
+    Speed (cycle time):
+    - < 45°C: 3s
+    - 45-55°C: 2.5s
+    - 55-60°C: 2s
+    - 60-65°C: 1.5s
+    - 65+°C: 1s
+
+    Brightness scales linearly from 50% at 45°C to 100% at 65°C.
     """
     arr = np.zeros((ROWS, COLS), dtype=np.uint8)
 
-    # Adjust animation based on temperature
-    if temp > 55:  # Hot
+    # Determine cycle speed based on temperature
+    if temp >= 65:
+        cycle_frames = 10  # 1s cycle
+    elif temp >= 60:
         cycle_frames = 15  # 1.5s cycle
-        peak_brightness = 100
-    elif temp > 45:  # Warm
+    elif temp >= 55:
+        cycle_frames = 20  # 2s cycle
+    elif temp >= 45:
         cycle_frames = 25  # 2.5s cycle
-        peak_brightness = 80
-    else:  # Cool/normal
+    else:
         cycle_frames = 30  # 3s cycle
-        peak_brightness = 80
+
+    # Calculate brightness (50% at 45°C, 100% at 65°C, linear interpolation)
+    if temp <= 45:
+        peak_brightness = 40  # 50% of 80
+    elif temp >= 65:
+        peak_brightness = 80  # 100% of 80
+    else:
+        # Linear interpolation: 40 + (temp - 45) * (80 - 40) / (65 - 45)
+        peak_brightness = int(40 + (temp - 45) * 2)
 
     wave_col = (phase % cycle_frames) * COLS / cycle_frames
 

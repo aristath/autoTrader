@@ -6,7 +6,8 @@ import tempfile
 import os
 from pathlib import Path
 
-from app.database import init_db, SCHEMA
+from datetime import datetime
+from app.database import SCHEMA, apply_migrations
 from app.infrastructure.database.repositories import (
     SQLiteStockRepository,
     SQLitePositionRepository,
@@ -25,10 +26,30 @@ async def db():
     os.close(fd)
 
     try:
-        # Initialize database
+        # Initialize database with schema and migrations (matching production init_db)
         async with aiosqlite.connect(db_path) as db:
             db.row_factory = aiosqlite.Row
+
+            # Create schema version table first (as init_db does)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS schema_version (
+                    version INTEGER PRIMARY KEY,
+                    applied_at TEXT NOT NULL,
+                    description TEXT
+                )
+            """)
+
+            # Apply base schema
             await db.executescript(SCHEMA)
+
+            # Record version 1 for initial schema
+            await db.execute(
+                "INSERT INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
+                (1, datetime.now().isoformat(), "Initial schema")
+            )
+
+            # Apply migrations to add columns added after initial schema
+            await apply_migrations(db, current_version=1)
             await db.commit()
             yield db
     finally:
