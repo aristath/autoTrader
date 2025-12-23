@@ -245,19 +245,29 @@ async def sync_stock_currencies():
                 return
 
             # Fetch quotes to get x_curr
-            quotes = client.get_quotes(symbols)
-            q_list = quotes.get("result", {}).get("q", [])
+            quotes_response = client.get_quotes_raw(symbols)
+
+            # Handle different response formats
+            if isinstance(quotes_response, list):
+                q_list = quotes_response
+            elif isinstance(quotes_response, dict):
+                q_list = quotes_response.get("result", {}).get("q", [])
+                if not q_list:
+                    q_list = quotes_response.get("q", [])
+            else:
+                q_list = []
 
             updated = 0
             for q in q_list:
-                symbol = q.get("c")
-                currency = q.get("x_curr")
-                if symbol and currency:
-                    await db.execute(
-                        "UPDATE stocks SET currency = ? WHERE symbol = ?",
-                        (currency, symbol)
-                    )
-                    updated += 1
+                if isinstance(q, dict):
+                    symbol = q.get("c")
+                    currency = q.get("x_curr")
+                    if symbol and currency:
+                        await db.execute(
+                            "UPDATE stocks SET currency = ? WHERE symbol = ?",
+                            (currency, symbol)
+                        )
+                        updated += 1
 
             await db.commit()
             logger.info(f"Stock currency sync complete: updated {updated} stocks")

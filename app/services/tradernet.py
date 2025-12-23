@@ -327,6 +327,23 @@ class TradernetClient:
             logger.error(f"Failed to get quote for {symbol}: {e}")
             return None
 
+    def get_quotes_raw(self, symbols: list[str]) -> dict:
+        """
+        Get raw quote data for multiple symbols.
+
+        Returns the raw API response including x_curr (trading currency).
+        Useful for syncing currency information.
+        """
+        if not self.is_connected:
+            raise ConnectionError("Not connected to Tradernet")
+
+        try:
+            with _led_api_call():
+                return self._client.get_quotes(symbols)
+        except Exception as e:
+            logger.error(f"Failed to get raw quotes: {e}")
+            return {}
+
     def get_historical_prices(
         self,
         symbol: str,
