@@ -113,11 +113,21 @@ class StockTable extends HTMLElement {
                 <tr class="hover:bg-gray-800/50 cursor-pointer md:cursor-default"
                     @click="window.innerWidth < 768 && $store.app.openEditStock(stock)">
                   <td class="py-1.5 px-2 font-mono text-blue-400 sticky left-0 bg-gray-800">
-                    <button @click.stop="$store.app.showStockChart = true; $store.app.selectedStockSymbol = stock.symbol"
-                            class="hover:underline cursor-pointer"
-                            title="View chart">
-                      <span x-text="stock.symbol"></span>
-                    </button>
+                    <div class="flex items-center gap-1">
+                      <button @click.stop="$store.app.showStockChart = true; $store.app.selectedStockSymbol = stock.symbol"
+                              class="hover:underline cursor-pointer"
+                              title="View chart">
+                        <span x-text="stock.symbol"></span>
+                      </button>
+                      <!-- Buy blocked indicator -->
+                      <span x-show="!stock.allow_buy"
+                            class="text-[10px] px-1 py-0.5 rounded bg-red-900/50 text-red-400 font-sans"
+                            title="Buying disabled">✕B</span>
+                      <!-- Sell enabled indicator -->
+                      <span x-show="stock.allow_sell"
+                            class="text-[10px] px-1 py-0.5 rounded bg-green-900/50 text-green-400 font-sans"
+                            title="Selling enabled">S</span>
+                    </div>
                   </td>
                   <td class="py-1.5 px-1 hidden md:table-cell">
                     <div class="sparkline-container"
