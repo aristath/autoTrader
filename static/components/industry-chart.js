@@ -152,9 +152,11 @@ function industryChartComponent() {
       const pct = Math.min(Math.abs(deviation), maxDev) / maxDev * 50;
 
       if (deviation >= 0) {
-        return `width: ${pct}%; left: 50%;`;
+        // Positive: bar extends RIGHT from center
+        return `width: ${pct}%; left: 50%; right: auto;`;
       } else {
-        return `width: ${pct}%; right: 50%;`;
+        // Negative: bar extends LEFT from center
+        return `width: ${pct}%; right: 50%; left: auto;`;
       }
     },
 
