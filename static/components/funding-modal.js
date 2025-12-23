@@ -15,10 +15,10 @@ class FundingModal extends HTMLElement {
 
         <!-- Modal -->
         <div class="flex min-h-full items-center justify-center p-4">
-          <div class="relative bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full border border-gray-700"
+          <div class="relative bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] border border-gray-700 flex flex-col"
                @click.stop>
             <!-- Header -->
-            <div class="flex items-center justify-between p-4 border-b border-gray-700">
+            <div class="flex items-center justify-between p-4 border-b border-gray-700 flex-shrink-0">
               <div>
                 <h3 class="text-lg font-semibold text-white">
                   Fund: <span class="text-green-400" x-text="$store.app.fundingTarget?.symbol"></span>
@@ -34,7 +34,7 @@ class FundingModal extends HTMLElement {
             </div>
 
             <!-- Content -->
-            <div class="p-4 max-h-[70vh] overflow-y-auto">
+            <div class="p-4 overflow-y-auto flex-1 min-h-0">
               <!-- Loading State -->
               <template x-if="$store.app.loadingFundingOptions">
                 <div class="flex items-center justify-center py-8">
@@ -143,7 +143,7 @@ class FundingModal extends HTMLElement {
             </div>
 
             <!-- Footer -->
-            <div class="p-4 border-t border-gray-700 flex justify-end">
+            <div class="p-4 border-t border-gray-700 flex justify-end flex-shrink-0">
               <button @click="$store.app.closeFundingModal()"
                       class="px-4 py-2 text-gray-400 hover:text-white transition-colors">
                 Cancel
