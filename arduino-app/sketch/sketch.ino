@@ -7,9 +7,10 @@
 
 Arduino_LED_Matrix matrix;
 
-// RGB LED 3 & 4 pins are defined in variant.h as:
-// LED3_R, LED3_G, LED3_B (active-low)
-// LED4_R, LED4_G, LED4_B (active-low)
+// RGB LED pins use LED_BUILTIN offsets (from official unoq-pin-toggle example)
+// LED3: LED_BUILTIN (R), LED_BUILTIN+1 (G), LED_BUILTIN+2 (B)
+// LED4: LED_BUILTIN+3 (R), LED_BUILTIN+4 (G), LED_BUILTIN+5 (B)
+// Active-low: HIGH = OFF, LOW = ON
 
 // Draw frame to LED matrix
 void draw(std::vector<uint8_t> frame) {
@@ -19,18 +20,18 @@ void draw(std::vector<uint8_t> frame) {
   matrix.draw(frame.data());
 }
 
-// Set RGB LED 3 color (active-low)
+// Set RGB LED 3 color (active-low, digital only)
 void setRGB3(uint8_t r, uint8_t g, uint8_t b) {
-  analogWrite(LED3_R, 255 - r);
-  analogWrite(LED3_G, 255 - g);
-  analogWrite(LED3_B, 255 - b);
+  digitalWrite(LED_BUILTIN, r > 0 ? LOW : HIGH);
+  digitalWrite(LED_BUILTIN + 1, g > 0 ? LOW : HIGH);
+  digitalWrite(LED_BUILTIN + 2, b > 0 ? LOW : HIGH);
 }
 
-// Set RGB LED 4 color (active-low)
+// Set RGB LED 4 color (active-low, digital only)
 void setRGB4(uint8_t r, uint8_t g, uint8_t b) {
-  analogWrite(LED4_R, 255 - r);
-  analogWrite(LED4_G, 255 - g);
-  analogWrite(LED4_B, 255 - b);
+  digitalWrite(LED_BUILTIN + 3, r > 0 ? LOW : HIGH);
+  digitalWrite(LED_BUILTIN + 4, g > 0 ? LOW : HIGH);
+  digitalWrite(LED_BUILTIN + 5, b > 0 ? LOW : HIGH);
 }
 
 void setup() {
@@ -41,14 +42,14 @@ void setup() {
   matrix.clear();
 
   // Initialize RGB LED 3 & 4 pins
-  pinMode(LED3_R, OUTPUT);
-  pinMode(LED3_G, OUTPUT);
-  pinMode(LED3_B, OUTPUT);
-  pinMode(LED4_R, OUTPUT);
-  pinMode(LED4_G, OUTPUT);
-  pinMode(LED4_B, OUTPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(LED_BUILTIN + 1, OUTPUT);
+  pinMode(LED_BUILTIN + 2, OUTPUT);
+  pinMode(LED_BUILTIN + 3, OUTPUT);
+  pinMode(LED_BUILTIN + 4, OUTPUT);
+  pinMode(LED_BUILTIN + 5, OUTPUT);
 
-  // Start with LEDs off (active-low means 255 = off)
+  // Start with LEDs off (active-low: HIGH = OFF)
   setRGB3(0, 0, 0);
   setRGB4(0, 0, 0);
 
