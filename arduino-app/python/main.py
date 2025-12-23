@@ -138,15 +138,8 @@ def animate_normal(phase: int, temp: float = 0) -> np.ndarray:
     # Max radius (30% smaller than full matrix)
     max_radius = 5.5
 
-    # Cycle timing based on temperature (faster)
-    if temp >= 65:
-        cycle_frames = 5   # 0.5s
-    elif temp >= 55:
-        cycle_frames = 6   # 0.6s
-    elif temp >= 45:
-        cycle_frames = 8   # 0.8s
-    else:
-        cycle_frames = 10  # 1.0s
+    # Fixed 15 frames for smooth 1.5 second cycle (10 fps)
+    cycle_frames = 15
 
     # Peak brightness based on temperature
     if temp <= 45:
@@ -159,8 +152,8 @@ def animate_normal(phase: int, temp: float = 0) -> np.ndarray:
     # Current expansion radius (0 to max_radius)
     expansion = (phase % cycle_frames) * max_radius / cycle_frames
 
-    # Time-based fade (quadratic for steeper falloff)
-    time_fade = (1.0 - (phase % cycle_frames) / cycle_frames) ** 2
+    # Time-based fade (gentle curve for smooth falloff)
+    time_fade = (1.0 - (phase % cycle_frames) / cycle_frames) ** 0.7
 
     # Effective radius for radial fade (minimum 1.0 to avoid div by zero)
     effective_radius = max(expansion, 1.0)
