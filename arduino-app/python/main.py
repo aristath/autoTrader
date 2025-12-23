@@ -138,15 +138,15 @@ def animate_normal(phase: int, temp: float = 0) -> np.ndarray:
     # Max radius to reach edges
     max_radius = 8
 
-    # Cycle timing based on temperature
+    # Cycle timing based on temperature (faster)
     if temp >= 65:
-        cycle_frames = 8   # 0.8s
+        cycle_frames = 6   # 0.6s
     elif temp >= 55:
-        cycle_frames = 10  # 1s
+        cycle_frames = 8   # 0.8s
     elif temp >= 45:
-        cycle_frames = 12  # 1.2s
+        cycle_frames = 10  # 1.0s
     else:
-        cycle_frames = 15  # 1.5s
+        cycle_frames = 12  # 1.2s
 
     # Peak brightness based on temperature
     if temp <= 45:
@@ -170,8 +170,8 @@ def animate_normal(phase: int, temp: float = 0) -> np.ndarray:
             # Only light pixels within current expansion radius
             if dist <= expansion:
                 # Radial fade: brightest at center, dimmer toward edge
-                # Using quadratic falloff for smooth gradient
-                radial_fade = 1.0 - (dist / max_radius) ** 1.5
+                # Sharp falloff for visible gradient
+                radial_fade = 1.0 - (dist / max_radius) ** 2.5
 
                 # Combined brightness: radial gradient * time fade
                 brightness = int(peak_brightness * radial_fade * time_fade)
