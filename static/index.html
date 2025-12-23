@@ -29,9 +29,8 @@
     <!-- Portfolio Summary -->
     <summary-cards></summary-cards>
 
-    <!-- Settings & Allocation Row -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <settings-card></settings-card>
+    <!-- Allocation Row -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <geo-chart></geo-chart>
       <industry-chart></industry-chart>
     </div>
@@ -47,29 +46,18 @@
 
     <!-- Recent Trades -->
     <trades-table></trades-table>
-
-    <!-- Historical Data Sync Button -->
-    <div class="mt-8 pb-4 flex justify-center">
-      <button @click="$store.app.syncHistorical()"
-              class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="$store.app.loading.historical">
-        <span x-show="$store.app.loading.historical" class="inline-block animate-spin mr-2">&#9696;</span>
-        <span x-show="!$store.app.loading.historical">Sync Historical Data</span>
-        <span x-show="$store.app.loading.historical">Syncing...</span>
-      </button>
-    </div>
   </div>
 
   <!-- Modals -->
   <add-stock-modal></add-stock-modal>
   <edit-stock-modal></edit-stock-modal>
   <stock-chart-modal></stock-chart-modal>
+  <settings-modal></settings-modal>
 
   <!-- Load Components -->
   <script src="/static/components/app-header.js"></script>
   <script src="/static/components/status-bar.js"></script>
   <script src="/static/components/summary-cards.js"></script>
-  <script src="/static/components/settings-card.js"></script>
   <script src="/static/components/geo-chart.js"></script>
   <script src="/static/components/industry-chart.js"></script>
   <script src="/static/components/quick-actions.js"></script>
@@ -80,6 +68,7 @@
   <script src="/static/components/add-stock-modal.js"></script>
   <script src="/static/components/edit-stock-modal.js"></script>
   <script src="/static/components/stock-chart.js"></script>
+  <script src="/static/components/settings-modal.js"></script>
   <script src="/static/components/sparkline-charts.js"></script>
 </body>
 </html>

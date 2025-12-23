@@ -31,6 +31,7 @@ document.addEventListener('alpine:init', () => {
     showAddStockModal: false,
     showEditStockModal: false,
     showStockChart: false,
+    showSettingsModal: false,
     selectedStockSymbol: null,
     editingStock: null,
     executingSymbol: null,
