@@ -1,10 +1,6 @@
 """Portfolio allocation and rebalancing logic."""
 
 import logging
-from dataclasses import dataclass
-from typing import Optional
-
-# Removed aiosqlite import - no longer needed
 
 from app.config import settings
 from app.domain.constants import (
@@ -14,6 +10,12 @@ from app.domain.constants import (
     MAX_PRIORITY_MULTIPLIER,
     MIN_VOLATILITY_MULTIPLIER,
     MAX_POSITION_SIZE_MULTIPLIER,
+)
+from app.domain.models import (
+    AllocationStatus,
+    PortfolioSummary,
+    TradeRecommendation,
+    StockPriority,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,59 +34,6 @@ def parse_industries(industry_str: str) -> list[str]:
     if not industry_str:
         return []
     return [ind.strip() for ind in industry_str.split(",") if ind.strip()]
-
-
-@dataclass
-class AllocationStatus:
-    """Current allocation vs target."""
-    category: str  # geography or industry
-    name: str  # EU, ASIA, US or Technology, etc.
-    target_pct: float
-    current_pct: float
-    current_value: float
-    deviation: float  # current - target (negative = underweight)
-
-
-@dataclass
-class PortfolioSummary:
-    """Complete portfolio allocation summary."""
-    total_value: float
-    cash_balance: float
-    geographic_allocations: list[AllocationStatus]
-    industry_allocations: list[AllocationStatus]
-
-
-@dataclass
-class TradeRecommendation:
-    """Recommended trade for rebalancing."""
-    symbol: str
-    name: str
-    side: str  # BUY or SELL
-    quantity: float
-    estimated_price: float
-    estimated_value: float
-    reason: str  # Why this trade is recommended
-    currency: str = "EUR"  # Stock's native currency (EUR, USD, HKD, etc.)
-
-
-# Removed get_portfolio_summary() - use PortfolioService.get_portfolio_summary() instead
-
-@dataclass
-class StockPriority:
-    """Priority score for a stock candidate."""
-    symbol: str
-    name: str
-    geography: str
-    industry: str
-    stock_score: float
-    volatility: float  # Raw volatility (0.0-1.0)
-    multiplier: float  # Manual priority multiplier
-    min_lot: int  # Minimum lot size for trading
-    combined_priority: float  # Enhanced priority score
-    # Score breakdown (for display)
-    quality_score: Optional[float] = None
-    opportunity_score: Optional[float] = None
-    allocation_fit_score: Optional[float] = None
 
 
 def calculate_position_size(

@@ -49,14 +49,12 @@ class Database:
                 # Ensure parent directory exists
                 self.path.parent.mkdir(parents=True, exist_ok=True)
 
-                uri = f"file:{self.path}"
                 if self.readonly:
-                    uri += "?mode=ro"
-
-                self._connection = await aiosqlite.connect(
-                    self.path,
-                    uri=self.readonly,  # Enable URI mode only for readonly
-                )
+                    # Use URI mode for readonly connections
+                    uri = f"file:{self.path}?mode=ro"
+                    self._connection = await aiosqlite.connect(uri, uri=True)
+                else:
+                    self._connection = await aiosqlite.connect(self.path)
                 self._connection.row_factory = aiosqlite.Row
 
                 # Configure for reliability over speed

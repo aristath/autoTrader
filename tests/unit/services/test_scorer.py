@@ -5,9 +5,11 @@ that it runs without errors. Each test identifies a specific bug it would catch.
 """
 
 import pytest
-from app.services.scorer import (
+from app.domain.scoring.quality import (
     score_total_return,
     calculate_dividend_bonus,
+)
+from app.domain.scoring.constants import (
     OPTIMAL_CAGR,
     HIGH_DIVIDEND_THRESHOLD,
     MID_DIVIDEND_THRESHOLD,

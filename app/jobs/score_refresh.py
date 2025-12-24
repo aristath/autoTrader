@@ -91,9 +91,9 @@ async def _refresh_all_scores_internal():
                         """
                         INSERT OR REPLACE INTO scores
                         (symbol, quality_score, opportunity_score, analyst_score,
-                         allocation_fit_score, total_score, volatility, calculated_at,
-                         cagr_5y, history_years)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         allocation_fit_score, total_score, cagr_score, history_years,
+                         calculated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             symbol,
@@ -102,10 +102,9 @@ async def _refresh_all_scores_internal():
                             score.analyst.total,
                             alloc_fit_score,
                             score.total_score,
-                            score.volatility,
-                            datetime.now().isoformat(),
-                            score.quality.cagr_5y,
+                            score.quality.cagr_5y,  # Maps to cagr_score column
                             score.quality.history_years,
+                            datetime.now().isoformat(),
                         )
                     )
                     scores_updated += 1
@@ -138,17 +137,17 @@ async def _build_portfolio_context(db_manager) -> PortfolioContext:
 
     # Get allocation targets
     cursor = await db_manager.config.execute(
-        "SELECT name, target_pct, category FROM allocation_targets"
+        "SELECT name, target_pct, type FROM allocation_targets"
     )
     targets = await cursor.fetchall()
 
     geo_weights = {}
     industry_weights = {}
-    for name, target_pct, category in targets:
-        if category == "geography":
+    for name, target_pct, alloc_type in targets:
+        if alloc_type == "geography":
             # Convert target_pct to weight: 33% target = 0 weight, higher = positive
             geo_weights[name] = (target_pct - 0.33) / 0.15 if target_pct else 0
-        elif category == "industry":
+        elif alloc_type == "industry":
             industry_weights[name] = (target_pct - 0.10) / 0.10 if target_pct else 0
 
     # Get stock metadata for scoring
@@ -179,11 +178,11 @@ async def _build_portfolio_context(db_manager) -> PortfolioContext:
 
 async def _get_daily_prices(db_manager, symbol: str, yahoo_symbol: str = None) -> list:
     """Get daily price data from history database or Yahoo."""
-    history_db = db_manager.history(symbol)
+    history_db = await db_manager.history(symbol)
 
     cursor = await history_db.execute(
         """
-        SELECT date, open, high, low, close, volume
+        SELECT date, open_price, high_price, low_price, close_price, volume
         FROM daily_prices
         ORDER BY date DESC
         LIMIT 365
@@ -221,8 +220,8 @@ async def _get_daily_prices(db_manager, symbol: str, yahoo_symbol: str = None) -
                 await history_db.execute(
                     """
                     INSERT OR REPLACE INTO daily_prices
-                    (date, open, high, low, close, volume)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    (date, open_price, high_price, low_price, close_price, volume, source, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, 'yahoo', datetime('now'))
                     """,
                     (p["date"], p.get("open"), p.get("high"),
                      p.get("low"), p["close"], p.get("volume"))
@@ -233,7 +232,7 @@ async def _get_daily_prices(db_manager, symbol: str, yahoo_symbol: str = None) -
 
 async def _get_monthly_prices(db_manager, symbol: str, yahoo_symbol: str = None) -> list:
     """Get monthly price data from history database or Yahoo."""
-    history_db = db_manager.history(symbol)
+    history_db = await db_manager.history(symbol)
 
     cursor = await history_db.execute(
         """
@@ -277,10 +276,10 @@ async def _get_monthly_prices(db_manager, symbol: str, yahoo_symbol: str = None)
                 await history_db.execute(
                     """
                     INSERT OR REPLACE INTO monthly_prices
-                    (year_month, avg_adj_close)
-                    VALUES (?, ?)
+                    (year_month, avg_close, avg_adj_close, source, created_at)
+                    VALUES (?, ?, ?, 'calculated', datetime('now'))
                     """,
-                    (month, avg_close)
+                    (month, avg_close, avg_close)
                 )
 
         return monthly_prices

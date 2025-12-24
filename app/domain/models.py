@@ -159,3 +159,58 @@ class MonthlyPrice:
     min_price: Optional[float] = None
     max_price: Optional[float] = None
     source: str = "calculated"
+
+
+# Allocation and Portfolio Models
+# Moved from app/services/allocator.py
+
+
+@dataclass
+class AllocationStatus:
+    """Current allocation vs target."""
+    category: str  # geography or industry
+    name: str  # EU, ASIA, US or Technology, etc.
+    target_pct: float
+    current_pct: float
+    current_value: float
+    deviation: float  # current - target (negative = underweight)
+
+
+@dataclass
+class PortfolioSummary:
+    """Complete portfolio allocation summary."""
+    total_value: float
+    cash_balance: float
+    geographic_allocations: list
+    industry_allocations: list
+
+
+@dataclass
+class TradeRecommendation:
+    """Recommended trade for rebalancing."""
+    symbol: str
+    name: str
+    side: str  # BUY or SELL
+    quantity: float
+    estimated_price: float
+    estimated_value: float
+    reason: str  # Why this trade is recommended
+    currency: str = "EUR"  # Stock's native currency
+
+
+@dataclass
+class StockPriority:
+    """Priority score for a stock candidate."""
+    symbol: str
+    name: str
+    geography: str
+    industry: str
+    stock_score: float
+    volatility: float  # Raw volatility (0.0-1.0)
+    multiplier: float  # Manual priority multiplier
+    min_lot: int  # Minimum lot size for trading
+    combined_priority: float  # Enhanced priority score
+    # Score breakdown (for display)
+    quality_score: Optional[float] = None
+    opportunity_score: Optional[float] = None
+    allocation_fit_score: Optional[float] = None

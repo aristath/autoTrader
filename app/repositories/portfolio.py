@@ -32,6 +32,13 @@ class PortfolioRepository:
             return None
         return self._row_to_snapshot(row)
 
+    async def get_latest_cash_balance(self) -> float:
+        """Get cash balance from most recent snapshot."""
+        row = await self._db.fetchone(
+            "SELECT cash_balance FROM portfolio_snapshots ORDER BY date DESC LIMIT 1"
+        )
+        return row["cash_balance"] if row else 0.0
+
     async def get_history(self, days: int = 90) -> List[PortfolioSnapshot]:
         """Get snapshot history for last N days."""
         rows = await self._db.fetchall(

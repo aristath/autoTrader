@@ -149,8 +149,8 @@ async def _sync_portfolio_internal():
             await db_manager.state.execute(
                 """
                 INSERT OR REPLACE INTO portfolio_snapshots
-                (date, total_value, cash_balance, geo_eu_pct, geo_asia_pct, geo_us_pct)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (date, total_value, cash_balance, geo_eu_pct, geo_asia_pct, geo_us_pct, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
                 """,
                 (
                     today,

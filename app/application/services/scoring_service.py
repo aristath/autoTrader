@@ -10,6 +10,25 @@ from app.domain.models import StockScore
 from app.domain.scoring import calculate_stock_score, CalculatedStockScore
 
 
+def _to_domain_score(score: CalculatedStockScore) -> StockScore:
+    """Convert CalculatedStockScore to domain StockScore model."""
+    return StockScore(
+        symbol=score.symbol,
+        quality_score=score.quality.total,
+        opportunity_score=score.opportunity.total,
+        analyst_score=score.analyst.total,
+        allocation_fit_score=score.allocation_fit.total if score.allocation_fit else None,
+        cagr_score=score.quality.total_return_score,
+        consistency_score=score.quality.consistency_score,
+        history_years=score.quality.history_years,
+        technical_score=score.quality.total,
+        fundamental_score=score.opportunity.total,
+        total_score=score.total_score,
+        volatility=score.volatility,
+        calculated_at=score.calculated_at,
+    )
+
+
 class ScoringService:
     """Application service for stock scoring operations."""
 
@@ -47,27 +66,7 @@ class ScoringService:
             industry=industry,
         )
         if score:
-            # Convert to domain model with new scoring columns
-            domain_score = StockScore(
-                symbol=score.symbol,
-                # New primary scores
-                quality_score=score.quality.total,
-                opportunity_score=score.opportunity.total,
-                analyst_score=score.analyst.total,
-                allocation_fit_score=score.allocation_fit.total if score.allocation_fit else None,
-                # Quality breakdown
-                cagr_score=score.quality.total_return_score,
-                consistency_score=score.quality.consistency_score,
-                history_years=score.quality.history_years,
-                # Legacy fields for backwards compatibility
-                technical_score=score.quality.total,
-                fundamental_score=score.opportunity.total,
-                total_score=score.total_score,
-                volatility=score.volatility,
-                calculated_at=score.calculated_at,
-            )
-            await self.score_repo.upsert(domain_score)
-
+            await self.score_repo.upsert(_to_domain_score(score))
         return score
 
     async def score_all_stocks(self) -> List[CalculatedStockScore]:
@@ -89,26 +88,6 @@ class ScoringService:
             )
             if score:
                 scores.append(score)
-
-                # Convert to domain model and save
-                domain_score = StockScore(
-                    symbol=score.symbol,
-                    # New primary scores
-                    quality_score=score.quality.total,
-                    opportunity_score=score.opportunity.total,
-                    analyst_score=score.analyst.total,
-                    allocation_fit_score=score.allocation_fit.total if score.allocation_fit else None,
-                    # Quality breakdown
-                    cagr_score=score.quality.total_return_score,
-                    consistency_score=score.quality.consistency_score,
-                    history_years=score.quality.history_years,
-                    # Legacy fields for backwards compatibility
-                    technical_score=score.quality.total,
-                    fundamental_score=score.opportunity.total,
-                    total_score=score.total_score,
-                    volatility=score.volatility,
-                    calculated_at=score.calculated_at,
-                )
-                await self.score_repo.upsert(domain_score)
+                await self.score_repo.upsert(_to_domain_score(score))
 
         return scores

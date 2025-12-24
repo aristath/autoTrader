@@ -245,7 +245,7 @@ async def _cleanup_old_daily_prices_internal():
         total_deleted = 0
         for symbol in symbols:
             try:
-                history_db = db_manager.history(symbol)
+                history_db = await db_manager.history(symbol)
 
                 # Count records to be deleted
                 cursor = await history_db.execute(

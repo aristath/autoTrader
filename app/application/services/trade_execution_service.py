@@ -8,7 +8,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.repositories import TradeRepository, PositionRepository
-from app.services.allocator import TradeRecommendation
+from app.domain.models import TradeRecommendation
 from app.services.tradernet import get_tradernet_client
 from app.infrastructure.events import emit, SystemEvent
 from app.infrastructure.hardware.led_display import set_activity

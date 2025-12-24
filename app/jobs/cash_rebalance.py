@@ -55,7 +55,7 @@ async def _check_and_rebalance_internal():
     from app.services import yahoo
     from app.services.tradernet import get_exchange_rate
     from app.application.services.trade_execution_service import TradeExecutionService
-    from app.services.allocator import TradeRecommendation
+    from app.domain.models import TradeRecommendation
     from app.domain.constants import TRADE_SIDE_BUY, TRADE_SIDE_SELL, BUY_COOLDOWN_DAYS
 
     logger.info("Starting trade cycle check...")
@@ -272,7 +272,7 @@ async def _get_best_sell_trade(
     positions, stocks, trade_repo, portfolio_context, db_manager
 ) -> "TradeRecommendation | None":
     """Calculate and return the best sell trade, if any."""
-    from app.services.allocator import TradeRecommendation
+    from app.domain.models import TradeRecommendation
     from app.domain.constants import TRADE_SIDE_SELL
     from app.domain.scoring import TechnicalData, calculate_all_sell_scores
     import numpy as np
@@ -452,7 +452,7 @@ async def _get_buy_trades(
     stocks, positions, portfolio_context, recently_bought, min_trade_size, db_manager
 ) -> "list[TradeRecommendation]":
     """Calculate and return buy trades."""
-    from app.services.allocator import TradeRecommendation
+    from app.domain.models import TradeRecommendation
     from app.services import yahoo
     from app.services.tradernet import get_exchange_rate
     from app.domain.constants import TRADE_SIDE_BUY

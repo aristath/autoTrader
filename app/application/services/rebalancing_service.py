@@ -30,12 +30,8 @@ from app.domain.scoring import (
     PortfolioContext,
     TechnicalData,
 )
-from app.services.allocator import (
-    TradeRecommendation,
-    StockPriority,
-    calculate_position_size,
-    get_max_trades,
-)
+from app.domain.models import TradeRecommendation, StockPriority
+from app.services.allocator import calculate_position_size, get_max_trades
 from app.services import yahoo
 from app.services.tradernet import get_exchange_rate
 from app.domain.constants import TRADE_SIDE_BUY, TRADE_SIDE_SELL, BUY_COOLDOWN_DAYS
@@ -125,7 +121,7 @@ class RebalancingService:
 
         for symbol in symbols:
             try:
-                history_db = self._db_manager.history(symbol)
+                history_db = await self._db_manager.history(symbol)
                 rows = await history_db.fetchall(
                     """
                     SELECT date, close FROM daily_prices

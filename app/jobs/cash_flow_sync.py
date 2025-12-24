@@ -66,20 +66,30 @@ async def _sync_cash_flows_internal():
                 if txn_id and txn_id in existing_ids:
                     continue
 
+                # Get amount in EUR (use exchange rate or default to same as amount)
+                amount = txn.get("amount", 0)
+                currency = txn.get("currency", "EUR")
+                amount_eur = txn.get("amount_eur") or amount  # Fallback to amount if no EUR conversion
+
                 await db_manager.ledger.execute(
                     """
                     INSERT INTO cash_flows
-                    (transaction_id, date, type, amount, currency, description, symbol)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (transaction_id, type_doc_id, transaction_type, date, amount, currency,
+                     amount_eur, status, status_c, description, params_json, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
                     """,
                     (
                         txn.get("transaction_id"),
+                        txn.get("type_doc_id", 0),  # Default to 0 if not provided
+                        txn.get("type") or txn.get("transaction_type"),
                         txn.get("date"),
-                        txn.get("type"),
-                        txn.get("amount"),
-                        txn.get("currency", "EUR"),
+                        amount,
+                        currency,
+                        amount_eur,
+                        txn.get("status"),
+                        txn.get("status_c"),
                         txn.get("description"),
-                        txn.get("symbol"),
+                        txn.get("params_json"),
                     )
                 )
                 synced_count += 1

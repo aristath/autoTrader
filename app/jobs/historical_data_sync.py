@@ -74,7 +74,7 @@ async def _sync_stock_price_history():
     for symbol, yahoo_symbol in stocks:
         try:
             # Get history database for this symbol
-            history_db = db_manager.history(symbol)
+            history_db = await db_manager.history(symbol)
 
             # Check if we already have recent data
             cursor = await history_db.execute(
@@ -137,8 +137,8 @@ async def _fetch_and_store_prices(history_db, symbol: str, yahoo_symbol: str = N
                 await history_db.execute(
                     """
                     INSERT OR REPLACE INTO daily_prices
-                    (date, open, high, low, close, volume)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    (date, open_price, high_price, low_price, close_price, volume, source, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, 'yahoo', datetime('now'))
                     """,
                     (date, open_price, high, low, close, volume)
                 )
@@ -157,10 +157,13 @@ async def _aggregate_to_monthly(history_db):
     """Aggregate daily prices to monthly averages for this symbol."""
     await history_db.execute("""
         INSERT OR REPLACE INTO monthly_prices
-        (year_month, avg_adj_close)
+        (year_month, avg_close, avg_adj_close, source, created_at)
         SELECT
             strftime('%Y-%m', date) as year_month,
-            AVG(close) as avg_adj_close
+            AVG(close_price) as avg_close,
+            AVG(close_price) as avg_adj_close,
+            'calculated',
+            datetime('now')
         FROM daily_prices
         GROUP BY strftime('%Y-%m', date)
     """)

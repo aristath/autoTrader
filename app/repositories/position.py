@@ -1,7 +1,7 @@
 """Position repository - CRUD operations for positions table."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from app.domain.models import Position
 from app.infrastructure.database import get_db_manager
@@ -11,7 +11,8 @@ class PositionRepository:
     """Repository for current position operations."""
 
     def __init__(self):
-        self._db = get_db_manager().state
+        self._manager = get_db_manager()
+        self._db = self._manager.state
 
     async def get_by_symbol(self, symbol: str) -> Optional[Position]:
         """Get position by symbol."""
@@ -109,6 +110,42 @@ class PositionRepository:
             "SELECT COALESCE(SUM(market_value_eur), 0) as total FROM positions"
         )
         return row["total"] if row else 0.0
+
+    async def get_with_stock_info(self) -> List[Dict]:
+        """
+        Get all positions with stock info joined from config database.
+
+        Returns list of dicts with position and stock fields merged.
+        """
+        # Get positions from state.db
+        position_rows = await self._db.fetchall("SELECT * FROM positions")
+        if not position_rows:
+            return []
+
+        # Get stocks from config.db
+        stock_rows = await self._manager.config.fetchall(
+            "SELECT symbol, name, geography, industry, min_lot, allow_sell, currency "
+            "FROM stocks WHERE active = 1"
+        )
+        stocks_by_symbol = {row["symbol"]: dict(row) for row in stock_rows}
+
+        # Merge position and stock data
+        result = []
+        for pos in position_rows:
+            pos_dict = dict(pos)
+            stock = stocks_by_symbol.get(pos["symbol"], {})
+            # Merge stock fields into position
+            pos_dict["name"] = stock.get("name", pos["symbol"])
+            pos_dict["geography"] = stock.get("geography", "")
+            pos_dict["industry"] = stock.get("industry")
+            pos_dict["min_lot"] = stock.get("min_lot", 1)
+            pos_dict["allow_sell"] = bool(stock.get("allow_sell", False))
+            # Use stock currency if position doesn't have one
+            if not pos_dict.get("currency"):
+                pos_dict["currency"] = stock.get("currency", "EUR")
+            result.append(pos_dict)
+
+        return result
 
     def _row_to_position(self, row) -> Position:
         """Convert database row to Position model."""
