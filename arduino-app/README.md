@@ -1,18 +1,15 @@
 # Arduino Trader LED Display
 
-Displays portfolio value on the Arduino Uno Q's 8x13 LED matrix.
+Displays portfolio information on the Arduino Uno Q's 8x13 LED matrix using a scrolling ticker.
 
 ## Display Layout
 
-```
-Rows 0-4: Big digits showing thousands (e.g., "20" for €20K)
-          + 1-column progress bar (col 12) showing €0-999 remainder
-Row 5:    Empty separator
-Row 6:    Empty
-Row 7:    Heartbeat indicator (col 0) - blinks every 2 seconds
-```
+The display uses a 7-pixel tall variable-width font that scrolls right-to-left across the 8x13 matrix. The ticker shows:
+- Portfolio value (e.g., "EUR12,345")
+- Cash balance (e.g., "CASH EUR675")
+- Trading recommendations (e.g., "BUY XIAO EUR855", "SELL ABC EUR200")
 
-**Progress bar:** Each pixel = €200, with partial brightness for smooth transitions.
+When no ticker text is available, a heartbeat pulse animation is shown as a fallback.
 
 ## How It Works
 
@@ -21,17 +18,18 @@ Trading API (FastAPI) → Python Script → Router Bridge → STM32 MCU → LED 
 ```
 
 1. Python script fetches `/api/status/led/display` from the trading API
-2. Creates frame with big digits + progress bar
-3. Sends frame data to STM32 via Router Bridge
-4. STM32 renders the frame on the LED matrix
+2. Builds ticker text from portfolio data and recommendations
+3. Renders scrolling text frames using 7px font
+4. Sends frame data to STM32 via Router Bridge
+5. STM32 renders the frame on the LED matrix
 
 ## Display Modes
 
-- **balance**: Big digits + progress bar (default)
-- **syncing**: Wave animation during data sync
-- **api_call**: Wave animation during API calls
-- **no_wifi**: Scrolling "NO WIFI" text
-- **error**: X pattern when API unreachable
+- **normal**: Scrolling ticker with portfolio info (default)
+- **syncing**: Horizontal wave animation during data sync
+- **trade**: Expanding ring celebration animation when trades execute
+- **error**: Scrolling error message text
+- **activity**: Scrolling activity message (higher priority than ticker)
 
 ## Files
 

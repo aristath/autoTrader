@@ -97,57 +97,16 @@ scroll_offset = 0
 trade_start_time = 0
 last_mode = None
 
-# Temperature cache (read every 5 seconds)
-_temp_cache = {"value": 0.0, "time": 0.0}
-
-
-# =============================================================================
-# Temperature monitoring
-# =============================================================================
-
-def get_max_temperature() -> float:
-    """Read max temperature from thermal zones (cached 5s).
-
-    Returns temperature in °C, or 0 if unavailable.
-    """
-    global _temp_cache
-    now = time.time()
-
-    # Return cached value if fresh
-    if now - _temp_cache["time"] < 5:
-        return _temp_cache["value"]
-
-    max_temp = 0.0
-    try:
-        for i in range(10):
-            path = f"/sys/class/thermal/thermal_zone{i}/temp"
-            try:
-                with open(path, "r") as f:
-                    temp = int(f.read().strip()) / 1000  # millidegrees to °C
-                    max_temp = max(max_temp, temp)
-            except (IOError, FileNotFoundError):
-                continue
-    except Exception:
-        pass
-
-    _temp_cache = {"value": max_temp, "time": now}
-    return max_temp
-
 
 # =============================================================================
 # Matrix animations
 # =============================================================================
 
-def animate_normal(phase: int, temp: float = 0) -> np.ndarray:
+def animate_normal(phase: int) -> np.ndarray:
     """Heartbeat pulse - radial glow from center that fades outward and over time.
 
-    Speed (cycle time):
-    - < 45°C: 1.5s
-    - 45-55°C: 1.2s
-    - 55-65°C: 1s
-    - 65+°C: 0.8s
-
     Center is brightest, fades radially outward, and fades over time.
+    Fixed 1.5 second cycle with fixed brightness.
     """
     arr = np.zeros((ROWS, COLS), dtype=np.uint8)
 
@@ -161,13 +120,8 @@ def animate_normal(phase: int, temp: float = 0) -> np.ndarray:
     # Fixed 15 frames for smooth 1.5 second cycle (10 fps)
     cycle_frames = 15
 
-    # Peak brightness based on temperature
-    if temp <= 45:
-        peak_brightness = 200
-    elif temp >= 65:
-        peak_brightness = 255
-    else:
-        peak_brightness = int(200 + (temp - 45) * 2.75)
+    # Fixed peak brightness
+    peak_brightness = 200
 
     # Current expansion radius (0 to max_radius)
     expansion = (phase % cycle_frames) * max_radius / cycle_frames
@@ -420,8 +374,7 @@ def loop():
                     scroll_offset += 1
                     time.sleep(ticker_sleep)
                 else:
-                    temp = get_max_temperature()
-                    draw_frame(Frame(animate_normal(phase, temp)))
+                    draw_frame(Frame(animate_normal(phase)))
                     time.sleep(0.1)
 
         elif activity_message:
@@ -445,8 +398,7 @@ def loop():
                 time.sleep(ticker_sleep)
             else:
                 # Fallback to heartbeat if no ticker
-                temp = get_max_temperature()
-                draw_frame(Frame(animate_normal(phase, temp)))
+                draw_frame(Frame(animate_normal(phase)))
                 time.sleep(0.1)
 
         phase += 1
