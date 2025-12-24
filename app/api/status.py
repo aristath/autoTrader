@@ -200,13 +200,7 @@ async def _build_ticker_text(
 
 
 @router.get("/led/display")
-async def get_led_display_state(
-    portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
-    position_repo: PositionRepository = Depends(get_position_repository),
-    allocation_repo: AllocationRepository = Depends(get_allocation_repository),
-    stock_repo: StockRepository = Depends(get_stock_repository),
-    trade_repo: TradeRepository = Depends(get_trade_repository),
-):
+async def get_led_display_state():
     """
     Get display state for Arduino Bridge apps.
 
@@ -221,24 +215,80 @@ async def get_led_display_state(
     - activity_message: current activity (higher priority)
     - ticker_speed: scroll speed in ms per frame
     - led_brightness: brightness 0-255
+
+    Note: This endpoint is called ~10 times/second by the LED controller.
+    Response is cached for 2 seconds to prevent DB connection exhaustion.
+    Mode/activity changes are reflected immediately from in-memory state.
     """
     from app.infrastructure.hardware.led_display import get_display_state
-    from app.api.settings import get_setting_value
+    from app.infrastructure.cache import cache
 
+    # Get live display state (in-memory, no DB)
     state = get_display_state()
 
-    # Build ticker text if not already set and no activity message
-    if not state.get("ticker_text") and not state.get("activity_message"):
-        ticker = await _build_ticker_text(
-            portfolio_repo, position_repo, allocation_repo, stock_repo, trade_repo
-        )
-        state["ticker_text"] = ticker
+    # Check if we have cached ticker data
+    cached = cache.get("led_display:ticker_data")
 
-    # Add LED settings
-    state["ticker_speed"] = await get_setting_value("ticker_speed")
-    state["led_brightness"] = int(await get_setting_value("led_brightness"))
+    # Use cached ticker/settings if available, otherwise fetch fresh
+    if cached is not None:
+        state["ticker_text"] = state.get("ticker_text") or cached.get("ticker_text", "")
+        state["ticker_speed"] = cached.get("ticker_speed", 50.0)
+        state["led_brightness"] = cached.get("led_brightness", 150)
+    else:
+        # Fetch fresh data and cache it
+        await _refresh_led_display_cache()
+        cached = cache.get("led_display:ticker_data") or {}
+        state["ticker_text"] = state.get("ticker_text") or cached.get("ticker_text", "")
+        state["ticker_speed"] = cached.get("ticker_speed", 50.0)
+        state["led_brightness"] = cached.get("led_brightness", 150)
 
     return state
+
+
+async def _refresh_led_display_cache():
+    """Refresh cached LED display data (ticker text + settings)."""
+    from app.infrastructure.cache import cache
+    from app.api.settings import get_setting_value
+    from app.database import get_db_connection
+    from app.infrastructure.repositories import (
+        SQLitePortfolioRepository,
+        SQLitePositionRepository,
+        SQLiteAllocationRepository,
+        SQLiteStockRepository,
+        SQLiteTradeRepository,
+    )
+
+    try:
+        async with get_db_connection() as db:
+            # Create all repos with single connection
+            portfolio_repo = SQLitePortfolioRepository(db)
+            position_repo = SQLitePositionRepository(db)
+            allocation_repo = SQLiteAllocationRepository(db)
+            stock_repo = SQLiteStockRepository(db)
+            trade_repo = SQLiteTradeRepository(db)
+
+            # Build ticker text
+            ticker = await _build_ticker_text(
+                portfolio_repo, position_repo, allocation_repo, stock_repo, trade_repo
+            )
+
+        # Get settings (uses cached batch query)
+        ticker_speed = await get_setting_value("ticker_speed")
+        led_brightness = int(await get_setting_value("led_brightness"))
+
+        # Cache for 2 seconds
+        cache.set("led_display:ticker_data", {
+            "ticker_text": ticker,
+            "ticker_speed": ticker_speed,
+            "led_brightness": led_brightness,
+        }, ttl_seconds=2)
+    except Exception:
+        # On error, set minimal cache to prevent rapid retries
+        cache.set("led_display:ticker_data", {
+            "ticker_text": "",
+            "ticker_speed": 50.0,
+            "led_brightness": 150,
+        }, ttl_seconds=2)
 
 
 @router.post("/led/test")
