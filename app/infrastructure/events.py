@@ -47,6 +47,35 @@ class SystemEvent(Enum):
     ERROR_OCCURRED = "error_occurred"
     ERROR_CLEARED = "error_cleared"
 
+    # Maintenance operations
+    MAINTENANCE_START = "maintenance_start"
+    MAINTENANCE_COMPLETE = "maintenance_complete"
+    BACKUP_START = "backup_start"
+    BACKUP_COMPLETE = "backup_complete"
+    CLEANUP_START = "cleanup_start"
+    CLEANUP_COMPLETE = "cleanup_complete"
+    INTEGRITY_CHECK_START = "integrity_check_start"
+    INTEGRITY_CHECK_COMPLETE = "integrity_check_complete"
+
+    # Job lifecycle
+    JOB_START = "job_start"
+    JOB_COMPLETE = "job_complete"
+
+    # Specific operations
+    SCORE_REFRESH_START = "score_refresh_start"
+    SCORE_REFRESH_COMPLETE = "score_refresh_complete"
+    REBALANCE_START = "rebalance_start"
+    REBALANCE_COMPLETE = "rebalance_complete"
+    CASH_FLOW_SYNC_START = "cash_flow_sync_start"
+    CASH_FLOW_SYNC_COMPLETE = "cash_flow_sync_complete"
+    TRADE_SYNC_START = "trade_sync_start"
+    TRADE_SYNC_COMPLETE = "trade_sync_complete"
+
+    # Error categories
+    API_ERROR = "api_error"
+    DATABASE_ERROR = "database_error"
+    BROKER_ERROR = "broker_error"
+
 
 # Event listeners storage
 _listeners: dict[SystemEvent, list[Callable]] = {event: [] for event in SystemEvent}

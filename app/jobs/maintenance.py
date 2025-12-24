@@ -17,6 +17,8 @@ from pathlib import Path
 from app.config import settings
 from app.database import get_db_connection
 from app.infrastructure.locking import file_lock
+from app.infrastructure.hardware.led_display import set_activity
+from app.infrastructure.events import emit, SystemEvent
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,9 @@ async def create_backup():
 async def _create_backup_internal():
     """Internal backup implementation."""
     logger.info("Starting database backup")
+
+    emit(SystemEvent.BACKUP_START)
+    set_activity("BACKING UP DATABASE...", duration=60.0)
 
     try:
         # Ensure backup directory exists
@@ -56,8 +61,12 @@ async def _create_backup_internal():
         # Clean up old backups (keep last N)
         await _cleanup_old_backups(backup_dir)
 
+        emit(SystemEvent.BACKUP_COMPLETE)
+        set_activity("BACKUP COMPLETE", duration=5.0)
+
     except Exception as e:
         logger.error(f"Database backup failed: {e}")
+        emit(SystemEvent.ERROR_OCCURRED, message="BACKUP FAILED")
         raise
 
 
@@ -87,6 +96,8 @@ async def checkpoint_wal():
 async def _checkpoint_wal_internal():
     """Internal WAL checkpoint implementation."""
     logger.info("Running WAL checkpoint")
+
+    set_activity("CHECKPOINTING DATABASE...", duration=30.0)
 
     try:
         async with get_db_connection() as db:
@@ -118,6 +129,9 @@ async def _integrity_check_internal():
     """Internal integrity check implementation."""
     logger.info("Running database integrity check")
 
+    emit(SystemEvent.INTEGRITY_CHECK_START)
+    set_activity("CHECKING DATABASE INTEGRITY...", duration=120.0)
+
     try:
         async with get_db_connection() as db:
             result = await db.execute("PRAGMA integrity_check")
@@ -125,13 +139,17 @@ async def _integrity_check_internal():
 
             if row and row[0] == "ok":
                 logger.info("Database integrity check passed")
+                emit(SystemEvent.INTEGRITY_CHECK_COMPLETE)
+                set_activity("INTEGRITY CHECK PASSED", duration=5.0)
             else:
                 error_msg = row[0] if row else "Unknown error"
                 logger.error(f"Database integrity check FAILED: {error_msg}")
+                emit(SystemEvent.ERROR_OCCURRED, message="INTEGRITY CHECK FAILED")
                 # Could add alerting here
 
     except Exception as e:
         logger.error(f"Database integrity check failed: {e}")
+        emit(SystemEvent.ERROR_OCCURRED, message="INTEGRITY CHECK FAILED")
         raise
 
 
@@ -149,6 +167,9 @@ async def cleanup_old_daily_prices():
 async def _cleanup_old_daily_prices_internal():
     """Internal daily price cleanup implementation."""
     logger.info("Cleaning up old daily prices")
+
+    emit(SystemEvent.CLEANUP_START)
+    set_activity("CLEANING OLD PRICES...", duration=60.0)
 
     try:
         async with get_db_connection() as db:
@@ -173,8 +194,11 @@ async def _cleanup_old_daily_prices_internal():
             else:
                 logger.info("No old daily price records to clean up")
 
+        emit(SystemEvent.CLEANUP_COMPLETE)
+
     except Exception as e:
         logger.error(f"Daily price cleanup failed: {e}")
+        emit(SystemEvent.ERROR_OCCURRED, message="CLEANUP FAILED")
         raise
 
 
@@ -191,6 +215,8 @@ async def cleanup_old_snapshots():
 async def _cleanup_old_snapshots_internal():
     """Internal snapshot cleanup implementation."""
     logger.info("Cleaning up old portfolio snapshots")
+
+    set_activity("CLEANING OLD SNAPSHOTS...", duration=30.0)
 
     try:
         async with get_db_connection() as db:
@@ -229,6 +255,9 @@ async def run_daily_maintenance():
     """
     logger.info("Starting daily maintenance")
 
+    emit(SystemEvent.MAINTENANCE_START)
+    set_activity("RUNNING MAINTENANCE...", duration=180.0)
+
     try:
         # 1. Create backup first (before any cleanup)
         await create_backup()
@@ -241,9 +270,12 @@ async def run_daily_maintenance():
         await checkpoint_wal()
 
         logger.info("Daily maintenance complete")
+        emit(SystemEvent.MAINTENANCE_COMPLETE)
+        set_activity("MAINTENANCE COMPLETE", duration=5.0)
 
     except Exception as e:
         logger.error(f"Daily maintenance failed: {e}")
+        emit(SystemEvent.ERROR_OCCURRED, message="MAINTENANCE FAILED")
         raise
 
 

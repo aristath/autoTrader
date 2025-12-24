@@ -63,7 +63,7 @@ class TradeExecutionService:
 
         if not client.is_connected:
             if not client.connect():
-                emit(SystemEvent.ERROR_OCCURRED, message="TRADE FAIL")
+                emit(SystemEvent.ERROR_OCCURRED, message="TRADE EXECUTION FAILED")
                 raise ConnectionError("Failed to connect to Tradernet")
 
         # Get currency exchange service if auto-convert is enabled
@@ -138,12 +138,15 @@ class TradeExecutionService:
                                     f"for {trade.symbol} (need {required:.2f} {trade_currency})"
                                 )
 
+                                set_activity(f"CONVERTING {source_currency} TO {trade_currency}...", duration=10.0)
+
                                 # Ensure we have enough balance
                                 if currency_service.ensure_balance(
                                     trade_currency, required, source_currency
                                 ):
                                     converted_currencies.add(trade_currency)
                                     logger.info(f"Currency conversion successful for {trade_currency}")
+                                    set_activity(f"CURRENCY CONVERSION COMPLETE", duration=3.0)
                                 else:
                                     logger.warning(
                                         f"Currency conversion failed for {trade.symbol}: "
@@ -232,7 +235,7 @@ class TradeExecutionService:
                         "side": trade.side,
                     })
                 else:
-                    emit(SystemEvent.ERROR_OCCURRED, message="ORDER FAIL")
+                    emit(SystemEvent.ERROR_OCCURRED, message="ORDER PLACEMENT FAILED")
                     results.append({
                         "symbol": trade.symbol,
                         "status": "failed",
@@ -241,7 +244,7 @@ class TradeExecutionService:
 
             except Exception as e:
                 logger.error(f"Failed to execute trade for {trade.symbol}: {e}")
-                emit(SystemEvent.ERROR_OCCURRED, message="ORDER FAIL")
+                emit(SystemEvent.ERROR_OCCURRED, message="ORDER PLACEMENT FAILED")
                 results.append({
                     "symbol": trade.symbol,
                     "status": "error",
@@ -255,7 +258,8 @@ class TradeExecutionService:
         if skipped_count > 0:
             logger.warning(f"Skipped {skipped_count} trades due to insufficient currency balance")
             if skipped_count >= 2:
-                emit(SystemEvent.ERROR_OCCURRED, message="LOW FX BAL")
+                emit(SystemEvent.ERROR_OCCURRED, message="INSUFFICIENT FOREIGN CURRENCY BALANCE")
 
         return results
+
 

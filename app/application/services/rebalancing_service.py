@@ -222,7 +222,7 @@ class RebalancingService:
         Each recommendation respects min_lot and shows the actual trade amount.
         Recommendations are scored by how much they IMPROVE portfolio balance.
         """
-        set_activity("CALCULATING BUY RECS", duration=10.0)
+        set_activity("PROCESSING RECOMMENDATIONS (BUY)...", duration=10.0)
 
         from app.api.settings import get_setting_value
         base_trade_amount = await get_setting_value("min_trade_size")
@@ -503,7 +503,7 @@ class RebalancingService:
         Returns:
             List of TradeRecommendation with side=SELL
         """
-        set_activity("CALCULATING SELL RECS", duration=10.0)
+        set_activity("PROCESSING RECOMMENDATIONS (SELL)...", duration=10.0)
 
         # Get portfolio summary for allocation context
         from app.application.services.portfolio_service import PortfolioService
@@ -601,4 +601,5 @@ class RebalancingService:
         )
 
         return recommendations
+
 

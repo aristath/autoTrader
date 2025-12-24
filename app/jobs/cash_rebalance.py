@@ -12,6 +12,7 @@ from app.config import settings
 from app.services.tradernet import get_tradernet_client
 from app.infrastructure.locking import file_lock
 from app.infrastructure.events import emit, SystemEvent
+from app.infrastructure.hardware.led_display import set_activity
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,9 @@ async def _check_and_rebalance_internal():
 
     logger.info("Starting trade cycle check...")
 
+    emit(SystemEvent.REBALANCE_START)
+    set_activity("CHECKING TRADE OPPORTUNITIES...", duration=300.0)
+
     try:
         # Step 0: Sync trades from Tradernet for accurate cooldown calculations
         logger.info("Step 0: Syncing trades from Tradernet...")
@@ -67,7 +71,7 @@ async def _check_and_rebalance_internal():
         if not client.is_connected:
             if not client.connect():
                 logger.warning("Cannot connect to Tradernet, skipping cycle")
-                emit(SystemEvent.ERROR_OCCURRED, message="BROKER DOWN")
+                emit(SystemEvent.ERROR_OCCURRED, message="BROKER CONNECTION FAILED")
                 return
 
         cash_balance = client.get_total_cash_eur()
@@ -78,6 +82,7 @@ async def _check_and_rebalance_internal():
 
             # Step 2: Refresh scores
             logger.info("Step 2: Refreshing stock scores...")
+            set_activity("REFRESHING SCORES...", duration=60.0)
             await score_all_stocks(db)
 
             # Initialize services
@@ -116,7 +121,7 @@ async def _check_and_rebalance_internal():
                 else:
                     error = results[0].get("error", "Unknown error") if results else "No result"
                     logger.error(f"SELL failed for {trade.symbol}: {error}")
-                    emit(SystemEvent.ERROR_OCCURRED, message="SELL FAIL")
+                    emit(SystemEvent.ERROR_OCCURRED, message="SELL ORDER FAILED")
 
                 emit(SystemEvent.SYNC_COMPLETE)
                 await sync_portfolio()
@@ -194,7 +199,7 @@ async def _check_and_rebalance_internal():
                         # Actual failure - stop trying
                         error = results[0].get("error", "Unknown error") if results else "No result"
                         logger.error(f"BUY failed for {trade.symbol}: {error}")
-                        emit(SystemEvent.ERROR_OCCURRED, message="BUY FAIL")
+                        emit(SystemEvent.ERROR_OCCURRED, message="BUY ORDER FAILED")
                         break
 
                 if not executed:
@@ -206,6 +211,9 @@ async def _check_and_rebalance_internal():
 
             logger.info("No trades recommended this cycle")
 
+        emit(SystemEvent.REBALANCE_COMPLETE)
+        set_activity("REBALANCE CHECK COMPLETE", duration=5.0)
+
     except Exception as e:
         logger.error(f"Trade cycle error: {e}", exc_info=True)
-        emit(SystemEvent.ERROR_OCCURRED, message="TRADE ERR")
+        emit(SystemEvent.ERROR_OCCURRED, message="TRADE CYCLE ERROR")

@@ -11,6 +11,7 @@ from app.database import get_db_connection
 from app.services import yahoo
 from app.infrastructure.locking import file_lock
 from app.infrastructure.events import emit, SystemEvent
+from app.infrastructure.hardware.led_display import set_activity
 
 logger = logging.getLogger(__name__)
 
@@ -42,13 +43,15 @@ async def _sync_historical_data_internal():
         emit(SystemEvent.SYNC_COMPLETE)
     except Exception as e:
         logger.error(f"Historical data sync failed: {e}")
-        emit(SystemEvent.ERROR_OCCURRED, message="HIST FAIL")
+        emit(SystemEvent.ERROR_OCCURRED, message="HISTORICAL DATA SYNC FAILED")
         raise
 
 
 async def _sync_stock_price_history():
     """Fetch and store historical stock prices for all active stocks (1 year)."""
     logger.info("Starting stock price history sync (using Yahoo Finance)")
+
+    set_activity("SYNCING HISTORICAL PRICES...", duration=300.0)
 
     async with get_db_connection() as db:
         cursor = await db.execute(
@@ -154,6 +157,8 @@ async def _fetch_and_store_prices(
 async def _aggregate_to_monthly():
     """Aggregate daily prices to monthly averages for all symbols."""
     logger.info("Aggregating daily prices to monthly averages")
+
+    set_activity("AGGREGATING MONTHLY PRICES...", duration=60.0)
 
     async with get_db_connection() as db:
         cursor = await db.execute("SELECT DISTINCT symbol FROM stock_price_history")

@@ -6,6 +6,7 @@ from app.services.tradernet import get_tradernet_client
 from app.infrastructure.database.repositories import SQLiteCashFlowRepository
 from app.infrastructure.locking import file_lock
 from app.infrastructure.events import emit, SystemEvent
+from app.infrastructure.hardware.led_display import set_activity
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -29,13 +30,16 @@ async def sync_cash_flows():
 async def _sync_cash_flows_internal():
     """Internal cash flow sync implementation."""
     logger.info("Starting cash flow sync")
+
+    emit(SystemEvent.CASH_FLOW_SYNC_START)
+    set_activity("SYNCING CASH FLOWS...", duration=30.0)
     
     client = get_tradernet_client()
     
     if not client.is_connected:
         if not client.connect():
             logger.warning("Failed to connect to Tradernet, skipping cash flow sync")
-            emit(SystemEvent.ERROR_OCCURRED, message="BROKER DOWN")
+            emit(SystemEvent.ERROR_OCCURRED, message="BROKER CONNECTION FAILED")
             return
     
     try:
@@ -57,9 +61,12 @@ async def _sync_cash_flows_internal():
         logger.info(
             f"Cash flow sync complete: {synced_count}/{len(transactions)} transactions synced"
         )
+
+        emit(SystemEvent.CASH_FLOW_SYNC_COMPLETE)
+        set_activity("CASH FLOW SYNC COMPLETE", duration=5.0)
         
     except Exception as e:
         logger.error(f"Cash flow sync failed: {e}", exc_info=True)
-        emit(SystemEvent.ERROR_OCCURRED, message="CASH FAIL")
+        emit(SystemEvent.ERROR_OCCURRED, message="CASH FLOW SYNC FAILED")
         # Don't raise - allow other jobs to continue
         return

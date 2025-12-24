@@ -37,7 +37,7 @@ async def _sync_portfolio_internal():
     """Internal portfolio sync implementation."""
     logger.info("Starting portfolio sync")
 
-    set_activity("SYNCING PORTFOLIO", duration=30.0)
+    set_activity("SYNCING PORTFOLIO...", duration=30.0)
     emit(SystemEvent.SYNC_START)
 
     client = get_tradernet_client()
@@ -45,7 +45,7 @@ async def _sync_portfolio_internal():
     if not client.is_connected:
         if not client.connect():
             logger.error("Failed to connect to Tradernet, skipping sync")
-            emit(SystemEvent.ERROR_OCCURRED, message="BROKER DOWN")
+            emit(SystemEvent.ERROR_OCCURRED, message="BROKER CONNECTION FAILED")
             return
 
     try:
@@ -170,7 +170,7 @@ async def _sync_portfolio_internal():
     except Exception as e:
         logger.error(f"Portfolio sync failed: {e}")
         emit(SystemEvent.SYNC_COMPLETE)
-        emit(SystemEvent.ERROR_OCCURRED, message="SYNC FAIL")
+        emit(SystemEvent.ERROR_OCCURRED, message="PORTFOLIO SYNC FAILED")
         raise
 
 
@@ -188,7 +188,7 @@ async def _sync_prices_internal():
     """Internal price sync implementation."""
     logger.info("Starting price sync")
 
-    set_activity("GETTING PRICES FROM YAHOO", duration=60.0)
+    set_activity("UPDATING STOCK PRICES...", duration=60.0)
     emit(SystemEvent.SYNC_START)
 
     try:
@@ -237,7 +237,7 @@ async def _sync_prices_internal():
     except Exception as e:
         logger.error(f"Price sync failed: {e}")
         emit(SystemEvent.SYNC_COMPLETE)
-        emit(SystemEvent.ERROR_OCCURRED, message="PRICE FAIL")
+        emit(SystemEvent.ERROR_OCCURRED, message="PRICE SYNC FAILED")
         raise
 
 
@@ -249,6 +249,8 @@ async def sync_stock_currencies():
     trading currency (e.g., BA.EU trades in GBP, not EUR).
     """
     logger.info("Starting stock currency sync")
+
+    set_activity("SYNCING STOCK CURRENCIES...", duration=30.0)
 
     client = get_tradernet_client()
 
