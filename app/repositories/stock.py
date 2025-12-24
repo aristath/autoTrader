@@ -92,12 +92,54 @@ class StockRepository:
 
     async def get_with_scores(self) -> List[dict]:
         """Get all active stocks with their scores and positions."""
-        # This joins across databases - needs to be handled differently
-        # For now, return just stocks; scoring will join separately
-        rows = await self._db.fetchall(
+        db_manager = get_db_manager()
+
+        # Fetch stocks from config.db
+        stock_rows = await self._db.fetchall(
             "SELECT * FROM stocks WHERE active = 1"
         )
-        return [dict(row) for row in rows]
+        stocks = {row["symbol"]: dict(row) for row in stock_rows}
+
+        # Fetch scores from ledger.db
+        score_rows = await db_manager.ledger.fetchall(
+            "SELECT * FROM scores"
+        )
+        scores = {row["symbol"]: dict(row) for row in score_rows}
+
+        # Fetch positions from ledger.db
+        position_rows = await db_manager.ledger.fetchall(
+            "SELECT * FROM positions"
+        )
+        positions = {row["symbol"]: dict(row) for row in position_rows}
+
+        # Merge data
+        result = []
+        for symbol, stock in stocks.items():
+            # Add score data
+            if symbol in scores:
+                score = scores[symbol]
+                stock["total_score"] = score.get("total_score")
+                stock["quality_score"] = score.get("quality_score")
+                stock["opportunity_score"] = score.get("opportunity_score")
+                stock["analyst_score"] = score.get("analyst_score")
+                stock["allocation_fit_score"] = score.get("allocation_fit_score")
+                stock["volatility"] = score.get("volatility")
+                stock["calculated_at"] = score.get("calculated_at")
+
+            # Add position data
+            if symbol in positions:
+                pos = positions[symbol]
+                stock["position_value"] = pos.get("market_value_eur") or 0
+                stock["quantity"] = pos.get("quantity") or 0
+                stock["avg_price"] = pos.get("avg_price")
+                stock["current_price"] = pos.get("current_price")
+            else:
+                stock["position_value"] = 0
+                stock["quantity"] = 0
+
+            result.append(stock)
+
+        return result
 
     def _row_to_stock(self, row) -> Stock:
         """Convert database row to Stock model."""
