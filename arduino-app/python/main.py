@@ -21,7 +21,7 @@ PIXEL_OFF = 0
 
 
 # =============================================================================
-# Character patterns for scrolling text (3x5 pixels each)
+# Character patterns for scrolling text (3x5 pixels each) - legacy
 # =============================================================================
 
 DIGITS = {
@@ -65,6 +65,68 @@ LETTERS = {
     'Y': ['101', '101', '010', '010', '010'],
     'Z': ['111', '001', '010', '100', '111'],
     ' ': ['000', '000', '000', '000', '000'],
+}
+
+# =============================================================================
+# 7-pixel tall variable-width font for ticker
+# Each character is 7 rows, variable width (2-5 pixels)
+# Pattern strings: '1' = lit, '0' = off
+# =============================================================================
+
+FONT_7PX = {
+    # Digits (4px wide)
+    '0': ['0110', '1001', '1001', '1001', '1001', '1001', '0110'],
+    '1': ['0010', '0110', '0010', '0010', '0010', '0010', '0111'],
+    '2': ['0110', '1001', '0001', '0010', '0100', '1000', '1111'],
+    '3': ['0110', '1001', '0001', '0110', '0001', '1001', '0110'],
+    '4': ['0010', '0110', '1010', '1111', '0010', '0010', '0010'],
+    '5': ['1111', '1000', '1110', '0001', '0001', '1001', '0110'],
+    '6': ['0110', '1001', '1000', '1110', '1001', '1001', '0110'],
+    '7': ['1111', '0001', '0010', '0010', '0100', '0100', '0100'],
+    '8': ['0110', '1001', '1001', '0110', '1001', '1001', '0110'],
+    '9': ['0110', '1001', '1001', '0111', '0001', '1001', '0110'],
+
+    # Letters (4px wide, some are 5px)
+    'A': ['0110', '1001', '1001', '1111', '1001', '1001', '1001'],
+    'B': ['1110', '1001', '1001', '1110', '1001', '1001', '1110'],
+    'C': ['0110', '1001', '1000', '1000', '1000', '1001', '0110'],
+    'D': ['1110', '1001', '1001', '1001', '1001', '1001', '1110'],
+    'E': ['1111', '1000', '1000', '1110', '1000', '1000', '1111'],
+    'F': ['1111', '1000', '1000', '1110', '1000', '1000', '1000'],
+    'G': ['0110', '1001', '1000', '1011', '1001', '1001', '0110'],
+    'H': ['1001', '1001', '1001', '1111', '1001', '1001', '1001'],
+    'I': ['111', '010', '010', '010', '010', '010', '111'],  # 3px
+    'J': ['0011', '0001', '0001', '0001', '0001', '1001', '0110'],
+    'K': ['1001', '1010', '1100', '1000', '1100', '1010', '1001'],
+    'L': ['1000', '1000', '1000', '1000', '1000', '1000', '1111'],
+    'M': ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],  # 5px
+    'N': ['1001', '1101', '1101', '1011', '1011', '1001', '1001'],
+    'O': ['0110', '1001', '1001', '1001', '1001', '1001', '0110'],
+    'P': ['1110', '1001', '1001', '1110', '1000', '1000', '1000'],
+    'Q': ['0110', '1001', '1001', '1001', '1011', '0110', '0001'],
+    'R': ['1110', '1001', '1001', '1110', '1100', '1010', '1001'],
+    'S': ['0111', '1000', '1000', '0110', '0001', '0001', '1110'],
+    'T': ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],  # 5px
+    'U': ['1001', '1001', '1001', '1001', '1001', '1001', '0110'],
+    'V': ['10001', '10001', '10001', '01010', '01010', '00100', '00100'],  # 5px
+    'W': ['10001', '10001', '10101', '10101', '10101', '01010', '01010'],  # 5px
+    'X': ['1001', '1001', '0110', '0110', '0110', '1001', '1001'],
+    'Y': ['10001', '10001', '01010', '00100', '00100', '00100', '00100'],  # 5px
+    'Z': ['1111', '0001', '0010', '0100', '1000', '1000', '1111'],
+
+    # Currency symbols (5px wide)
+    '€': ['00110', '01001', '11100', '01000', '11100', '01001', '00110'],  # Euro sign
+    '$': ['00100', '01111', '10100', '01110', '00101', '11110', '00100'],
+    '£': ['00110', '01001', '01000', '11110', '01000', '01000', '11111'],
+
+    # Special characters
+    '|': ['1', '1', '1', '1', '1', '1', '1'],  # 1px
+    '-': ['0000', '0000', '0000', '1111', '0000', '0000', '0000'],  # 4px
+    '+': ['000', '010', '010', '111', '010', '010', '000'],  # 3px
+    '.': ['0', '0', '0', '0', '0', '0', '1'],  # 1px
+    ',': ['00', '00', '00', '00', '00', '01', '10'],  # 2px
+    ':': ['0', '0', '1', '0', '0', '1', '0'],  # 1px
+    ' ': ['00', '00', '00', '00', '00', '00', '00'],  # 2px space
 }
 
 
@@ -247,6 +309,61 @@ def animate_error_scroll(text: str, offset: int) -> np.ndarray:
     return arr
 
 
+def get_char_width(char: str) -> int:
+    """Get width of a character in the 7px font."""
+    pattern = FONT_7PX.get(char.upper())
+    if pattern and len(pattern) > 0:
+        return len(pattern[0])
+    return 2  # Default for unknown chars
+
+
+def get_text_width(text: str) -> int:
+    """Calculate total pixel width of text including spacing."""
+    width = 0
+    for char in text.upper():
+        width += get_char_width(char) + 1  # +1 for spacing
+    return max(0, width - 1)  # Remove trailing space
+
+
+def animate_ticker(text: str, offset: int) -> np.ndarray:
+    """Smooth scrolling ticker using 7px variable-width font.
+
+    Text scrolls right-to-left across the 8x13 matrix.
+    Uses 7-pixel tall characters, leaving 1 row for spacing at bottom.
+    """
+    arr = np.zeros((ROWS, COLS), dtype=np.uint8)
+
+    if not text:
+        return arr
+
+    text = text.upper()
+    text_width = get_text_width(text)
+
+    # Wrap offset for seamless looping
+    total_width = text_width + COLS
+    start_col = COLS - (offset % total_width)
+
+    # Render each character
+    col = start_col
+    for char in text:
+        pattern = FONT_7PX.get(char)
+        if pattern:
+            char_width = len(pattern[0])
+            for row_idx, row_pattern in enumerate(pattern):
+                for col_idx, pixel in enumerate(row_pattern):
+                    if pixel == '1':
+                        c = col + col_idx
+                        # Only draw if within visible matrix
+                        if 0 <= c < COLS and row_idx < ROWS:
+                            arr[row_idx, c] = PIXEL_BRIGHT
+            col += char_width + 1  # Move to next char position + spacing
+        else:
+            # Unknown char - skip 3 pixels
+            col += 3
+
+    return arr
+
+
 # =============================================================================
 # Bridge helpers
 # =============================================================================
@@ -318,6 +435,8 @@ def loop():
         trade_is_buy = state.get("trade_is_buy", True)
         led3 = state.get("led3", [0, 0, 0])
         led4 = state.get("led4", [0, 0, 0])
+        ticker_text = state.get("ticker_text", "")
+        activity_message = state.get("activity_message", "")
 
         # Mode change logging
         if mode != last_mode:
@@ -331,6 +450,7 @@ def loop():
         set_rgb4(led4[0], led4[1], led4[2])
 
         # Matrix animation based on mode
+        # Priority: error > trade > activity > syncing > ticker
         if mode == "error" and error_message:
             # Scrolling error text
             draw_frame(Frame(animate_error_scroll(error_message, scroll_offset)))
@@ -344,10 +464,21 @@ def loop():
                 draw_frame(Frame(animate_trade(phase, trade_is_buy)))
                 time.sleep(0.1)
             else:
-                # Trade animation done, show normal with temp awareness
-                temp = get_max_temperature()
-                draw_frame(Frame(animate_normal(phase, temp)))
-                time.sleep(0.1)
+                # Trade animation done, show ticker
+                if ticker_text:
+                    draw_frame(Frame(animate_ticker(ticker_text, scroll_offset)))
+                    scroll_offset += 1
+                    time.sleep(0.05)
+                else:
+                    temp = get_max_temperature()
+                    draw_frame(Frame(animate_normal(phase, temp)))
+                    time.sleep(0.1)
+
+        elif activity_message:
+            # Activity message (higher priority than ticker/syncing)
+            draw_frame(Frame(animate_ticker(activity_message, scroll_offset)))
+            scroll_offset += 1
+            time.sleep(0.04)  # Slightly faster for activity
 
         elif mode == "syncing":
             # Active sync wave
@@ -355,10 +486,16 @@ def loop():
             time.sleep(0.1)
 
         else:
-            # Normal - calm breathing wave (speed varies with temperature)
-            temp = get_max_temperature()
-            draw_frame(Frame(animate_normal(phase, temp)))
-            time.sleep(0.1)
+            # Normal mode - show ticker (replaces heartbeat)
+            if ticker_text:
+                draw_frame(Frame(animate_ticker(ticker_text, scroll_offset)))
+                scroll_offset += 1
+                time.sleep(0.05)
+            else:
+                # Fallback to heartbeat if no ticker
+                temp = get_max_temperature()
+                draw_frame(Frame(animate_normal(phase, temp)))
+                time.sleep(0.1)
 
         phase += 1
 

@@ -13,6 +13,7 @@ from app.services.allocator import TradeRecommendation
 from app.services.tradernet import get_tradernet_client
 from app.database import transaction
 from app.infrastructure.events import emit, SystemEvent
+from app.infrastructure.hardware.led_display import set_activity
 from app.application.services.currency_exchange_service import (
     CurrencyExchangeService,
     get_currency_exchange_service,
@@ -176,6 +177,12 @@ class TradeExecutionService:
                         })
                         skipped_count += 1
                         continue
+
+                # Show activity message for the trade
+                side_text = "BUYING" if trade.side.upper() == "BUY" else "SELLING"
+                value = int(trade.quantity * trade.estimated_price)
+                symbol_short = trade.symbol.split(".")[0]  # Remove .US/.EU suffix
+                set_activity(f"{side_text} {symbol_short} EUR {value}", duration=10.0)
 
                 result = client.place_order(
                     symbol=trade.symbol,

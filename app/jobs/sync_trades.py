@@ -13,6 +13,7 @@ import aiosqlite
 from app.config import settings
 from app.services.tradernet import get_tradernet_client
 from app.infrastructure.locking import file_lock
+from app.infrastructure.hardware.led_display import set_activity
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,8 @@ async def sync_trades():
 async def _sync_trades_internal():
     """Internal implementation of trade sync."""
     logger.info("Starting trade sync from Tradernet...")
+
+    set_activity("SYNCING TRADES", duration=15.0)
 
     try:
         # Connect to broker

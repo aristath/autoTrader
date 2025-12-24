@@ -79,8 +79,73 @@ async def get_led_status():
     }
 
 
+async def _build_ticker_text(
+    portfolio_repo: PortfolioRepository,
+    position_repo: PositionRepository,
+    allocation_repo: AllocationRepository,
+    stock_repo: StockRepository,
+) -> str:
+    """Build ticker text from portfolio data and recommendations.
+
+    Format: €12,345 | CASH €624 | SELL ABC €200 | BUY XIAO €855
+    """
+    from app.infrastructure.cache import cache
+    from app.application.services.rebalancing_service import RebalancingService
+    from app.application.services.portfolio_service import PortfolioService
+
+    parts = []
+
+    try:
+        # Get portfolio summary
+        portfolio_service = PortfolioService(
+            portfolio_repo,
+            position_repo,
+            allocation_repo,
+        )
+        summary = await portfolio_service.get_portfolio_summary()
+
+        # Portfolio value
+        if summary.total_value:
+            parts.append(f"EUR {int(summary.total_value):,}")
+
+        # Cash balance
+        if summary.cash_balance:
+            parts.append(f"CASH EUR {int(summary.cash_balance):,}")
+
+        # Try to get recommendations from cache first (avoid recalculation)
+        sell_recs = cache.get("sell_recommendations:3")
+        buy_recs = cache.get("recommendations:3")
+
+        # Add sell recommendations (priority - shown first)
+        if sell_recs and sell_recs.get("recommendations"):
+            for rec in sell_recs["recommendations"][:2]:  # Max 2 sells
+                symbol = rec["symbol"].split(".")[0]  # Remove .US/.EU suffix
+                value = int(rec.get("estimated_value", 0))
+                if value > 0:
+                    parts.append(f"SELL {symbol} EUR {value:,}")
+
+        # Add buy recommendations
+        if buy_recs and buy_recs.get("recommendations"):
+            for rec in buy_recs["recommendations"][:2]:  # Max 2 buys
+                symbol = rec["symbol"].split(".")[0]  # Remove .US/.EU suffix
+                value = int(rec.get("amount", 0))
+                if value > 0:
+                    parts.append(f"BUY {symbol} EUR {value:,}")
+
+    except Exception:
+        # On error, just return empty (no ticker)
+        return ""
+
+    return " | ".join(parts) if parts else ""
+
+
 @router.get("/led/display")
-async def get_led_display_state():
+async def get_led_display_state(
+    portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
+    position_repo: PositionRepository = Depends(get_position_repository),
+    allocation_repo: AllocationRepository = Depends(get_allocation_repository),
+    stock_repo: StockRepository = Depends(get_stock_repository),
+):
     """
     Get display state for Arduino Bridge apps.
 
@@ -91,10 +156,21 @@ async def get_led_display_state():
     - since: timestamp when mode last changed
     - led3: RGB values for LED 3 (sync indicator)
     - led4: RGB values for LED 4 (processing indicator)
+    - ticker_text: scrolling ticker with portfolio info
+    - activity_message: current activity (higher priority)
     """
     from app.infrastructure.hardware.led_display import get_display_state
 
-    return get_display_state()
+    state = get_display_state()
+
+    # Build ticker text if not already set and no activity message
+    if not state.get("ticker_text") and not state.get("activity_message"):
+        ticker = await _build_ticker_text(
+            portfolio_repo, position_repo, allocation_repo, stock_repo
+        )
+        state["ticker_text"] = ticker
+
+    return state
 
 
 @router.post("/led/test")

@@ -9,6 +9,7 @@ from app.config import settings
 from app.services.tradernet import get_tradernet_client
 from app.services import yahoo
 from app.infrastructure.events import emit, SystemEvent
+from app.infrastructure.hardware.led_display import set_activity
 from app.infrastructure.dependencies import get_position_repository
 from app.infrastructure.locking import file_lock
 from app.domain.constants import DEFAULT_CURRENCY
@@ -36,6 +37,7 @@ async def _sync_portfolio_internal():
     """Internal portfolio sync implementation."""
     logger.info("Starting portfolio sync")
 
+    set_activity("SYNCING PORTFOLIO", duration=30.0)
     emit(SystemEvent.SYNC_START)
 
     client = get_tradernet_client()
@@ -186,6 +188,7 @@ async def _sync_prices_internal():
     """Internal price sync implementation."""
     logger.info("Starting price sync")
 
+    set_activity("GETTING PRICES FROM YAHOO", duration=60.0)
     emit(SystemEvent.SYNC_START)
 
     try:

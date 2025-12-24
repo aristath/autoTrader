@@ -35,6 +35,10 @@ class DisplayState:
     since: float = field(default_factory=time.time)
     led3: list[int] = field(default_factory=lambda: [0, 0, 0])
     led4: list[int] = field(default_factory=lambda: [0, 0, 0])
+    # Ticker and activity for LED matrix
+    ticker_text: str = ""  # Portfolio info ticker (built by API)
+    activity_message: str = ""  # Current activity (higher priority than ticker)
+    activity_expires: float = 0  # Auto-clear activity after this timestamp
 
 
 _state = DisplayState()
@@ -42,6 +46,10 @@ _state = DisplayState()
 
 def get_display_state() -> dict:
     """Get current display state for API endpoint."""
+    # Auto-clear expired activity message
+    if _state.activity_message and time.time() > _state.activity_expires:
+        _state.activity_message = ""
+
     return {
         "mode": _state.mode,
         "error_message": _state.error_message,
@@ -49,6 +57,8 @@ def get_display_state() -> dict:
         "since": _state.since,
         "led3": _state.led3,
         "led4": _state.led4,
+        "ticker_text": _state.ticker_text,
+        "activity_message": _state.activity_message,
     }
 
 
@@ -69,6 +79,30 @@ def set_led3(r: int, g: int, b: int) -> None:
 def set_led4(r: int, g: int, b: int) -> None:
     """Set LED 4 color (processing indicator)."""
     _state.led4 = [r, g, b]
+
+
+def set_activity(message: str, duration: float = 5.0) -> None:
+    """Set activity message that auto-clears after duration.
+
+    Activity messages are shown on the LED matrix with higher priority
+    than the ticker. They indicate what the app is currently doing.
+
+    Args:
+        message: Activity message (e.g., "SYNCING PRICES FROM YAHOO")
+        duration: How long to show the message in seconds (default 5s)
+    """
+    _state.activity_message = message
+    _state.activity_expires = time.time() + duration
+    logger.debug(f"Activity: {message} (expires in {duration}s)")
+
+
+def set_ticker_text(text: str) -> None:
+    """Set the ticker text for LED matrix scrolling.
+
+    Args:
+        text: Ticker text (e.g., "€12,345 | CASH €624 | BUY XIAO €855")
+    """
+    _state.ticker_text = text
 
 
 # Event handlers
