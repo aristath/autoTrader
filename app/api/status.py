@@ -85,7 +85,6 @@ async def _build_ticker_text() -> str:
     """
     from app.infrastructure.cache import cache
     from app.application.services.portfolio_service import PortfolioService
-    from app.application.services.rebalancing_service import RebalancingService
 
     parts = []
 
@@ -118,41 +117,10 @@ async def _build_ticker_text() -> str:
         if show_cash and summary.cash_balance:
             parts.append(f"CASH EUR{int(summary.cash_balance):,}")
 
-        # Add recommendations if enabled
+        # Add recommendations if enabled (cache-only, populated by Rebalance Check job)
         if show_actions:
-            # Try cache first, calculate if empty
             sell_recs = cache.get("sell_recommendations:3")
             buy_recs = cache.get("recommendations:3")
-
-            # Calculate recommendations if not cached
-            if buy_recs is None or sell_recs is None:
-                rebalancing_service = RebalancingService()
-
-                if buy_recs is None:
-                    recommendations = await rebalancing_service.get_recommendations(limit=3)
-                    buy_recs = {
-                        "recommendations": [
-                            {
-                                "symbol": r.symbol,
-                                "amount": r.amount,
-                            }
-                            for r in recommendations
-                        ]
-                    }
-                    cache.set("recommendations:3", buy_recs, ttl_seconds=300)
-
-                if sell_recs is None:
-                    sell_recommendations = await rebalancing_service.calculate_sell_recommendations(limit=3)
-                    sell_recs = {
-                        "recommendations": [
-                            {
-                                "symbol": r.symbol,
-                                "estimated_value": r.estimated_value,
-                            }
-                            for r in sell_recommendations
-                        ]
-                    }
-                    cache.set("sell_recommendations:3", sell_recs, ttl_seconds=300)
 
             # Add sell recommendations (priority - shown first)
             if sell_recs and sell_recs.get("recommendations"):

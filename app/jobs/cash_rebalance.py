@@ -12,6 +12,7 @@ from app.infrastructure.locking import file_lock
 from app.infrastructure.events import emit, SystemEvent
 from app.infrastructure.hardware.led_display import set_activity
 from app.infrastructure.database.manager import get_db_manager
+from app.infrastructure.cache import cache
 from app.repositories import (
     StockRepository,
     PositionRepository,
@@ -166,6 +167,7 @@ async def _check_and_rebalance_internal():
 
             emit(SystemEvent.SYNC_COMPLETE)
             await sync_portfolio()
+            await _refresh_recommendation_cache()
             return
 
         # Step 4: Check for BUY recommendation
@@ -256,11 +258,16 @@ async def _check_and_rebalance_internal():
 
             emit(SystemEvent.SYNC_COMPLETE)
             await sync_portfolio()
+            await _refresh_recommendation_cache()
             return
 
         logger.info("No trades recommended this cycle")
 
         emit(SystemEvent.REBALANCE_COMPLETE)
+
+        # Refresh recommendation cache for LED ticker
+        await _refresh_recommendation_cache()
+
         set_activity("REBALANCE CHECK COMPLETE", duration=5.0)
 
     except Exception as e:
@@ -621,3 +628,36 @@ async def _get_buy_trades(
         ))
 
     return trades
+
+
+async def _refresh_recommendation_cache():
+    """Refresh the recommendation cache for the LED ticker display."""
+    from app.application.services.rebalancing_service import RebalancingService
+
+    try:
+        rebalancing_service = RebalancingService()
+
+        # Get buy recommendations
+        buy_recommendations = await rebalancing_service.get_recommendations(limit=3)
+        buy_recs = {
+            "recommendations": [
+                {"symbol": r.symbol, "amount": r.amount}
+                for r in buy_recommendations
+            ]
+        }
+        cache.set("recommendations:3", buy_recs, ttl_seconds=900)
+
+        # Get sell recommendations
+        sell_recommendations = await rebalancing_service.calculate_sell_recommendations(limit=3)
+        sell_recs = {
+            "recommendations": [
+                {"symbol": r.symbol, "estimated_value": r.estimated_value}
+                for r in sell_recommendations
+            ]
+        }
+        cache.set("sell_recommendations:3", sell_recs, ttl_seconds=900)
+
+        logger.info(f"Recommendation cache refreshed: {len(buy_recommendations)} buy, {len(sell_recommendations)} sell")
+
+    except Exception as e:
+        logger.warning(f"Failed to refresh recommendation cache: {e}")

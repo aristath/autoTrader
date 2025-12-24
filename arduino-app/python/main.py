@@ -184,6 +184,7 @@ def loop():
         if state is None:
             # API unreachable - show scrolling error using native text
             scroll_text("TRADING API OFFLINE", DEFAULT_TICKER_SPEED)
+            time.sleep(2)  # Prevent rapid polling during API failures
             return
 
         mode = state.get("mode", "normal")

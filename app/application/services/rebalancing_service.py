@@ -35,7 +35,6 @@ from app.services.allocator import calculate_position_size, get_max_trades
 from app.services import yahoo
 from app.services.tradernet import get_exchange_rate
 from app.domain.constants import TRADE_SIDE_BUY, TRADE_SIDE_SELL, BUY_COOLDOWN_DAYS
-from app.infrastructure.hardware.led_display import set_activity
 from app.domain.analytics import (
     reconstruct_portfolio_values,
     calculate_portfolio_returns,
@@ -254,8 +253,6 @@ class RebalancingService:
         Each recommendation respects min_lot and shows the actual trade amount.
         Recommendations are scored by how much they IMPROVE portfolio balance.
         """
-        set_activity("PROCESSING RECOMMENDATIONS (BUY)...", duration=10.0)
-
         base_trade_amount = await self._settings_repo.get_float("min_trade_size", 150.0)
 
         # Build portfolio context
@@ -525,8 +522,6 @@ class RebalancingService:
         """
         Calculate optimal SELL recommendations based on sell scoring system.
         """
-        set_activity("PROCESSING RECOMMENDATIONS (SELL)...", duration=10.0)
-
         # Build portfolio context
         portfolio_context = await self._build_portfolio_context()
         total_value = portfolio_context.total_value
