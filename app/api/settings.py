@@ -27,6 +27,7 @@ SETTING_DEFAULTS = {
     "ticker_show_cash": 1.0,        # Show cash balance
     "ticker_show_actions": 1.0,     # Show next actions (BUY/SELL)
     "ticker_show_amounts": 1.0,     # Show amounts for actions
+    "ticker_max_actions": 3.0,      # Max recommendations to show (buy + sell)
 }
 
 

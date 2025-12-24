@@ -108,6 +108,7 @@ async def _build_ticker_text(
         show_cash = await get_setting_value("ticker_show_cash") == 1.0
         show_actions = await get_setting_value("ticker_show_actions") == 1.0
         show_amounts = await get_setting_value("ticker_show_amounts") == 1.0
+        max_actions = int(await get_setting_value("ticker_max_actions"))
 
         # Get portfolio summary
         portfolio_service = PortfolioService(
@@ -173,7 +174,7 @@ async def _build_ticker_text(
 
             # Add sell recommendations (priority - shown first)
             if sell_recs and sell_recs.get("recommendations"):
-                for rec in sell_recs["recommendations"][:2]:  # Max 2 sells
+                for rec in sell_recs["recommendations"][:max_actions]:
                     symbol = rec["symbol"].split(".")[0]  # Remove .US/.EU suffix
                     value = int(rec.get("estimated_value", 0))
                     if show_amounts and value > 0:
@@ -183,7 +184,7 @@ async def _build_ticker_text(
 
             # Add buy recommendations
             if buy_recs and buy_recs.get("recommendations"):
-                for rec in buy_recs["recommendations"][:2]:  # Max 2 buys
+                for rec in buy_recs["recommendations"][:max_actions]:
                     symbol = rec["symbol"].split(".")[0]  # Remove .US/.EU suffix
                     value = int(rec.get("amount", 0))
                     if show_amounts and value > 0:

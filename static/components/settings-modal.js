@@ -209,9 +209,24 @@ class SettingsModal extends HTMLElement {
                            class="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800">
                     <div>
                       <span class="text-sm text-gray-300">Show amounts for actions</span>
-                      <p class="text-xs text-gray-500">Include EUR amounts with actions (e.g., "BUY XIAO EUR 855" vs just "BUY XIAO")</p>
+                      <p class="text-xs text-gray-500">Include EUR amounts with actions (e.g., "BUY XIAO EUR855" vs just "BUY XIAO")</p>
                     </div>
                   </label>
+
+                  <!-- Max Actions -->
+                  <div class="flex items-start gap-3 pt-2">
+                    <div class="flex-1">
+                      <span class="text-sm text-gray-300">Max actions to show</span>
+                      <p class="text-xs text-gray-500">Maximum number of buy/sell recommendations to display in the ticker (each type)</p>
+                    </div>
+                    <input type="number"
+                           min="1"
+                           max="5"
+                           step="1"
+                           :value="$store.app.settings.ticker_max_actions"
+                           @change="$store.app.updateSetting('ticker_max_actions', $event.target.value)"
+                           class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+                  </div>
                 </div>
               </div>
             </div>
