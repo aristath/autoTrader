@@ -202,6 +202,7 @@ async def get_led_display_state():
     Response is cached for 2 seconds to prevent DB connection exhaustion.
     Mode/activity changes are reflected immediately from in-memory state.
     """
+    import asyncio
     from app.infrastructure.hardware.led_display import get_display_state
     from app.infrastructure.cache import cache
 
@@ -211,15 +212,24 @@ async def get_led_display_state():
     # Check if we have cached ticker data
     cached = cache.get("led_display:ticker_data")
 
-    # Use cached ticker/settings if available, otherwise fetch fresh
+    # Use cached ticker/settings if available, otherwise fetch fresh with timeout
     if cached is not None:
         state["ticker_text"] = state.get("ticker_text") or cached.get("ticker_text", "")
         state["ticker_speed"] = cached.get("ticker_speed", 50.0)
         state["led_brightness"] = cached.get("led_brightness", 150)
     else:
-        # Fetch fresh data and cache it
-        await _refresh_led_display_cache()
-        cached = cache.get("led_display:ticker_data") or {}
+        # Fetch fresh data with 2 second timeout to prevent hanging
+        try:
+            await asyncio.wait_for(_refresh_led_display_cache(), timeout=2.0)
+            cached = cache.get("led_display:ticker_data") or {}
+        except asyncio.TimeoutError:
+            # On timeout, use empty ticker and cache it to prevent retries
+            cache.set("led_display:ticker_data", {
+                "ticker_text": "",
+                "ticker_speed": 50.0,
+                "led_brightness": 150,
+            }, ttl_seconds=5)
+            cached = {}
         state["ticker_text"] = state.get("ticker_text") or cached.get("ticker_text", "")
         state["ticker_speed"] = cached.get("ticker_speed", 50.0)
         state["led_brightness"] = cached.get("led_brightness", 150)
