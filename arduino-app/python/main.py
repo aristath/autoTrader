@@ -300,6 +300,40 @@ def set_rgb4(r: int, g: int, b: int) -> bool:
         return False
 
 
+def scroll_text(text: str, speed: int = 50) -> bool:
+    """Scroll text across LED matrix using native ArduinoGraphics.
+
+    Args:
+        text: Text to scroll (ASCII only, no Euro symbol)
+        speed: Milliseconds per scroll step (lower = faster)
+    """
+    try:
+        # Replace Euro symbol with EUR (Font_5x7 only has ASCII 32-126)
+        text = text.replace("€", "EUR")
+        Bridge.call("scrollText", text, speed, timeout=30)
+        return True
+    except Exception as e:
+        logger.debug(f"scrollText failed: {e}")
+        return False
+
+
+def print_text(text: str, x: int = 0, y: int = 1) -> bool:
+    """Display static text at position using native ArduinoGraphics.
+
+    Args:
+        text: Text to display (ASCII only)
+        x: X position
+        y: Y position
+    """
+    try:
+        text = text.replace("€", "EUR")
+        Bridge.call("printText", text, x, y, timeout=2)
+        return True
+    except Exception as e:
+        logger.debug(f"printText failed: {e}")
+        return False
+
+
 # =============================================================================
 # API communication
 # =============================================================================
