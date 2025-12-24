@@ -189,6 +189,10 @@ function allocationRadarComponent() {
       const targetPcts = this.getTargetPcts(weights, activeGeos);
       const targetData = activeGeos.map(geo => (targetPcts[geo] || 0) * 100);
 
+      // Calculate max value from both datasets for auto-scaling
+      const allValues = [...targetData, ...currentData];
+      const maxValue = allValues.length > 0 ? Math.max(...allValues) : 100;
+
       this.geoChart = new Chart(ctx, {
         type: 'radar',
         data: {
@@ -215,7 +219,7 @@ function allocationRadarComponent() {
             }
           ]
         },
-        options: this.getChartOptions()
+        options: this.getChartOptions(maxValue)
       });
     },
 
@@ -269,6 +273,10 @@ function allocationRadarComponent() {
       const targetPcts = this.getTargetPcts(weights, activeIndustries);
       const targetData = activeIndustries.map(ind => (targetPcts[ind] || 0) * 100);
 
+      // Calculate max value from both datasets for auto-scaling
+      const allValues = [...targetData, ...currentData];
+      const maxValue = allValues.length > 0 ? Math.max(...allValues) : 100;
+
       this.industryChart = new Chart(ctx, {
         type: 'radar',
         data: {
@@ -295,7 +303,7 @@ function allocationRadarComponent() {
             }
           ]
         },
-        options: this.getChartOptions()
+        options: this.getChartOptions(maxValue)
       });
     },
 
@@ -361,9 +369,15 @@ function allocationRadarComponent() {
           const targetPcts = this.getTargetPcts(weights, activeGeos);
           const targetData = activeGeos.map(geo => (targetPcts[geo] || 0) * 100);
 
+          // Calculate max value from both datasets for auto-scaling
+          const allValues = [...targetData, ...currentData];
+          const maxValue = allValues.length > 0 ? Math.max(...allValues) : 100;
+          const paddedMax = maxValue > 0 ? Math.ceil(maxValue * 1.25) : 100;
+
           this.geoChart.data.labels = activeGeos;
           this.geoChart.data.datasets[0].data = targetData;
           this.geoChart.data.datasets[1].data = currentData;
+          this.geoChart.options.scales.r.suggestedMax = paddedMax;
           this.geoChart.update('none');
         } else {
           // Chart doesn't exist yet, create it
@@ -388,9 +402,15 @@ function allocationRadarComponent() {
           const targetPcts = this.getTargetPcts(weights, activeIndustries);
           const targetData = activeIndustries.map(ind => (targetPcts[ind] || 0) * 100);
 
+          // Calculate max value from both datasets for auto-scaling
+          const allValues = [...targetData, ...currentData];
+          const maxValue = allValues.length > 0 ? Math.max(...allValues) : 100;
+          const paddedMax = maxValue > 0 ? Math.ceil(maxValue * 1.25) : 100;
+
           this.industryChart.data.labels = activeIndustries;
           this.industryChart.data.datasets[0].data = targetData;
           this.industryChart.data.datasets[1].data = currentData;
+          this.industryChart.options.scales.r.suggestedMax = paddedMax;
           this.industryChart.update('none');
         } else {
           // Chart doesn't exist yet, create it
