@@ -8,8 +8,8 @@
  */
 function stockChartComponent() {
   return {
-    selectedRange: '1Y',
-    selectedSource: 'tradernet',
+    selectedRange: '10Y',
+    selectedSource: 'yahoo',
     loading: false,
     error: null,
     chartData: null,
@@ -169,20 +169,15 @@ class StockChartModal extends HTMLElement {
             <!-- Controls -->
             <div class="flex items-center justify-between mb-4">
               <div class="flex gap-2">
-                <select x-model="selectedRange" 
+                <select x-model="selectedRange"
                         @change="loadChart()"
                         class="px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-100 focus:border-blue-500 focus:outline-none">
                   <option value="1M">1M</option>
                   <option value="3M">3M</option>
                   <option value="6M">6M</option>
                   <option value="1Y">1Y</option>
-                  <option value="all">All</option>
-                </select>
-                <select x-model="selectedSource" 
-                        @change="loadChart()"
-                        class="px-2 py-1 bg-gray-900 border border-gray-600 rounded text-xs text-gray-100 focus:border-blue-500 focus:outline-none">
-                  <option value="tradernet">Tradernet</option>
-                  <option value="yahoo">Yahoo Finance</option>
+                  <option value="5Y">5Y</option>
+                  <option value="10Y">10Y</option>
                 </select>
               </div>
             </div>

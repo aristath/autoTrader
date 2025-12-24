@@ -19,7 +19,7 @@ def _parse_date_range(range_str: str) -> Optional[datetime]:
     """Convert range string to start date."""
     if range_str == "all":
         return None
-    
+
     now = datetime.now()
     if range_str == "1M":
         return now - timedelta(days=30)
@@ -29,6 +29,10 @@ def _parse_date_range(range_str: str) -> Optional[datetime]:
         return now - timedelta(days=180)
     elif range_str == "1Y":
         return now - timedelta(days=365)
+    elif range_str == "5Y":
+        return now - timedelta(days=365 * 5)
+    elif range_str == "10Y":
+        return now - timedelta(days=365 * 10)
     else:
         return None
 
@@ -220,9 +224,11 @@ async def get_stock_chart(
                         "3M": "3mo",
                         "6M": "6mo",
                         "1Y": "1y",
+                        "5Y": "5y",
+                        "10Y": "10y",
                         "all": "max"
                     }
-                    yahoo_period = period_map.get(range, "1y")
+                    yahoo_period = period_map.get(range, "10y")
                     
                     historical_prices = yahoo.get_historical_prices(symbol, period=yahoo_period)
                     if historical_prices:
