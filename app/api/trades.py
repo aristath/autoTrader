@@ -434,8 +434,8 @@ async def execute_sell_recommendation(
                 await position_repo.update_last_sold_at(symbol.upper())
 
             # Clear cache
-            cache.delete(f"sell_recommendations:3")
-            cache.delete(f"sell_recommendations:20")
+            cache.invalidate("sell_recommendations:3")
+            cache.invalidate("sell_recommendations:20")
 
             return {
                 "status": "success",
@@ -705,10 +705,10 @@ async def execute_funding(
             await trade_repo.create(trade_record)
 
             # Clear recommendation cache
-            cache.delete("recommendations:3")
-            cache.delete("recommendations:10")
-            cache.delete("sell_recommendations:3")
-            cache.delete("sell_recommendations:20")
+            cache.invalidate("recommendations:3")
+            cache.invalidate("recommendations:10")
+            cache.invalidate("sell_recommendations:3")
+            cache.invalidate("sell_recommendations:20")
 
             return {
                 "status": "success",

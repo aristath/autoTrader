@@ -57,16 +57,24 @@ async def get_setting(key: str, default: str = None) -> str | None:
 
 
 async def get_settings_batch(keys: list[str]) -> dict[str, str]:
-    """Get multiple settings in a single database query."""
+    """Get multiple settings in a single database query (cached 3s)."""
+    cache_key = "settings:all"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        # Return only requested keys from cached data
+        return {k: v for k, v in cached.items() if k in keys}
+
+    # Fetch all settings from DB
     from app.database import get_db_connection
     async with get_db_connection() as db:
-        placeholders = ",".join("?" * len(keys))
-        cursor = await db.execute(
-            f"SELECT key, value FROM settings WHERE key IN ({placeholders})",
-            keys
-        )
+        cursor = await db.execute("SELECT key, value FROM settings")
         rows = await cursor.fetchall()
-        return {row[0]: row[1] for row in rows}
+        all_settings = {row[0]: row[1] for row in rows}
+
+    # Cache for 3 seconds
+    cache.set(cache_key, all_settings, ttl_seconds=3)
+
+    return {k: v for k, v in all_settings.items() if k in keys}
 
 
 async def set_setting(key: str, value: str) -> None:
@@ -81,6 +89,8 @@ async def set_setting(key: str, value: str) -> None:
             (key, value)
         )
         await db.commit()
+    # Invalidate settings cache
+    cache.invalidate("settings:all")
 
 
 async def get_setting_value(key: str) -> float:
