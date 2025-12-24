@@ -16,8 +16,8 @@ class AllocationRadar extends HTMLElement {
               Edit Weights
             </button>
           </div>
-          <div class="relative" style="height: 180px;">
-            <canvas id="geo-radar-chart"></canvas>
+          <div class="relative w-full" style="height: 180px;">
+            <canvas id="geo-radar-chart" style="width: 100%; height: 100%;"></canvas>
           </div>
         </div>
 
@@ -30,8 +30,8 @@ class AllocationRadar extends HTMLElement {
               Edit Weights
             </button>
           </div>
-          <div class="relative" style="height: 180px;">
-            <canvas id="industry-radar-chart"></canvas>
+          <div class="relative w-full" style="height: 180px;">
+            <canvas id="industry-radar-chart" style="width: 100%; height: 100%;"></canvas>
           </div>
         </div>
 
