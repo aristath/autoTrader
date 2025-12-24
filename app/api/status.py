@@ -9,11 +9,13 @@ from app.infrastructure.dependencies import (
     get_portfolio_repository,
     get_stock_repository,
     get_position_repository,
+    get_allocation_repository,
 )
 from app.domain.repositories import (
     PortfolioRepository,
     StockRepository,
     PositionRepository,
+    AllocationRepository,
 )
 
 router = APIRouter()
