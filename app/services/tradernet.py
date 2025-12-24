@@ -639,9 +639,14 @@ class TradernetClient:
                     # Parse date
                     trade_date = trade.get("date") or trade.get("d") or ""
 
-                    # Parse side (BUY/SELL)
-                    side = trade.get("buy_sell") or trade.get("bs") or ""
-                    side = side.upper() if side else ""
+                    # Parse side (BUY/SELL) - type field: 1=BUY, 2=SELL
+                    trade_type = trade.get("type") or ""
+                    if trade_type == "1" or trade_type == 1:
+                        side = "BUY"
+                    elif trade_type == "2" or trade_type == 2:
+                        side = "SELL"
+                    else:
+                        side = ""
 
                     executed.append({
                         "order_id": order_id,
