@@ -382,6 +382,9 @@ async def _get_best_sell_trade(
 
     # Calculate sell scores
     total_value = portfolio_context.total_value
+    if total_value <= 0:
+        total_value = 1.0  # Prevent division by zero
+    
     geo_allocations = {
         geo: sum(pos["market_value_eur"] or 0 for pos in position_dicts if pos.get("geography") == geo) / total_value
         for geo in set(pos.get("geography") for pos in position_dicts if pos.get("geography"))
@@ -396,7 +399,7 @@ async def _get_best_sell_trade(
     sell_settings = {
         "min_hold_days": await settings_repo.get_int("min_hold_days", 90),
         "sell_cooldown_days": await settings_repo.get_int("sell_cooldown_days", 180),
-        "max_loss_threshold": await settings_repo.get_float("max_loss_threshold", 0.20),
+        "max_loss_threshold": await settings_repo.get_float("max_loss_threshold", -0.20),
         "target_annual_return": await settings_repo.get_float("target_annual_return", 0.10),
     }
 

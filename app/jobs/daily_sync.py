@@ -85,6 +85,8 @@ async def _sync_portfolio_internal():
 
             # Insert current positions
             total_value = 0.0
+            invested_value = 0.0
+            unrealized_pnl = 0.0
             geo_values = {"EU": 0.0, "ASIA": 0.0, "US": 0.0}
 
             for pos in positions:
@@ -96,6 +98,15 @@ async def _sync_portfolio_internal():
 
                 if current_price and pos.currency_rate:
                     market_value_eur = pos.quantity * current_price / pos.currency_rate
+
+                # Calculate cost basis (invested value)
+                cost_basis_eur = pos.quantity * pos.avg_price / pos.currency_rate if pos.currency_rate else pos.quantity * pos.avg_price
+                invested_value += cost_basis_eur
+
+                # Calculate unrealized P&L
+                if current_price and pos.currency_rate:
+                    position_unrealized_pnl = (current_price - pos.avg_price) * pos.quantity / pos.currency_rate
+                    unrealized_pnl += position_unrealized_pnl
 
                 await db_manager.state.execute(
                     """
@@ -146,19 +157,24 @@ async def _sync_portfolio_internal():
 
             # Create daily snapshot
             today = datetime.now().strftime("%Y-%m-%d")
+            position_count = len(positions)
             await db_manager.state.execute(
                 """
                 INSERT OR REPLACE INTO portfolio_snapshots
-                (date, total_value, cash_balance, geo_eu_pct, geo_asia_pct, geo_us_pct, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+                (date, total_value, cash_balance, invested_value, unrealized_pnl,
+                 geo_eu_pct, geo_asia_pct, geo_us_pct, position_count, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
                 """,
                 (
                     today,
                     total_value,
                     cash_balance,
+                    invested_value,
+                    unrealized_pnl,
                     geo_values["EU"] / total_value if total_value else 0,
                     geo_values["ASIA"] / total_value if total_value else 0,
                     geo_values["US"] / total_value if total_value else 0,
+                    position_count,
                 ),
             )
 

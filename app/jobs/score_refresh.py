@@ -210,8 +210,7 @@ async def _get_daily_prices(db_manager, symbol: str, yahoo_symbol: str = None) -
     prices = yahoo.get_historical_prices(
         symbol,
         yahoo_symbol=yahoo_symbol,
-        period="1y",
-        interval="1d"
+        period="1y"
     )
 
     if prices:
@@ -224,8 +223,8 @@ async def _get_daily_prices(db_manager, symbol: str, yahoo_symbol: str = None) -
                     (date, open_price, high_price, low_price, close_price, volume, source, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, 'yahoo', datetime('now'))
                     """,
-                    (p["date"], p.get("open"), p.get("high"),
-                     p.get("low"), p["close"], p.get("volume"))
+                    (p.date.strftime("%Y-%m-%d"), p.open, p.high,
+                     p.low, p.close, p.volume)
                 )
 
     return prices or []
@@ -256,8 +255,7 @@ async def _get_monthly_prices(db_manager, symbol: str, yahoo_symbol: str = None)
     prices = yahoo.get_historical_prices(
         symbol,
         yahoo_symbol=yahoo_symbol,
-        period="10y",
-        interval="1mo"
+        period="10y"
     )
 
     if prices:
@@ -265,9 +263,9 @@ async def _get_monthly_prices(db_manager, symbol: str, yahoo_symbol: str = None)
         from collections import defaultdict
         monthly_data = defaultdict(list)
         for p in prices:
-            if p.get("date") and p.get("close"):
-                month = p["date"][:7]  # YYYY-MM
-                monthly_data[month].append(p["close"])
+            if p.date and p.close:
+                month = p.date.strftime("%Y-%m")  # YYYY-MM
+                monthly_data[month].append(p.close)
 
         monthly_prices = []
         async with history_db.transaction():
