@@ -9,7 +9,7 @@ class SettingsModal extends HTMLElement {
            class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center p-4"
            x-transition
            @click="$store.app.showSettingsModal = false">
-        <div class="bg-gray-800 border border-gray-700 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto" @click.stop>
+        <div class="bg-gray-800 border border-gray-700 rounded-lg w-full max-w-lg max-h-[90vh] overflow-y-auto" @click.stop>
           <div class="flex items-center justify-between p-4 border-b border-gray-700 sticky top-0 bg-gray-800">
             <h2 class="text-lg font-semibold text-gray-100">Settings</h2>
             <button @click="$store.app.showSettingsModal = false"
@@ -21,75 +21,67 @@ class SettingsModal extends HTMLElement {
             <div class="border-b border-gray-700 pb-4">
               <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Trading Parameters</h3>
 
-              <!-- Min Trade Size -->
-              <div class="flex items-center justify-between mb-3">
+              <div class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 items-start">
+                <!-- Min Trade Size -->
                 <div>
                   <span class="text-sm text-gray-300">Min Trade Size</span>
-                  <p class="text-xs text-gray-500">Minimum EUR for a buy order</p>
+                  <p class="text-xs text-gray-500">Minimum amount in EUR required to place a buy order</p>
                 </div>
                 <div class="flex items-center gap-1">
-                  <span class="text-gray-400">EUR</span>
+                  <span class="text-gray-400 text-sm">EUR</span>
                   <input type="number"
                          :value="$store.app.settings.min_trade_size"
                          @change="$store.app.updateSetting('min_trade_size', $event.target.value)"
                          class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
                 </div>
-              </div>
 
-              <!-- Min Hold Days -->
-              <div class="flex items-center justify-between mb-3">
+                <!-- Min Hold Days -->
                 <div>
                   <span class="text-sm text-gray-300">Min Hold Days</span>
-                  <p class="text-xs text-gray-500">Minimum days before selling</p>
+                  <p class="text-xs text-gray-500">Stocks must be held for at least this many days before they can be sold</p>
                 </div>
                 <div class="flex items-center gap-1">
                   <input type="number"
                          :value="$store.app.settings.min_hold_days"
                          @change="$store.app.updateSetting('min_hold_days', $event.target.value)"
                          class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                  <span class="text-gray-400">days</span>
+                  <span class="text-gray-400 text-sm">days</span>
                 </div>
-              </div>
 
-              <!-- Sell Cooldown Days -->
-              <div class="flex items-center justify-between mb-3">
+                <!-- Sell Cooldown Days -->
                 <div>
                   <span class="text-sm text-gray-300">Sell Cooldown</span>
-                  <p class="text-xs text-gray-500">Days between sells of same stock</p>
+                  <p class="text-xs text-gray-500">After selling a stock, wait this many days before selling it again</p>
                 </div>
                 <div class="flex items-center gap-1">
                   <input type="number"
                          :value="$store.app.settings.sell_cooldown_days"
                          @change="$store.app.updateSetting('sell_cooldown_days', $event.target.value)"
                          class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                  <span class="text-gray-400">days</span>
+                  <span class="text-gray-400 text-sm">days</span>
                 </div>
-              </div>
 
-              <!-- Max Loss Threshold -->
-              <div class="flex items-center justify-between mb-3">
+                <!-- Max Loss Threshold -->
                 <div>
                   <span class="text-sm text-gray-300">Max Loss Threshold</span>
-                  <p class="text-xs text-gray-500">Don't sell if loss exceeds this</p>
+                  <p class="text-xs text-gray-500">Never sell a position if the loss exceeds this percentage (protects against selling at the bottom)</p>
                 </div>
                 <div class="flex items-center gap-1">
                   <input type="number"
-                         step="0.01"
+                         step="1"
                          :value="($store.app.settings.max_loss_threshold * 100).toFixed(0)"
                          @change="$store.app.updateSetting('max_loss_threshold', $event.target.value / 100)"
                          class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                  <span class="text-gray-400">%</span>
+                  <span class="text-gray-400 text-sm">%</span>
                 </div>
-              </div>
 
-              <!-- Min Sell Value -->
-              <div class="flex items-center justify-between">
+                <!-- Min Sell Value -->
                 <div>
                   <span class="text-sm text-gray-300">Min Sell Value</span>
-                  <p class="text-xs text-gray-500">Minimum EUR value to sell</p>
+                  <p class="text-xs text-gray-500">Minimum value in EUR that a sell order must be worth</p>
                 </div>
                 <div class="flex items-center gap-1">
-                  <span class="text-gray-400">EUR</span>
+                  <span class="text-gray-400 text-sm">EUR</span>
                   <input type="number"
                          :value="$store.app.settings.min_sell_value"
                          @change="$store.app.updateSetting('min_sell_value', $event.target.value)"
@@ -102,11 +94,11 @@ class SettingsModal extends HTMLElement {
             <div class="border-b border-gray-700 pb-4">
               <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Scoring Parameters</h3>
 
-              <!-- Target Annual Return -->
-              <div class="flex items-center justify-between mb-3">
+              <div class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 items-start">
+                <!-- Target Annual Return -->
                 <div>
                   <span class="text-sm text-gray-300">Target Annual Return</span>
-                  <p class="text-xs text-gray-500">Optimal CAGR for scoring</p>
+                  <p class="text-xs text-gray-500">Target yearly growth rate (CAGR = Compound Annual Growth Rate). Stocks near this return get higher scores</p>
                 </div>
                 <div class="flex items-center gap-1">
                   <input type="number"
@@ -114,15 +106,13 @@ class SettingsModal extends HTMLElement {
                          :value="($store.app.settings.target_annual_return * 100).toFixed(0)"
                          @change="$store.app.updateSetting('target_annual_return', $event.target.value / 100)"
                          class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                  <span class="text-gray-400">%</span>
+                  <span class="text-gray-400 text-sm">%</span>
                 </div>
-              </div>
 
-              <!-- Market Avg P/E -->
-              <div class="flex items-center justify-between">
+                <!-- Market Avg P/E -->
                 <div>
                   <span class="text-sm text-gray-300">Market Avg P/E</span>
-                  <p class="text-xs text-gray-500">Reference P/E for valuation</p>
+                  <p class="text-xs text-gray-500">Average Price-to-Earnings ratio for the market. Stocks below this P/E are considered undervalued</p>
                 </div>
                 <div class="flex items-center gap-1">
                   <input type="number"
@@ -135,20 +125,18 @@ class SettingsModal extends HTMLElement {
             </div>
 
             <!-- System Actions Section -->
-            <div class="space-y-3">
+            <div>
               <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">System</h3>
 
-              <!-- Cache Reset -->
-              <div class="flex items-center justify-between">
+              <div class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 items-center">
+                <!-- Cache Reset -->
                 <span class="text-sm text-gray-300">Caches</span>
                 <button @click="$store.app.resetCache()"
                         class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded transition-colors">
                   Reset
                 </button>
-              </div>
 
-              <!-- Sync Historical -->
-              <div class="flex items-center justify-between">
+                <!-- Sync Historical -->
                 <span class="text-sm text-gray-300">Historical Data</span>
                 <button @click="$store.app.syncHistorical()"
                         :disabled="$store.app.loading.historical"
@@ -156,10 +144,8 @@ class SettingsModal extends HTMLElement {
                   <span x-show="$store.app.loading.historical" class="inline-block animate-spin mr-1">&#9696;</span>
                   <span x-text="$store.app.loading.historical ? 'Syncing...' : 'Sync'"></span>
                 </button>
-              </div>
 
-              <!-- System Restart -->
-              <div class="flex items-center justify-between">
+                <!-- System Restart -->
                 <span class="text-sm text-gray-300">System</span>
                 <button @click="if(confirm('Reboot the system?')) API.restartSystem()"
                         class="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs rounded transition-colors">
