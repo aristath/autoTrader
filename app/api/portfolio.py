@@ -1,13 +1,7 @@
 """Portfolio API endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException
-from app.infrastructure.dependencies import (
-    get_portfolio_repository,
-    get_position_repository,
-    get_allocation_repository,
-    get_stock_repository,
-)
-from app.domain.repositories import (
+from fastapi import APIRouter, HTTPException
+from app.repositories import (
     PortfolioRepository,
     PositionRepository,
     AllocationRepository,
@@ -19,14 +13,14 @@ router = APIRouter()
 
 
 @router.get("")
-async def get_portfolio(
-    position_repo: PositionRepository = Depends(get_position_repository),
-    stock_repo: StockRepository = Depends(get_stock_repository),
-):
+async def get_portfolio():
     """Get current portfolio positions with values."""
+    position_repo = PositionRepository()
+    stock_repo = StockRepository()
+
     positions = await position_repo.get_all()
     result = []
-    
+
     for position in positions:
         stock = await stock_repo.get_by_symbol(position.symbol)
         pos_dict = {
@@ -46,19 +40,19 @@ async def get_portfolio(
                 "geography": stock.geography,
             })
         result.append(pos_dict)
-    
+
     # Sort by market value
     result.sort(key=lambda x: (x.get("quantity", 0) or 0) * (x.get("current_price") or x.get("avg_price") or 0), reverse=True)
     return result
 
 
 @router.get("/summary")
-async def get_portfolio_summary(
-    portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
-    position_repo: PositionRepository = Depends(get_position_repository),
-    allocation_repo: AllocationRepository = Depends(get_allocation_repository),
-):
+async def get_portfolio_summary():
     """Get portfolio summary: total value, cash, allocation percentages."""
+    portfolio_repo = PortfolioRepository()
+    position_repo = PositionRepository()
+    allocation_repo = AllocationRepository()
+
     portfolio_service = PortfolioService(
         portfolio_repo,
         position_repo,
@@ -68,7 +62,7 @@ async def get_portfolio_summary(
 
     # Calculate geographic percentages
     geo_dict = {g.name: g.current_pct for g in summary.geographic_allocations}
-    
+
     return {
         "total_value": summary.total_value,
         "cash_balance": summary.cash_balance,
@@ -81,10 +75,9 @@ async def get_portfolio_summary(
 
 
 @router.get("/history")
-async def get_portfolio_history(
-    portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
-):
+async def get_portfolio_history():
     """Get historical portfolio snapshots."""
+    portfolio_repo = PortfolioRepository()
     snapshots = await portfolio_repo.get_history(limit=90)
     return [
         {
