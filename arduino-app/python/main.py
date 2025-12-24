@@ -11,6 +11,9 @@ logger = Logger("trader-display")
 
 API_URL = "http://172.17.0.1:8000"
 
+# Persistent HTTP session for connection pooling (reuses TCP connections)
+_http_session = requests.Session()
+
 ROWS = 8
 COLS = 13
 
@@ -302,11 +305,14 @@ def set_rgb4(r: int, g: int, b: int) -> bool:
 # =============================================================================
 
 def fetch_display_state() -> dict | None:
-    """Fetch display state from FastAPI backend."""
+    """Fetch display state from FastAPI backend.
+
+    Uses persistent session for HTTP connection pooling (keep-alive).
+    """
     try:
-        resp = requests.get(f"{API_URL}/api/status/led/display", timeout=2)
-        if resp.status_code == 200:
-            return resp.json()
+        with _http_session.get(f"{API_URL}/api/status/led/display", timeout=2) as resp:
+            if resp.status_code == 200:
+                return resp.json()
     except Exception as e:
         logger.debug(f"API fetch: {e}")
     return None
