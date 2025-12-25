@@ -610,10 +610,7 @@ class RebalancingService:
         """
         from app.services import yahoo
         from app.domain.portfolio_hash import generate_recommendation_cache_key
-        from app.domain.services.portfolio_score import (
-            calculate_portfolio_score,
-            calculate_post_transaction_score,
-        )
+        from app.domain.scoring.diversification import calculate_post_transaction_score
 
         settings = await self._settings_service.get_settings()
         recently_bought = await self._trade_repo.get_recently_bought_symbols(BUY_COOLDOWN_DAYS)
