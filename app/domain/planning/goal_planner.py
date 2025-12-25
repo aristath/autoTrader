@@ -7,7 +7,8 @@ from typing import List, Dict, Optional, Callable, Awaitable, Tuple
 from dataclasses import dataclass
 
 from app.domain.planning.strategies.base import RecommendationStrategy, StrategicGoal
-from app.domain.scoring.models import PortfolioContext, calculate_portfolio_score
+from app.domain.scoring.models import PortfolioContext
+from app.domain.scoring.diversification import calculate_portfolio_score
 from app.domain.models import Stock, Position
 from app.domain.constants import TRADE_SIDE_BUY, TRADE_SIDE_SELL
 

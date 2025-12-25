@@ -6,7 +6,8 @@ import logging
 from typing import List, Dict
 
 from app.domain.planning.strategies.base import RecommendationStrategy, StrategicGoal
-from app.domain.scoring.models import PortfolioContext, calculate_portfolio_score
+from app.domain.scoring.models import PortfolioContext
+from app.domain.scoring.diversification import calculate_portfolio_score
 from app.domain.scoring import calculate_post_transaction_score
 from app.domain.models import Stock, Position
 from app.services import yahoo
