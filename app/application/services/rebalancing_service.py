@@ -349,7 +349,13 @@ class RebalancingService:
         batch_prices = yahoo.get_batch_quotes(symbol_yahoo_map)
         logger.info(f"Batch fetched {len(batch_prices)} prices for {len(symbol_yahoo_map)} eligible stocks")
 
+        # Debug: log stocks that didn't get prices
+        missing_prices = [s for s in symbol_yahoo_map if s not in batch_prices]
+        if missing_prices:
+            logger.warning(f"Missing prices for {len(missing_prices)} stocks: {missing_prices[:10]}")
+
         candidates = []
+        filter_stats = {"no_allow_buy": 0, "recently_bought": 0, "no_score": 0, "low_score": 0, "no_price": 0, "worsens_balance": 0}
 
         for stock in stocks:
             symbol = stock.symbol
@@ -361,10 +367,12 @@ class RebalancingService:
 
             # Skip stocks where allow_buy is disabled
             if not stock.allow_buy:
+                filter_stats["no_allow_buy"] += 1
                 continue
 
             # Skip stocks bought recently (cooldown period)
             if symbol in recently_bought:
+                filter_stats["recently_bought"] += 1
                 continue
 
             # Get scores from database
@@ -374,6 +382,7 @@ class RebalancingService:
             )
 
             if not score_row:
+                filter_stats["no_score"] += 1
                 continue
 
             quality_score = score_row["quality_score"] or 0.5
@@ -382,11 +391,13 @@ class RebalancingService:
             total_score = score_row["total_score"] or 0.5
 
             if total_score < settings.min_stock_score:
+                filter_stats["low_score"] += 1
                 continue
 
             # Get current price from batch-fetched prices
             price = batch_prices.get(symbol)
             if not price or price <= 0:
+                filter_stats["no_price"] += 1
                 continue
 
             # Determine stock currency and exchange rate
@@ -468,6 +479,7 @@ class RebalancingService:
 
             # Skip stocks that worsen portfolio balance significantly
             if score_change < -1.0:
+                filter_stats["worsens_balance"] += 1
                 logger.debug(f"Skipping {symbol}: transaction worsens balance ({score_change:.2f})")
                 continue
 
@@ -506,6 +518,9 @@ class RebalancingService:
                 "new_portfolio_score": new_score.total,
                 "score_change": score_change,
             })
+
+        # Log filter statistics
+        logger.info(f"Recommendation filtering: {len(stocks)} total -> {len(candidates)} candidates. Filtered: {filter_stats}")
 
         # Sort by final score
         candidates.sort(key=lambda x: x["final_score"], reverse=True)
