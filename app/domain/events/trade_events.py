@@ -1,6 +1,7 @@
 """Trade-related domain events."""
 
 from dataclasses import dataclass
+from typing import Optional
 from app.domain.events.base import DomainEvent
 from app.domain.models import Trade
 from app.domain.value_objects.trade_side import TradeSide
