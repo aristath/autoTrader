@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from app.infrastructure.cache import cache
+from app.infrastructure.recommendation_cache import get_recommendation_cache
 from app.repositories import (
     StockRepository,
     ScoreRepository,
@@ -237,6 +238,11 @@ async def refresh_all_scores():
     """Recalculate scores for all stocks in universe and update industries."""
     from app.services import yahoo
 
+    # Invalidate recommendation cache so new scores affect recommendations immediately
+    recommendation_cache = get_recommendation_cache()
+    await recommendation_cache.invalidate_all_recommendations()
+    logger.info("Invalidated recommendation cache for score refresh")
+
     stock_repo = StockRepository()
     score_repo = ScoreRepository()
 
@@ -267,6 +273,10 @@ async def refresh_all_scores():
 @router.post("/{symbol}/refresh")
 async def refresh_stock_score(symbol: str):
     """Trigger score recalculation for a stock."""
+    # Invalidate recommendation cache so new score affects recommendations immediately
+    recommendation_cache = get_recommendation_cache()
+    await recommendation_cache.invalidate_all_recommendations()
+
     stock_repo = StockRepository()
     score_repo = ScoreRepository()
 
