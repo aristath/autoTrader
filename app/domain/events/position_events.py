@@ -1,6 +1,7 @@
 """Position-related domain events."""
 
 from dataclasses import dataclass
+from typing import Optional
 from app.domain.events.base import DomainEvent
 from app.domain.models import Position
 
