@@ -6,17 +6,18 @@ from pydantic import BaseModel
 from typing import Optional
 from app.infrastructure.cache import cache
 from app.infrastructure.recommendation_cache import get_recommendation_cache
-from app.repositories import (
-    StockRepository,
-    ScoreRepository,
-    AllocationRepository,
-    PositionRepository,
-    PortfolioRepository,
+from app.infrastructure.dependencies import (
+    StockRepositoryDep,
+    ScoreRepositoryDep,
+    AllocationRepositoryDep,
+    PositionRepositoryDep,
+    PortfolioRepositoryDep,
+    PortfolioServiceDep,
+    ScoringServiceDep,
 )
 from app.domain.models import Stock
 from app.domain.factories.stock_factory import StockFactory
 from app.domain.events import StockAddedEvent, get_event_bus
-from app.application.services.portfolio_service import PortfolioService
 from app.domain.services.priority_calculator import (
     PriorityCalculator,
     PriorityInput,
@@ -53,22 +54,14 @@ class StockUpdate(BaseModel):
 
 
 @router.get("")
-async def get_stocks():
+async def get_stocks(
+    stock_repo: StockRepositoryDep,
+    portfolio_service: PortfolioServiceDep,
+):
     """Get all stocks in universe with current scores, position data, and priority."""
     cached = cache.get("stocks_with_scores")
     if cached is not None:
         return cached
-
-    stock_repo = StockRepository()
-    portfolio_repo = PortfolioRepository()
-    position_repo = PositionRepository()
-    allocation_repo = AllocationRepository()
-
-    portfolio_service = PortfolioService(
-        portfolio_repo,
-        position_repo,
-        allocation_repo,
-    )
     summary = await portfolio_service.get_portfolio_summary()
 
     geo_weights = {g.name: g.target_pct for g in summary.geographic_allocations}
@@ -119,11 +112,13 @@ async def get_stocks():
 
 
 @router.get("/{symbol}")
-async def get_stock(symbol: str):
+async def get_stock(
+    symbol: str,
+    stock_repo: StockRepositoryDep,
+    position_repo: PositionRepositoryDep,
+    score_repo: ScoreRepositoryDep,
+):
     """Get detailed stock info with score breakdown."""
-    stock_repo = StockRepository()
-    position_repo = PositionRepository()
-    score_repo = ScoreRepository()
 
     stock = await stock_repo.get_by_symbol(symbol)
     if not stock:
@@ -177,10 +172,13 @@ async def get_stock(symbol: str):
 
 
 @router.post("")
-async def create_stock(stock_data: StockCreate):
+async def create_stock(
+    stock_data: StockCreate,
+    stock_repo: StockRepositoryDep,
+    score_repo: ScoreRepositoryDep,
+    scoring_service: ScoringServiceDep,
+):
     """Add a new stock to the universe."""
-    stock_repo = StockRepository()
-    score_repo = ScoreRepository()
 
     existing = await stock_repo.get_by_symbol(stock_data.symbol.upper())
     if existing:
@@ -212,8 +210,6 @@ async def create_stock(stock_data: StockCreate):
     event_bus = get_event_bus()
     event_bus.publish(StockAddedEvent(stock=new_stock))
 
-    from app.application.services.scoring_service import ScoringService
-    scoring_service = ScoringService(stock_repo, score_repo)
     score = await scoring_service.calculate_and_save_score(
         stock_data.symbol.upper(),
         stock_data.yahoo_symbol
@@ -234,7 +230,10 @@ async def create_stock(stock_data: StockCreate):
 
 
 @router.post("/refresh-all")
-async def refresh_all_scores():
+async def refresh_all_scores(
+    stock_repo: StockRepositoryDep,
+    scoring_service: ScoringServiceDep,
+):
     """Recalculate scores for all stocks in universe and update industries."""
     from app.services import yahoo
 
@@ -249,9 +248,6 @@ async def refresh_all_scores():
     cache.invalidate_prefix("multi_step_recommendations")
     logger.info("Invalidated in-memory recommendation caches")
 
-    stock_repo = StockRepository()
-    score_repo = ScoreRepository()
-
     try:
         stocks = await stock_repo.get_all_active()
 
@@ -261,8 +257,6 @@ async def refresh_all_scores():
                 if detected_industry:
                     await stock_repo.update(stock.symbol, industry=detected_industry)
 
-        from app.application.services.scoring_service import ScoringService
-        scoring_service = ScoringService(stock_repo, score_repo)
         scores = await scoring_service.score_all_stocks()
 
         return {
@@ -277,21 +271,19 @@ async def refresh_all_scores():
 
 
 @router.post("/{symbol}/refresh")
-async def refresh_stock_score(symbol: str):
+async def refresh_stock_score(
+    symbol: str,
+    stock_repo: StockRepositoryDep,
+    scoring_service: ScoringServiceDep,
+):
     """Trigger score recalculation for a stock."""
     # Invalidate recommendation cache so new score affects recommendations immediately
     recommendation_cache = get_recommendation_cache()
     await recommendation_cache.invalidate_all_recommendations()
 
-    stock_repo = StockRepository()
-    score_repo = ScoreRepository()
-
     stock = await stock_repo.get_by_symbol(symbol)
     if not stock:
         raise HTTPException(status_code=404, detail="Stock not found")
-
-    from app.application.services.scoring_service import ScoringService
-    scoring_service = ScoringService(stock_repo, score_repo)
 
     score = await scoring_service.calculate_and_save_score(
         symbol,
@@ -318,10 +310,13 @@ async def refresh_stock_score(symbol: str):
 
 
 @router.put("/{symbol}")
-async def update_stock(symbol: str, update: StockUpdate):
+async def update_stock(
+    symbol: str,
+    update: StockUpdate,
+    stock_repo: StockRepositoryDep,
+    scoring_service: ScoringServiceDep,
+):
     """Update stock details."""
-    stock_repo = StockRepository()
-    score_repo = ScoreRepository()
 
     old_symbol = symbol.upper()
     stock = await stock_repo.get_by_symbol(old_symbol)
@@ -370,8 +365,6 @@ async def update_stock(symbol: str, update: StockUpdate):
     final_symbol = new_symbol if new_symbol and new_symbol != old_symbol else old_symbol
     updated_stock = await stock_repo.get_by_symbol(final_symbol)
 
-    from app.application.services.scoring_service import ScoringService
-    scoring_service = ScoringService(stock_repo, score_repo)
     score = await scoring_service.calculate_and_save_score(
         final_symbol,
         updated_stock.yahoo_symbol
@@ -399,9 +392,11 @@ async def update_stock(symbol: str, update: StockUpdate):
 
 
 @router.delete("/{symbol}")
-async def delete_stock(symbol: str):
+async def delete_stock(
+    symbol: str,
+    stock_repo: StockRepositoryDep,
+):
     """Remove a stock from the universe (soft delete by setting active=0)."""
-    stock_repo = StockRepository()
 
     logger.info(f"DELETE /api/stocks/{symbol} - Attempting to delete stock")
 
