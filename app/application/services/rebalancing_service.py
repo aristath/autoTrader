@@ -97,6 +97,248 @@ def calculate_min_trade_amount(
 logger = logging.getLogger(__name__)
 
 
+async def _convert_cached_recommendations(cached: list, limit: int) -> List[Recommendation]:
+    """Convert cached recommendation dicts to Recommendation objects."""
+    from app.domain.value_objects.currency import Currency
+
+    recommendations = []
+    for c in cached[:limit]:
+        currency_str = c.get("currency", "EUR")
+        currency = (
+            Currency.from_string(currency_str)
+            if isinstance(currency_str, str)
+            else currency_str
+        )
+
+        recommendations.append(
+            Recommendation(
+                symbol=c["symbol"],
+                name=c["name"],
+                side=TradeSide.BUY,
+                quantity=c.get("quantity", 0),
+                estimated_price=c.get("current_price") or c.get("estimated_price", 0),
+                estimated_value=c.get("amount") or c.get("estimated_value", 0),
+                reason=c["reason"],
+                geography=c["geography"],
+                industry=c.get("industry"),
+                currency=currency,
+                priority=c.get("priority"),
+                current_portfolio_score=c.get("current_portfolio_score"),
+                new_portfolio_score=c.get("new_portfolio_score"),
+                status=RecommendationStatus.PENDING,
+            )
+        )
+    return recommendations
+
+
+async def _process_stock_candidate(
+    stock,
+    score_row: dict,
+    price: float,
+    recently_bought: set,
+    settings,
+    portfolio_context,
+    cache_key: str,
+    exchange_rate_service,
+    db_manager,
+    base_trade_amount: float,
+) -> Optional[dict]:
+    """Process a single stock and return candidate dict if valid."""
+    from typing import Optional
+    from datetime import datetime, timedelta
+    from app.domain.analytics import get_position_risk_metrics
+
+    symbol = stock.symbol
+    name = stock.name
+    geography = stock.geography
+    industry = stock.industry
+    multiplier = stock.priority_multiplier or 1.0
+    min_lot = stock.min_lot or 1
+
+    if not stock.allow_buy or symbol in recently_bought:
+        return None
+
+    quality_score = score_row.get("quality_score") or 0.5
+    opportunity_score = score_row.get("opportunity_score") or 0.5
+    analyst_score = score_row.get("analyst_score") or 0.5
+    total_score = score_row.get("total_score") or 0.5
+
+    if total_score < settings.min_stock_score:
+        return None
+
+    calc_repo = CalculationsRepository()
+    high_52w = await calc_repo.get_metric(symbol, "52W_HIGH")
+    if high_52w and is_price_too_high(price, high_52w):
+        return None
+
+    currency = stock.currency or "EUR"
+    exchange_rate = 1.0
+    if currency != "EUR":
+        exchange_rate = await exchange_rate_service.get_rate(currency, "EUR")
+        if exchange_rate <= 0:
+            exchange_rate = 1.0
+
+    stock_vol = DEFAULT_VOLATILITY
+    try:
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+        risk_metrics = await get_position_risk_metrics(symbol, start_date, end_date)
+        stock_vol = risk_metrics.get("volatility", DEFAULT_VOLATILITY)
+    except Exception:
+        pass
+
+    vol_weight = TARGET_PORTFOLIO_VOLATILITY / max(stock_vol, MIN_VOLATILITY_FOR_SIZING)
+    vol_weight = max(MIN_VOL_WEIGHT, min(MAX_VOL_WEIGHT, vol_weight))
+
+    score_adj = 1.0 + (total_score - 0.5) * 0.2
+    score_adj = max(0.9, min(1.1, score_adj))
+
+    risk_parity_amount = base_trade_amount * vol_weight * score_adj
+
+    sized = TradeSizingService.calculate_buy_quantity(
+        target_value_eur=risk_parity_amount,
+        price=price,
+        min_lot=min_lot,
+        exchange_rate=exchange_rate,
+    )
+    quantity = sized.quantity
+    trade_value_eur = sized.value_eur
+
+    current_position_value = portfolio_context.positions.get(symbol, 0)
+    new_position_value = current_position_value + trade_value_eur
+    total_after = portfolio_context.total_value + trade_value_eur
+    new_position_pct = new_position_value / total_after if total_after > 0 else 0
+    if new_position_pct > MAX_POSITION_PCT:
+        return None
+
+    dividend_yield = 0
+    new_score, score_change = await calculate_post_transaction_score(
+        symbol=symbol,
+        geography=geography,
+        industry=industry,
+        proposed_value=trade_value_eur,
+        stock_quality=quality_score,
+        stock_dividend=dividend_yield,
+        portfolio_context=portfolio_context,
+        portfolio_hash=cache_key,
+    )
+
+    if score_change < MAX_BALANCE_WORSENING:
+        return None
+
+    base_score = quality_score * 0.35 + opportunity_score * 0.35 + analyst_score * 0.05
+    normalized_score_change = max(0, min(1, (score_change + 5) / 10))
+    final_score = base_score * 0.75 + normalized_score_change * 0.25
+
+    reason_parts = []
+    if quality_score >= 0.7:
+        reason_parts.append("high quality")
+    if opportunity_score >= 0.7:
+        reason_parts.append("buy opportunity")
+    if score_change > 0.5:
+        reason_parts.append(f"↑{score_change:.1f} portfolio")
+    if multiplier != 1.0:
+        reason_parts.append(f"{multiplier:.1f}x mult")
+    reason = ", ".join(reason_parts) if reason_parts else "good score"
+
+    return {
+        "symbol": symbol,
+        "name": name,
+        "geography": geography,
+        "industry": industry,
+        "price": price,
+        "quantity": quantity,
+        "trade_value": trade_value_eur,
+        "final_score": final_score * multiplier,
+        "reason": reason,
+        "new_score": new_score,
+        "score_change": score_change,
+    }
+
+
+async def _build_recommendations_from_candidates(
+    candidates: list,
+    stocks: list,
+    limit: int,
+    current_portfolio_score,
+    recommendation_repo,
+    cache_key: str,
+) -> List[Recommendation]:
+    """Build Recommendation objects from candidates and store them."""
+    from app.domain.value_objects.currency import Currency
+
+    recommendations = []
+    event_bus = get_event_bus()
+
+    for candidate in candidates[:limit]:
+        stock = next((s for s in stocks if s.symbol == candidate["symbol"]), None)
+        currency = stock.currency if stock else Currency.EUR
+
+        rec = Recommendation(
+            symbol=candidate["symbol"],
+            name=candidate["name"],
+            side=TradeSide.BUY,
+            quantity=candidate["quantity"],
+            estimated_price=round(candidate["price"], 2),
+            estimated_value=round(candidate["trade_value"], 2),
+            reason=candidate["reason"],
+            geography=candidate["geography"],
+            industry=candidate.get("industry"),
+            currency=currency,
+            priority=round(candidate["final_score"], 2),
+            current_portfolio_score=round(current_portfolio_score.total, 1),
+            new_portfolio_score=round(candidate["new_score"].total, 1),
+            status=RecommendationStatus.PENDING,
+        )
+
+        recommendation_data = {
+            "symbol": rec.symbol,
+            "name": rec.name,
+            "side": "BUY",
+            "amount": rec.estimated_value,
+            "quantity": rec.quantity,
+            "estimated_price": rec.estimated_price,
+            "estimated_value": rec.estimated_value,
+            "reason": rec.reason,
+            "geography": rec.geography,
+            "industry": rec.industry,
+            "currency": currency,
+            "priority": rec.priority,
+            "current_portfolio_score": rec.current_portfolio_score,
+            "new_portfolio_score": rec.new_portfolio_score,
+            "score_change": rec.score_change,
+        }
+
+        uuid = await recommendation_repo.create_or_update(
+            recommendation_data, portfolio_hash=cache_key
+        )
+        if uuid:
+            recommendations.append(rec)
+            event_bus.publish(RecommendationCreatedEvent(recommendation=rec))
+
+    return recommendations
+
+
+def _prepare_cache_data(candidates: list) -> list:
+    """Prepare candidate data for caching."""
+    return [
+        {
+            "symbol": c["symbol"],
+            "name": c["name"],
+            "amount": round(c["trade_value"], 2),
+            "priority": round(c["final_score"], 2),
+            "reason": c["reason"],
+            "geography": c["geography"],
+            "industry": c.get("industry"),
+            "current_price": round(c["price"], 2),
+            "quantity": c["quantity"],
+            "new_portfolio_score": round(c["new_score"].total, 1),
+            "score_change": round(c["score_change"], 2),
+        }
+        for c in candidates
+    ]
+
+
 class RebalancingService:
     """Application service for rebalancing operations."""
 
@@ -151,44 +393,11 @@ class RebalancingService:
             position_dicts, settings.to_dict()
         )
 
-        # Check cache first (48h TTL)
         rec_cache = get_recommendation_cache()
         cached = await rec_cache.get_recommendations(cache_key, "buy")
         if cached:
             logger.info(f"Using cached buy recommendations ({len(cached)} items)")
-            # Convert cached dicts back to Recommendation objects
-            recommendations = []
-            for c in cached[:limit]:
-                # Map old fields to unified model
-                from app.domain.value_objects.currency import Currency
-
-                currency_str = c.get("currency", "EUR")
-                currency = (
-                    Currency.from_string(currency_str)
-                    if isinstance(currency_str, str)
-                    else currency_str
-                )
-
-                recommendations.append(
-                    Recommendation(
-                        symbol=c["symbol"],
-                        name=c["name"],
-                        side=TradeSide.BUY,
-                        quantity=c.get("quantity", 0),
-                        estimated_price=c.get("current_price")
-                        or c.get("estimated_price", 0),
-                        estimated_value=c.get("amount") or c.get("estimated_value", 0),
-                        reason=c["reason"],
-                        geography=c["geography"],
-                        industry=c.get("industry"),
-                        currency=currency,
-                        priority=c.get("priority"),
-                        current_portfolio_score=c.get("current_portfolio_score"),
-                        new_portfolio_score=c.get("new_portfolio_score"),
-                        status=RecommendationStatus.PENDING,
-                    )
-                )
-            return recommendations
+            return await _convert_cached_recommendations(cached, limit)
 
         # Build portfolio context
         portfolio_context = await build_portfolio_context(
@@ -259,268 +468,70 @@ class RebalancingService:
 
         for stock in stocks:
             symbol = stock.symbol
-            name = stock.name
-            geography = stock.geography
-            industry = stock.industry
-            multiplier = stock.priority_multiplier or 1.0
-            min_lot = stock.min_lot or 1
 
-            # Skip stocks where allow_buy is disabled
             if not stock.allow_buy:
                 filter_stats["no_allow_buy"] += 1
                 continue
 
-            # Skip stocks bought recently (cooldown period)
             if symbol in recently_bought:
                 filter_stats["recently_bought"] += 1
                 continue
 
-            # Get scores from database
             score_row = await self._db_manager.state.fetchone(
                 "SELECT * FROM scores WHERE symbol = ?", (symbol,)
             )
-
             if not score_row:
                 filter_stats["no_score"] += 1
                 continue
 
-            quality_score = score_row["quality_score"] or 0.5
-            opportunity_score = score_row["opportunity_score"] or 0.5
-            analyst_score = score_row["analyst_score"] or 0.5
-            total_score = score_row["total_score"] or 0.5
-
-            if total_score < settings.min_stock_score:
+            if (score_row.get("total_score") or 0.5) < settings.min_stock_score:
                 filter_stats["low_score"] += 1
                 continue
 
-            # Get current price from batch-fetched prices
             price = batch_prices.get(symbol)
             if not price or price <= 0:
                 filter_stats["no_price"] += 1
                 continue
 
-            # GUARDRAIL: Price ceiling - don't buy near 52-week highs
-            # Get 52-week high from cached calculations
-            from app.repositories.calculations import CalculationsRepository
-
-            calc_repo = CalculationsRepository()
-            high_52w = await calc_repo.get_metric(symbol, "52W_HIGH")
-            if high_52w and is_price_too_high(price, high_52w):
-                filter_stats["price_too_high"] += 1
-                logger.debug(
-                    f"Skipping {symbol}: price ${price:.2f} too close to 52W high ${high_52w:.2f}"
-                )
-                continue
-
-            # Determine stock currency and exchange rate
-            currency = stock.currency or "EUR"
-            exchange_rate = 1.0
-            if currency != "EUR":
-                exchange_rate = await self._exchange_rate_service.get_rate(
-                    currency, "EUR"
-                )
-                if exchange_rate <= 0:
-                    exchange_rate = 1.0
-
-            # Get volatility for risk parity position sizing
-            stock_vol = DEFAULT_VOLATILITY
-            try:
-                from datetime import datetime, timedelta
-
-                from app.domain.analytics import get_position_risk_metrics
-
-                end_date = datetime.now().strftime("%Y-%m-%d")
-                start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
-                risk_metrics = await get_position_risk_metrics(
-                    symbol, start_date, end_date
-                )
-                stock_vol = risk_metrics.get("volatility", DEFAULT_VOLATILITY)
-            except Exception as e:
-                logger.debug(f"Could not get risk metrics for {symbol}: {e}")
-
-            # Risk Parity Position Sizing (MOSEK Portfolio Cookbook principles)
-            # Size inversely to volatility so each position contributes equal risk
-            vol_weight = TARGET_PORTFOLIO_VOLATILITY / max(
-                stock_vol, MIN_VOLATILITY_FOR_SIZING
-            )
-            vol_weight = max(MIN_VOL_WEIGHT, min(MAX_VOL_WEIGHT, vol_weight))
-
-            # Small stock score adjustment (±10%)
-            score_adj = 1.0 + (total_score - 0.5) * 0.2
-            score_adj = max(0.9, min(1.1, score_adj))
-
-            risk_parity_amount = base_trade_amount * vol_weight * score_adj
-
-            # Calculate actual transaction value (respecting min_lot)
-            sized = TradeSizingService.calculate_buy_quantity(
-                target_value_eur=risk_parity_amount,
-                price=price,
-                min_lot=min_lot,
-                exchange_rate=exchange_rate,
-            )
-            quantity = sized.quantity
-            trade_value_eur = sized.value_eur
-
-            # GUARDRAIL: Position size cap - no single position > 15% of portfolio
-            current_position_value = portfolio_context.positions.get(symbol, 0)
-            new_position_value = current_position_value + trade_value_eur
-            total_after = portfolio_context.total_value + trade_value_eur
-            new_position_pct = (
-                new_position_value / total_after if total_after > 0 else 0
-            )
-            if new_position_pct > MAX_POSITION_PCT:
-                filter_stats["exceeds_position_cap"] += 1
-                logger.debug(
-                    f"Skipping {symbol}: would be {new_position_pct*100:.1f}% of portfolio (max {MAX_POSITION_PCT*100:.0f}%)"
-                )
-                continue
-
-            # Calculate POST-TRANSACTION portfolio score (with caching)
-            dividend_yield = 0  # Could be enhanced later
-            new_score, score_change = await calculate_post_transaction_score(
-                symbol=symbol,
-                geography=geography,
-                industry=industry,
-                proposed_value=trade_value_eur,
-                stock_quality=quality_score,
-                stock_dividend=dividend_yield,
-                portfolio_context=portfolio_context,
-                portfolio_hash=cache_key,
+            candidate = await _process_stock_candidate(
+                stock,
+                score_row,
+                price,
+                recently_bought,
+                settings,
+                portfolio_context,
+                cache_key,
+                self._exchange_rate_service,
+                self._db_manager,
+                base_trade_amount,
             )
 
-            # Skip stocks that worsen portfolio balance significantly
-            if score_change < MAX_BALANCE_WORSENING:
-                filter_stats["worsens_balance"] += 1
-                logger.debug(
-                    f"Skipping {symbol}: transaction worsens balance ({score_change:.2f})"
-                )
-                continue
-
-            # Calculate final priority score
-            base_score = (
-                quality_score * 0.35
-                + opportunity_score * 0.35
-                + analyst_score * 0.05  # Reduced from 0.15 - tiebreaker only
-            )
-            normalized_score_change = max(0, min(1, (score_change + 5) / 10))
-            final_score = (
-                base_score * 0.75 + normalized_score_change * 0.25
-            )  # Increased portfolio impact weight
-
-            # Build reason
-            reason_parts = []
-            if quality_score >= 0.7:
-                reason_parts.append("high quality")
-            if opportunity_score >= 0.7:
-                reason_parts.append("buy opportunity")
-            if score_change > 0.5:
-                reason_parts.append(f"↑{score_change:.1f} portfolio")
-            if multiplier != 1.0:
-                reason_parts.append(f"{multiplier:.1f}x mult")
-            reason = ", ".join(reason_parts) if reason_parts else "good score"
-
-            candidates.append(
-                {
-                    "symbol": symbol,
-                    "name": name,
-                    "geography": geography,
-                    "industry": industry,
-                    "price": price,
-                    "quantity": quantity,
-                    "trade_value": trade_value_eur,
-                    "final_score": final_score * multiplier,
-                    "reason": reason,
-                    "current_portfolio_score": current_portfolio_score.total,
-                    "new_portfolio_score": new_score.total,
-                    "score_change": score_change,
-                }
-            )
+            if candidate:
+                candidate["current_portfolio_score"] = current_portfolio_score.total
+                candidates.append(candidate)
+            else:
+                if symbol not in batch_prices:
+                    filter_stats["no_price"] += 1
+                else:
+                    filter_stats["worsens_balance"] += 1
 
         # Log filter statistics
         logger.info(
             f"Recommendation filtering: {len(stocks)} total -> {len(candidates)} candidates. Filtered: {filter_stats}"
         )
 
-        # Sort by final score
         candidates.sort(key=lambda x: x["final_score"], reverse=True)
 
-        # Build recommendations and store them
-        recommendations = []
-        for candidate in candidates[:limit]:
-            # Get currency from stock
-            stock = next((s for s in stocks if s.symbol == candidate["symbol"]), None)
-            currency = stock.currency if stock else Currency.EUR
+        recommendations = await _build_recommendations_from_candidates(
+            candidates,
+            stocks,
+            limit,
+            current_portfolio_score,
+            self._recommendation_repo,
+            cache_key,
+        )
 
-            rec = Recommendation(
-                symbol=candidate["symbol"],
-                name=candidate["name"],
-                side=TradeSide.BUY,
-                quantity=candidate["quantity"],
-                estimated_price=round(candidate["price"], 2),
-                estimated_value=round(candidate["trade_value"], 2),
-                reason=candidate["reason"],
-                geography=candidate["geography"],
-                industry=candidate.get("industry"),
-                currency=currency,
-                priority=round(candidate["final_score"], 2),
-                current_portfolio_score=round(candidate["current_portfolio_score"], 1),
-                new_portfolio_score=round(candidate["new_portfolio_score"], 1),
-                status=RecommendationStatus.PENDING,
-            )
-
-            # Store recommendation in database (create or update)
-            recommendation_data = {
-                "symbol": rec.symbol,
-                "name": rec.name,
-                "side": "BUY",
-                "amount": rec.estimated_value,
-                "quantity": rec.quantity,
-                "estimated_price": rec.estimated_price,
-                "estimated_value": rec.estimated_value,
-                "reason": rec.reason,
-                "geography": rec.geography,
-                "industry": rec.industry,
-                "currency": currency,
-                "priority": rec.priority,
-                "current_portfolio_score": rec.current_portfolio_score,
-                "new_portfolio_score": rec.new_portfolio_score,
-                "score_change": rec.score_change,
-            }
-
-            # create_or_update returns UUID if not dismissed, None if dismissed
-            uuid = await self._recommendation_repo.create_or_update(
-                recommendation_data, portfolio_hash=cache_key
-            )
-            if uuid:
-                # Only include if not dismissed
-                recommendations.append(rec)
-                # Publish domain event for recommendations (new or updated)
-                event_bus = get_event_bus()
-                event_bus.publish(RecommendationCreatedEvent(recommendation=rec))
-
-        # Cache the full recommendation list (not just the limited ones)
-        # This allows returning different limit values from the same cache
-        all_recs_for_cache = []
-        for candidate in candidates:
-            all_recs_for_cache.append(
-                {
-                    "symbol": candidate["symbol"],
-                    "name": candidate["name"],
-                    "amount": round(candidate["trade_value"], 2),
-                    "priority": round(candidate["final_score"], 2),
-                    "reason": candidate["reason"],
-                    "geography": candidate["geography"],
-                    "industry": candidate["industry"],
-                    "current_price": round(candidate["price"], 2),
-                    "quantity": candidate["quantity"],
-                    "current_portfolio_score": round(
-                        candidate["current_portfolio_score"], 1
-                    ),
-                    "new_portfolio_score": round(candidate["new_portfolio_score"], 1),
-                    "score_change": round(candidate["score_change"], 2),
-                }
-            )
-
+        all_recs_for_cache = _prepare_cache_data(candidates)
         if all_recs_for_cache:
             await rec_cache.set_recommendations(cache_key, "buy", all_recs_for_cache)
 
