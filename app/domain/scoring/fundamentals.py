@@ -9,7 +9,7 @@ Components:
 import logging
 from typing import Optional, List, Dict
 
-from app.domain.scoring.constants import MIN_MONTHS_FOR_CAGR
+from app.domain.scoring.calculations import calculate_cagr
 
 logger = logging.getLogger(__name__)
 
@@ -53,30 +53,6 @@ def calculate_financial_strength_score(fundamentals) -> float:
         de_score * 0.30 +
         cr_score * 0.30
     )
-
-
-def calculate_cagr(prices: List[Dict], months: int) -> Optional[float]:
-    """Calculate CAGR from monthly prices."""
-    if len(prices) < MIN_MONTHS_FOR_CAGR:
-        return None
-
-    use_months = min(months, len(prices))
-    price_slice = prices[-use_months:]
-
-    start_price = price_slice[0].get("avg_adj_close")
-    end_price = price_slice[-1].get("avg_adj_close")
-
-    if not start_price or not end_price or start_price <= 0:
-        return None
-
-    years = use_months / 12.0
-    if years < 0.25:
-        return (end_price / start_price) - 1
-
-    try:
-        return (end_price / start_price) ** (1 / years) - 1
-    except (ValueError, ZeroDivisionError):
-        return None
 
 
 def calculate_consistency_score(cagr_5y: float, cagr_10y: Optional[float]) -> float:
