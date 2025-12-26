@@ -1,19 +1,14 @@
 """Trade execution API endpoints."""
 
 import logging
-from typing import List
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
-from app.domain.value_objects.trade_side import TradeSide
 from app.domain.value_objects.trade_side import TradeSide
 from app.infrastructure.dependencies import (
     StockRepositoryDep,
     PositionRepositoryDep,
     TradeRepositoryDep,
-    AllocationRepositoryDep,
-    PortfolioRepositoryDep,
     RecommendationRepositoryDep,
-    SettingsRepositoryDep,
     SettingsServiceDep,
     TradeSafetyServiceDep,
     TradeExecutionServiceDep,
@@ -23,7 +18,6 @@ from app.infrastructure.dependencies import (
 from app.infrastructure.cache import cache
 from app.infrastructure.cache_invalidation import get_cache_invalidation_service
 from app.services.tradernet_connection import ensure_tradernet_connected
-from app.domain.services.trade_sizing_service import TradeSizingService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -158,7 +152,9 @@ async def get_allocation(portfolio_service: PortfolioServiceDep):
 
 
 @router.get("/recommendations/debug")
-async def debug_recommendations():
+async def debug_recommendations(
+    rebalancing_service: RebalancingServiceDep,
+):
     """
     Debug endpoint to see why recommendations are filtered out.
     """
@@ -605,6 +601,7 @@ async def execute_multi_step_recommendation_step(
     settings_service: SettingsServiceDep,
     safety_service: TradeSafetyServiceDep,
     trade_execution_service: TradeExecutionServiceDep,
+    rebalancing_service: RebalancingServiceDep,
 ):
     """
     Execute a single step from the multi-step recommendation sequence.
@@ -651,7 +648,6 @@ async def execute_multi_step_recommendation_step(
         client = await ensure_tradernet_connected()
 
         # Safety checks
-        safety_service = TradeSafetyService(trade_repo, position_repo)
         await safety_service.validate_trade(
             symbol=step["symbol"],
             side=step["side"],
@@ -708,6 +704,7 @@ async def execute_all_multi_step_recommendations(
     settings_service: SettingsServiceDep,
     safety_service: TradeSafetyServiceDep,
     trade_execution_service: TradeExecutionServiceDep,
+    rebalancing_service: RebalancingServiceDep,
 ):
     """
     Execute all steps in the multi-step recommendation sequence in order.
@@ -878,7 +875,6 @@ async def execute_sell_recommendation(
         client = await ensure_tradernet_connected()
 
         # Safety checks
-        safety_service = TradeSafetyService(trade_repo, position_repo)
         await safety_service.validate_trade(
             symbol=rec.symbol,
             side=TradeSide.SELL,
@@ -925,290 +921,3 @@ async def execute_sell_recommendation(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-class FundingSellRequest(BaseModel):
-    """A single sell in a funding execution request."""
-    symbol: str
-    quantity: int
-
-
-class ExecuteFundingRequest(BaseModel):
-    """Request to execute a funding plan."""
-    strategy: str
-    sells: List[FundingSellRequest]
-
-
-@router.get("/recommendations/{symbol}/funding-options")
-async def get_funding_options(
-    symbol: str,
-    rebalancing_service: RebalancingServiceDep,
-    exclude_signatures: str = "",
-):
-    """
-    Get funding options for a buy recommendation that can't be executed due to insufficient cash.
-
-    Returns 3-4 strategies for raising cash by selling existing positions:
-    - score_based: Sell based on underperformance scoring
-    - minimal_sells: Minimize number of transactions
-    - overweight: Reduce overweight positions first
-    - currency_match: Prefer selling same-currency positions
-    """
-    from app.application.services.funding_service import FundingService
-
-    symbol = symbol.upper()
-
-    try:
-        # Get current recommendation for this symbol
-        recommendations = await rebalancing_service.get_recommendations(limit=10)
-
-        rec = next((r for r in recommendations if r.symbol == symbol), None)
-        if not rec:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No recommendation found for {symbol}"
-            )
-
-        # Get current cash balance
-        client = await ensure_tradernet_connected()
-        available_cash = client.get_total_cash_eur()
-
-        # Check if funding is needed
-        if available_cash >= rec.estimated_value:
-            return {
-                "buy_symbol": symbol,
-                "buy_amount": rec.estimated_value,
-                "cash_available": available_cash,
-                "cash_needed": 0,
-                "options": [],
-                "message": "Sufficient cash available, no funding needed"
-            }
-
-        # Generate funding options
-        funding_service = FundingService()
-
-        # Parse excluded signatures for pagination
-        excluded = [s.strip() for s in exclude_signatures.split(",") if s.strip()]
-
-        options = await funding_service.get_funding_options(
-            buy_symbol=symbol,
-            buy_amount_eur=rec.estimated_value,
-            available_cash=available_cash,
-            exclude_signatures=excluded,
-        )
-
-        return {
-            "buy_symbol": symbol,
-            "buy_amount": rec.estimated_value,
-            "cash_available": round(available_cash, 2),
-            "cash_needed": round(rec.estimated_value - available_cash, 2),
-            "has_more": len(options) > 0,
-            "options": [
-                {
-                    "strategy": opt.strategy,
-                    "description": opt.description,
-                    "signature": opt.signature,
-                    "sells": [
-                        {
-                            "symbol": s.symbol,
-                            "name": s.name,
-                            "quantity": s.quantity,
-                            "sell_pct": round(s.sell_pct * 100, 1),
-                            "value_eur": s.value_eur,
-                            "currency": s.currency,
-                            "current_price": s.current_price,
-                            "profit_pct": round(s.profit_pct * 100, 1),
-                            "warnings": s.warnings,
-                        }
-                        for s in opt.sells
-                    ],
-                    "total_sell_value": opt.total_sell_value,
-                    "current_score": opt.current_score,
-                    "new_score": opt.new_score,
-                    "net_score_change": opt.net_score_change,
-                    "has_warnings": opt.has_warnings,
-                }
-                for opt in options
-            ],
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/recommendations/{symbol}/execute-funding")
-async def execute_funding(
-    symbol: str,
-    request: ExecuteFundingRequest,
-    trade_repo: TradeRepositoryDep,
-    stock_repo: StockRepositoryDep,
-    position_repo: PositionRepositoryDep,
-    safety_service: TradeSafetyServiceDep,
-    trade_execution_service: TradeExecutionServiceDep,
-):
-    """
-    Execute a funding plan: sell specified positions then buy the target stock.
-
-    Executes all sells first, then executes the buy with the newly available cash.
-    """
-    symbol = symbol.upper()
-
-    try:
-        # Ensure connection
-        client = await ensure_tradernet_connected()
-
-        # Check cooldown before executing any trades
-        is_cooldown, cooldown_error = await safety_service.check_cooldown(symbol, TradeSide.BUY)
-        if is_cooldown:
-            raise HTTPException(status_code=400, detail=cooldown_error)
-
-        # Execute all sells
-        sell_results = []
-        total_sold_value = 0.0
-
-        for sell in request.sells:
-            sell_symbol = sell.symbol.upper()
-
-            # Check for pending orders
-            has_pending = await safety_service.check_pending_orders(
-                sell_symbol, TradeSide.SELL, client
-            )
-            
-            if has_pending:
-                sell_results.append({
-                    "symbol": sell_symbol,
-                    "status": "blocked",
-                    "error": f"A pending order already exists for {sell_symbol}",
-                })
-                continue
-
-            result = client.place_order(
-                symbol=sell_symbol,
-                side=TradeSide.SELL,
-                quantity=sell.quantity,
-            )
-
-            if result:
-                # Record the trade
-                await trade_execution_service.record_trade(
-                    symbol=sell_symbol,
-                    side=TradeSide.SELL,
-                    quantity=sell.quantity,
-                    price=result.price,
-                    order_id=result.order_id,
-                )
-
-                sell_results.append({
-                    "symbol": sell_symbol,
-                    "status": "success",
-                    "quantity": sell.quantity,
-                    "price": result.price,
-                    "order_id": result.order_id,
-                })
-                total_sold_value += sell.quantity * result.price
-            else:
-                sell_results.append({
-                    "symbol": sell_symbol,
-                    "status": "failed",
-                    "error": "Order execution failed",
-                })
-
-        # Check how many sells succeeded
-        successful_sells = [r for r in sell_results if r["status"] == "success"]
-        if not successful_sells:
-            raise HTTPException(
-                status_code=500,
-                detail="All sell orders failed, cannot proceed with buy"
-            )
-
-        # Execute the buy
-        stock = await stock_repo.get_by_symbol(symbol)
-        if not stock:
-            raise HTTPException(status_code=404, detail=f"Stock {symbol} not found")
-
-        # Get current price and calculate quantity
-        from app.services import yahoo
-        price = yahoo.get_current_price(symbol, stock.yahoo_symbol)
-        if not price or price <= 0:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Could not get current price for {symbol}"
-            )
-
-        # Calculate quantity based on available cash (including new sales)
-        available_cash = client.get_total_cash_eur()
-        min_lot = stock.min_lot or 1
-        sized = TradeSizingService.calculate_buy_quantity(
-            target_value_eur=available_cash,
-            price=price,
-            min_lot=min_lot,
-            exchange_rate=1.0,  # Already in EUR
-        )
-        quantity = sized.quantity
-
-        if quantity <= 0:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Insufficient cash for minimum lot of {symbol}"
-            )
-
-        # Check for pending orders for the buy symbol
-        has_pending = await safety_service.check_pending_orders(
-            symbol, TradeSide.BUY, client
-        )
-        
-        if has_pending:
-            raise HTTPException(
-                status_code=409,
-                detail=f"A pending order already exists for {symbol}"
-            )
-
-        buy_result = client.place_order(
-            symbol=symbol,
-            side=TradeSide.BUY,
-            quantity=quantity,
-        )
-
-        if buy_result:
-            # Record the buy trade
-            await trade_execution_service.record_trade(
-                symbol=symbol,
-                side=TradeSide.BUY,
-                quantity=quantity,
-                price=buy_result.price,
-                order_id=buy_result.order_id,
-            )
-
-            # Invalidate caches
-            cache_service = get_cache_invalidation_service()
-            cache_service.invalidate_trade_caches()
-
-            return {
-                "status": "success",
-                "strategy": request.strategy,
-                "sells": sell_results,
-                "buy": {
-                    "symbol": symbol,
-                    "status": "success",
-                    "quantity": quantity,
-                    "price": buy_result.price,
-                    "order_id": buy_result.order_id,
-                },
-                "total_sold": round(total_sold_value, 2),
-            }
-        else:
-            return {
-                "status": "partial",
-                "message": "Sells succeeded but buy failed",
-                "sells": sell_results,
-                "buy": {
-                    "symbol": symbol,
-                    "status": "failed",
-                    "error": "Buy order execution failed",
-                },
-            }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))

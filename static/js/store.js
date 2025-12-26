@@ -36,7 +36,6 @@ document.addEventListener('alpine:init', () => {
     showEditStockModal: false,
     showStockChart: false,
     showSettingsModal: false,
-    showFundingModal: false,
     selectedStockSymbol: null,
     editingStock: null,
     executingSymbol: null,
@@ -44,16 +43,6 @@ document.addEventListener('alpine:init', () => {
     executingStep: null,
     message: '',
     messageType: 'success',
-
-    // Funding Modal State
-    fundingTarget: null,
-    fundingOptions: [],
-    fundingData: null,
-    loadingFundingOptions: false,
-    executingFunding: false,
-    seenFundingSignatures: [],
-    hasMoreFundingOptions: false,
-    loadingMoreFundingOptions: false,
 
     // Loading States
     loading: {
@@ -373,92 +362,6 @@ document.addEventListener('alpine:init', () => {
         this.showMessage(`Failed to execute plan: ${e.message}`, 'error');
       }
       this.loading.execute = false;
-    },
-
-    // Funding Methods
-    async openFundingModal(recommendation) {
-      this.fundingTarget = recommendation;
-      this.showFundingModal = true;
-      this.loadingFundingOptions = true;
-      this.fundingOptions = [];
-      this.fundingData = null;
-      this.seenFundingSignatures = [];
-      this.hasMoreFundingOptions = false;
-
-      try {
-        const data = await API.getFundingOptions(recommendation.symbol);
-        this.fundingData = data;
-        this.fundingOptions = data.options || [];
-        this.hasMoreFundingOptions = data.has_more || false;
-        // Track seen signatures for pagination
-        this.seenFundingSignatures = (data.options || []).map(opt => opt.signature);
-      } catch (e) {
-        console.error('Failed to fetch funding options:', e);
-        this.showMessage('Failed to fetch funding options', 'error');
-      }
-      this.loadingFundingOptions = false;
-    },
-
-    async loadMoreFundingOptions() {
-      if (!this.fundingTarget || this.loadingMoreFundingOptions) return;
-
-      this.loadingMoreFundingOptions = true;
-      try {
-        const excludeList = this.seenFundingSignatures.join(',');
-        const data = await API.getFundingOptions(this.fundingTarget.symbol, excludeList);
-        const newOptions = data.options || [];
-
-        // Add new options and track their signatures
-        this.fundingOptions = [...this.fundingOptions, ...newOptions];
-        newOptions.forEach(opt => this.seenFundingSignatures.push(opt.signature));
-        this.hasMoreFundingOptions = data.has_more && newOptions.length > 0;
-      } catch (e) {
-        console.error('Failed to load more funding options:', e);
-        this.showMessage('Failed to load more options', 'error');
-      }
-      this.loadingMoreFundingOptions = false;
-    },
-
-    closeFundingModal() {
-      this.showFundingModal = false;
-      this.fundingTarget = null;
-      this.fundingOptions = [];
-      this.fundingData = null;
-      this.seenFundingSignatures = [];
-      this.hasMoreFundingOptions = false;
-    },
-
-    async executeFunding(option) {
-      if (!this.fundingTarget) return;
-
-      this.executingFunding = true;
-      try {
-        const sells = option.sells.map(s => ({
-          symbol: s.symbol,
-          quantity: s.quantity
-        }));
-
-        const result = await API.executeFunding(this.fundingTarget.symbol, {
-          strategy: option.strategy,
-          sells: sells
-        });
-
-        if (result.status === 'success') {
-          this.showMessage(
-            `Funding complete: Sold ${result.sells.length} position(s), bought ${result.buy.quantity} ${result.buy.symbol}`,
-            'success'
-          );
-        } else {
-          this.showMessage(result.message || 'Partial success - check trades', 'warning');
-        }
-
-        this.closeFundingModal();
-        await this.fetchAll();
-      } catch (e) {
-        console.error('Failed to execute funding:', e);
-        this.showMessage('Failed to execute funding plan', 'error');
-      }
-      this.executingFunding = false;
     },
 
     // Computed Properties
