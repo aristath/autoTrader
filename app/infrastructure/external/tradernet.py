@@ -11,11 +11,11 @@ from typing import Optional
 import requests
 from tradernet import TraderNetAPI
 
-# Alias for backward compatibility
-Tradernet = TraderNetAPI
-
 from app.config import settings
 from app.infrastructure.events import SystemEvent, emit
+
+# Alias for backward compatibility
+Tradernet = TraderNetAPI
 
 logger = logging.getLogger(__name__)
 
@@ -1089,7 +1089,7 @@ class TradernetClient:
                                     "amount_eur": round(sp_comm_eur, 2),
                                     "status": status,
                                     "status_c": status_c,
-                                    "description": f"Structured product commission",
+                                    "description": "Structured product commission",
                                     "params": {"product_id": transaction_id, **params},
                                 }
                             )
