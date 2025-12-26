@@ -1,11 +1,10 @@
 """Tests for SettingsService."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
 from app.domain.services.settings_service import SettingsService
-from app.domain.value_objects.settings import Settings
 from app.repositories import SettingsRepository
 
 
@@ -102,6 +101,6 @@ class TestSettingsService:
         await service.update_setting("optimizer_blend", 0.7)
 
         # Cache should be invalidated, next call should reload
-        settings = await service.get_settings()
+        await service.get_settings()
         assert mock_repo.get_all.call_count == 2
         assert mock_repo.set_float.called

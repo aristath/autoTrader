@@ -17,7 +17,7 @@ The planner works by:
 
 import logging
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from app.domain.models import Position, Stock
 from app.domain.scoring.diversification import calculate_portfolio_score
@@ -110,7 +110,6 @@ async def identify_opportunities_from_weights(
     Returns:
         Dict mapping category to list of ActionCandidate
     """
-    from app.domain.constants import BUY_COOLDOWN_DAYS
 
     stocks_by_symbol = {s.symbol: s for s in stocks}
     positions_by_symbol = {p.symbol: p for p in positions}
@@ -741,7 +740,6 @@ async def create_holistic_plan(
     # Evaluate each sequence by its end-state score
     best_sequence = None
     best_end_score = 0.0
-    best_end_context = None
     best_breakdown = {}
 
     for seq_idx, sequence in enumerate(sequences):
@@ -775,7 +773,6 @@ async def create_holistic_plan(
         if end_score > best_end_score:
             best_end_score = end_score
             best_sequence = sequence
-            best_end_context = end_context
             best_breakdown = breakdown
             logger.info(f"  -> NEW BEST (score: {end_score:.3f})")
 

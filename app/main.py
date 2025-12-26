@@ -3,7 +3,6 @@
 import logging
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
@@ -90,7 +89,7 @@ async def lifespan(app: FastAPI):
         raise ValueError("Missing required Tradernet API credentials")
 
     # Initialize database manager (creates all databases with schemas)
-    db_manager = await init_databases(settings.data_dir)
+    await init_databases(settings.data_dir)
 
     # Initialize and start scheduler
     await init_scheduler()
@@ -118,9 +117,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add rate limiting middleware (must be before other middleware)
-from app.infrastructure.rate_limit import RateLimitMiddleware
+from app.infrastructure.rate_limit import RateLimitMiddleware  # noqa: E402
 
+# Add rate limiting middleware (must be before other middleware)
 app.add_middleware(RateLimitMiddleware)  # Uses values from config
 
 
