@@ -41,19 +41,19 @@ async def test_trade_execution_rollback_on_database_error(db):
 
     position_repo = PositionRepository(db=db)
     
-    # Create mock currency exchange service
+    # Create mock currency exchange service and exchange rate service
     from app.application.services.currency_exchange_service import CurrencyExchangeService
     from app.domain.services.exchange_rate_service import ExchangeRateService
-    from app.infrastructure.database.manager import get_db_manager
     mock_currency_service = MagicMock(spec=CurrencyExchangeService)
-    exchange_rate_service = ExchangeRateService(get_db_manager())
+    mock_exchange_rate_service = MagicMock(spec=ExchangeRateService)
+    mock_exchange_rate_service.get_rate = AsyncMock(return_value=1.0)
     
     service = TradeExecutionService(
         trade_repo=trade_repo,
         position_repo=position_repo,
         tradernet_client=mock_client,
         currency_exchange_service=mock_currency_service,
-        exchange_rate_service=exchange_rate_service,
+        exchange_rate_service=mock_exchange_rate_service,
     )
 
     # Mock repository create to fail
@@ -103,19 +103,19 @@ async def test_trade_execution_handles_external_failure(db):
     mock_client.is_connected = True
     mock_client.place_order.side_effect = Exception("API Error")
 
-    # Create mock currency exchange service
+    # Create mock currency exchange service and exchange rate service
     from app.application.services.currency_exchange_service import CurrencyExchangeService
     from app.domain.services.exchange_rate_service import ExchangeRateService
-    from app.infrastructure.database.manager import get_db_manager
     mock_currency_service = MagicMock(spec=CurrencyExchangeService)
-    exchange_rate_service = ExchangeRateService(get_db_manager())
+    mock_exchange_rate_service = MagicMock(spec=ExchangeRateService)
+    mock_exchange_rate_service.get_rate = AsyncMock(return_value=1.0)
     
     service = TradeExecutionService(
         trade_repo=trade_repo,
         position_repo=position_repo,
         tradernet_client=mock_client,
         currency_exchange_service=mock_currency_service,
-        exchange_rate_service=exchange_rate_service,
+        exchange_rate_service=mock_exchange_rate_service,
     )
 
     # Should handle error gracefully, no trade should be recorded
