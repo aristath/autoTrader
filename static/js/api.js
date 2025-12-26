@@ -105,14 +105,6 @@ const API = {
   restartSystem: () => API._post('/api/settings/restart'),
   resetCache: () => API._post('/api/settings/reset-cache'),
   rescheduleJobs: () => API._post('/api/settings/reschedule-jobs'),
-
-  // Funding
-  getFundingOptions: (symbol, excludeSignatures = '') => {
-    const params = excludeSignatures ? `?exclude_signatures=${encodeURIComponent(excludeSignatures)}` : '';
-    return fetch(`/api/trades/recommendations/${symbol}/funding-options${params}`).then(r => r.json());
-  },
-  executeFunding: (symbol, options) =>
-    API._post(`/api/trades/recommendations/${symbol}/execute-funding`, options),
 };
 
 // Make available globally
