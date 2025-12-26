@@ -703,54 +703,9 @@ class TradernetClient:
         all_transactions = []
 
         try:
-            # 1. Get transactions from getClientCpsHistory
-            with _led_api_call():
-                history = self._client.authorized_request(
-                    "getClientCpsHistory", {"limit": limit}, version=2
-                )
-
-            records = history if isinstance(history, list) else []
-            type_mapping = {
-                337: "withdrawal",
-                297: "structured_product_purchase",
-            }
-
-            for record in records:
-                transactions = _process_cps_history_record(record, type_mapping)
-                all_transactions.extend(transactions)
-
-            # 2. Get dividends, coupons, and other corporate actions
-            try:
-                with _led_api_call():
-                    corporate_actions = self._client.corporate_actions()
-
-                executed_actions = [
-                    a
-                    for a in corporate_actions
-                    if isinstance(a, dict) and a.get("executed", False)
-                ]
-
-                for action in executed_actions:
-                    transaction = _process_corporate_action(action)
-                    if transaction:
-                        all_transactions.append(transaction)
-            except Exception as e:
-                logger.warning(f"Failed to get corporate actions: {e}")
-
-            # 3. Get trading fees/commissions from trades
-            try:
-                with _led_api_call():
-                    trades_data = self._client.get_trades_history()
-
-                trade_list = trades_data.get("trades", {}).get("trade", [])
-
-                for trade in trade_list:
-                    transaction = _process_trade_fee(trade)
-                    if transaction:
-                        all_transactions.append(transaction)
-            except Exception as e:
-                logger.warning(f"Failed to get trades history: {e}")
-
+            all_transactions.extend(_get_cps_history_transactions(self._client, limit))
+            all_transactions.extend(_get_corporate_action_transactions(self._client))
+            all_transactions.extend(_get_trade_fee_transactions(self._client))
             return all_transactions
         except Exception as e:
             logger.error(f"Failed to get all cash flows: {e}")
