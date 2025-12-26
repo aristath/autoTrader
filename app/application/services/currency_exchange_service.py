@@ -373,35 +373,6 @@ class CurrencyExchangeService:
             needed = min_amount - current_balance
             return self._convert_for_balance(currency, source_currency, needed, source_balance)
 
-            # Get exchange rate to calculate source amount needed
-            rate = self.get_rate(source_currency, currency)
-            if not rate:
-                logger.error(f"Could not get rate for {source_currency}/{currency}")
-                return False
-
-            source_amount_needed = needed_with_buffer / rate
-
-            if source_balance < source_amount_needed:
-                logger.warning(
-                    f"Insufficient {source_currency} to convert: "
-                    f"need {source_amount_needed:.2f}, have {source_balance:.2f}"
-                )
-                return False
-
-            # Execute conversion
-            logger.info(
-                f"Converting {source_amount_needed:.2f} {source_currency} "
-                f"to {currency} (need {min_amount:.2f})"
-            )
-            result = self.exchange(source_currency, currency, source_amount_needed)
-
-            if result:
-                logger.info(f"Currency exchange completed: {result.order_id}")
-                return True
-            else:
-                logger.error("Currency exchange failed")
-                return False
-
         except Exception as e:
             logger.error(f"Failed to ensure {currency} balance: {e}")
             return False
