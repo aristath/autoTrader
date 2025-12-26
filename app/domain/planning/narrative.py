@@ -11,7 +11,7 @@ making the holistic planner's decisions transparent and educational.
 """
 
 import logging
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List
 
 if TYPE_CHECKING:
     from app.domain.planning.holistic_planner import ActionCandidate, HolisticStep
@@ -109,7 +109,7 @@ def _generate_sell_narrative(
 
         if overweight_geo:
             parts.append(f"The portfolio is overweight in {overweight_geo} region.")
-            parts.append(f"Trimming this position improves geographic diversification.")
+            parts.append("Trimming this position improves geographic diversification.")
         else:
             parts.append(f"Reason: {reason}.")
 
@@ -165,7 +165,7 @@ def _generate_buy_narrative(
         if underweight_geo:
             parts.append(f"The portfolio is underweight in {underweight_geo} region.")
             parts.append(
-                f"This purchase improves geographic diversification and reduces concentration risk."
+                "This purchase improves geographic diversification and reduces concentration risk."
             )
         else:
             parts.append(f"Reason: {reason}.")
@@ -230,31 +230,31 @@ def generate_plan_narrative(
     # Opening - summarize the strategy
     if windfall_sells and averaging_buys:
         parts.append(
-            f"This plan takes profits from windfall gains and reinvests in quality stocks "
-            f"that are temporarily down."
+            "This plan takes profits from windfall gains and reinvests in quality stocks "
+            "that are temporarily down."
         )
     elif windfall_sells:
         parts.append(
-            f"This plan captures windfall profits from positions that have exceeded "
-            f"their historical growth rates."
+            "This plan captures windfall profits from positions that have exceeded "
+            "their historical growth rates."
         )
     elif averaging_buys:
         parts.append(
-            f"This plan focuses on averaging down on quality positions that are "
-            f"temporarily undervalued."
+            "This plan focuses on averaging down on quality positions that are "
+            "temporarily undervalued."
         )
     elif sells and buys:
         parts.append(
-            f"This plan rebalances the portfolio by trimming overweight positions "
-            f"and adding to underweight areas."
+            "This plan rebalances the portfolio by trimming overweight positions "
+            "and adding to underweight areas."
         )
     elif buys:
         parts.append(
-            f"This plan deploys available cash into high-quality opportunities."
+            "This plan deploys available cash into high-quality opportunities."
         )
     elif sells:
         parts.append(
-            f"This plan reduces risk by taking profits from selected positions."
+            "This plan reduces risk by taking profits from selected positions."
         )
 
     # Add step count

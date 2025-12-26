@@ -127,7 +127,7 @@ async def _regenerate_multi_step_cache(
     )
     cache_key = f"multi_step_recommendations:{portfolio_cache_key}"
 
-    logger.info(f"Cache miss for multi-step recommendations, regenerating...")
+    logger.info("Cache miss for multi-step recommendations, regenerating...")
     steps_data = await rebalancing_service.get_multi_step_recommendations()
 
     if not steps_data:
