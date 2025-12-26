@@ -139,6 +139,154 @@ async def _check_pending_orders(trade, client, trade_repo) -> bool:
     return has_pending
 
 
+async def _get_recently_bought_symbols(trade_repo, trades, cooldown_days: int) -> Optional[set]:
+    """Get recently bought symbols for cooldown check."""
+    try:
+        return await trade_repo.get_recently_bought_symbols(cooldown_days)
+    except Exception as e:
+        logger.error(f"SAFETY: Failed to get recently bought symbols: {e}")
+        return None
+
+
+def _create_cooldown_failed_results(trades) -> List[dict]:
+    """Create failure results when cooldown check fails."""
+    return [
+        {
+            "symbol": t.symbol,
+            "status": "failed",
+            "error": "Cooldown check failed",
+        }
+        for t in trades
+        if t.side.upper() == "BUY"
+    ]
+
+
+async def _process_single_trade(
+    trade,
+    recently_bought: set,
+    cooldown_days: int,
+    currency_balances: Optional[dict],
+    currency_service: Optional[CurrencyExchangeService],
+    source_currency: str,
+    converted_currencies: set,
+    position_repo,
+    client,
+    trade_repo,
+    service,
+) -> tuple[Optional[dict], int]:
+    """Process a single trade and return result and skipped count."""
+    try:
+        if trade.side.upper() == "BUY":
+            cooldown_result = await _check_buy_cooldown(
+                trade, recently_bought, cooldown_days
+            )
+            if cooldown_result:
+                return cooldown_result, 0
+
+            currency_result = await _handle_buy_currency(
+                trade,
+                currency_balances,
+                currency_service,
+                source_currency,
+                converted_currencies,
+            )
+            if currency_result:
+                return currency_result, 1
+
+        if trade.side.upper() == "SELL":
+            sell_result = await _validate_sell_order(trade, position_repo)
+            if sell_result:
+                return sell_result, 1
+
+        has_pending = await _check_pending_orders(trade, client, trade_repo)
+        if has_pending:
+            return {
+                "symbol": trade.symbol,
+                "status": "blocked",
+                "error": f"Pending order already exists for {trade.symbol}",
+            }, 0
+
+        execution_result = await _execute_single_trade(trade, client)
+        if execution_result and execution_result.get("status") == "success":
+            result = execution_result["result"]
+            await service.record_trade(
+                symbol=trade.symbol,
+                side=trade.side,
+                quantity=trade.quantity,
+                price=result.price,
+                order_id=result.order_id,
+                currency=trade.currency,
+                estimated_price=trade.estimated_price,
+                source="tradernet",
+            )
+            return execution_result, 0
+        elif execution_result:
+            return execution_result, 0
+
+        return None, 0
+
+    except Exception as e:
+        logger.error(f"Failed to execute trade for {trade.symbol}: {e}")
+        error_msg = "ORDER PLACEMENT FAILED"
+        emit(SystemEvent.ERROR_OCCURRED, message=error_msg)
+        set_error(error_msg)
+        return {
+            "symbol": trade.symbol,
+            "status": "error",
+            "error": str(e),
+        }, 0
+
+
+async def _process_trades(
+    trades: List[Recommendation],
+    recently_bought: set,
+    cooldown_days: int,
+    currency_balances: Optional[dict],
+    currency_service: Optional[CurrencyExchangeService],
+    source_currency: str,
+    converted_currencies: set,
+    position_repo,
+    client,
+    trade_repo,
+    service,
+) -> tuple[List[dict], int]:
+    """Process all trades and return results and skipped count."""
+    results = []
+    skipped_count = 0
+
+    for trade in trades:
+        result, skipped = await _process_single_trade(
+            trade,
+            recently_bought,
+            cooldown_days,
+            currency_balances,
+            currency_service,
+            source_currency,
+            converted_currencies,
+            position_repo,
+            client,
+            trade_repo,
+            service,
+        )
+        if result:
+            results.append(result)
+        skipped_count += skipped
+
+    return results, skipped_count
+
+
+def _handle_skipped_trades_warning(skipped_count: int) -> None:
+    """Handle warning for skipped trades."""
+    if skipped_count > 0:
+        logger.warning(
+            f"Skipped {skipped_count} trades due to insufficient currency balance"
+        )
+        if skipped_count >= 2:
+            error_msg = "INSUFFICIENT FOREIGN CURRENCY BALANCE"
+            emit(SystemEvent.ERROR_OCCURRED, message=error_msg)
+            set_error(error_msg)
+
+
 async def _execute_single_trade(trade, client) -> Optional[dict]:
     """Execute a single trade and return result."""
     side_text = "BUYING" if trade.side.upper() == "BUY" else "SELLING"
@@ -286,113 +434,28 @@ class TradeExecutionService:
         skipped_count = 0
         converted_currencies = set()  # Track which currencies we've converted to
 
-        # Get recently bought symbols for cooldown safety check
         from app.domain.constants import BUY_COOLDOWN_DAYS
 
-        recently_bought = set()
-        try:
-            recently_bought = await self._trade_repo.get_recently_bought_symbols(
-                BUY_COOLDOWN_DAYS
-            )
-        except Exception as e:
-            logger.error(f"SAFETY: Failed to get recently bought symbols: {e}")
-            # If we can't check cooldown, refuse to execute any buys
-            return [
-                {
-                    "symbol": t.symbol,
-                    "status": "failed",
-                    "error": "Cooldown check failed",
-                }
-                for t in trades
-                if t.side.upper() == "BUY"
-            ]
+        recently_bought = await _get_recently_bought_symbols(
+            self._trade_repo, trades, BUY_COOLDOWN_DAYS
+        )
+        if recently_bought is None:
+            return _create_cooldown_failed_results(trades)
 
-        for trade in trades:
-            try:
-                # Check cooldown for BUY orders
-                if trade.side.upper() == "BUY":
-                    cooldown_result = await _check_buy_cooldown(
-                        trade, recently_bought, BUY_COOLDOWN_DAYS
-                    )
-                    if cooldown_result:
-                        results.append(cooldown_result)
-                        continue
+        results, skipped_count = await _process_trades(
+            trades,
+            recently_bought,
+            BUY_COOLDOWN_DAYS,
+            currency_balances,
+            currency_service,
+            source_currency,
+            converted_currencies,
+            self._position_repo,
+            client,
+            self._trade_repo,
+            self,
+        )
 
-                # Validate and handle currency for BUY orders
-                if trade.side.upper() == "BUY":
-                    currency_result = await _handle_buy_currency(
-                        trade,
-                        currency_balances,
-                        currency_service,
-                        source_currency,
-                        converted_currencies,
-                    )
-                    if currency_result:
-                        results.append(currency_result)
-                        skipped_count += 1
-                        continue
-
-                # Validate SELL orders
-                if trade.side.upper() == "SELL":
-                    sell_result = await _validate_sell_order(trade, self._position_repo)
-                    if sell_result:
-                        results.append(sell_result)
-                        skipped_count += 1
-                        continue
-
-                # Check for pending orders
-                has_pending = await _check_pending_orders(
-                    trade, client, self._trade_repo
-                )
-                if has_pending:
-                    results.append(
-                        {
-                            "symbol": trade.symbol,
-                            "status": "blocked",
-                            "error": f"Pending order already exists for {trade.symbol}",
-                        }
-                    )
-                    continue
-
-                # Execute the trade
-                execution_result = await _execute_single_trade(trade, client)
-                if execution_result and execution_result.get("status") == "success":
-                    result = execution_result["result"]
-                    await self.record_trade(
-                        symbol=trade.symbol,
-                        side=trade.side,
-                        quantity=trade.quantity,
-                        price=result.price,
-                        order_id=result.order_id,
-                        currency=trade.currency,
-                        estimated_price=trade.estimated_price,
-                        source="tradernet",
-                    )
-                    results.append(execution_result)
-                elif execution_result:
-                    results.append(execution_result)
-
-            except Exception as e:
-                logger.error(f"Failed to execute trade for {trade.symbol}: {e}")
-                error_msg = "ORDER PLACEMENT FAILED"
-                emit(SystemEvent.ERROR_OCCURRED, message=error_msg)
-                set_error(error_msg)
-                results.append(
-                    {
-                        "symbol": trade.symbol,
-                        "status": "error",
-                        "error": str(e),
-                    }
-                )
-
-        # Show LED warning if trades were skipped due to insufficient currency balance
-        if skipped_count > 0:
-            logger.warning(
-                f"Skipped {skipped_count} trades due to insufficient currency balance"
-            )
-            if skipped_count >= 2:
-                error_msg = "INSUFFICIENT FOREIGN CURRENCY BALANCE"
-                emit(SystemEvent.ERROR_OCCURRED, message=error_msg)
-                set_error(error_msg)
+        _handle_skipped_trades_warning(skipped_count)
 
         return results
