@@ -38,10 +38,8 @@ def _build_initial_positions(cumulative_positions: dict, start_date: str) -> lis
     return result
 
 
-def _process_in_range_trades(
-    in_range_trades: list, cumulative_positions: dict, result: list
-) -> None:
-    """Process trades in date range and update result."""
+def _build_positions_by_date(in_range_trades: list) -> dict:
+    """Build positions_by_date dictionary from in-range trades."""
     positions_by_date = {}
     for row in in_range_trades:
         date = row["executed_at"][:10]
@@ -60,17 +58,33 @@ def _process_in_range_trades(
         elif side == "SELL":
             positions_by_date[date][symbol] -= quantity
 
-    for date in sorted(positions_by_date.keys()):
-        for symbol, delta in positions_by_date[date].items():
-            if symbol not in cumulative_positions:
-                cumulative_positions[symbol] = 0.0
-            cumulative_positions[symbol] += delta
-            if cumulative_positions[symbol] < 0:
-                cumulative_positions[symbol] = 0.0
+    return positions_by_date
 
-        for symbol, quantity in cumulative_positions.items():
-            if quantity > 0:
-                result.append({"date": date, "symbol": symbol, "quantity": quantity})
+
+def _update_positions_for_date(
+    date: str, positions_by_date: dict, cumulative_positions: dict, result: list
+) -> None:
+    """Update cumulative positions for a date and add to result."""
+    for symbol, delta in positions_by_date[date].items():
+        if symbol not in cumulative_positions:
+            cumulative_positions[symbol] = 0.0
+        cumulative_positions[symbol] += delta
+        if cumulative_positions[symbol] < 0:
+            cumulative_positions[symbol] = 0.0
+
+    for symbol, quantity in cumulative_positions.items():
+        if quantity > 0:
+            result.append({"date": date, "symbol": symbol, "quantity": quantity})
+
+
+def _process_in_range_trades(
+    in_range_trades: list, cumulative_positions: dict, result: list
+) -> None:
+    """Process trades in date range and update result."""
+    positions_by_date = _build_positions_by_date(in_range_trades)
+
+    for date in sorted(positions_by_date.keys()):
+        _update_positions_for_date(date, positions_by_date, cumulative_positions, result)
 
 
 class TradeRepository:
