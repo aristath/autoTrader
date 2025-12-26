@@ -12,6 +12,29 @@ from app.infrastructure.external.tradernet import OrderResult, TradernetClient
 logger = logging.getLogger(__name__)
 
 
+def _find_rate_symbol(from_curr: str, to_curr: str, service) -> tuple[Optional[str], bool]:
+    """Find exchange rate symbol and whether it's inverse."""
+    if (from_curr, to_curr) in service.RATE_SYMBOLS:
+        return service.RATE_SYMBOLS[(from_curr, to_curr)], False
+    elif (to_curr, from_curr) in service.RATE_SYMBOLS:
+        return service.RATE_SYMBOLS[(to_curr, from_curr)], True
+    return None, False
+
+
+def _get_rate_via_path(from_curr: str, to_curr: str, service) -> Optional[float]:
+    """Get exchange rate via conversion path."""
+    path = service.get_conversion_path(from_curr, to_curr)
+    if len(path) == 1:
+        symbol = path[0].symbol
+        quote = service.client.get_quote(symbol)
+        return quote.price if quote and quote.price > 0 else None
+    elif len(path) == 2:
+        rate1 = service.get_rate(path[0].from_currency, path[0].to_currency)
+        rate2 = service.get_rate(path[1].from_currency, path[1].to_currency)
+        return rate1 * rate2 if rate1 and rate2 else None
+    return None
+
+
 @dataclass
 class ExchangeRate:
     """Exchange rate data."""
