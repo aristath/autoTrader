@@ -16,6 +16,7 @@ from app.repositories.history import HistoryRepository
 from app.repositories.settings import SettingsRepository
 from app.repositories.recommendation import RecommendationRepository
 from app.repositories.calculations import CalculationsRepository
+from app.repositories.dividend import DividendRepository
 
 __all__ = [
     "StockRepository",
@@ -29,4 +30,5 @@ __all__ = [
     "SettingsRepository",
     "RecommendationRepository",
     "CalculationsRepository",
+    "DividendRepository",
 ]
