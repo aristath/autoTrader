@@ -921,6 +921,7 @@ class RebalancingService:
         """
         from app.domain.planning.holistic_planner import create_holistic_plan
         from app.application.services.optimization import PortfolioOptimizer
+        from app.repositories import DividendRepository
 
         # Get optimizer settings
         optimizer_blend = await self._settings_repo.get_float("optimizer_blend", 0.5)
@@ -960,6 +961,10 @@ class RebalancingService:
         geo_targets = {a.name: a.target_pct / 100 for a in geo_allocations}
         ind_targets = {a.name: a.target_pct / 100 for a in ind_allocations}
 
+        # Get pending dividend bonuses (DRIP fallback)
+        dividend_repo = DividendRepository()
+        dividend_bonuses = await dividend_repo.get_pending_bonuses()
+
         # Run portfolio optimizer
         optimizer = PortfolioOptimizer()
         optimization_result = await optimizer.optimize(
@@ -973,6 +978,7 @@ class RebalancingService:
             geo_targets=geo_targets,
             ind_targets=ind_targets,
             min_cash_reserve=min_cash,
+            dividend_bonuses=dividend_bonuses,
         )
 
         # Log optimizer result

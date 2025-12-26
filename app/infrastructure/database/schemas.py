@@ -328,6 +328,32 @@ CREATE TABLE IF NOT EXISTS cash_flows (
 CREATE INDEX IF NOT EXISTS idx_cash_flows_date ON cash_flows(date);
 CREATE INDEX IF NOT EXISTS idx_cash_flows_type ON cash_flows(transaction_type);
 
+-- Dividend history with DRIP tracking
+-- Tracks dividend payments and whether they were reinvested.
+-- pending_bonus: If dividend couldn't be reinvested (too small), store a bonus
+-- that the optimizer will apply to that stock's expected return.
+CREATE TABLE IF NOT EXISTS dividend_history (
+    id INTEGER PRIMARY KEY,
+    symbol TEXT NOT NULL,
+    cash_flow_id INTEGER,            -- Link to cash_flows table (optional)
+    amount REAL NOT NULL,            -- Original dividend amount
+    currency TEXT NOT NULL,
+    amount_eur REAL NOT NULL,        -- Converted amount in EUR
+    payment_date TEXT NOT NULL,
+    reinvested INTEGER DEFAULT 0,    -- 0 = not reinvested, 1 = reinvested
+    reinvested_at TEXT,              -- When reinvestment trade executed
+    reinvested_quantity INTEGER,     -- Shares bought with dividend
+    pending_bonus REAL DEFAULT 0,    -- Bonus to apply to expected return (0.0 to 1.0)
+    bonus_cleared INTEGER DEFAULT 0, -- 1 when bonus has been used
+    cleared_at TEXT,                 -- When bonus was cleared
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (cash_flow_id) REFERENCES cash_flows(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_dividend_history_symbol ON dividend_history(symbol);
+CREATE INDEX IF NOT EXISTS idx_dividend_history_date ON dividend_history(payment_date);
+CREATE INDEX IF NOT EXISTS idx_dividend_history_pending ON dividend_history(pending_bonus) WHERE pending_bonus > 0;
+
 -- Schema version tracking
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY,
@@ -348,10 +374,22 @@ async def init_ledger_schema(db):
         now = datetime.now().isoformat()
         await db.execute(
             "INSERT INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
-            (1, now, "Initial ledger schema")
+            (2, now, "Initial ledger schema with dividend_history")
         )
         await db.commit()
-        logger.info("Ledger database initialized with schema version 1")
+        logger.info("Ledger database initialized with schema version 2 (includes dividend_history)")
+    elif current_version == 1:
+        # Migration: Add dividend_history table (version 1 -> 2)
+        now = datetime.now().isoformat()
+        logger.info("Migrating ledger database to schema version 2 (dividend_history)...")
+
+        # Table is created by executescript above (CREATE IF NOT EXISTS)
+        await db.execute(
+            "INSERT INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
+            (2, now, "Added dividend_history table for DRIP tracking")
+        )
+        await db.commit()
+        logger.info("Ledger database migrated to schema version 2")
 
 
 # =============================================================================

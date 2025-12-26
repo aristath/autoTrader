@@ -15,6 +15,7 @@ from app.repositories import (
     SettingsRepository,
     StockRepository,
     PositionRepository,
+    DividendRepository,
 )
 from app.infrastructure.external.tradernet_client import TradernetClient
 from app.infrastructure.external import yahoo_finance as yahoo
@@ -111,6 +112,10 @@ async def run_optimization() -> Dict[str, Any]:
     geo_targets = await settings_repo.get_json("geography_targets", {})
     ind_targets = await settings_repo.get_json("industry_targets", {})
 
+    # Get pending dividend bonuses (DRIP fallback)
+    dividend_repo = DividendRepository()
+    dividend_bonuses = await dividend_repo.get_pending_bonuses()
+
     # Run optimization
     optimizer = PortfolioOptimizer()
     result = await optimizer.optimize(
@@ -124,6 +129,7 @@ async def run_optimization() -> Dict[str, Any]:
         geo_targets=geo_targets,
         ind_targets=ind_targets,
         min_cash_reserve=settings.min_cash_reserve,
+        dividend_bonuses=dividend_bonuses,
     )
 
     # Convert result to dict for caching and response

@@ -330,3 +330,41 @@ class MultiStepRecommendation:
     score_change: float
     available_cash_before: float
     available_cash_after: float
+
+
+@dataclass
+class DividendRecord:
+    """Record of a dividend payment with DRIP tracking.
+
+    Tracks dividend payments and whether they were successfully reinvested.
+    If reinvestment wasn't possible (dividend too small), a pending_bonus
+    is calculated which the optimizer uses to boost the stock's expected return.
+    """
+    symbol: str
+    amount: float  # Original dividend amount
+    currency: str
+    amount_eur: float  # Converted to EUR
+    payment_date: str  # ISO date string
+    id: Optional[int] = None
+    cash_flow_id: Optional[int] = None  # Link to cash_flows table
+    reinvested: bool = False
+    reinvested_at: Optional[str] = None
+    reinvested_quantity: Optional[int] = None
+    pending_bonus: float = 0.0  # Expected return bonus (0.0 to 1.0)
+    bonus_cleared: bool = False
+    cleared_at: Optional[str] = None
+    created_at: Optional[str] = None
+
+    def __post_init__(self):
+        """Validate dividend record data."""
+        if not self.symbol or not self.symbol.strip():
+            raise ValidationError("Symbol cannot be empty")
+
+        if self.amount <= 0:
+            raise ValidationError("Dividend amount must be positive")
+
+        if self.amount_eur <= 0:
+            raise ValidationError("Dividend amount in EUR must be positive")
+
+        # Normalize symbol
+        object.__setattr__(self, 'symbol', self.symbol.upper().strip())
