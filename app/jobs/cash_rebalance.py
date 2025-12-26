@@ -7,11 +7,8 @@ Priority: SELL before BUY.
 import logging
 from typing import TYPE_CHECKING
 
-from app.config import settings
-from app.domain.scoring import PortfolioContext
 from app.infrastructure.cache import cache
 from app.infrastructure.daily_pnl import get_daily_pnl_tracker
-from app.infrastructure.database.manager import get_db_manager
 from app.infrastructure.events import SystemEvent, emit
 from app.infrastructure.external.tradernet import get_tradernet_client
 from app.infrastructure.hardware.display_service import (
@@ -22,11 +19,9 @@ from app.infrastructure.hardware.display_service import (
 from app.infrastructure.locking import file_lock
 from app.infrastructure.recommendation_cache import get_recommendation_cache
 from app.repositories import (
-    AllocationRepository,
     PositionRepository,
     RecommendationRepository,
     SettingsRepository,
-    StockRepository,
     TradeRepository,
 )
 
@@ -55,10 +50,7 @@ async def check_and_rebalance():
 async def _check_and_rebalance_internal():
     """Internal rebalance implementation with drip execution."""
     from app.application.services.trade_execution_service import TradeExecutionService
-    from app.domain.constants import BUY_COOLDOWN_DAYS
-    from app.domain.models import Recommendation
     from app.domain.value_objects.trade_side import TradeSide
-    from app.infrastructure.external import yahoo_finance as yahoo
     from app.jobs.daily_sync import sync_portfolio
     from app.jobs.sync_trades import sync_trades
 
@@ -121,20 +113,14 @@ async def _check_and_rebalance_internal():
         )
 
         # Initialize repositories
-        stock_repo = StockRepository()
         position_repo = PositionRepository()
         trade_repo = TradeRepository()
-        allocation_repo = AllocationRepository()
-        db_manager = get_db_manager()
 
         # Step 2: Build portfolio context
         logger.info("Step 2: Building portfolio context...")
         set_processing("BUILDING PORTFOLIO CONTEXT...")
 
         positions = await position_repo.get_all()
-        stocks = await stock_repo.get_all_active()
-        allocations = await allocation_repo.get_all()
-        total_value = await position_repo.get_total_value()
 
         # Generate portfolio hash for recommendation matching
         from app.domain.portfolio_hash import generate_portfolio_hash
@@ -143,42 +129,6 @@ async def _check_and_rebalance_internal():
             {"symbol": p.symbol, "quantity": p.quantity} for p in positions
         ]
         portfolio_hash = generate_portfolio_hash(position_hash_dicts)
-
-        # Build portfolio context for scoring
-        # get_all() returns Dict[str, float] with keys like "geography:name"
-        geo_weights = {}
-        industry_weights = {}
-        for key, target_pct in allocations.items():
-            parts = key.split(":", 1)
-            if len(parts) == 2:
-                alloc_type, name = parts
-                if alloc_type == "geography":
-                    geo_weights[name] = target_pct
-                elif alloc_type == "industry":
-                    industry_weights[name] = target_pct
-
-        position_map = {p.symbol: p.market_value_eur or 0 for p in positions}
-        stock_geographies = {s.symbol: s.geography for s in stocks}
-        stock_industries = {s.symbol: s.industry for s in stocks if s.industry}
-        stock_scores = {}
-
-        # Get existing scores
-        score_rows = await db_manager.state.fetchall(
-            "SELECT symbol, quality_score FROM scores"
-        )
-        for row in score_rows:
-            if row["quality_score"]:
-                stock_scores[row["symbol"]] = row["quality_score"]
-
-        portfolio_context = PortfolioContext(
-            geo_weights=geo_weights,
-            industry_weights=industry_weights,
-            positions=position_map,
-            total_value=total_value if total_value > 0 else 1.0,
-            stock_geographies=stock_geographies,
-            stock_industries=stock_industries,
-            stock_scores=stock_scores,
-        )
 
         # Step 3: Get next action from holistic planner
         logger.info("Step 3: Getting recommendation from holistic planner...")
