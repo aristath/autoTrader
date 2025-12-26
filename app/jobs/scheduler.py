@@ -9,7 +9,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -205,8 +204,6 @@ async def init_scheduler() -> AsyncIOScheduler:
 
 async def reschedule_all_jobs():
     """Reschedule all jobs with current settings from database."""
-    global scheduler
-
     if not scheduler:
         logger.warning("Scheduler not initialized, cannot reschedule")
         return
@@ -267,7 +264,6 @@ async def reschedule_all_jobs():
 
 def start_scheduler():
     """Start the scheduler."""
-    global scheduler
     if scheduler and not scheduler.running:
         scheduler.start()
         logger.info("Scheduler started")
@@ -275,7 +271,6 @@ def start_scheduler():
 
 def stop_scheduler():
     """Stop the scheduler."""
-    global scheduler
     if scheduler and scheduler.running:
         scheduler.shutdown()
         logger.info("Scheduler stopped")
@@ -283,14 +278,11 @@ def stop_scheduler():
 
 def get_scheduler() -> AsyncIOScheduler:
     """Get the scheduler instance."""
-    global scheduler
     return scheduler
 
 
 def get_job_health_status() -> dict:
     """Get health status of all scheduled jobs."""
-    global scheduler, _job_failures
-
     if not scheduler:
         return {}
 
