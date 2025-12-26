@@ -6,19 +6,19 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from app.domain.value_objects.trade_side import TradeSide
 from app.domain.value_objects.trade_side import TradeSide
-from app.repositories import (
-    StockRepository,
-    PositionRepository,
-    TradeRepository,
-    AllocationRepository,
-    PortfolioRepository,
-    RecommendationRepository,
+from app.infrastructure.dependencies import (
+    StockRepositoryDep,
+    PositionRepositoryDep,
+    TradeRepositoryDep,
+    AllocationRepositoryDep,
+    PortfolioRepositoryDep,
+    RecommendationRepositoryDep,
+    TradeSafetyServiceDep,
+    TradeExecutionServiceDep,
 )
 from app.infrastructure.cache import cache
-from app.application.services.trade_safety_service import TradeSafetyService
 from app.infrastructure.cache_invalidation import get_cache_invalidation_service
 from app.services.tradernet_connection import ensure_tradernet_connected
-from app.application.services.trade_execution_service import TradeExecutionService
 from app.domain.services.trade_sizing_service import TradeSizingService
 
 logger = logging.getLogger(__name__)
@@ -48,9 +48,8 @@ class TradeRequest(BaseModel):
 
 
 @router.get("")
-async def get_trades(limit: int = 50):
+async def get_trades(trade_repo: TradeRepositoryDep, limit: int = 50):
     """Get trade history."""
-    trade_repo = TradeRepository()
     trades = await trade_repo.get_history(limit=limit)
     return [
         {
@@ -67,12 +66,15 @@ async def get_trades(limit: int = 50):
 
 
 @router.post("/execute")
-async def execute_trade(trade: TradeRequest):
+async def execute_trade(
+    trade: TradeRequest,
+    stock_repo: StockRepositoryDep,
+    trade_repo: TradeRepositoryDep,
+    position_repo: PositionRepositoryDep,
+    safety_service: TradeSafetyServiceDep,
+    trade_execution_service: TradeExecutionServiceDep,
+):
     """Execute a manual trade."""
-    stock_repo = StockRepository()
-    trade_repo = TradeRepository()
-    position_repo = PositionRepository()
-
     # Check stock exists
     stock = await stock_repo.get_by_symbol(trade.symbol)
     if not stock:
@@ -80,9 +82,6 @@ async def execute_trade(trade: TradeRequest):
 
     # Ensure connection
     client = await ensure_tradernet_connected()
-
-    # Safety checks
-    safety_service = TradeSafetyService(trade_repo, position_repo)
     await safety_service.validate_trade(
         symbol=trade.symbol,
         side=trade.side,
@@ -99,8 +98,7 @@ async def execute_trade(trade: TradeRequest):
 
     if result:
         # Record trade using service
-        execution_service = TradeExecutionService(trade_repo, position_repo)
-        await execution_service.record_trade(
+        await trade_execution_service.record_trade(
             symbol=trade.symbol,
             side=trade.side,
             quantity=trade.quantity,
