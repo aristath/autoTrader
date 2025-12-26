@@ -10,9 +10,6 @@ from datetime import datetime
 from app.domain.repositories.protocols import ITradeRepository, IPositionRepository
 from app.domain.models import Recommendation, Trade
 from app.domain.value_objects.currency import Currency
-from app.domain.value_objects.trade_side import TradeSide
-from app.domain.factories.trade_factory import TradeFactory
-from app.domain.events import TradeExecutedEvent, get_event_bus
 from app.infrastructure.external.tradernet import TradernetClient
 from app.infrastructure.events import emit, SystemEvent
 from app.infrastructure.hardware.display_service import set_activity
@@ -20,6 +17,7 @@ from app.application.services.currency_exchange_service import (
     CurrencyExchangeService,
 )
 from app.domain.services.exchange_rate_service import ExchangeRateService
+from app.application.services.trade_execution.trade_recorder import record_trade
 
 logger = logging.getLogger(__name__)
 
@@ -70,68 +68,19 @@ class TradeExecutionService:
         Returns:
             Trade object if recorded successfully, None if duplicate or error
         """
-        # Use estimated_price if actual price is invalid
-        final_price = price if price > 0 else (estimated_price or 0)
-        
-        try:
-            # Check if order_id already exists (might have been stored by sync_trades)
-            if order_id:
-                exists = await self._trade_repo.exists(order_id)
-                if exists:
-                    logger.debug(f"Order {order_id} already exists in database, skipping")
-                    return None
-            
-            # Convert side to TradeSide enum
-            trade_side = TradeSide.from_string(side)
-            
-            # Convert currency to Currency enum and get exchange rate
-            trade_currency = Currency.EUR
-            currency_rate = None
-            if currency:
-                if isinstance(currency, str):
-                    trade_currency = Currency.from_string(currency)
-                else:
-                    trade_currency = currency
-                
-                # Get exchange rate if not EUR
-                if trade_currency != Currency.EUR:
-                    currency_rate = await self._exchange_rate_service.get_rate(str(trade_currency), str(Currency.EUR))
-            
-            # Use factory to create trade
-            trade_record = TradeFactory.create_from_execution(
-                symbol=symbol,
-                side=trade_side,
-                quantity=quantity,
-                price=final_price,
-                order_id=order_id,
-                executed_at=datetime.now(),
-                currency=trade_currency,
-                currency_rate=currency_rate,
-                source=source,
-            )
-            
-            await self._trade_repo.create(trade_record)
-            logger.info(f"Stored order {order_id or '(no order_id)'} for {symbol} immediately")
-            
-            # Publish domain event
-            event_bus = get_event_bus()
-            event_bus.publish(TradeExecutedEvent(trade=trade_record))
-            
-            # For successful SELL orders, update last_sold_at in positions
-            if trade_side.is_sell() and self._position_repo:
-                try:
-                    await self._position_repo.update_last_sold_at(symbol)
-                    logger.info(f"Updated last_sold_at for {symbol}")
-                except Exception as e:
-                    logger.warning(f"Failed to update last_sold_at: {e}")
-            
-            return trade_record
-            
-        except Exception as e:
-            # Log but don't fail - order was placed successfully
-            # This might be a duplicate key error if sync_trades already inserted it
-            logger.warning(f"Failed to store order immediately (may already exist): {e}")
-            return None
+        return await record_trade(
+            symbol=symbol,
+            side=side,
+            quantity=quantity,
+            price=price,
+            trade_repo=self._trade_repo,
+            position_repo=self._position_repo,
+            exchange_rate_service=self._exchange_rate_service,
+            order_id=order_id,
+            currency=currency,
+            estimated_price=estimated_price,
+            source=source,
+        )
 
     async def execute_trades(
         self,
