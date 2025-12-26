@@ -5,7 +5,7 @@ Uses long-term value scoring with portfolio-aware allocation fit.
 """
 
 import logging
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from app.application.services.recommendation.performance_adjustment_calculator import (
     get_performance_adjusted_weights,
@@ -555,8 +555,8 @@ def _build_allocation_maps(
     position_dicts: list, total_value: float
 ) -> tuple[dict, dict]:
     """Build geography and industry allocation maps."""
-    geo_allocations = {}
-    ind_allocations = {}
+    geo_allocations: dict[str, float] = {}
+    ind_allocations: dict[str, float] = {}
     for pos in position_dicts:
         geo = pos.get("geography")
         ind = pos.get("industry")
@@ -1120,8 +1120,7 @@ class RebalancingService:
             logger.info("No positions eligible for selling")
             return []
 
-        # _get_target_allocations is not async, but mypy thinks it is
-        target_geo_weights, target_ind_weights = _get_target_allocations(
+        target_geo_weights, target_ind_weights = await _get_target_allocations(
             self._allocation_repo
         )
 
@@ -1211,7 +1210,9 @@ class RebalancingService:
         )
 
         # Get current prices for all stocks
-        yahoo_symbols = {s.symbol: s.yahoo_symbol for s in stocks if s.yahoo_symbol}
+        yahoo_symbols: Dict[str, Optional[str]] = {
+            s.symbol: s.yahoo_symbol for s in stocks if s.yahoo_symbol
+        }
         current_prices = yahoo.get_batch_quotes(yahoo_symbols)
 
         # Build positions dict for optimizer
@@ -1311,5 +1312,3 @@ class RebalancingService:
             f"Holistic planner generated {len(recommendations)} recommendations"
         )
         return recommendations
-
-
