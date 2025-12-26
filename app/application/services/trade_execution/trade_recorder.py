@@ -18,6 +18,52 @@ from app.domain.value_objects.trade_side import TradeSide
 logger = logging.getLogger(__name__)
 
 
+async def _check_duplicate_order(
+    order_id: Optional[str], trade_repo: ITradeRepository
+) -> bool:
+    """Check if order_id already exists in database."""
+    if not order_id:
+        return False
+    exists = await trade_repo.exists(order_id)
+    if exists:
+        logger.debug(f"Order {order_id} already exists in database, skipping")
+    return exists
+
+
+async def _get_currency_and_rate(
+    currency: Optional[str],
+    exchange_rate_service: ExchangeRateService,
+) -> tuple[Currency, Optional[float]]:
+    """Convert currency string to enum and get exchange rate if needed."""
+    trade_currency = Currency.EUR
+    currency_rate = None
+    
+    if currency:
+        if isinstance(currency, str):
+            trade_currency = Currency.from_string(currency)
+        else:
+            trade_currency = currency
+
+        if trade_currency != Currency.EUR:
+            currency_rate = await exchange_rate_service.get_rate(
+                str(trade_currency), str(Currency.EUR)
+            )
+    
+    return trade_currency, currency_rate
+
+
+async def _update_position_after_sell(
+    symbol: str, position_repo: Optional[IPositionRepository]
+) -> None:
+    """Update last_sold_at timestamp for position after successful sell."""
+    if position_repo:
+        try:
+            await position_repo.update_last_sold_at(symbol)
+            logger.info(f"Updated last_sold_at for {symbol}")
+        except Exception as e:
+            logger.warning(f"Failed to update last_sold_at: {e}")
+
+
 async def record_trade(
     symbol: str,
     side: str,
@@ -52,36 +98,17 @@ async def record_trade(
     Returns:
         Trade object if recorded successfully, None if duplicate or error
     """
-    # Use estimated_price if actual price is invalid
     final_price = price if price > 0 else (estimated_price or 0)
 
     try:
-        # Check if order_id already exists (might have been stored by sync_trades)
-        if order_id:
-            exists = await trade_repo.exists(order_id)
-            if exists:
-                logger.debug(f"Order {order_id} already exists in database, skipping")
-                return None
+        if await _check_duplicate_order(order_id, trade_repo):
+            return None
 
-        # Convert side to TradeSide enum
         trade_side = TradeSide.from_string(side)
+        trade_currency, currency_rate = await _get_currency_and_rate(
+            currency, exchange_rate_service
+        )
 
-        # Convert currency to Currency enum and get exchange rate
-        trade_currency = Currency.EUR
-        currency_rate = None
-        if currency:
-            if isinstance(currency, str):
-                trade_currency = Currency.from_string(currency)
-            else:
-                trade_currency = currency
-
-            # Get exchange rate if not EUR
-            if trade_currency != Currency.EUR:
-                currency_rate = await exchange_rate_service.get_rate(
-                    str(trade_currency), str(Currency.EUR)
-                )
-
-        # Use factory to create trade
         trade_record = TradeFactory.create_from_execution(
             symbol=symbol,
             side=trade_side,
@@ -99,22 +126,14 @@ async def record_trade(
             f"Stored order {order_id or '(no order_id)'} for {symbol} immediately"
         )
 
-        # Publish domain event
         event_bus = get_event_bus()
         event_bus.publish(TradeExecutedEvent(trade=trade_record))
 
-        # For successful SELL orders, update last_sold_at in positions
-        if trade_side.is_sell() and position_repo:
-            try:
-                await position_repo.update_last_sold_at(symbol)
-                logger.info(f"Updated last_sold_at for {symbol}")
-            except Exception as e:
-                logger.warning(f"Failed to update last_sold_at: {e}")
+        if trade_side.is_sell():
+            await _update_position_after_sell(symbol, position_repo)
 
         return trade_record
 
     except Exception as e:
-        # Log but don't fail - order was placed successfully
-        # This might be a duplicate key error if sync_trades already inserted it
         logger.warning(f"Failed to store order immediately (may already exist): {e}")
         return None
