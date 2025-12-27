@@ -314,137 +314,48 @@ class SettingsModal extends HTMLElement {
               <!-- Job Scheduling Card -->
               <div class="bg-gray-800 border border-gray-700 rounded p-4">
                 <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Job Scheduling</h3>
+                <p class="text-xs text-gray-500 mb-4">Simplified to 4 consolidated jobs: sync cycle (trading), daily pipeline (data), and maintenance.</p>
 
                 <div class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 items-start">
-                  <!-- Portfolio Sync -->
+                  <!-- Sync Cycle -->
                   <div>
-                    <span class="text-sm text-gray-300">Portfolio Sync</span>
-                    <p class="text-xs text-gray-500">Fetch positions</p>
+                    <span class="text-sm text-gray-300">Sync Cycle</span>
+                    <p class="text-xs text-gray-500">Trades, prices, recommendations, execution</p>
                   </div>
                   <div class="flex items-center gap-1">
                     <input type="number"
-                           min="1"
+                           min="5"
                            max="60"
-                           step="1"
-                           :value="$store.app.settings.job_portfolio_sync_minutes"
-                           @change="$store.app.updateJobSetting('job_portfolio_sync_minutes', $event.target.value)"
+                           step="5"
+                           :value="$store.app.settings.job_sync_cycle_minutes"
+                           @change="$store.app.updateJobSetting('job_sync_cycle_minutes', $event.target.value)"
                            class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
                     <span class="text-gray-400 text-sm">min</span>
                   </div>
 
-                  <!-- Trade Sync -->
+                  <!-- Maintenance Hour -->
                   <div>
-                    <span class="text-sm text-gray-300">Trade Sync</span>
-                    <p class="text-xs text-gray-500">Sync executed trades</p>
+                    <span class="text-sm text-gray-300">Maintenance</span>
+                    <p class="text-xs text-gray-500">Daily backup and cleanup hour</p>
                   </div>
                   <div class="flex items-center gap-1">
                     <input type="number"
-                           min="1"
-                           max="60"
+                           min="0"
+                           max="23"
                            step="1"
-                           :value="$store.app.settings.job_trade_sync_minutes"
-                           @change="$store.app.updateJobSetting('job_trade_sync_minutes', $event.target.value)"
+                           :value="$store.app.settings.job_maintenance_hour"
+                           @change="$store.app.updateJobSetting('job_maintenance_hour', $event.target.value)"
                            class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                    <span class="text-gray-400 text-sm">min</span>
-                  </div>
-
-                  <!-- Price Sync -->
-                  <div>
-                    <span class="text-sm text-gray-300">Price Sync</span>
-                    <p class="text-xs text-gray-500">Fetch current prices</p>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <input type="number"
-                           min="1"
-                           max="60"
-                           step="1"
-                           :value="$store.app.settings.job_price_sync_minutes"
-                           @change="$store.app.updateJobSetting('job_price_sync_minutes', $event.target.value)"
-                           class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                    <span class="text-gray-400 text-sm">min</span>
-                  </div>
-
-                  <!-- Score Refresh -->
-                  <div>
-                    <span class="text-sm text-gray-300">Score Refresh</span>
-                    <p class="text-xs text-gray-500">Recalculate scores</p>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <input type="number"
-                           min="1"
-                           max="60"
-                           step="1"
-                           :value="$store.app.settings.job_score_refresh_minutes"
-                           @change="$store.app.updateJobSetting('job_score_refresh_minutes', $event.target.value)"
-                           class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                    <span class="text-gray-400 text-sm">min</span>
-                  </div>
-
-                  <!-- Rebalance Check -->
-                  <div>
-                    <span class="text-sm text-gray-300">Rebalance Check</span>
-                    <p class="text-xs text-gray-500">Check opportunities</p>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <input type="number"
-                           min="1"
-                           max="60"
-                           step="1"
-                           :value="$store.app.settings.job_rebalance_check_minutes"
-                           @change="$store.app.updateJobSetting('job_rebalance_check_minutes', $event.target.value)"
-                           class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                    <span class="text-gray-400 text-sm">min</span>
+                    <span class="text-gray-400 text-sm">h</span>
                   </div>
                 </div>
 
-                <!-- Daily Jobs -->
+                <!-- Fixed Jobs Info -->
                 <div class="mt-4 pt-3 border-t border-gray-700/50">
-                  <span class="text-xs text-gray-500 uppercase tracking-wide">Daily Jobs (Hour 0-23)</span>
-                  <div class="mt-2 grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 items-start">
-                    <!-- Cash Flow Sync -->
-                    <div>
-                      <span class="text-sm text-gray-300">Cash Flow Sync</span>
-                    </div>
-                    <div class="flex items-center gap-1">
-                      <input type="number"
-                             min="0"
-                             max="23"
-                             step="1"
-                             :value="$store.app.settings.job_cash_flow_sync_hour"
-                             @change="$store.app.updateJobSetting('job_cash_flow_sync_hour', $event.target.value)"
-                             class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                      <span class="text-gray-400 text-sm">h</span>
-                    </div>
-
-                    <!-- Historical Sync -->
-                    <div>
-                      <span class="text-sm text-gray-300">Historical Sync</span>
-                    </div>
-                    <div class="flex items-center gap-1">
-                      <input type="number"
-                             min="0"
-                             max="23"
-                             step="1"
-                             :value="$store.app.settings.job_historical_sync_hour"
-                             @change="$store.app.updateJobSetting('job_historical_sync_hour', $event.target.value)"
-                             class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                      <span class="text-gray-400 text-sm">h</span>
-                    </div>
-
-                    <!-- Maintenance -->
-                    <div>
-                      <span class="text-sm text-gray-300">Maintenance</span>
-                    </div>
-                    <div class="flex items-center gap-1">
-                      <input type="number"
-                             min="0"
-                             max="23"
-                             step="1"
-                             :value="$store.app.settings.job_maintenance_hour"
-                             @change="$store.app.updateJobSetting('job_maintenance_hour', $event.target.value)"
-                             class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                      <span class="text-gray-400 text-sm">h</span>
-                    </div>
+                  <span class="text-xs text-gray-500 uppercase tracking-wide">Fixed Schedules</span>
+                  <div class="mt-2 space-y-1 text-xs text-gray-400">
+                    <p>Daily Pipeline: Hourly (per-symbol data sync)</p>
+                    <p>Weekly Maintenance: Sundays (integrity checks)</p>
                   </div>
                 </div>
               </div>
