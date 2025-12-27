@@ -390,7 +390,7 @@ async def _get_holistic_recommendation():
     recommendation_repo = RecommendationRepository()
     db_manager = get_db_manager()
     tradernet_client = TradernetClient.shared()
-    exchange_rate_service = CurrencyExchangeService()
+    exchange_rate_service = CurrencyExchangeService(tradernet_client)
 
     rebalancing_service = RebalancingService(
         stock_repo=stock_repo,
