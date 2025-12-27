@@ -157,10 +157,10 @@ class ConstraintsManager:
         Returns:
             Tuple of (geography_constraints, industry_constraints)
         """
-        # Group stocks by geography
+        # Group stocks by country
         geo_groups: Dict[str, List[str]] = {}
         for stock in stocks:
-            geo = stock.geography or "OTHER"
+            geo = stock.country or "OTHER"
             if geo not in geo_groups:
                 geo_groups[geo] = []
             geo_groups[geo].append(stock.symbol)
