@@ -24,11 +24,11 @@ class PriorityInput:
 
     symbol: str
     name: str
+    stock_score: float  # From scorer.py (includes allocation fit if available)
+    multiplier: float  # Manual priority multiplier
     country: Optional[str] = None  # Replaces geography
     industry: Optional[str] = None
-    stock_score: float  # From scorer.py (includes allocation fit if available)
     volatility: Optional[float] = None
-    multiplier: float  # Manual priority multiplier
     # Additional context for display
     quality_score: Optional[float] = None
     opportunity_score: Optional[float] = None
@@ -41,12 +41,12 @@ class PriorityResult:
 
     symbol: str
     name: str
-    country: Optional[str] = None  # Replaces geography
-    industry: Optional[str] = None
     stock_score: float
-    volatility: Optional[float] = None
     multiplier: float
     combined_priority: float  # Final priority score (score * multiplier)
+    country: Optional[str] = None  # Replaces geography
+    industry: Optional[str] = None
+    volatility: Optional[float] = None
     # Breakdown for display
     quality_score: Optional[float] = None
     opportunity_score: Optional[float] = None
