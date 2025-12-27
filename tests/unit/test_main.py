@@ -381,12 +381,8 @@ class TestLifespan:
 
         with (
             patch("app.main.settings", mock_settings),
-            patch(
-                "app.main.init_databases", new_callable=AsyncMock
-            ) as mock_init_db,
-            patch(
-                "app.main.init_scheduler", new_callable=AsyncMock
-            ) as mock_init_sched,
+            patch("app.main.init_databases", new_callable=AsyncMock) as mock_init_db,
+            patch("app.main.init_scheduler", new_callable=AsyncMock) as mock_init_sched,
             patch("app.main.start_scheduler") as mock_start_sched,
             patch("app.main.get_tradernet_client", return_value=mock_client),
             patch("app.main.stop_scheduler") as mock_stop_sched,

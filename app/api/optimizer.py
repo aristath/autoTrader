@@ -180,7 +180,9 @@ def _optimization_result_to_dict(
         action = "Buy" if top["direction"] == "buy" else "Sell"
         change_eur_from_dict: Any = top.get("change_eur", 0.0)
         change_value = (
-            float(change_eur_from_dict) if isinstance(change_eur_from_dict, (int, float)) else 0.0
+            float(change_eur_from_dict)
+            if isinstance(change_eur_from_dict, (int, float))
+            else 0.0
         )
         next_action = f"{action} {top['symbol']} ~€{abs(change_value):,.0f}"
 

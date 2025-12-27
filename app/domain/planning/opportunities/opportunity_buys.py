@@ -46,7 +46,11 @@ async def identify_opportunity_buy_opportunities(
             continue
 
         # Get quality score
-        quality_score = portfolio_context.stock_scores.get(stock.symbol, 0.5)
+        quality_score = (
+            portfolio_context.stock_scores.get(stock.symbol, 0.5)
+            if portfolio_context.stock_scores
+            else 0.5
+        )
         if quality_score < min_quality_score:
             continue
 

@@ -43,9 +43,7 @@ class TestDailyPnLTrackerGetStartOfDayValue:
         mock_state = AsyncMock()
         # First call returns None (no previous day)
         # Second call returns today's snapshot
-        mock_state.fetchone = AsyncMock(
-            side_effect=[None, {"total_value": 45000.0}]
-        )
+        mock_state.fetchone = AsyncMock(side_effect=[None, {"total_value": 45000.0}])
 
         mock_manager = MagicMock()
         mock_manager.state = mock_state

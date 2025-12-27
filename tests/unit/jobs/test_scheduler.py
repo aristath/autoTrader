@@ -107,7 +107,9 @@ class TestInitScheduler:
             await init_scheduler()
 
             # Verify expected job IDs are added
-            job_ids = [call.kwargs["id"] for call in mock_scheduler.add_job.call_args_list]
+            job_ids = [
+                call.kwargs["id"] for call in mock_scheduler.add_job.call_args_list
+            ]
             expected_jobs = [
                 "portfolio_sync",
                 "trade_sync",

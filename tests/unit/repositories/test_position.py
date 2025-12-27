@@ -291,7 +291,12 @@ class TestPositionRepositoryGetWithStockInfo:
             "market_value_eur": 1380.0,
         }.get(key)
         mock_pos_row.keys = lambda: [
-            "symbol", "quantity", "avg_price", "current_price", "currency", "market_value_eur"
+            "symbol",
+            "quantity",
+            "avg_price",
+            "current_price",
+            "currency",
+            "market_value_eur",
         ]
 
         mock_stock_row = MagicMock()
@@ -305,7 +310,13 @@ class TestPositionRepositoryGetWithStockInfo:
             "currency": "USD",
         }.get(key)
         mock_stock_row.keys = lambda: [
-            "symbol", "name", "geography", "industry", "min_lot", "allow_sell", "currency"
+            "symbol",
+            "name",
+            "geography",
+            "industry",
+            "min_lot",
+            "allow_sell",
+            "currency",
         ]
 
         mock_db = AsyncMock()

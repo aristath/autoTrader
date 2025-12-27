@@ -476,6 +476,8 @@ async def update_stock(
 
     final_symbol = new_symbol if new_symbol and new_symbol != old_symbol else old_symbol
     updated_stock = await stock_repo.get_by_symbol(final_symbol)
+    if not updated_stock:
+        raise HTTPException(status_code=404, detail="Stock not found after update")
 
     score = await scoring_service.calculate_and_save_score(
         final_symbol, updated_stock.yahoo_symbol

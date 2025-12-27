@@ -256,7 +256,9 @@ class TestCheckAndRebalanceInternal:
             patch("app.jobs.cash_rebalance._check_pnl_guardrails") as mock_pnl,
             patch("app.jobs.cash_rebalance.get_tradernet_client") as mock_get_client,
             patch("app.jobs.cash_rebalance.SettingsRepository"),
-            patch("app.domain.services.settings_service.SettingsService") as mock_service,
+            patch(
+                "app.domain.services.settings_service.SettingsService"
+            ) as mock_service,
             patch("app.jobs.cash_rebalance.emit"),
             patch("app.jobs.cash_rebalance.set_processing"),
             patch("app.jobs.cash_rebalance.set_error") as mock_set_error,
@@ -292,7 +294,9 @@ class TestCheckAndRebalanceInternal:
             patch("app.jobs.cash_rebalance._check_pnl_guardrails") as mock_pnl,
             patch("app.jobs.cash_rebalance.get_tradernet_client") as mock_get_client,
             patch("app.jobs.cash_rebalance.SettingsRepository"),
-            patch("app.domain.services.settings_service.SettingsService") as mock_service,
+            patch(
+                "app.domain.services.settings_service.SettingsService"
+            ) as mock_service,
             patch("app.jobs.cash_rebalance.PositionRepository") as mock_pos_repo,
             patch("app.jobs.cash_rebalance.TradeRepository"),
             patch("app.jobs.cash_rebalance._get_next_holistic_action") as mock_action,
@@ -354,7 +358,6 @@ class TestGetNextHolisticAction:
 
             assert result is not None
             assert result.symbol == "AAPL.US"
-
 
 
 class TestRefreshRecommendationCache:

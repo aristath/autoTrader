@@ -36,9 +36,7 @@ class TestGetAnalystData:
 
         with (
             patch("yfinance.Ticker", return_value=mock_ticker),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             result = get_analyst_data("AAPL.US")
 
@@ -64,9 +62,7 @@ class TestGetAnalystData:
 
         with (
             patch("yfinance.Ticker", return_value=mock_ticker),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             result = get_analyst_data("AAPL.US")
 
@@ -82,9 +78,7 @@ class TestGetAnalystData:
 
         with (
             patch("yfinance.Ticker", return_value=mock_ticker),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             result = get_analyst_data("AAPL.US")
 
@@ -100,9 +94,7 @@ class TestGetAnalystData:
 
         with (
             patch("yfinance.Ticker", return_value=mock_ticker) as mock_yf,
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             get_analyst_data("AAPL.US", yahoo_symbol="AAPL")
 
@@ -112,9 +104,7 @@ class TestGetAnalystData:
         """Test returning None on exception."""
         with (
             patch("yfinance.Ticker", side_effect=Exception("API error")),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             result = get_analyst_data("INVALID")
 
@@ -133,9 +123,7 @@ class TestGetAnalystData:
 
         with (
             patch("yfinance.Ticker", return_value=mock_ticker),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             result = get_analyst_data("AAPL.US")
 
@@ -169,9 +157,7 @@ class TestGetFundamentalData:
 
         with (
             patch("yfinance.Ticker", return_value=mock_ticker),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             result = get_fundamental_data("AAPL.US")
 
@@ -186,9 +172,7 @@ class TestGetFundamentalData:
         """Test returning None on exception."""
         with (
             patch("yfinance.Ticker", side_effect=Exception("API error")),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             result = get_fundamental_data("INVALID")
 
@@ -201,9 +185,7 @@ class TestGetFundamentalData:
 
         with (
             patch("yfinance.Ticker", return_value=mock_ticker) as mock_yf,
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             get_fundamental_data("MSFT.US", yahoo_symbol="MSFT")
 
@@ -270,9 +252,7 @@ class TestGetCurrentPrice:
 
         with (
             patch("yfinance.Ticker", return_value=mock_ticker),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             result = get_current_price("AAPL.US", max_retries=1)
 
@@ -287,9 +267,7 @@ class TestGetCurrentPrice:
 
         with (
             patch("yfinance.Ticker", return_value=mock_ticker),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             result = get_current_price("AAPL.US", max_retries=1)
 
@@ -313,15 +291,11 @@ class TestGetCurrentPrice:
             return mock_info_valid
 
         mock_ticker_multi = MagicMock()
-        type(mock_ticker_multi).info = property(
-            lambda self: get_info_side_effect()
-        )
+        type(mock_ticker_multi).info = property(lambda self: get_info_side_effect())
 
         with (
             patch("yfinance.Ticker", return_value=mock_ticker_multi),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
             patch("time.sleep"),
         ):
             result = get_current_price("AAPL.US", max_retries=3)
@@ -337,9 +311,7 @@ class TestGetCurrentPrice:
 
         with (
             patch("yfinance.Ticker", return_value=mock_ticker),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
             patch("time.sleep"),
         ):
             result = get_current_price("AAPL.US", max_retries=2)
@@ -361,9 +333,7 @@ class TestGetCurrentPrice:
 
         with (
             patch("yfinance.Ticker", side_effect=ticker_side_effect),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
             patch("time.sleep"),
         ):
             result = get_current_price("AAPL.US", max_retries=3)
@@ -491,9 +461,7 @@ class TestGetBatchQuotes:
 
         with (
             patch("yfinance.download", return_value=mock_data),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             result = get_batch_quotes({"AAPL.US": None})
 
@@ -516,9 +484,7 @@ class TestGetBatchQuotes:
 
         with (
             patch("yfinance.download", return_value=mock_data),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             result = get_batch_quotes({"AAPL.US": None, "MSFT.US": None})
 
@@ -533,9 +499,7 @@ class TestGetBatchQuotes:
 
         with (
             patch("yfinance.download", return_value=mock_data),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             result = get_batch_quotes({"AAPL.US": None})
 
@@ -545,9 +509,7 @@ class TestGetBatchQuotes:
         """Test handling exception."""
         with (
             patch("yfinance.download", side_effect=Exception("API error")),
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             result = get_batch_quotes({"AAPL.US": None})
 
@@ -559,9 +521,7 @@ class TestGetBatchQuotes:
 
         with (
             patch("yfinance.download", return_value=mock_data) as mock_download,
-            patch(
-                "app.infrastructure.external.yahoo.data_fetchers.emit"
-            ),
+            patch("app.infrastructure.external.yahoo.data_fetchers.emit"),
         ):
             get_batch_quotes({"AAPL.US": "AAPL"})
 
@@ -577,9 +537,7 @@ class TestLedApiCall:
         """Test that API call emits start and end events."""
         from app.infrastructure.external.yahoo.data_fetchers import _led_api_call
 
-        with patch(
-            "app.infrastructure.external.yahoo.data_fetchers.emit"
-        ) as mock_emit:
+        with patch("app.infrastructure.external.yahoo.data_fetchers.emit") as mock_emit:
             with _led_api_call():
                 pass
 
@@ -589,9 +547,7 @@ class TestLedApiCall:
         """Test that end event is emitted even on exception."""
         from app.infrastructure.external.yahoo.data_fetchers import _led_api_call
 
-        with patch(
-            "app.infrastructure.external.yahoo.data_fetchers.emit"
-        ) as mock_emit:
+        with patch("app.infrastructure.external.yahoo.data_fetchers.emit") as mock_emit:
             try:
                 with _led_api_call():
                     raise ValueError("test error")

@@ -5,7 +5,7 @@ Using protocols allows for better testability and dependency injection
 without requiring abstract base classes.
 """
 
-from typing import Dict, List, Optional, Protocol
+from typing import Dict, List, Optional, Protocol, Set
 
 from app.domain.models import AllocationTarget, Position, Stock, Trade
 
@@ -37,6 +37,10 @@ class IStockRepository(Protocol):
         """Delete a stock."""
         ...
 
+    async def get_with_scores(self) -> List[dict]:
+        """Get all active stocks with their scores."""
+        ...
+
 
 class IPositionRepository(Protocol):
     """Protocol for position repository operations."""
@@ -55,6 +59,14 @@ class IPositionRepository(Protocol):
 
     async def update_last_sold_at(self, symbol: str) -> None:
         """Update last_sold_at timestamp for a position."""
+        ...
+
+    async def get_total_value(self) -> float:
+        """Get total portfolio value."""
+        ...
+
+    async def get_with_stock_info(self) -> List[Dict]:
+        """Get positions with stock information."""
         ...
 
 
@@ -83,6 +95,18 @@ class ITradeRepository(Protocol):
 
     async def get_recent_trades(self, symbol: str, days: int = 30) -> List[Trade]:
         """Get recent trades for a symbol."""
+        ...
+
+    async def get_history(self, limit: int = 50) -> List[Trade]:
+        """Get trade history."""
+        ...
+
+    async def get_recently_bought_symbols(self, days: int = 30) -> Set[str]:
+        """Get symbols that were bought recently."""
+        ...
+
+    async def has_recent_sell_order(self, symbol: str, hours: int = 2) -> bool:
+        """Check if there was a recent sell order for a symbol."""
         ...
 
 

@@ -19,9 +19,7 @@ class TestSettingsRepositoryGet:
         mock_db = AsyncMock()
         mock_db.fetchone = AsyncMock(return_value={"value": "test_value"})
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -39,9 +37,7 @@ class TestSettingsRepositoryGet:
         mock_db = AsyncMock()
         mock_db.fetchone = AsyncMock(return_value=None)
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -65,9 +61,7 @@ class TestSettingsRepositorySet:
         mock_db.transaction.return_value.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db.transaction.return_value.__aexit__ = AsyncMock(return_value=None)
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -87,9 +81,7 @@ class TestSettingsRepositorySet:
         mock_db.transaction.return_value.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db.transaction.return_value.__aexit__ = AsyncMock(return_value=None)
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -116,9 +108,7 @@ class TestSettingsRepositoryGetAll:
         mock_db = AsyncMock()
         mock_db.fetchall = AsyncMock(return_value=mock_rows)
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -140,9 +130,7 @@ class TestSettingsRepositoryTypedGetters:
         mock_db = AsyncMock()
         mock_db.fetchone = AsyncMock(return_value={"value": "3.14"})
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -160,9 +148,7 @@ class TestSettingsRepositoryTypedGetters:
         mock_db = AsyncMock()
         mock_db.fetchone = AsyncMock(return_value=None)
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -180,9 +166,7 @@ class TestSettingsRepositoryTypedGetters:
         mock_db = AsyncMock()
         mock_db.fetchone = AsyncMock(return_value={"value": "not_a_number"})
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -200,9 +184,7 @@ class TestSettingsRepositoryTypedGetters:
         mock_db = AsyncMock()
         mock_db.fetchone = AsyncMock(return_value={"value": "42"})
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -220,9 +202,7 @@ class TestSettingsRepositoryTypedGetters:
         mock_db = AsyncMock()
         mock_db.fetchone = AsyncMock(return_value={"value": "12.0"})
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -240,9 +220,7 @@ class TestSettingsRepositoryTypedGetters:
         mock_db = AsyncMock()
         mock_db.fetchone = AsyncMock(return_value=None)
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -260,9 +238,7 @@ class TestSettingsRepositoryTypedGetters:
         mock_db = AsyncMock()
         mock_db.fetchone = AsyncMock(return_value={"value": "not_a_number"})
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -281,9 +257,7 @@ class TestSettingsRepositoryTypedGetters:
             mock_db = AsyncMock()
             mock_db.fetchone = AsyncMock(return_value={"value": true_value})
 
-            with patch(
-                "app.repositories.settings.get_db_manager"
-            ) as mock_get_db:
+            with patch("app.repositories.settings.get_db_manager") as mock_get_db:
                 mock_manager = MagicMock()
                 mock_manager.config = mock_db
                 mock_get_db.return_value = mock_manager
@@ -302,9 +276,7 @@ class TestSettingsRepositoryTypedGetters:
             mock_db = AsyncMock()
             mock_db.fetchone = AsyncMock(return_value={"value": false_value})
 
-            with patch(
-                "app.repositories.settings.get_db_manager"
-            ) as mock_get_db:
+            with patch("app.repositories.settings.get_db_manager") as mock_get_db:
                 mock_manager = MagicMock()
                 mock_manager.config = mock_db
                 mock_get_db.return_value = mock_manager
@@ -322,9 +294,7 @@ class TestSettingsRepositoryTypedGetters:
         mock_db = AsyncMock()
         mock_db.fetchone = AsyncMock(return_value=None)
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -348,9 +318,7 @@ class TestSettingsRepositoryTypedSetters:
         mock_db.transaction.return_value.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db.transaction.return_value.__aexit__ = AsyncMock(return_value=None)
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -370,9 +338,7 @@ class TestSettingsRepositoryTypedSetters:
         mock_db.transaction.return_value.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db.transaction.return_value.__aexit__ = AsyncMock(return_value=None)
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -392,9 +358,7 @@ class TestSettingsRepositoryTypedSetters:
         mock_db.transaction.return_value.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db.transaction.return_value.__aexit__ = AsyncMock(return_value=None)
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -414,9 +378,7 @@ class TestSettingsRepositoryTypedSetters:
         mock_db.transaction.return_value.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db.transaction.return_value.__aexit__ = AsyncMock(return_value=None)
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager
@@ -440,9 +402,7 @@ class TestSettingsRepositoryDelete:
         mock_db.transaction.return_value.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db.transaction.return_value.__aexit__ = AsyncMock(return_value=None)
 
-        with patch(
-            "app.repositories.settings.get_db_manager"
-        ) as mock_get_db:
+        with patch("app.repositories.settings.get_db_manager") as mock_get_db:
             mock_manager = MagicMock()
             mock_manager.config = mock_db
             mock_get_db.return_value = mock_manager

@@ -5,7 +5,7 @@ Uses long-term value scoring with portfolio-aware allocation fit.
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from app.application.services.recommendation.performance_adjustment_calculator import (
     get_performance_adjusted_weights,
@@ -879,7 +879,12 @@ class RebalancingService:
         cache_key = generate_recommendation_cache_key(
             position_dicts, settings.to_dict()
         )
-        portfolio_context = await self._build_portfolio_context()
+        portfolio_context = await build_portfolio_context(
+            self._position_repo,
+            self._stock_repo,
+            self._allocation_repo,
+            self._db_manager,
+        )
 
         symbol_yahoo_map = {
             s.symbol: s.yahoo_symbol
@@ -894,7 +899,7 @@ class RebalancingService:
             settings.transaction_cost_percent,
         )
 
-        filter_stats = {
+        filter_stats: Dict[str, Any] = {
             "total_stocks": len(stocks),
             "eligible_for_pricing": len(symbol_yahoo_map),
             "got_prices": len(batch_prices),

@@ -291,9 +291,17 @@ class TestStockRepositoryGetWithScores:
             "currency": "USD",
         }[key]
         mock_stock_row.keys = lambda: [
-            "symbol", "yahoo_symbol", "name", "industry", "geography",
-            "priority_multiplier", "min_lot", "active", "allow_buy",
-            "allow_sell", "currency"
+            "symbol",
+            "yahoo_symbol",
+            "name",
+            "industry",
+            "geography",
+            "priority_multiplier",
+            "min_lot",
+            "active",
+            "allow_buy",
+            "allow_sell",
+            "currency",
         ]
 
         mock_score_row = MagicMock()
@@ -308,8 +316,14 @@ class TestStockRepositoryGetWithScores:
             "calculated_at": "2024-01-15",
         }[key]
         mock_score_row.keys = lambda: [
-            "symbol", "total_score", "quality_score", "opportunity_score",
-            "analyst_score", "allocation_fit_score", "volatility", "calculated_at"
+            "symbol",
+            "total_score",
+            "quality_score",
+            "opportunity_score",
+            "analyst_score",
+            "allocation_fit_score",
+            "volatility",
+            "calculated_at",
         ]
 
         mock_position_row = MagicMock()
@@ -321,24 +335,32 @@ class TestStockRepositoryGetWithScores:
             "current_price": 150.0,
         }[key]
         mock_position_row.keys = lambda: [
-            "symbol", "market_value_eur", "quantity", "avg_price", "current_price"
+            "symbol",
+            "market_value_eur",
+            "quantity",
+            "avg_price",
+            "current_price",
         ]
 
         mock_db = AsyncMock()
         mock_db.fetchall = AsyncMock(return_value=[mock_stock_row])
 
         mock_state_db = AsyncMock()
-        mock_state_db.fetchall = AsyncMock(side_effect=[
-            [mock_score_row],  # scores
-            [mock_position_row],  # positions
-        ])
+        mock_state_db.fetchall = AsyncMock(
+            side_effect=[
+                [mock_score_row],  # scores
+                [mock_position_row],  # positions
+            ]
+        )
 
         mock_db_manager = MagicMock()
         mock_db_manager.state = mock_state_db
 
         repo = StockRepository(db=mock_db)
 
-        with patch("app.repositories.stock.get_db_manager", return_value=mock_db_manager):
+        with patch(
+            "app.repositories.stock.get_db_manager", return_value=mock_db_manager
+        ):
             result = await repo.get_with_scores()
 
         assert len(result) == 1
