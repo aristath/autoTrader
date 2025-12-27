@@ -856,7 +856,8 @@ class TradernetClient:
             with _led_api_call():
                 quotes = self._client.get_quotes([symbol])
             if quotes and len(quotes) > 0:
-                data = quotes[0] if isinstance(quotes, list) else quotes
+                # quotes can be list or dict depending on API response
+                data = quotes[0] if isinstance(quotes, list) else quotes  # type: ignore[index]
                 return Quote(
                     symbol=symbol,
                     price=float(data.get("ltp", data.get("last_price", 0))),
