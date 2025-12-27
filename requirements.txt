@@ -39,3 +39,6 @@ vulture>=2.11
 
 # Router Bridge client for Arduino Uno Q
 msgpack>=1.0.0
+
+# I2C communication for LED matrix (bypasses Docker)
+smbus2>=0.4.3
