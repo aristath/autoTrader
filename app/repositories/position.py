@@ -153,7 +153,9 @@ class PositionRepository:
             "SELECT symbol, name, geography, industry, min_lot, allow_sell, currency "
             "FROM stocks WHERE active = 1"
         )
-        stocks_by_symbol = {row["symbol"]: {key: row[key] for key in row.keys()} for row in stock_rows}
+        stocks_by_symbol = {
+            row["symbol"]: {key: row[key] for key in row.keys()} for row in stock_rows
+        }
 
         # Merge position and stock data
         result = []

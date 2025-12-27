@@ -372,7 +372,9 @@ class TestBuildSellReasonString:
 
     def test_profit_reason(self):
         """Test reason includes profit when profit_pct > 30%."""
-        from app.application.services.rebalancing_service import _build_sell_reason_string
+        from app.application.services.rebalancing_service import (
+            _build_sell_reason_string,
+        )
 
         mock_score = MagicMock()
         mock_score.profit_pct = 0.50  # 50% profit
@@ -388,7 +390,9 @@ class TestBuildSellReasonString:
 
     def test_loss_reason(self):
         """Test reason includes loss when profit_pct < 0."""
-        from app.application.services.rebalancing_service import _build_sell_reason_string
+        from app.application.services.rebalancing_service import (
+            _build_sell_reason_string,
+        )
 
         mock_score = MagicMock()
         mock_score.profit_pct = -0.10  # 10% loss
@@ -404,7 +408,9 @@ class TestBuildSellReasonString:
 
     def test_underperforming_reason(self):
         """Test reason includes underperforming when score >= 0.7."""
-        from app.application.services.rebalancing_service import _build_sell_reason_string
+        from app.application.services.rebalancing_service import (
+            _build_sell_reason_string,
+        )
 
         mock_score = MagicMock()
         mock_score.profit_pct = 0.15  # Not trigger profit or loss
@@ -420,7 +426,9 @@ class TestBuildSellReasonString:
 
     def test_time_held_reason(self):
         """Test reason includes time held when score >= 0.8."""
-        from app.application.services.rebalancing_service import _build_sell_reason_string
+        from app.application.services.rebalancing_service import (
+            _build_sell_reason_string,
+        )
 
         mock_score = MagicMock()
         mock_score.profit_pct = 0.15
@@ -437,7 +445,9 @@ class TestBuildSellReasonString:
 
     def test_overweight_reason(self):
         """Test reason includes overweight when portfolio_balance_score >= 0.7."""
-        from app.application.services.rebalancing_service import _build_sell_reason_string
+        from app.application.services.rebalancing_service import (
+            _build_sell_reason_string,
+        )
 
         mock_score = MagicMock()
         mock_score.profit_pct = 0.15
@@ -453,7 +463,9 @@ class TestBuildSellReasonString:
 
     def test_instability_reason(self):
         """Test reason includes instability when score >= 0.6."""
-        from app.application.services.rebalancing_service import _build_sell_reason_string
+        from app.application.services.rebalancing_service import (
+            _build_sell_reason_string,
+        )
 
         mock_score = MagicMock()
         mock_score.profit_pct = 0.15
@@ -469,7 +481,9 @@ class TestBuildSellReasonString:
 
     def test_always_includes_sell_score(self):
         """Test that sell score is always included."""
-        from app.application.services.rebalancing_service import _build_sell_reason_string
+        from app.application.services.rebalancing_service import (
+            _build_sell_reason_string,
+        )
 
         mock_score = MagicMock()
         mock_score.profit_pct = 0.15
@@ -502,9 +516,7 @@ class TestApplyRebalancingBandFilter:
         mock_score.symbol = "SAP.EU"
 
         # Position dict that matches the score
-        position_dicts = [
-            {"symbol": "SAP.EU", "geography": "EU", "industry": "Tech"}
-        ]
+        position_dicts = [{"symbol": "SAP.EU", "geography": "EU", "industry": "Tech"}]
 
         # Current 33% EU, target 35% - only 2% over, within 5% band
         geo_allocations = {"EU": 0.33}
@@ -533,9 +545,7 @@ class TestApplyRebalancingBandFilter:
         mock_score = MagicMock()
         mock_score.symbol = "AAPL.US"
 
-        position_dicts = [
-            {"symbol": "AAPL.US", "geography": "US", "industry": "Tech"}
-        ]
+        position_dicts = [{"symbol": "AAPL.US", "geography": "US", "industry": "Tech"}]
 
         # US at 50% with target 35% - 15% over, exceeds 5% band
         geo_allocations = {"US": 0.50}
@@ -564,9 +574,7 @@ class TestApplyRebalancingBandFilter:
         mock_score = MagicMock()
         mock_score.symbol = "MISSING.US"
 
-        position_dicts = [
-            {"symbol": "OTHER.US", "geography": "US", "industry": "Tech"}
-        ]
+        position_dicts = [{"symbol": "OTHER.US", "geography": "US", "industry": "Tech"}]
 
         geo_allocations = {"US": 0.50}
         target_geo_weights = {"US": 0.35}
@@ -594,9 +602,7 @@ class TestApplyRebalancingBandFilter:
         mock_score = MagicMock()
         mock_score.symbol = "XOM.US"
 
-        position_dicts = [
-            {"symbol": "XOM.US", "geography": "US", "industry": "Energy"}
-        ]
+        position_dicts = [{"symbol": "XOM.US", "geography": "US", "industry": "Energy"}]
 
         # No geo deviation
         geo_allocations = {"US": 0.35}
@@ -708,6 +714,7 @@ class TestConvertCachedRecommendations:
         rec = result[0]
         # Default currency should be EUR (Currency enum)
         from app.domain.value_objects.currency import Currency
+
         assert rec.currency == Currency.EUR
 
 
@@ -763,7 +770,9 @@ class TestPrepareSellCacheData:
 
     def test_prepares_sell_data(self):
         """Test preparing sell recommendation data for cache."""
-        from app.application.services.rebalancing_service import _prepare_sell_cache_data
+        from app.application.services.rebalancing_service import (
+            _prepare_sell_cache_data,
+        )
 
         mock_score = MagicMock()
         mock_score.symbol = "AAPL.US"
@@ -793,7 +802,9 @@ class TestPrepareSellCacheData:
 
     def test_skips_if_no_matching_position(self):
         """Test that scores without matching positions are skipped."""
-        from app.application.services.rebalancing_service import _prepare_sell_cache_data
+        from app.application.services.rebalancing_service import (
+            _prepare_sell_cache_data,
+        )
 
         mock_score = MagicMock()
         mock_score.symbol = "MSFT.US"
@@ -802,7 +813,12 @@ class TestPrepareSellCacheData:
         mock_score.total_score = 0.5
 
         position_dicts = [
-            {"symbol": "AAPL.US", "name": "Apple", "current_price": 155.0, "currency": "USD"}
+            {
+                "symbol": "AAPL.US",
+                "name": "Apple",
+                "current_price": 155.0,
+                "currency": "USD",
+            }
         ]  # MSFT not in list
 
         result = _prepare_sell_cache_data([mock_score], position_dicts)
@@ -812,7 +828,9 @@ class TestPrepareSellCacheData:
 
     def test_uses_avg_price_as_fallback(self):
         """Test that avg_price is used if current_price is missing."""
-        from app.application.services.rebalancing_service import _prepare_sell_cache_data
+        from app.application.services.rebalancing_service import (
+            _prepare_sell_cache_data,
+        )
 
         mock_score = MagicMock()
         mock_score.symbol = "AAPL.US"

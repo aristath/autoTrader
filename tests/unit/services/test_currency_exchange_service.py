@@ -415,7 +415,10 @@ class TestEnsureBalance:
         mock_balance_usd.currency = "USD"
         mock_balance_usd.amount = 500.0
 
-        mock_client.get_cash_balances.return_value = [mock_balance_eur, mock_balance_usd]
+        mock_client.get_cash_balances.return_value = [
+            mock_balance_eur,
+            mock_balance_usd,
+        ]
 
         service = CurrencyExchangeService(mock_client)
 
@@ -443,7 +446,10 @@ class TestEnsureBalance:
         mock_balance_usd.currency = "USD"
         mock_balance_usd.amount = 0.0
 
-        mock_client.get_cash_balances.return_value = [mock_balance_eur, mock_balance_usd]
+        mock_client.get_cash_balances.return_value = [
+            mock_balance_eur,
+            mock_balance_usd,
+        ]
 
         # Mock rate
         mock_quote = MagicMock()

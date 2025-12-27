@@ -46,7 +46,11 @@ async def identify_rebalance_buy_opportunities(
             continue
 
         # Get quality score
-        quality_score = portfolio_context.stock_scores.get(stock.symbol, 0.5)
+        quality_score = (
+            portfolio_context.stock_scores.get(stock.symbol, 0.5)
+            if portfolio_context.stock_scores
+            else 0.5
+        )
 
         # Check for rebalance buys (underweight geography/industry)
         geo = stock.geography

@@ -253,7 +253,10 @@ class TestCalculateSellScore:
             )
 
         assert result.eligible is False
-        assert "not allowed" in result.block_reason.lower() or result.block_reason is not None
+        assert (
+            "not allowed" in result.block_reason.lower()
+            or result.block_reason is not None
+        )
 
     @pytest.mark.asyncio
     async def test_returns_ineligible_for_big_loss(self):
@@ -280,7 +283,10 @@ class TestCalculateSellScore:
             )
 
         assert result.eligible is False
-        assert "loss" in result.block_reason.lower() or "threshold" in result.block_reason.lower()
+        assert (
+            "loss" in result.block_reason.lower()
+            or "threshold" in result.block_reason.lower()
+        )
 
     @pytest.mark.asyncio
     async def test_returns_eligible_for_profitable_position(self):

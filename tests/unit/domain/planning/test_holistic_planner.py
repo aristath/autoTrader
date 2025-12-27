@@ -156,7 +156,13 @@ class TestProcessBuyOpportunity:
 
     def test_skips_if_allow_buy_false(self):
         """Test that stock with allow_buy=False is skipped."""
-        gap_info = {"symbol": "AAPL", "gap_value": 1500.0, "gap": 0.10, "target": 0.30, "current": 0.20}
+        gap_info = {
+            "symbol": "AAPL",
+            "gap_value": 1500.0,
+            "gap": 0.10,
+            "target": 0.30,
+            "current": 0.20,
+        }
         stock = MagicMock()
         stock.allow_buy = False
 
@@ -169,7 +175,13 @@ class TestProcessBuyOpportunity:
 
     def test_skips_if_stock_is_none(self):
         """Test that None stock is skipped."""
-        gap_info = {"symbol": "AAPL", "gap_value": 1500.0, "gap": 0.10, "target": 0.30, "current": 0.20}
+        gap_info = {
+            "symbol": "AAPL",
+            "gap_value": 1500.0,
+            "gap": 0.10,
+            "target": 0.30,
+            "current": 0.20,
+        }
         opportunities = {"rebalance_buys": [], "averaging_down": []}
 
         _process_buy_opportunity(gap_info, None, None, 150.0, opportunities)
@@ -178,7 +190,13 @@ class TestProcessBuyOpportunity:
 
     def test_respects_min_lot(self):
         """Test that min_lot is respected."""
-        gap_info = {"symbol": "AAPL", "gap_value": 50.0, "gap": 0.05, "target": 0.25, "current": 0.20}
+        gap_info = {
+            "symbol": "AAPL",
+            "gap_value": 50.0,
+            "gap": 0.05,
+            "target": 0.25,
+            "current": 0.20,
+        }
         stock = MagicMock()
         stock.allow_buy = True
         stock.name = "Apple"
@@ -194,7 +212,13 @@ class TestProcessBuyOpportunity:
 
     def test_categorizes_as_averaging_down(self):
         """Test that buying below avg_price is categorized as averaging_down."""
-        gap_info = {"symbol": "AAPL", "gap_value": 1500.0, "gap": 0.10, "target": 0.30, "current": 0.20}
+        gap_info = {
+            "symbol": "AAPL",
+            "gap_value": 1500.0,
+            "gap": 0.10,
+            "target": 0.30,
+            "current": 0.20,
+        }
         stock = MagicMock()
         stock.allow_buy = True
         stock.name = "Apple"
@@ -215,7 +239,13 @@ class TestProcessBuyOpportunity:
 
     def test_skips_zero_quantity(self):
         """Test that zero quantity is skipped."""
-        gap_info = {"symbol": "AAPL", "gap_value": 1.0, "gap": 0.001, "target": 0.201, "current": 0.20}
+        gap_info = {
+            "symbol": "AAPL",
+            "gap_value": 1.0,
+            "gap": 0.001,
+            "target": 0.201,
+            "current": 0.20,
+        }
         stock = MagicMock()
         stock.allow_buy = True
         stock.name = "Apple"

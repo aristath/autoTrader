@@ -87,9 +87,7 @@ class TestCheckCoreDatabases:
 
             with (
                 patch("app.jobs.health_check.settings") as mock_settings,
-                patch(
-                    "app.jobs.health_check._check_database_integrity"
-                ) as mock_check,
+                patch("app.jobs.health_check._check_database_integrity") as mock_check,
             ):
                 mock_settings.data_dir = Path(tmpdir)
                 mock_check.return_value = "ok"
@@ -112,9 +110,7 @@ class TestCheckCoreDatabases:
 
             with (
                 patch("app.jobs.health_check.settings") as mock_settings,
-                patch(
-                    "app.jobs.health_check._check_database_integrity"
-                ) as mock_check,
+                patch("app.jobs.health_check._check_database_integrity") as mock_check,
             ):
                 mock_settings.data_dir = Path(tmpdir)
                 mock_check.return_value = "database corrupted"
@@ -143,9 +139,7 @@ class TestCheckHistoryDatabases:
 
             with (
                 patch("app.jobs.health_check.settings") as mock_settings,
-                patch(
-                    "app.jobs.health_check._check_database_integrity"
-                ) as mock_check,
+                patch("app.jobs.health_check._check_database_integrity") as mock_check,
             ):
                 mock_settings.data_dir = Path(tmpdir)
                 mock_check.return_value = "ok"
@@ -204,9 +198,7 @@ class TestRunHealthCheckInternal:
             )
 
         with (
-            patch(
-                "app.jobs.health_check._check_core_databases", side_effect=add_issue
-            ),
+            patch("app.jobs.health_check._check_core_databases", side_effect=add_issue),
             patch("app.jobs.health_check._check_history_databases"),
             patch("app.jobs.health_check._check_legacy_database"),
             patch("app.jobs.health_check._report_issues") as mock_report,
@@ -341,6 +333,7 @@ class TestCheckWalStatus:
             # Should run without error even with no WAL files
             await check_wal_status()
 
+
 class TestCheckLegacyDatabase:
     """Test legacy database checking."""
 
@@ -371,9 +364,7 @@ class TestCheckLegacyDatabase:
 
         with (
             patch("app.jobs.health_check.settings") as mock_settings,
-            patch(
-                "app.jobs.health_check._check_database_integrity"
-            ) as mock_check,
+            patch("app.jobs.health_check._check_database_integrity") as mock_check,
         ):
             mock_settings.database_path = legacy_db
             mock_check.return_value = "database corrupted"
@@ -408,9 +399,7 @@ class TestRebuildCacheDb:
             await _rebuild_cache_db(cache_db)
 
         # Original should be renamed to .corrupted
-        assert not cache_db.exists() or (
-            list(tmp_path.glob("*.corrupted.*.db"))
-        )
+        assert not cache_db.exists() or (list(tmp_path.glob("*.corrupted.*.db")))
 
     @pytest.mark.asyncio
     async def test_handles_rebuild_failure(self, tmp_path):
@@ -449,9 +438,7 @@ class TestRebuildSymbolHistory:
             await _rebuild_symbol_history(history_db, "AAPL.US")
 
         # Original should be renamed to .corrupted
-        assert not history_db.exists() or (
-            list(tmp_path.glob("*.corrupted.*.db"))
-        )
+        assert not history_db.exists() or (list(tmp_path.glob("*.corrupted.*.db")))
 
     @pytest.mark.asyncio
     async def test_handles_history_rebuild_failure(self, tmp_path):
@@ -483,12 +470,8 @@ class TestHistoryDatabasesWithIssues:
 
         with (
             patch("app.jobs.health_check.settings") as mock_settings,
-            patch(
-                "app.jobs.health_check._check_database_integrity"
-            ) as mock_check,
-            patch(
-                "app.jobs.health_check._rebuild_symbol_history"
-            ) as mock_rebuild,
+            patch("app.jobs.health_check._check_database_integrity") as mock_check,
+            patch("app.jobs.health_check._rebuild_symbol_history") as mock_rebuild,
         ):
             mock_settings.data_dir = tmp_path
             mock_check.return_value = "database corrupted"
@@ -515,12 +498,8 @@ class TestCoreDatabasesWithCacheRebuild:
 
         with (
             patch("app.jobs.health_check.settings") as mock_settings,
-            patch(
-                "app.jobs.health_check._check_database_integrity"
-            ) as mock_check,
-            patch(
-                "app.jobs.health_check._rebuild_cache_db"
-            ) as mock_rebuild,
+            patch("app.jobs.health_check._check_database_integrity") as mock_check,
+            patch("app.jobs.health_check._rebuild_cache_db") as mock_rebuild,
         ):
             mock_settings.data_dir = tmp_path
             mock_check.return_value = "database corrupted"

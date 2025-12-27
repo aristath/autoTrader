@@ -388,9 +388,7 @@ class TestSyncPricesInternal:
 
         with (
             patch("app.jobs.daily_sync.get_db_manager") as mock_get_db,
-            patch(
-                "app.jobs.daily_sync.yahoo.get_batch_quotes"
-            ) as mock_yahoo,
+            patch("app.jobs.daily_sync.yahoo.get_batch_quotes") as mock_yahoo,
             patch("app.jobs.daily_sync.set_processing"),
             patch("app.jobs.daily_sync.emit"),
         ):
@@ -417,9 +415,7 @@ class TestSyncPricesInternal:
 
         with (
             patch("app.jobs.daily_sync.get_db_manager") as mock_get_db,
-            patch(
-                "app.jobs.daily_sync.yahoo.get_batch_quotes"
-            ) as mock_yahoo,
+            patch("app.jobs.daily_sync.yahoo.get_batch_quotes") as mock_yahoo,
             patch("app.jobs.daily_sync.set_processing"),
             patch("app.jobs.daily_sync.set_error") as mock_set_error,
             patch("app.jobs.daily_sync.emit"),

@@ -76,9 +76,24 @@ class TestTradeRepositoryHelperFunctions:
         from app.repositories.trade import _build_positions_by_date
 
         trades = [
-            {"executed_at": "2024-01-15T10:00:00", "symbol": "AAPL", "side": "BUY", "quantity": 10},
-            {"executed_at": "2024-01-15T11:00:00", "symbol": "AAPL", "side": "SELL", "quantity": 3},
-            {"executed_at": "2024-01-16T10:00:00", "symbol": "MSFT", "side": "BUY", "quantity": 5},
+            {
+                "executed_at": "2024-01-15T10:00:00",
+                "symbol": "AAPL",
+                "side": "BUY",
+                "quantity": 10,
+            },
+            {
+                "executed_at": "2024-01-15T11:00:00",
+                "symbol": "AAPL",
+                "side": "SELL",
+                "quantity": 3,
+            },
+            {
+                "executed_at": "2024-01-16T10:00:00",
+                "symbol": "MSFT",
+                "side": "BUY",
+                "quantity": 5,
+            },
         ]
 
         result = _build_positions_by_date(trades)
@@ -384,8 +399,18 @@ class TestTradeRepositoryPositionHistory:
         from app.repositories.trade import TradeRepository
 
         mock_rows = [
-            {"symbol": "AAPL", "side": "BUY", "quantity": 10, "executed_at": "2024-01-10T10:00:00"},
-            {"symbol": "AAPL", "side": "BUY", "quantity": 5, "executed_at": "2024-01-15T10:00:00"},
+            {
+                "symbol": "AAPL",
+                "side": "BUY",
+                "quantity": 10,
+                "executed_at": "2024-01-10T10:00:00",
+            },
+            {
+                "symbol": "AAPL",
+                "side": "BUY",
+                "quantity": 5,
+                "executed_at": "2024-01-15T10:00:00",
+            },
         ]
 
         mock_db = AsyncMock()

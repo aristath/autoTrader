@@ -703,6 +703,11 @@ class TradernetClient:
         """Check if client is connected."""
         return self._connected and self._client is not None
 
+    @classmethod
+    def shared(cls) -> "TradernetClient":
+        """Get the shared singleton instance."""
+        return get_tradernet_client()
+
     def get_account_summary(self) -> dict:
         """Get full account summary including positions and cash."""
         if not self.is_connected or self._client is None:

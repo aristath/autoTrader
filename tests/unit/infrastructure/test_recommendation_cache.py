@@ -100,9 +100,7 @@ class TestRecommendationCacheSetRecommendations:
             "app.infrastructure.recommendation_cache.get_db_manager",
             return_value=mock_manager,
         ):
-            await cache.set_recommendations(
-                "hash123", "buy", [{"symbol": "AAPL"}]
-            )
+            await cache.set_recommendations("hash123", "buy", [{"symbol": "AAPL"}])
 
         mock_db.execute.assert_called_once()
         mock_db.commit.assert_called_once()
@@ -123,9 +121,7 @@ class TestRecommendationCacheSetRecommendations:
             "app.infrastructure.recommendation_cache.get_db_manager",
             return_value=mock_manager,
         ):
-            await cache.set_recommendations(
-                "hash123", "buy", [], ttl_hours=24
-            )
+            await cache.set_recommendations("hash123", "buy", [], ttl_hours=24)
 
         # Verify execute was called (TTL is embedded in the data)
         mock_db.execute.assert_called_once()
@@ -299,9 +295,7 @@ class TestRecommendationCacheGetCacheStats:
         mock_analytics_row = {"total": 20, "valid": 15}
 
         mock_db = AsyncMock()
-        mock_db.fetchone = AsyncMock(
-            side_effect=[mock_rec_row, mock_analytics_row]
-        )
+        mock_db.fetchone = AsyncMock(side_effect=[mock_rec_row, mock_analytics_row])
 
         mock_manager = MagicMock()
         mock_manager.cache = mock_db

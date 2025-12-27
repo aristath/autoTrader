@@ -372,8 +372,7 @@ class TestDatabaseOperations:
                 await db.checkpoint()
 
             assert any(
-                "wal_checkpoint" in str(c)
-                for c in mock_conn.execute.call_args_list
+                "wal_checkpoint" in str(c) for c in mock_conn.execute.call_args_list
             )
 
 
@@ -544,9 +543,7 @@ class TestDatabaseManagerIntegrityCheck:
         manager = DatabaseManager(data_dir)
 
         manager.config.integrity_check = AsyncMock(return_value="ok")
-        manager.ledger.integrity_check = AsyncMock(
-            side_effect=Exception("Disk error")
-        )
+        manager.ledger.integrity_check = AsyncMock(side_effect=Exception("Disk error"))
         manager.state.integrity_check = AsyncMock(return_value="ok")
         manager.cache.integrity_check = AsyncMock(return_value="ok")
         manager.calculations.integrity_check = AsyncMock(return_value="ok")
@@ -709,21 +706,27 @@ class TestInitDatabases:
         original = module._db_manager
 
         try:
-            with patch(
-                "app.infrastructure.database.schemas.init_config_schema",
-                new_callable=AsyncMock,
-            ), patch(
-                "app.infrastructure.database.schemas.init_ledger_schema",
-                new_callable=AsyncMock,
-            ), patch(
-                "app.infrastructure.database.schemas.init_state_schema",
-                new_callable=AsyncMock,
-            ), patch(
-                "app.infrastructure.database.schemas.init_cache_schema",
-                new_callable=AsyncMock,
-            ), patch(
-                "app.infrastructure.database.schemas.init_calculations_schema",
-                new_callable=AsyncMock,
+            with (
+                patch(
+                    "app.infrastructure.database.schemas.init_config_schema",
+                    new_callable=AsyncMock,
+                ),
+                patch(
+                    "app.infrastructure.database.schemas.init_ledger_schema",
+                    new_callable=AsyncMock,
+                ),
+                patch(
+                    "app.infrastructure.database.schemas.init_state_schema",
+                    new_callable=AsyncMock,
+                ),
+                patch(
+                    "app.infrastructure.database.schemas.init_cache_schema",
+                    new_callable=AsyncMock,
+                ),
+                patch(
+                    "app.infrastructure.database.schemas.init_calculations_schema",
+                    new_callable=AsyncMock,
+                ),
             ):
                 from app.infrastructure.database.manager import init_databases
 
