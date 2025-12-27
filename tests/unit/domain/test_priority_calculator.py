@@ -19,7 +19,7 @@ class TestPriorityCalculator:
             "Consumer Electronics"
         ]
         assert PriorityCalculator.parse_industries("Industrial, Defense") == [
-            "Aerospace & Defense",
+            "Industrial",
             "Defense",
         ]
         assert PriorityCalculator.parse_industries("") == []
@@ -30,11 +30,11 @@ class TestPriorityCalculator:
         input_data = PriorityInput(
             symbol="AAPL",
             name="Apple Inc.",
-            geography="US",
-            industry="Consumer Electronics",
             stock_score=0.7,  # Score already includes Quality, Opportunity, Analyst, Allocation Fit
-            volatility=0.20,
             multiplier=1.0,
+            country="US",
+            industry="Consumer Electronics",
+            volatility=0.20,
             quality_score=0.8,
             opportunity_score=0.6,
             allocation_fit_score=0.7,
@@ -55,11 +55,11 @@ class TestPriorityCalculator:
         input_data = PriorityInput(
             symbol="AAPL",
             name="Apple Inc.",
-            geography="US",
-            industry="Consumer Electronics",
             stock_score=0.6,
-            volatility=0.20,
             multiplier=2.0,  # Double the priority
+            country="US",
+            industry="Consumer Electronics",
+            volatility=0.20,
         )
 
         result = PriorityCalculator.calculate_priority(input_data)
@@ -73,20 +73,20 @@ class TestPriorityCalculator:
             PriorityInput(
                 symbol="LOW",
                 name="Low Priority",
-                geography="US",
-                industry="Consumer Electronics",
                 stock_score=0.4,
-                volatility=0.30,
                 multiplier=1.0,
+                country="US",
+                industry="Consumer Electronics",
+                volatility=0.30,
             ),
             PriorityInput(
                 symbol="HIGH",
                 name="High Priority",
-                geography="US",
-                industry="Consumer Electronics",
                 stock_score=0.8,
-                volatility=0.15,
                 multiplier=1.0,
+                country="US",
+                industry="Consumer Electronics",
+                volatility=0.15,
             ),
         ]
 
