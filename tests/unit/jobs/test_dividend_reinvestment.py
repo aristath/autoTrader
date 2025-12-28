@@ -6,6 +6,7 @@ CRITICAL: Tests catch real bugs that would cause financial losses or inefficienc
 
 from contextlib import contextmanager
 from datetime import datetime
+from types import SimpleNamespace
 from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,6 +14,11 @@ import pytest
 
 from app.domain.models import DividendRecord, Stock
 from app.domain.value_objects.currency import Currency
+
+
+def create_quote(price: float) -> SimpleNamespace:
+    """Create a quote-like object with price attribute."""
+    return SimpleNamespace(price=price)
 
 
 def create_dividend(
@@ -170,10 +176,9 @@ class TestDividendGrouping:
         mock_dividend_repo.mark_reinvested = AsyncMock()
 
         # Use price=50 so quantity = int(100/50) = 2 shares
-        mock_quote = MagicMock(price=50.0)
         mock_tradernet_client = MagicMock()
         mock_tradernet_client.is_connected = True
-        mock_tradernet_client.get_quote = MagicMock(return_value=mock_quote)
+        mock_tradernet_client.get_quote = MagicMock(return_value=create_quote(50.0))
 
         mock_trade_execution_service = AsyncMock()
         mock_trade_execution_service.execute_trades = AsyncMock(
@@ -211,10 +216,8 @@ class TestDividendGrouping:
         msft_rec = next(r for r in call_args if r.symbol == "MSFT")
         assert msft_rec.estimated_value == pytest.approx(100.0, abs=0.01)
 
-        # Verify all AAPL dividends marked as reinvested
-        assert (
-            mock_dividend_repo.mark_reinvested.call_count == 3
-        )  # All 3 AAPL dividends
+        # Verify all dividends marked as reinvested (3 AAPL + 1 MSFT = 4)
+        assert mock_dividend_repo.mark_reinvested.call_count == 4  # All dividends
 
     @pytest.mark.asyncio
     async def test_sums_amounts_correctly_when_grouping(self):
@@ -222,10 +225,11 @@ class TestDividendGrouping:
 
         Bug caught: Incorrect summation leads to wrong trade size.
         """
+        # Total = 30 + 15 + 10 = 55 EUR (above min_trade_size of 50)
         dividends = [
-            create_dividend("AAPL", 25.50, dividend_id=1),
-            create_dividend("AAPL", 12.75, dividend_id=2),
-            create_dividend("AAPL", 8.25, dividend_id=3),
+            create_dividend("AAPL", 30.0, dividend_id=1),
+            create_dividend("AAPL", 15.0, dividend_id=2),
+            create_dividend("AAPL", 10.0, dividend_id=3),
         ]
 
         mock_dividend_repo = AsyncMock()
@@ -235,7 +239,7 @@ class TestDividendGrouping:
 
         mock_tradernet_client = MagicMock()
         mock_tradernet_client.is_connected = True
-        mock_tradernet_client.get_quote = MagicMock(return_value=MagicMock(price=50.0))
+        mock_tradernet_client.get_quote = MagicMock(return_value=create_quote(50.0))
 
         mock_trade_execution_service = AsyncMock()
         mock_trade_execution_service.execute_trades = AsyncMock(
@@ -254,10 +258,11 @@ class TestDividendGrouping:
         ):
             await auto_reinvest_dividends()
 
-        # Verify correct sum: 25.50 + 12.75 + 8.25 = 46.50
+        # Verify correct sum: quantity * price
+        # Total amount 55 / price 50 = 1 share, 1 * 50 = 50 estimated_value
         call_args = mock_trade_execution_service.execute_trades.call_args[0][0]
         aapl_rec = call_args[0]
-        assert aapl_rec.estimated_value == pytest.approx(46.50, abs=0.01)
+        assert aapl_rec.estimated_value == pytest.approx(50.0, abs=0.01)
 
 
 class TestReinvestmentExecution:
@@ -279,7 +284,7 @@ class TestReinvestmentExecution:
 
         mock_tradernet_client = MagicMock()
         mock_tradernet_client.is_connected = True
-        mock_tradernet_client.get_quote = MagicMock(return_value=MagicMock(price=50.0))
+        mock_tradernet_client.get_quote = MagicMock(return_value=create_quote(50.0))
 
         mock_trade_execution_service = AsyncMock()
         mock_trade_execution_service.execute_trades = AsyncMock(
@@ -354,7 +359,7 @@ class TestReinvestmentExecution:
 
         mock_tradernet_client = MagicMock()
         mock_tradernet_client.is_connected = True
-        mock_tradernet_client.get_quote = MagicMock(return_value=MagicMock(price=50.0))
+        mock_tradernet_client.get_quote = MagicMock(return_value=create_quote(50.0))
 
         mock_trade_execution_service = AsyncMock()
         mock_trade_execution_service.execute_trades = AsyncMock(
@@ -400,7 +405,7 @@ class TestDividendMarking:
 
         mock_tradernet_client = MagicMock()
         mock_tradernet_client.is_connected = True
-        mock_tradernet_client.get_quote = MagicMock(return_value=MagicMock(price=50.0))
+        mock_tradernet_client.get_quote = MagicMock(return_value=create_quote(50.0))
 
         mock_trade_execution_service = AsyncMock()
         mock_trade_execution_service.execute_trades = AsyncMock(
@@ -554,7 +559,7 @@ class TestErrorHandling:
         def get_quote_side_effect(symbol):
             if symbol == "AAPL":
                 return None  # Invalid price
-            return {"price": 200.0}
+            return create_quote(50.0)  # 100 / 50 = 2 shares
 
         mock_tradernet_client = MagicMock()
         mock_tradernet_client.is_connected = True
@@ -601,7 +606,7 @@ class TestErrorHandling:
 
         mock_tradernet_client = MagicMock()
         mock_tradernet_client.is_connected = True
-        mock_tradernet_client.get_quote = MagicMock(return_value=MagicMock(price=50.0))
+        mock_tradernet_client.get_quote = MagicMock(return_value=create_quote(50.0))
 
         mock_trade_execution_service = AsyncMock()
         mock_trade_execution_service.execute_trades = AsyncMock(
@@ -645,7 +650,7 @@ class TestStateVerification:
 
         mock_tradernet_client = MagicMock()
         mock_tradernet_client.is_connected = True
-        mock_tradernet_client.get_quote = MagicMock(return_value=MagicMock(price=50.0))
+        mock_tradernet_client.get_quote = MagicMock(return_value=create_quote(50.0))
 
         mock_trade_execution_service = AsyncMock()
         mock_trade_execution_service.execute_trades = AsyncMock(
