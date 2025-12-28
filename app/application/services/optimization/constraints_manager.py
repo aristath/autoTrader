@@ -158,7 +158,7 @@ class ConstraintsManager:
     def build_sector_constraints(
         self,
         stocks: List[Stock],
-        geo_targets: Dict[str, float],
+        country_targets: Dict[str, float],
         ind_targets: Dict[str, float],
     ) -> Tuple[List[SectorConstraint], List[SectorConstraint]]:
         """
@@ -166,19 +166,19 @@ class ConstraintsManager:
 
         Args:
             stocks: List of Stock objects
-            geo_targets: Dict mapping country name to target weight
+            country_targets: Dict mapping country name to target weight
             ind_targets: Dict mapping industry name to target weight
 
         Returns:
             Tuple of (country_constraints, industry_constraints)
         """
         # Group stocks by country
-        geo_groups: Dict[str, List[str]] = {}
+        country_groups: Dict[str, List[str]] = {}
         for stock in stocks:
-            geo = stock.country or "OTHER"
-            if geo not in geo_groups:
-                geo_groups[geo] = []
-            geo_groups[geo].append(stock.symbol)
+            country = stock.country or "OTHER"
+            if country not in country_groups:
+                country_groups[country] = []
+            country_groups[country].append(stock.symbol)
 
         # Group stocks by industry
         ind_groups: Dict[str, List[str]] = {}
@@ -189,13 +189,13 @@ class ConstraintsManager:
             ind_groups[ind].append(stock.symbol)
 
         # Build country constraints
-        geo_constraints = []
-        for geo, symbols in geo_groups.items():
-            target = geo_targets.get(geo, 0.0)
+        country_constraints = []
+        for country, symbols in country_groups.items():
+            target = country_targets.get(country, 0.0)
             if target > 0:
-                geo_constraints.append(
+                country_constraints.append(
                     SectorConstraint(
-                        name=geo,
+                        name=country,
                         symbols=symbols,
                         target=target,
                         lower=max(0.0, target - self.geo_tolerance),
@@ -219,16 +219,16 @@ class ConstraintsManager:
                 )
 
         logger.info(
-            f"Built {len(geo_constraints)} country constraints, "
+            f"Built {len(country_constraints)} country constraints, "
             f"{len(ind_constraints)} industry constraints"
         )
 
-        return geo_constraints, ind_constraints
+        return country_constraints, ind_constraints
 
     def get_constraint_summary(
         self,
         bounds: Dict[str, Tuple[float, float]],
-        geo_constraints: List[SectorConstraint],
+        country_constraints: List[SectorConstraint],
         ind_constraints: List[SectorConstraint],
     ) -> Dict:
         """
@@ -257,7 +257,7 @@ class ConstraintsManager:
             "sell_blocked": sell_blocked,
             "country_constraints": [
                 {"name": c.name, "target": c.target, "range": (c.lower, c.upper)}
-                for c in geo_constraints
+                for c in country_constraints
             ],
             "industry_constraints": [
                 {"name": c.name, "target": c.target, "range": (c.lower, c.upper)}
