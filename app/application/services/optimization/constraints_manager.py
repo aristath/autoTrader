@@ -240,15 +240,30 @@ class ConstraintsManager:
             ind_groups[ind].append(stock.symbol)
 
         # Normalize country targets to sum to 100% (if they sum to more)
-        country_targets_normalized = country_targets.copy()
-        country_sum = sum(country_targets_normalized.values())
+        # Only normalize targets for countries that actually have stocks
+        country_targets_for_active_countries = {
+            country: country_targets.get(country, 0.0)
+            for country in country_groups.keys()
+            if country_targets.get(country, 0.0) > 0
+        }
+        country_sum = sum(country_targets_for_active_countries.values())
         if country_sum > 1.0:
             logger.warning(
                 f"Country targets sum to {country_sum:.2%} > 100%, normalizing to 100%"
             )
             country_targets_normalized = {
-                k: v / country_sum for k, v in country_targets_normalized.items()
+                k: v / country_sum
+                for k, v in country_targets_for_active_countries.items()
             }
+            # Merge back with original targets (keep zero targets as zero)
+            country_targets_normalized = {
+                country: country_targets_normalized.get(
+                    country, country_targets.get(country, 0.0)
+                )
+                for country in country_groups.keys()
+            }
+        else:
+            country_targets_normalized = country_targets
 
         # Build country constraints
         country_constraints = []
@@ -268,6 +283,20 @@ class ConstraintsManager:
                         upper=hard_upper,
                     )
                 )
+
+        # Log country constraint summary for debugging
+        if country_constraints:
+            country_min_sum = sum(c.lower for c in country_constraints)
+            country_max_sum = sum(c.upper for c in country_constraints)
+            if country_max_sum > 1.0:
+                logger.warning(
+                    f"Country constraint upper bounds sum to {country_max_sum:.2%} > 100%. "
+                    f"This may cause optimization infeasibility. Consider reducing "
+                    f"country targets or geo_tolerance."
+                )
+            logger.debug(
+                f"Country constraints sum: min={country_min_sum:.2%}, max={country_max_sum:.2%}"
+            )
 
         # Normalize industry targets to sum to 100% (if they sum to more)
         # Only normalize targets for industries that actually have stocks
