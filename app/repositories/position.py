@@ -152,6 +152,11 @@ class PositionRepository:
                 (now, symbol.upper()),
             )
 
+    async def get_count(self) -> int:
+        """Get count of positions in database."""
+        row = await self._db.fetchone("SELECT COUNT(*) as count FROM positions")
+        return row["count"] if row else 0
+
     async def get_total_value(self) -> float:
         """Get total portfolio value in EUR."""
         row = await self._db.fetchone(

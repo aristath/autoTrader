@@ -66,11 +66,39 @@ class StockUpdate(BaseModel):
 async def get_stocks(
     stock_repo: StockRepositoryDep,
     portfolio_service: PortfolioServiceDep,
+    position_repo: PositionRepositoryDep,
 ):
-    """Get all stocks in universe with current scores, position data, and priority."""
+    """Get all stocks in universe with current scores, position data, and priority.
+
+    Includes automatic cache validation to detect stale position data:
+    - Compares position count in database vs cached data
+    - Invalidates cache if positions exist in DB but are missing from cache
+    - Falls through to fetch fresh data when cache is invalidated
+    """
     cached = cache.get("stocks_with_scores")
     if cached is not None:
-        return cached
+        # Validate cached data: check if positions exist in DB but are missing from cache
+        # This automatically detects when positions are synced but cache wasn't invalidated
+        db_position_count = await position_repo.get_count()
+        cached_with_positions = sum(1 for s in cached if s.get("position_value", 0) > 0)
+
+        # If DB has positions but cache shows none, invalidate cache
+        if db_position_count > 0 and cached_with_positions == 0:
+            logger.warning(
+                f"Cache mismatch detected: {db_position_count} positions in DB, "
+                f"but cache shows {cached_with_positions}. Invalidating cache."
+            )
+            cache.invalidate("stocks_with_scores")
+        # Allow small differences (e.g., rounding), but flag significant mismatches
+        elif abs(db_position_count - cached_with_positions) > 2:
+            logger.warning(
+                f"Position count mismatch: DB={db_position_count}, "
+                f"Cache={cached_with_positions}. Invalidating cache."
+            )
+            cache.invalidate("stocks_with_scores")
+        else:
+            # Cache looks valid, return it
+            return cached
 
     stocks_data = await stock_repo.get_with_scores()
 
