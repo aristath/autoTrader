@@ -388,17 +388,17 @@ class TestSectorConstraintsBuilding:
             create_stock("AAPL", country="United States"),
             create_stock("UNKNOWN", country=None),
         ]
-        geo_targets = {"US": 0.60, "OTHER": 0.40}
+        geo_targets = {"United States": 0.60, "OTHER": 0.40}
         ind_targets = {}
 
         geo_constraints, ind_constraints = manager.build_sector_constraints(
             stocks, geo_targets, ind_targets
         )
 
-        # Should have constraints for US and OTHER
+        # Should have constraints for United States and OTHER
         assert len(geo_constraints) == 2
         names = {c.name for c in geo_constraints}
-        assert "US" in names
+        assert "United States" in names
         assert "OTHER" in names
 
         # UNKNOWN should be in OTHER
@@ -436,17 +436,17 @@ class TestSectorConstraintsBuilding:
             create_stock("AAPL", country="United States"),
             create_stock("SAP", country="Germany"),
         ]
-        # EU has zero target, should be excluded
-        geo_targets = {"US": 1.0, "EU": 0.0}
+        # Germany has zero target, should be excluded
+        geo_targets = {"United States": 1.0, "Germany": 0.0}
         ind_targets = {}
 
         geo_constraints, ind_constraints = manager.build_sector_constraints(
             stocks, geo_targets, ind_targets
         )
 
-        # Should only have US constraint
+        # Should only have United States constraint
         assert len(geo_constraints) == 1
-        assert geo_constraints[0].name == "US"
+        assert geo_constraints[0].name == "United States"
 
     def test_missing_target_treated_as_zero(self):
         """Test sectors not in targets are excluded from constraints."""
@@ -455,24 +455,24 @@ class TestSectorConstraintsBuilding:
             create_stock("AAPL", country="United States"),
             create_stock("SAP", country="Germany"),
         ]
-        # EU not in targets
-        geo_targets = {"US": 0.60}
+        # Germany not in targets
+        geo_targets = {"United States": 0.60}
         ind_targets = {}
 
         geo_constraints, ind_constraints = manager.build_sector_constraints(
             stocks, geo_targets, ind_targets
         )
 
-        # Should only have US constraint
+        # Should only have United States constraint
         assert len(geo_constraints) == 1
-        assert geo_constraints[0].name == "US"
+        assert geo_constraints[0].name == "United States"
 
     def test_bounds_clamped_to_zero_and_one(self):
         """Test constraint bounds are clamped to [0, 1]."""
         manager = ConstraintsManager(geo_tolerance=0.30)
         stocks = [create_stock("AAPL", country="United States")]
         # High target that would exceed 1.0 with tolerance
-        geo_targets = {"US": 0.95}
+        geo_targets = {"United States": 0.95}
         ind_targets = {}
 
         geo_constraints, ind_constraints = manager.build_sector_constraints(
@@ -490,7 +490,7 @@ class TestSectorConstraintsBuilding:
         manager = ConstraintsManager(geo_tolerance=0.30)
         stocks = [create_stock("AAPL", country="United States")]
         # Low target that would go negative with tolerance
-        geo_targets = {"US": 0.10}
+        geo_targets = {"United States": 0.10}
         ind_targets = {}
 
         geo_constraints, ind_constraints = manager.build_sector_constraints(
@@ -517,19 +517,19 @@ class TestSectorConstraintsBuilding:
                 "MSFT", country="United States", industry="Consumer Electronics"
             ),
         ]
-        geo_targets = {"US": 1.0}
+        geo_targets = {"United States": 1.0}
         ind_targets = {"Consumer Electronics": 1.0}
 
         geo_constraints, ind_constraints = manager.build_sector_constraints(
             stocks, geo_targets, ind_targets
         )
 
-        # US should contain all 3 stocks
+        # United States should contain all 3 stocks
         us_constraint = geo_constraints[0]
         assert len(us_constraint.symbols) == 3
         assert set(us_constraint.symbols) == {"AAPL", "GOOGL", "MSFT"}
 
-        # Technology should contain all 3 stocks
+        # Consumer Electronics should contain all 3 stocks
         tech_constraint = ind_constraints[0]
         assert len(tech_constraint.symbols) == 3
         assert set(tech_constraint.symbols) == {"AAPL", "GOOGL", "MSFT"}
@@ -546,7 +546,7 @@ class TestSectorConstraintsBuilding:
                 "JPM", country="United States", industry="Banks - Diversified"
             ),
         ]
-        geo_targets = {"US": 0.60, "EU": 0.40}
+        geo_targets = {"United States": 0.60, "Germany": 0.40}
         ind_targets = {"Consumer Electronics": 0.70, "Banks - Diversified": 0.30}
 
         geo_constraints, ind_constraints = manager.build_sector_constraints(
@@ -556,11 +556,11 @@ class TestSectorConstraintsBuilding:
         assert len(geo_constraints) == 2
         assert len(ind_constraints) == 2
 
-        # US should have AAPL and JPM
-        us_constraint = next(c for c in geo_constraints if c.name == "US")
+        # United States should have AAPL and JPM
+        us_constraint = next(c for c in geo_constraints if c.name == "United States")
         assert set(us_constraint.symbols) == {"AAPL", "JPM"}
 
-        # Technology should have AAPL and SAP
+        # Consumer Electronics should have AAPL and SAP
         tech_constraint = next(
             c for c in ind_constraints if c.name == "Consumer Electronics"
         )
@@ -662,7 +662,7 @@ class TestConstraintSummary:
         bounds = {}
         geo_constraints = [
             SectorConstraint(
-                name="US",
+                name="United States",
                 symbols=["AAPL", "GOOGL"],
                 target=0.60,
                 lower=0.50,
@@ -683,10 +683,10 @@ class TestConstraintSummary:
             bounds, geo_constraints, ind_constraints
         )
 
-        assert len(summary["geography_constraints"]) == 1
-        assert summary["geography_constraints"][0]["name"] == "United States"
-        assert summary["geography_constraints"][0]["target"] == 0.60
-        assert summary["geography_constraints"][0]["range"] == (0.50, 0.70)
+        assert len(summary["country_constraints"]) == 1
+        assert summary["country_constraints"][0]["name"] == "United States"
+        assert summary["country_constraints"][0]["target"] == 0.60
+        assert summary["country_constraints"][0]["range"] == (0.50, 0.70)
 
         assert len(summary["industry_constraints"]) == 1
         assert summary["industry_constraints"][0]["name"] == "Consumer Electronics"
@@ -843,7 +843,7 @@ class TestEdgeCases:
         manager = ConstraintsManager()
         stocks = [create_stock("AAPL", country="United States")]
         # Invalid target > 1.0
-        geo_targets = {"US": 1.5}
+        geo_targets = {"United States": 1.5}
         ind_targets = {}
 
         geo_constraints, ind_constraints = manager.build_sector_constraints(
