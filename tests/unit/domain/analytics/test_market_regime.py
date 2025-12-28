@@ -9,12 +9,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.infrastructure.external.tradernet import OHLC
+from app.infrastructure.external.tradernet import OHLC, Quote
 
 
 def create_ohlc(timestamp: datetime, close: float) -> OHLC:
     """Helper to create OHLC data point."""
-    from app.infrastructure.external.tradernet import OHLC
     return OHLC(
         timestamp=timestamp,
         open=close * 0.99,
