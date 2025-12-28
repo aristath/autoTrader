@@ -145,6 +145,11 @@ if [ "$DEPLOY_SCRIPT_CHANGED" = true ]; then
     log "Deploy script updated"
 fi
 
+# Reset any local changes (device should always match remote)
+log "Resetting local changes..."
+git reset --hard HEAD >> "$LOG_FILE" 2>&1 || log "WARNING: git reset failed"
+git clean -fd >> "$LOG_FILE" 2>&1 || log "WARNING: git clean failed"
+
 # Pull latest changes
 log "Pulling latest changes from origin/$CURRENT_BRANCH"
 if ! git pull origin "$CURRENT_BRANCH" >> "$LOG_FILE" 2>&1; then
