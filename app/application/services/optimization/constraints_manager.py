@@ -155,12 +155,26 @@ class ConstraintsManager:
                     min_weight = (
                         min_lot_value / portfolio_value if portfolio_value > 0 else 0
                     )
-                    old_lower = lower
-                    lower = max(lower, min_weight)
-                    constraint_steps.append(
-                        f"min_lot constraint (min_lot_value={min_lot_value:.2f} EUR) → "
-                        f"lower=max({old_lower:.2%}, {min_weight:.2%})={lower:.2%}"
-                    )
+                    # Check if min_lot constraint would violate upper bound
+                    # If min_weight > upper, the constraint is infeasible - ignore it
+                    if min_weight > upper:
+                        logger.warning(
+                            f"{symbol}: min_lot constraint would create infeasible bounds "
+                            f"(min_weight={min_weight:.2%} > upper={upper:.2%}). "
+                            f"Ignoring min_lot constraint. Consider reducing min_lot "
+                            f"from {stock.min_lot} to allow rebalancing."
+                        )
+                        constraint_steps.append(
+                            f"min_lot constraint ignored (min_weight={min_weight:.2%} > "
+                            f"upper={upper:.2%})"
+                        )
+                    else:
+                        old_lower = lower
+                        lower = max(lower, min_weight)
+                        constraint_steps.append(
+                            f"min_lot constraint (min_lot_value={min_lot_value:.2f} EUR) → "
+                            f"lower=max({old_lower:.2%}, {min_weight:.2%})={lower:.2%}"
+                        )
 
             # Ensure lower <= upper
             if lower > upper:
@@ -225,10 +239,21 @@ class ConstraintsManager:
                 ind_groups[ind] = []
             ind_groups[ind].append(stock.symbol)
 
+        # Normalize country targets to sum to 100% (if they sum to more)
+        country_targets_normalized = country_targets.copy()
+        country_sum = sum(country_targets_normalized.values())
+        if country_sum > 1.0:
+            logger.warning(
+                f"Country targets sum to {country_sum:.2%} > 100%, normalizing to 100%"
+            )
+            country_targets_normalized = {
+                k: v / country_sum for k, v in country_targets_normalized.items()
+            }
+
         # Build country constraints
         country_constraints = []
         for country, symbols in country_groups.items():
-            target = country_targets.get(country, 0.0)
+            target = country_targets_normalized.get(country, 0.0)
             if target > 0:
                 # Calculate tolerance-based bounds
                 tolerance_upper = min(1.0, target + self.geo_tolerance)
@@ -244,10 +269,33 @@ class ConstraintsManager:
                     )
                 )
 
+        # Normalize industry targets to sum to 100% (if they sum to more)
+        # Only normalize targets for industries that actually have stocks
+        ind_targets_for_active_industries = {
+            ind: ind_targets.get(ind, 0.0)
+            for ind in ind_groups.keys()
+            if ind_targets.get(ind, 0.0) > 0
+        }
+        ind_sum = sum(ind_targets_for_active_industries.values())
+        if ind_sum > 1.0:
+            logger.warning(
+                f"Industry targets sum to {ind_sum:.2%} > 100%, normalizing to 100%"
+            )
+            ind_targets_normalized = {
+                k: v / ind_sum for k, v in ind_targets_for_active_industries.items()
+            }
+            # Merge back with original targets (keep zero targets as zero)
+            ind_targets_normalized = {
+                ind: ind_targets_normalized.get(ind, ind_targets.get(ind, 0.0))
+                for ind in ind_groups.keys()
+            }
+        else:
+            ind_targets_normalized = ind_targets
+
         # Build industry constraints
         ind_constraints = []
         for ind, symbols in ind_groups.items():
-            target = ind_targets.get(ind, 0.0)
+            target = ind_targets_normalized.get(ind, 0.0)
             if target > 0:
                 # Calculate tolerance-based bounds
                 tolerance_upper = min(1.0, target + self.ind_tolerance)
