@@ -31,6 +31,12 @@ class Stock:
     allow_sell: bool = False
     currency: Optional[Currency] = None
     last_synced: Optional[str] = None  # ISO datetime when stock data was last synced
+    min_portfolio_target: Optional[float] = (
+        None  # Minimum target portfolio allocation percentage (0-20)
+    )
+    max_portfolio_target: Optional[float] = (
+        None  # Maximum target portfolio allocation percentage (0-30)
+    )
 
     def __post_init__(self):
         """Validate stock data."""
@@ -46,6 +52,26 @@ class Stock:
         # Ensure min_lot is at least 1
         if self.min_lot < 1:
             object.__setattr__(self, "min_lot", 1)
+
+        # Validate min_portfolio_target
+        if self.min_portfolio_target is not None:
+            if self.min_portfolio_target < 0 or self.min_portfolio_target > 20:
+                raise ValidationError("min_portfolio_target must be between 0 and 20")
+
+        # Validate max_portfolio_target
+        if self.max_portfolio_target is not None:
+            if self.max_portfolio_target < 0 or self.max_portfolio_target > 30:
+                raise ValidationError("max_portfolio_target must be between 0 and 30")
+
+        # Validate that max >= min when both are provided
+        if (
+            self.min_portfolio_target is not None
+            and self.max_portfolio_target is not None
+        ):
+            if self.max_portfolio_target < self.min_portfolio_target:
+                raise ValidationError(
+                    "max_portfolio_target must be >= min_portfolio_target"
+                )
 
 
 @dataclass
