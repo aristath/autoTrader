@@ -70,9 +70,9 @@ SETTING_DEFAULTS = {
     "stock_discovery_fetch_limit": 50.0,  # Maximum candidates to fetch from API
     # Market Regime Detection settings
     "market_regime_detection_enabled": 1.0,  # 1.0 = enabled, 0.0 = disabled
-    "market_regime_bull_cash_reserve": 400.0,  # Cash reserve in bull market
-    "market_regime_bear_cash_reserve": 600.0,  # Cash reserve in bear market
-    "market_regime_sideways_cash_reserve": 500.0,  # Cash reserve in sideways market
+    "market_regime_bull_cash_reserve": 0.02,  # Cash reserve percentage in bull market (2%)
+    "market_regime_bear_cash_reserve": 0.05,  # Cash reserve percentage in bear market (5%)
+    "market_regime_sideways_cash_reserve": 0.03,  # Cash reserve percentage in sideways market (3%)
     "market_regime_bull_threshold": 0.05,  # Threshold for bull market (5% above MA)
     "market_regime_bear_threshold": -0.05,  # Threshold for bear market (-5% below MA)
 }
@@ -215,6 +215,19 @@ async def update_setting_value(
         await settings_repo.set(key, str(data.value))
         cache.invalidate("settings:all")
         return {key: str(data.value)}
+    elif key in (
+        "market_regime_bull_cash_reserve",
+        "market_regime_bear_cash_reserve",
+        "market_regime_sideways_cash_reserve",
+    ):
+        # Validate percentage range (1% to 40%)
+        if data.value < 0.01 or data.value > 0.40:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{key} must be between 1% (0.01) and 40% (0.40)",
+            )
+        await set_setting(key, str(data.value), settings_repo)
+        return {key: data.value}
 
     await set_setting(key, str(data.value), settings_repo)
 

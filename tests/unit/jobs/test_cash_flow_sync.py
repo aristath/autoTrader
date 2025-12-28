@@ -241,12 +241,8 @@ class TestDividendRecordCreation:
 
     @pytest.mark.asyncio
     async def test_creates_dividend_record_from_dividend_cash_flow(self):
-        """Test that dividend cash flows create DividendRecord entries.
-
-        Bug caught: Dividends not tracked for reinvestment.
-        """
+        """Test that dividend cash flows create DividendRecord entries."""
         from app.jobs.cash_flow_sync import _sync_cash_flows_internal
-        from app.repositories import DividendRepository
 
         # Create a dividend cash flow
         dividend_cash_flow = {
@@ -286,11 +282,19 @@ class TestDividendRecordCreation:
         mock_client.is_connected = True
         mock_client.get_all_cash_flows.return_value = [dividend_cash_flow]
 
+        mock_dividend_repo = AsyncMock()
+        mock_dividend_repo.exists_for_cash_flow.return_value = False
+        mock_dividend_repo.create = AsyncMock()
+
         with (
             patch(
                 "app.jobs.cash_flow_sync.get_tradernet_client", return_value=mock_client
             ),
             patch("app.jobs.cash_flow_sync.get_db_manager", return_value=mock_db),
+            patch(
+                "app.jobs.cash_flow_sync.DividendRepository",
+                return_value=mock_dividend_repo,
+            ),
             patch("app.jobs.cash_flow_sync.set_processing"),
             patch("app.jobs.cash_flow_sync.clear_processing"),
             patch("app.jobs.cash_flow_sync.emit"),
@@ -298,25 +302,16 @@ class TestDividendRecordCreation:
             await _sync_cash_flows_internal()
 
         # Verify dividend record was created
-        dividend_repo = DividendRepository()
-        dividends = await dividend_repo.get_by_symbol("AAPL.US")
-
-        # Note: This test will fail if dividend record creation is not implemented
-        # That's expected in RED phase - we'll implement it in Task 1.4
-        assert len(dividends) > 0, "Dividend record should be created from cash flow"
-        dividend = dividends[0]
-        assert dividend.symbol == "AAPL.US"
-        assert dividend.amount_eur == pytest.approx(45.0, abs=0.01)
-        assert dividend.cash_flow_id == 1  # Linked to cash flow
+        mock_dividend_repo.create.assert_called_once()
+        created_dividend = mock_dividend_repo.create.call_args[0][0]
+        assert created_dividend.symbol == "AAPL.US"
+        assert created_dividend.amount_eur == 45.0
+        assert created_dividend.cash_flow_id == 1
 
     @pytest.mark.asyncio
     async def test_links_dividend_record_to_cash_flow_id(self):
-        """Test that dividend records are linked to cash flows via cash_flow_id.
-
-        Bug caught: Missing link prevents tracking dividend source.
-        """
+        """Test that dividend records are linked to cash flows via cash_flow_id."""
         from app.jobs.cash_flow_sync import _sync_cash_flows_internal
-        from app.repositories import DividendRepository
 
         dividend_cash_flow = {
             "transaction_id": "corp_action_dividend_456",
@@ -350,33 +345,35 @@ class TestDividendRecordCreation:
         mock_client.is_connected = True
         mock_client.get_all_cash_flows.return_value = [dividend_cash_flow]
 
+        mock_dividend_repo = AsyncMock()
+        mock_dividend_repo.exists_for_cash_flow.return_value = False
+        mock_dividend_repo.create = AsyncMock()
+
         with (
             patch(
                 "app.jobs.cash_flow_sync.get_tradernet_client", return_value=mock_client
             ),
             patch("app.jobs.cash_flow_sync.get_db_manager", return_value=mock_db),
+            patch(
+                "app.jobs.cash_flow_sync.DividendRepository",
+                return_value=mock_dividend_repo,
+            ),
             patch("app.jobs.cash_flow_sync.set_processing"),
             patch("app.jobs.cash_flow_sync.clear_processing"),
             patch("app.jobs.cash_flow_sync.emit"),
         ):
             await _sync_cash_flows_internal()
 
-        # Verify link
-        dividend_repo = DividendRepository()
-        dividends = await dividend_repo.get_by_symbol("MSFT.US")
-        assert len(dividends) > 0
-        assert dividends[0].cash_flow_id == 42
+        # Verify the dividend was created with correct cash_flow_id
+        mock_dividend_repo.create.assert_called_once()
+        created_dividend = mock_dividend_repo.create.call_args[0][0]
+        assert created_dividend.cash_flow_id == 42
 
     @pytest.mark.asyncio
-    async def test_deduplicates_dividend_records(self):
-        """Test that duplicate dividend records are not created.
-
-        Bug caught: Same dividend recorded multiple times.
-        """
+    async def test_skips_existing_dividend_records(self):
+        """Test that duplicate dividend records are not created."""
         from app.jobs.cash_flow_sync import _sync_cash_flows_internal
-        from app.repositories import DividendRepository
 
-        # Same dividend cash flow synced twice
         dividend_cash_flow = {
             "transaction_id": "corp_action_dividend_789",
             "transaction_type": "dividend",
@@ -390,66 +387,44 @@ class TestDividendRecordCreation:
             },
         }
 
-        # First sync: no existing transactions
-        mock_cursor1 = AsyncMock()
-        mock_cursor1.fetchall.return_value = []
-        mock_cursor1.lastrowid = 100
-
-        # Second sync: transaction already exists
-        mock_cursor2 = AsyncMock()
-        mock_cursor2 = AsyncMock()
-        mock_cursor2.fetchall.return_value = [
-            ("corp_action_dividend_789",)
-        ]  # Already exists
+        mock_cursor = AsyncMock()
+        mock_cursor.fetchall.return_value = []  # No existing cash flows
+        mock_cursor.lastrowid = 100
 
         @asynccontextmanager
         async def mock_transaction():
             yield
 
-        mock_ledger1 = AsyncMock()
-        mock_ledger1.execute.return_value = mock_cursor1
-        mock_ledger1.transaction = mock_transaction
+        mock_ledger = AsyncMock()
+        mock_ledger.execute.return_value = mock_cursor
+        mock_ledger.transaction = mock_transaction
 
-        mock_ledger2 = AsyncMock()
-        mock_ledger2.execute.return_value = mock_cursor2
-        mock_ledger2.transaction = mock_transaction
-
-        mock_db1 = MagicMock()
-        mock_db1.ledger = mock_ledger1
-
-        mock_db2 = MagicMock()
-        mock_db2.ledger = mock_ledger2
+        mock_db = MagicMock()
+        mock_db.ledger = mock_ledger
 
         mock_client = MagicMock()
         mock_client.is_connected = True
         mock_client.get_all_cash_flows.return_value = [dividend_cash_flow]
 
-        # First sync
+        # Mock dividend repo to indicate record already exists
+        mock_dividend_repo = AsyncMock()
+        mock_dividend_repo.exists_for_cash_flow.return_value = True  # Already exists
+        mock_dividend_repo.create = AsyncMock()
+
         with (
             patch(
                 "app.jobs.cash_flow_sync.get_tradernet_client", return_value=mock_client
             ),
-            patch("app.jobs.cash_flow_sync.get_db_manager", return_value=mock_db1),
+            patch("app.jobs.cash_flow_sync.get_db_manager", return_value=mock_db),
+            patch(
+                "app.jobs.cash_flow_sync.DividendRepository",
+                return_value=mock_dividend_repo,
+            ),
             patch("app.jobs.cash_flow_sync.set_processing"),
             patch("app.jobs.cash_flow_sync.clear_processing"),
             patch("app.jobs.cash_flow_sync.emit"),
         ):
             await _sync_cash_flows_internal()
 
-        # Second sync (should skip existing)
-        with (
-            patch(
-                "app.jobs.cash_flow_sync.get_tradernet_client", return_value=mock_client
-            ),
-            patch("app.jobs.cash_flow_sync.get_db_manager", return_value=mock_db2),
-            patch("app.jobs.cash_flow_sync.set_processing"),
-            patch("app.jobs.cash_flow_sync.clear_processing"),
-            patch("app.jobs.cash_flow_sync.emit"),
-        ):
-            await _sync_cash_flows_internal()
-
-        # Verify only one dividend record exists
-        dividend_repo = DividendRepository()
-        dividends = await dividend_repo.get_by_symbol("GOOGL.US")
-        # Should have only one record (from first sync)
-        assert len(dividends) == 1
+        # Create should NOT be called since record already exists
+        mock_dividend_repo.create.assert_not_called()

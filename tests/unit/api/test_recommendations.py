@@ -88,6 +88,14 @@ def mock_stock_repo():
 
 
 @pytest.fixture
+def mock_allocation_repo():
+    """Mock allocation repository."""
+    repo = AsyncMock()
+    repo.get_all.return_value = []
+    return repo
+
+
+@pytest.fixture
 def mock_tradernet_client():
     """Mock Tradernet client."""
     client = MagicMock()
@@ -110,6 +118,7 @@ class TestGetRecommendations:
         mock_settings_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
         mock_step,
     ):
@@ -130,6 +139,7 @@ class TestGetRecommendations:
                     mock_settings_service,
                     mock_rebalancing_service,
                     mock_stock_repo,
+                    mock_allocation_repo,
                     mock_tradernet_client,
                 )
 
@@ -145,6 +155,7 @@ class TestGetRecommendations:
         mock_settings_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that empty result is returned when no recommendations available."""
@@ -164,6 +175,7 @@ class TestGetRecommendations:
                     mock_settings_service,
                     mock_rebalancing_service,
                     mock_stock_repo,
+                    mock_allocation_repo,
                     mock_tradernet_client,
                 )
 
@@ -179,6 +191,7 @@ class TestGetRecommendations:
         mock_settings_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that cache key uses 'recommendations:' prefix, not 'multi_step_recommendations:'."""
@@ -207,6 +220,7 @@ class TestGetRecommendations:
                     mock_settings_service,
                     mock_rebalancing_service,
                     mock_stock_repo,
+                    mock_allocation_repo,
                     mock_tradernet_client,
                 )
 
@@ -224,6 +238,7 @@ class TestGetRecommendations:
         mock_settings_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that cached data is returned when available."""
@@ -249,6 +264,7 @@ class TestGetRecommendations:
                     mock_settings_service,
                     mock_rebalancing_service,
                     mock_stock_repo,
+                    mock_allocation_repo,
                     mock_tradernet_client,
                 )
 
@@ -263,6 +279,7 @@ class TestGetRecommendations:
         mock_settings_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
         mock_step,
     ):
@@ -283,6 +300,7 @@ class TestGetRecommendations:
                     mock_settings_service,
                     mock_rebalancing_service,
                     mock_stock_repo,
+                    mock_allocation_repo,
                     mock_tradernet_client,
                 )
 
@@ -299,6 +317,7 @@ class TestGetRecommendations:
         mock_settings_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test handling of multi-step recommendations."""
@@ -351,6 +370,7 @@ class TestGetRecommendations:
                     mock_settings_service,
                     mock_rebalancing_service,
                     mock_stock_repo,
+                    mock_allocation_repo,
                     mock_tradernet_client,
                 )
 
@@ -366,6 +386,7 @@ class TestGetRecommendations:
         mock_settings_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that numeric values are properly rounded."""
@@ -402,6 +423,7 @@ class TestGetRecommendations:
                     mock_settings_service,
                     mock_rebalancing_service,
                     mock_stock_repo,
+                    mock_allocation_repo,
                     mock_tradernet_client,
                 )
 
@@ -421,6 +443,7 @@ class TestGetRecommendations:
         mock_settings_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that service exceptions are converted to HTTPException."""
@@ -443,6 +466,7 @@ class TestGetRecommendations:
                         mock_settings_service,
                         mock_rebalancing_service,
                         mock_stock_repo,
+                        mock_allocation_repo,
                         mock_tradernet_client,
                     )
 
@@ -456,6 +480,7 @@ class TestGetRecommendations:
         mock_settings_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that HTTPException is propagated without wrapping."""
@@ -477,6 +502,7 @@ class TestGetRecommendations:
                         mock_settings_service,
                         mock_rebalancing_service,
                         mock_stock_repo,
+                        mock_allocation_repo,
                         mock_tradernet_client,
                     )
 
@@ -489,6 +515,7 @@ class TestGetRecommendations:
         mock_settings_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
         mock_step,
     ):
@@ -516,6 +543,7 @@ class TestGetRecommendations:
                     mock_settings_service,
                     mock_rebalancing_service,
                     mock_stock_repo,
+                    mock_allocation_repo,
                     mock_tradernet_client,
                 )
 
@@ -544,6 +572,7 @@ class TestExecuteRecommendation:
         mock_trade_execution_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that execute endpoint always executes first step (no step_number parameter)."""
@@ -597,6 +626,7 @@ class TestExecuteRecommendation:
                             mock_trade_execution_service,
                             mock_rebalancing_service,
                             mock_stock_repo,
+                            mock_allocation_repo,
                             mock_tradernet_client,
                         )
 
@@ -631,6 +661,7 @@ class TestExecuteRecommendation:
         mock_trade_execution_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that execute uses 'recommendations:' cache key."""
@@ -674,6 +705,7 @@ class TestExecuteRecommendation:
                             mock_trade_execution_service,
                             mock_rebalancing_service,
                             mock_stock_repo,
+                            mock_allocation_repo,
                             mock_tradernet_client,
                         )
 
@@ -694,6 +726,7 @@ class TestExecuteRecommendation:
         mock_trade_execution_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that recommendations are regenerated when cache misses."""
@@ -743,6 +776,7 @@ class TestExecuteRecommendation:
                             mock_trade_execution_service,
                             mock_rebalancing_service,
                             mock_stock_repo,
+                            mock_allocation_repo,
                             mock_tradernet_client,
                         )
 
@@ -760,6 +794,7 @@ class TestExecuteRecommendation:
         mock_trade_execution_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that 404 is raised when no recommendations available."""
@@ -783,6 +818,7 @@ class TestExecuteRecommendation:
                         mock_trade_execution_service,
                         mock_rebalancing_service,
                         mock_stock_repo,
+                        mock_allocation_repo,
                         mock_tradernet_client,
                     )
 
@@ -799,6 +835,7 @@ class TestExecuteRecommendation:
         mock_trade_execution_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that trade is validated before execution."""
@@ -842,6 +879,7 @@ class TestExecuteRecommendation:
                             mock_trade_execution_service,
                             mock_rebalancing_service,
                             mock_stock_repo,
+                            mock_allocation_repo,
                             mock_tradernet_client,
                         )
 
@@ -864,6 +902,7 @@ class TestExecuteRecommendation:
         mock_trade_execution_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that trade is recorded after successful execution."""
@@ -907,6 +946,7 @@ class TestExecuteRecommendation:
                             mock_trade_execution_service,
                             mock_rebalancing_service,
                             mock_stock_repo,
+                            mock_allocation_repo,
                             mock_tradernet_client,
                         )
 
@@ -929,6 +969,7 @@ class TestExecuteRecommendation:
         mock_trade_execution_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that caches are invalidated after execution."""
@@ -975,6 +1016,7 @@ class TestExecuteRecommendation:
                             mock_trade_execution_service,
                             mock_rebalancing_service,
                             mock_stock_repo,
+                            mock_allocation_repo,
                             mock_tradernet_client,
                         )
 
@@ -991,6 +1033,7 @@ class TestExecuteRecommendation:
         mock_trade_execution_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that 500 is raised when order placement fails."""
@@ -1036,6 +1079,7 @@ class TestExecuteRecommendation:
                             mock_trade_execution_service,
                             mock_rebalancing_service,
                             mock_stock_repo,
+                            mock_allocation_repo,
                             mock_client,
                         )
 
@@ -1052,6 +1096,7 @@ class TestExecuteRecommendation:
         mock_trade_execution_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that exceptions during execution are handled."""
@@ -1092,6 +1137,7 @@ class TestExecuteRecommendation:
                             mock_trade_execution_service,
                             mock_rebalancing_service,
                             mock_stock_repo,
+                            mock_allocation_repo,
                             mock_tradernet_client,
                         )
 
@@ -1108,6 +1154,7 @@ class TestExecuteRecommendation:
         mock_trade_execution_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that HTTPException from safety check is propagated."""
@@ -1151,6 +1198,7 @@ class TestExecuteRecommendation:
                             mock_trade_execution_service,
                             mock_rebalancing_service,
                             mock_stock_repo,
+                            mock_allocation_repo,
                             mock_tradernet_client,
                         )
 
@@ -1317,6 +1365,7 @@ class TestRegenerateRecommendationsCache:
         mock_settings_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test successful cache regeneration."""
@@ -1352,6 +1401,7 @@ class TestRegenerateRecommendationsCache:
                     mock_settings_service,
                     mock_rebalancing_service,
                     mock_stock_repo,
+                    mock_allocation_repo,
                     mock_tradernet_client,
                 )
 
@@ -1367,6 +1417,7 @@ class TestRegenerateRecommendationsCache:
         mock_settings_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that 404 is raised when no recommendations available."""
@@ -1386,6 +1437,7 @@ class TestRegenerateRecommendationsCache:
                         mock_settings_service,
                         mock_rebalancing_service,
                         mock_stock_repo,
+                        mock_allocation_repo,
                         mock_tradernet_client,
                     )
 
@@ -1399,6 +1451,7 @@ class TestRegenerateRecommendationsCache:
         mock_settings_service,
         mock_rebalancing_service,
         mock_stock_repo,
+        mock_allocation_repo,
         mock_tradernet_client,
     ):
         """Test that regenerated data is cached."""
@@ -1434,6 +1487,7 @@ class TestRegenerateRecommendationsCache:
                     mock_settings_service,
                     mock_rebalancing_service,
                     mock_stock_repo,
+                    mock_allocation_repo,
                     mock_tradernet_client,
                 )
 

@@ -128,6 +128,78 @@ class SettingsModal extends HTMLElement {
                 </div>
               </div>
 
+              <!-- Market Regime Detection Card -->
+              <div class="bg-gray-800 border border-gray-700 rounded p-4">
+                <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Market Regime Detection</h3>
+                <p class="text-xs text-gray-500 mb-4">Cash reserves adjust automatically based on market conditions (SPY/QQQ 200-day MA).</p>
+
+                <div class="space-y-3">
+                  <!-- Enable/Disable -->
+                  <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox"
+                           :checked="$store.app.settings.market_regime_detection_enabled == 1"
+                           @change="$store.app.updateSetting('market_regime_detection_enabled', $event.target.checked ? 1 : 0)"
+                           class="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800">
+                    <span class="text-sm text-gray-300">Enable regime-based cash reserves</span>
+                  </label>
+
+                  <div class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 items-start">
+                    <!-- Bull Market Reserve -->
+                    <div>
+                      <span class="text-sm text-gray-300">Bull Market Reserve</span>
+                      <p class="text-xs text-gray-500">Cash reserve percentage</p>
+                    </div>
+                    <div class="flex items-center gap-1">
+                      <input type="number"
+                             step="0.5"
+                             min="1"
+                             max="40"
+                             :value="($store.app.settings.market_regime_bull_cash_reserve * 100).toFixed(1)"
+                             @change="$store.app.updateSetting('market_regime_bull_cash_reserve', Math.max(0.01, Math.min(0.40, $event.target.value / 100)))"
+                             class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+                      <span class="text-gray-400 text-sm">%</span>
+                    </div>
+
+                    <!-- Bear Market Reserve -->
+                    <div>
+                      <span class="text-sm text-gray-300">Bear Market Reserve</span>
+                      <p class="text-xs text-gray-500">Cash reserve percentage</p>
+                    </div>
+                    <div class="flex items-center gap-1">
+                      <input type="number"
+                             step="0.5"
+                             min="1"
+                             max="40"
+                             :value="($store.app.settings.market_regime_bear_cash_reserve * 100).toFixed(1)"
+                             @change="$store.app.updateSetting('market_regime_bear_cash_reserve', Math.max(0.01, Math.min(0.40, $event.target.value / 100)))"
+                             class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+                      <span class="text-gray-400 text-sm">%</span>
+                    </div>
+
+                    <!-- Sideways Market Reserve -->
+                    <div>
+                      <span class="text-sm text-gray-300">Sideways Market Reserve</span>
+                      <p class="text-xs text-gray-500">Cash reserve percentage</p>
+                    </div>
+                    <div class="flex items-center gap-1">
+                      <input type="number"
+                             step="0.5"
+                             min="1"
+                             max="40"
+                             :value="($store.app.settings.market_regime_sideways_cash_reserve * 100).toFixed(1)"
+                             @change="$store.app.updateSetting('market_regime_sideways_cash_reserve', Math.max(0.01, Math.min(0.40, $event.target.value / 100)))"
+                             class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+                      <span class="text-gray-400 text-sm">%</span>
+                    </div>
+                  </div>
+
+                  <!-- Info note -->
+                  <div class="mt-3 pt-3 border-t border-gray-700/50">
+                    <p class="text-xs text-gray-500">Reserves are calculated as percentage of total portfolio value, with a minimum floor of €500.</p>
+                  </div>
+                </div>
+              </div>
+
               <!-- Trading Constraints Card -->
               <div class="bg-gray-800 border border-gray-700 rounded p-4">
                 <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Trading Constraints</h3>

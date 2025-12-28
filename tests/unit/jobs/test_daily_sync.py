@@ -60,7 +60,8 @@ class TestExtractQuotesList:
 class TestCalculateCashBalanceEur:
     """Tests for _calculate_cash_balance_eur helper."""
 
-    def test_calculates_eur_only(self):
+    @pytest.mark.asyncio
+    async def test_calculates_eur_only(self):
         """Test calculating balance with EUR only."""
         from app.jobs.daily_sync import _calculate_cash_balance_eur
 
@@ -68,11 +69,17 @@ class TestCalculateCashBalanceEur:
         mock_balance.currency = "EUR"
         mock_balance.amount = 1000.0
 
-        result = _calculate_cash_balance_eur([mock_balance], {"EUR": 1.0})
+        mock_exchange_service = AsyncMock()
+        mock_exchange_service.batch_convert_to_eur.return_value = {"EUR": 1000.0}
+
+        result = await _calculate_cash_balance_eur(
+            [mock_balance], mock_exchange_service
+        )
 
         assert result == 1000.0
 
-    def test_converts_usd_to_eur(self):
+    @pytest.mark.asyncio
+    async def test_converts_usd_to_eur(self):
         """Test converting USD to EUR."""
         from app.jobs.daily_sync import _calculate_cash_balance_eur
 
@@ -80,11 +87,17 @@ class TestCalculateCashBalanceEur:
         mock_balance.currency = "USD"
         mock_balance.amount = 1050.0
 
-        result = _calculate_cash_balance_eur([mock_balance], {"USD": 1.05})
+        mock_exchange_service = AsyncMock()
+        mock_exchange_service.batch_convert_to_eur.return_value = {"USD": 1000.0}
+
+        result = await _calculate_cash_balance_eur(
+            [mock_balance], mock_exchange_service
+        )
 
         assert result == 1000.0
 
-    def test_handles_multiple_currencies(self):
+    @pytest.mark.asyncio
+    async def test_handles_multiple_currencies(self):
         """Test handling multiple currencies."""
         from app.jobs.daily_sync import _calculate_cash_balance_eur
 
@@ -96,13 +109,20 @@ class TestCalculateCashBalanceEur:
         mock_usd.currency = "USD"
         mock_usd.amount = 525.0  # 500 EUR at 1.05 rate
 
-        result = _calculate_cash_balance_eur(
-            [mock_eur, mock_usd], {"EUR": 1.0, "USD": 1.05}
+        mock_exchange_service = AsyncMock()
+        mock_exchange_service.batch_convert_to_eur.return_value = {
+            "EUR": 500.0,
+            "USD": 500.0,
+        }
+
+        result = await _calculate_cash_balance_eur(
+            [mock_eur, mock_usd], mock_exchange_service
         )
 
         assert result == 1000.0
 
-    def test_skips_zero_or_negative_amounts(self):
+    @pytest.mark.asyncio
+    async def test_skips_zero_or_negative_amounts(self):
         """Test skipping zero or negative non-EUR amounts."""
         from app.jobs.daily_sync import _calculate_cash_balance_eur
 
@@ -110,7 +130,12 @@ class TestCalculateCashBalanceEur:
         mock_balance.currency = "USD"
         mock_balance.amount = 0
 
-        result = _calculate_cash_balance_eur([mock_balance], {"USD": 1.05})
+        mock_exchange_service = AsyncMock()
+        mock_exchange_service.batch_convert_to_eur.return_value = {"USD": 0.0}
+
+        result = await _calculate_cash_balance_eur(
+            [mock_balance], mock_exchange_service
+        )
 
         assert result == 0.0
 
@@ -173,53 +198,6 @@ class TestDetermineCountry:
         result = await _determine_country("UNKNOWN", mock_db)
 
         assert result is None
-
-
-class TestFetchExchangeRates:
-    """Tests for _fetch_exchange_rates helper."""
-
-    @pytest.mark.asyncio
-    async def test_returns_eur_one_for_empty_set(self):
-        """Test returns EUR:1.0 for empty currency set."""
-        from app.jobs.daily_sync import _fetch_exchange_rates
-
-        result = await _fetch_exchange_rates(set())
-
-        assert result == {"EUR": 1.0}
-
-    @pytest.mark.asyncio
-    async def test_fetches_rates_from_api(self):
-        """Test fetching rates from API."""
-        from app.jobs.daily_sync import _fetch_exchange_rates
-
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"rates": {"USD": 1.05, "GBP": 0.85}}
-
-        with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                return_value=mock_response
-            )
-
-            result = await _fetch_exchange_rates({"USD", "GBP"})
-
-            assert result["EUR"] == 1.0
-            assert result["USD"] == 1.05
-            assert result["GBP"] == 0.85
-
-    @pytest.mark.asyncio
-    async def test_uses_fallback_rates_on_api_error(self):
-        """Test using fallback rates when API fails."""
-        from app.jobs.daily_sync import _fetch_exchange_rates
-
-        with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                side_effect=Exception("API error")
-            )
-
-            result = await _fetch_exchange_rates({"USD"})
-
-            assert result["USD"] == 1.05  # fallback rate
 
 
 class TestSyncPortfolioInternal:
