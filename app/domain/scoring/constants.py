@@ -54,6 +54,25 @@ DRAWDOWN_POOR = 0.50  # <50% drawdown = 0.2+
 # Market average P/E for comparison
 DEFAULT_MARKET_AVG_PE = 22
 
+# Forward-looking market indicator thresholds and adjustments
+# VIX thresholds (volatility/fear index)
+VIX_LOW = 15.0  # Low volatility = optimistic
+VIX_NORMAL = 20.0  # Normal volatility
+VIX_HIGH = 30.0  # High volatility = pessimistic
+VIX_ADJUSTMENT_MAX = 0.10  # Max ±10% adjustment for VIX
+
+# Yield curve slope thresholds
+YIELD_CURVE_NORMAL = 0.01  # 1%+ slope = normal (expansionary)
+YIELD_CURVE_FLAT = 0.0  # Flat curve
+YIELD_CURVE_INVERTED = -0.01  # Negative = inverted (recession signal)
+YIELD_CURVE_ADJUSTMENT_MAX = 0.15  # Max ±15% adjustment for yield curve
+
+# Market P/E thresholds (vs historical average of 22)
+PE_CHEAP = 18.0  # Below average = cheap market
+PE_FAIR = 22.0  # At average = fair value
+PE_EXPENSIVE = 26.0  # Above average = expensive market
+PE_ADJUSTMENT_MAX = 0.10  # Max ±10% adjustment for P/E
+
 # 52-week high thresholds
 BELOW_HIGH_EXCELLENT = 0.30  # 30%+ below = 1.0
 BELOW_HIGH_GOOD = 0.20  # 20-30% below = 0.8-1.0

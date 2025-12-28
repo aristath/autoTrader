@@ -76,9 +76,11 @@ def mock_dividend_reinvestment_dependencies(
 
         mock_stock_repo.get_by_symbol = AsyncMock(side_effect=get_by_symbol)
 
-    # Setup settings
+    # Setup settings - use low transaction costs so min_trade_size is low
+    # min_trade_size = fixed / (max_ratio - percent)
+    # With fixed=0.4, percent=0.002, max_ratio=0.01: min_trade_size = 0.4 / 0.008 = 50
     mock_settings = MagicMock()
-    mock_settings.transaction_cost_fixed = 2.0
+    mock_settings.transaction_cost_fixed = 0.4
     mock_settings.transaction_cost_percent = 0.002
     mock_settings_service = AsyncMock()
     mock_settings_service.get_settings = AsyncMock(return_value=mock_settings)
