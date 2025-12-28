@@ -66,16 +66,16 @@ async def get_portfolio_summary(
     """Get portfolio summary: total value, cash, allocation percentages."""
     summary = await portfolio_service.get_portfolio_summary()
 
-    # Calculate geographic percentages
-    geo_dict = {g.name: g.current_pct for g in summary.geographic_allocations}
+    # Calculate country percentages
+    country_dict = {g.name: g.current_pct for g in summary.country_allocations}
 
     return {
         "total_value": summary.total_value,
         "cash_balance": summary.cash_balance,
         "allocations": {
-            "EU": geo_dict.get("EU", 0) * 100,
-            "ASIA": geo_dict.get("ASIA", 0) * 100,
-            "US": geo_dict.get("US", 0) * 100,
+            "EU": country_dict.get("EU", 0) * 100,
+            "ASIA": country_dict.get("ASIA", 0) * 100,
+            "US": country_dict.get("US", 0) * 100,
         },
     }
 

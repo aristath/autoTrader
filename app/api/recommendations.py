@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.infrastructure.cache import cache
 from app.infrastructure.dependencies import (
+    AllocationRepositoryDep,
     PositionRepositoryDep,
     RebalancingServiceDep,
     SettingsServiceDep,
@@ -97,6 +98,7 @@ async def get_recommendations(
     settings_service: SettingsServiceDep,
     rebalancing_service: RebalancingServiceDep,
     stock_repo: StockRepositoryDep,
+    allocation_repo: AllocationRepositoryDep,
     tradernet_client: TradernetClientDep,
 ):
     """
@@ -115,6 +117,7 @@ async def get_recommendations(
     positions = await position_repo.get_all()
     settings = await settings_service.get_settings()
     stocks = await stock_repo.get_all_active()
+    allocations = await allocation_repo.get_all()
     position_dicts = [{"symbol": p.symbol, "quantity": p.quantity} for p in positions]
     cash_balances = (
         {b.currency: b.amount for b in tradernet_client.get_cash_balances()}
@@ -122,7 +125,7 @@ async def get_recommendations(
         else {}
     )
     portfolio_cache_key = generate_recommendation_cache_key(
-        position_dicts, settings.to_dict(), stocks, cash_balances
+        position_dicts, settings.to_dict(), stocks, cash_balances, allocations
     )
     cache_key = f"recommendations:{portfolio_cache_key}"
 
@@ -185,6 +188,7 @@ async def _regenerate_recommendations_cache(
     settings_service: SettingsServiceDep,
     rebalancing_service: RebalancingServiceDep,
     stock_repo: StockRepositoryDep,
+    allocation_repo: AllocationRepositoryDep,
     tradernet_client: TradernetClientDep,
 ) -> tuple:
     """
@@ -201,6 +205,7 @@ async def _regenerate_recommendations_cache(
     positions = await position_repo.get_all()
     settings = await settings_service.get_settings()
     stocks = await stock_repo.get_all_active()
+    allocations = await allocation_repo.get_all()
     position_dicts = [{"symbol": p.symbol, "quantity": p.quantity} for p in positions]
     cash_balances = (
         {b.currency: b.amount for b in tradernet_client.get_cash_balances()}
@@ -208,7 +213,7 @@ async def _regenerate_recommendations_cache(
         else {}
     )
     portfolio_cache_key = generate_recommendation_cache_key(
-        position_dicts, settings.to_dict(), stocks, cash_balances
+        position_dicts, settings.to_dict(), stocks, cash_balances, allocations
     )
     cache_key = f"recommendations:{portfolio_cache_key}"
 
@@ -263,6 +268,7 @@ async def execute_recommendation(
     trade_execution_service: TradeExecutionServiceDep,
     rebalancing_service: RebalancingServiceDep,
     stock_repo: StockRepositoryDep,
+    allocation_repo: AllocationRepositoryDep,
     tradernet_client: TradernetClientDep,
 ):
     """
@@ -285,6 +291,7 @@ async def execute_recommendation(
         positions = await position_repo.get_all()
         settings = await settings_service.get_settings()
         stocks = await stock_repo.get_all_active()
+        allocations = await allocation_repo.get_all()
         position_dicts = [
             {"symbol": p.symbol, "quantity": p.quantity} for p in positions
         ]
@@ -294,7 +301,7 @@ async def execute_recommendation(
             else {}
         )
         portfolio_cache_key = generate_recommendation_cache_key(
-            position_dicts, settings.to_dict(), stocks, cash_balances
+            position_dicts, settings.to_dict(), stocks, cash_balances, allocations
         )
         cache_key = f"recommendations:{portfolio_cache_key}"
 
@@ -307,6 +314,7 @@ async def execute_recommendation(
                 settings_service,
                 rebalancing_service,
                 stock_repo,
+                allocation_repo,
                 tradernet_client,
             )
 

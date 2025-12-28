@@ -59,7 +59,7 @@ class TestGetStocks:
             "allocation_fit_score": 0.8,
         }
         mock_summary = MagicMock()
-        mock_summary.geographic_allocations = []
+        mock_summary.country_allocations = []
         mock_summary.industry_allocations = []
 
         with patch("app.api.stocks.cache") as mock_cache:
@@ -749,7 +749,7 @@ class TestGetStocksResponse:
             "max_portfolio_target": 15.0,
         }
         mock_summary = MagicMock()
-        mock_summary.geographic_allocations = []
+        mock_summary.country_allocations = []
         mock_summary.industry_allocations = []
 
         with patch("app.api.stocks.cache") as mock_cache:

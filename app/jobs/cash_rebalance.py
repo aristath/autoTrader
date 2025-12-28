@@ -19,6 +19,7 @@ from app.infrastructure.hardware.display_service import (
 from app.infrastructure.locking import file_lock
 from app.infrastructure.recommendation_cache import get_recommendation_cache
 from app.repositories import (
+    AllocationRepository,
     PositionRepository,
     RecommendationRepository,
     SettingsRepository,
@@ -356,6 +357,7 @@ async def _get_next_holistic_action() -> "Recommendation | None":
     position_repo = PositionRepository()
     settings_repo = SettingsRepository()
     stock_repo = StockRepository()
+    allocation_repo = AllocationRepository()
     settings_service = SettingsService(settings_repo)
     client = get_tradernet_client()
 
@@ -363,6 +365,7 @@ async def _get_next_holistic_action() -> "Recommendation | None":
     positions = await position_repo.get_all()
     stocks = await stock_repo.get_all_active()
     settings = await settings_service.get_settings()
+    allocations = await allocation_repo.get_all()
     position_dicts = [{"symbol": p.symbol, "quantity": p.quantity} for p in positions]
     cash_balances = (
         {b.currency: b.amount for b in client.get_cash_balances()}
@@ -370,7 +373,7 @@ async def _get_next_holistic_action() -> "Recommendation | None":
         else {}
     )
     portfolio_cache_key = generate_recommendation_cache_key(
-        position_dicts, settings.to_dict(), stocks, cash_balances
+        position_dicts, settings.to_dict(), stocks, cash_balances, allocations
     )
     cache_key = f"recommendations:{portfolio_cache_key}"
 
@@ -479,6 +482,7 @@ async def _refresh_recommendation_cache():
         settings_repo = SettingsRepository()
         position_repo = PositionRepository()
         stock_repo = StockRepository()
+        allocation_repo = AllocationRepository()
         settings_service = SettingsService(settings_repo)
         rebalancing_service = RebalancingService(settings_repo=settings_repo)
         client = get_tradernet_client()
@@ -487,6 +491,7 @@ async def _refresh_recommendation_cache():
         positions = await position_repo.get_all()
         stocks = await stock_repo.get_all_active()
         settings = await settings_service.get_settings()
+        allocations = await allocation_repo.get_all()
         position_dicts = [
             {"symbol": p.symbol, "quantity": p.quantity} for p in positions
         ]
@@ -496,7 +501,7 @@ async def _refresh_recommendation_cache():
             else {}
         )
         portfolio_cache_key = generate_recommendation_cache_key(
-            position_dicts, settings.to_dict(), stocks, cash_balances
+            position_dicts, settings.to_dict(), stocks, cash_balances, allocations
         )
         cache_key = f"recommendations:{portfolio_cache_key}"
 

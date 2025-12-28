@@ -148,34 +148,71 @@ def generate_settings_hash(settings_dict: Dict[str, Any]) -> str:
     return full_hash[:8]
 
 
+def generate_allocations_hash(allocations_dict: Dict[str, float]) -> str:
+    """
+    Generate a deterministic hash from allocation targets.
+
+    Args:
+        allocations_dict: Dictionary of allocation targets with keys like
+                         "country:United States" or "industry:Technology"
+                         and values as target percentages
+
+    Returns:
+        8-character hex hash (first 8 chars of MD5)
+
+    Example:
+        allocations = {"country:United States": 0.6, "industry:Technology": 0.3}
+        hash = generate_allocations_hash(allocations)  # e.g., "a1b2c3d4"
+    """
+    if not allocations_dict:
+        return "00000000"  # Empty allocations
+
+    # Sort by key for deterministic ordering
+    sorted_keys = sorted(allocations_dict.keys())
+
+    # Build canonical string: "key:value,key:value,..."
+    # Round values to 4 decimal places for stability
+    parts = [f"{k}:{round(allocations_dict[k], 4)}" for k in sorted_keys]
+    canonical = ",".join(parts)
+
+    # Generate hash and return first 8 characters
+    full_hash = hashlib.md5(canonical.encode()).hexdigest()
+    return full_hash[:8]
+
+
 def generate_recommendation_cache_key(
     positions: List[Dict[str, Any]],
     settings_dict: Dict[str, Any],
     stocks: Optional[List[Stock]] = None,
     cash_balances: Optional[Dict[str, float]] = None,
+    allocations_dict: Optional[Dict[str, float]] = None,
 ) -> str:
     """
-    Generate a cache key from portfolio state and settings.
+    Generate a cache key from portfolio state, settings, and allocations.
 
     This ensures that cache is invalidated when positions, settings,
-    stocks universe, cash balances, or per-symbol configuration changes.
+    stocks universe, cash balances, per-symbol configuration, or
+    allocation targets change.
 
     Args:
         positions: List of position dicts with 'symbol' and 'quantity' keys
         settings_dict: Dictionary of settings values
         stocks: Optional list of Stock objects in universe
         cash_balances: Optional dict of currency -> amount
+        allocations_dict: Optional dict of allocation targets (e.g., {"country:US": 0.6})
 
     Returns:
-        17-character combined hash (portfolio_hash:settings_hash)
+        26-character combined hash (portfolio_hash:settings_hash:allocations_hash)
 
     Example:
         positions = [{"symbol": "AAPL", "quantity": 10}]
         settings = {"min_stock_score": 0.5}
         stocks = [Stock(symbol="AAPL", ...), Stock(symbol="MSFT", ...)]
         cash = {"EUR": 1500.0}
-        key = generate_recommendation_cache_key(positions, settings, stocks, cash)
+        allocations = {"country:United States": 0.6}
+        key = generate_recommendation_cache_key(positions, settings, stocks, cash, allocations)
     """
     portfolio_hash = generate_portfolio_hash(positions, stocks, cash_balances)
     settings_hash = generate_settings_hash(settings_dict)
-    return f"{portfolio_hash}:{settings_hash}"
+    allocations_hash = generate_allocations_hash(allocations_dict or {})
+    return f"{portfolio_hash}:{settings_hash}:{allocations_hash}"

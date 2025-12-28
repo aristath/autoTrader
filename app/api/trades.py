@@ -128,7 +128,7 @@ async def get_allocation(portfolio_service: PortfolioServiceDep):
     return {
         "total_value": summary.total_value,
         "cash_balance": summary.cash_balance,
-        "geographic": [
+        "country": [
             {
                 "name": a.name,
                 "target_pct": a.target_pct,
@@ -136,7 +136,7 @@ async def get_allocation(portfolio_service: PortfolioServiceDep):
                 "current_value": a.current_value,
                 "deviation": a.deviation,
             }
-            for a in summary.geographic_allocations
+            for a in summary.country_allocations
         ],
         "industry": [
             {

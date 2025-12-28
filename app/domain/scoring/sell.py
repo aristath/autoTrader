@@ -130,7 +130,7 @@ async def calculate_sell_score(
     country: str,
     industry: str,
     total_portfolio_value: float,
-    geo_allocations: Dict[str, float],
+    country_allocations: Dict[str, float],
     ind_allocations: Dict[str, float],
     technical_data: Optional[TechnicalData] = None,
     settings: Optional[Dict] = None,
@@ -151,7 +151,7 @@ async def calculate_sell_score(
         country: Stock's country (e.g., "United States", "Germany")
         industry: Stock's industry (comma-separated if multiple)
         total_portfolio_value: Total portfolio value in EUR
-        geo_allocations: Current country allocation percentages
+        country_allocations: Current country allocation percentages
         ind_allocations: Current industry allocation percentages
         technical_data: Technical indicators for instability detection
         settings: Optional settings dict for thresholds
@@ -241,7 +241,7 @@ async def calculate_sell_score(
         total_portfolio_value,
         country,
         industry,
-        geo_allocations,
+        country_allocations,
         ind_allocations,
     )
 
@@ -317,7 +317,7 @@ async def get_sell_settings() -> dict:
 async def calculate_all_sell_scores(
     positions: List[dict],
     total_portfolio_value: float,
-    geo_allocations: Dict[str, float],
+    country_allocations: Dict[str, float],
     ind_allocations: Dict[str, float],
     technical_data: Optional[Dict[str, TechnicalData]] = None,
     settings: Optional[Dict] = None,
@@ -329,7 +329,7 @@ async def calculate_all_sell_scores(
     Args:
         positions: List of position dicts with stock info (from get_with_stock_info)
         total_portfolio_value: Total portfolio value in EUR
-        geo_allocations: Current country allocation percentages
+        country_allocations: Current country allocation percentages
         ind_allocations: Current industry allocation percentages
         technical_data: Dict mapping symbol to TechnicalData for instability detection
         settings: Optional settings dict with min_hold_days, sell_cooldown_days, etc.
@@ -359,7 +359,7 @@ async def calculate_all_sell_scores(
             country=pos.get("country", ""),
             industry=pos.get("industry", ""),
             total_portfolio_value=total_portfolio_value,
-            geo_allocations=geo_allocations,
+            country_allocations=country_allocations,
             ind_allocations=ind_allocations,
             technical_data=technical_data.get(symbol),
             settings=settings,

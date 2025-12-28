@@ -58,7 +58,7 @@ class TestIdentifyRebalanceSellOpportunities:
     ):
         """Test identifying overweight country position."""
         stocks_by_symbol = {"AAPL.US": sample_stock}
-        geo_allocations = {
+        country_allocations = {
             "United States": 0.80
         }  # 80% in United States, target is ~33%
 
@@ -66,7 +66,7 @@ class TestIdentifyRebalanceSellOpportunities:
             positions=[sample_position],
             stocks_by_symbol=stocks_by_symbol,
             portfolio_context=portfolio_context,
-            geo_allocations=geo_allocations,
+            country_allocations=country_allocations,
             total_value=20000,
         )
 
@@ -93,13 +93,13 @@ class TestIdentifyRebalanceSellOpportunities:
             total_value=20000,
         )
         stocks_by_symbol = {"AAPL.US": stock}
-        geo_allocations = {"United States": 0.80}
+        country_allocations = {"United States": 0.80}
 
         opportunities = await identify_rebalance_sell_opportunities(
             positions=[sample_position],
             stocks_by_symbol=stocks_by_symbol,
             portfolio_context=portfolio_context,
-            geo_allocations=geo_allocations,
+            country_allocations=country_allocations,
             total_value=20000,
         )
 
@@ -117,13 +117,13 @@ class TestIdentifyRebalanceSellOpportunities:
             currency="USD",
         )
         stocks_by_symbol = {"AAPL.US": sample_stock}
-        geo_allocations = {"United States": 0.80}
+        country_allocations = {"United States": 0.80}
 
         opportunities = await identify_rebalance_sell_opportunities(
             positions=[position],
             stocks_by_symbol=stocks_by_symbol,
             portfolio_context=portfolio_context,
-            geo_allocations=geo_allocations,
+            country_allocations=country_allocations,
             total_value=20000,
         )
 
@@ -133,13 +133,13 @@ class TestIdentifyRebalanceSellOpportunities:
     async def test_skips_unknown_stock(self, sample_position, portfolio_context):
         """Test skipping positions for unknown stocks."""
         stocks_by_symbol = {}  # No stock info
-        geo_allocations = {"United States": 0.80}
+        country_allocations = {"United States": 0.80}
 
         opportunities = await identify_rebalance_sell_opportunities(
             positions=[sample_position],
             stocks_by_symbol=stocks_by_symbol,
             portfolio_context=portfolio_context,
-            geo_allocations=geo_allocations,
+            country_allocations=country_allocations,
             total_value=20000,
         )
 
@@ -151,13 +151,13 @@ class TestIdentifyRebalanceSellOpportunities:
     ):
         """Test skipping when country not in allocations."""
         stocks_by_symbol = {"AAPL.US": sample_stock}
-        geo_allocations = {"Germany": 0.50}  # No United States in allocations
+        country_allocations = {"Germany": 0.50}  # No United States in allocations
 
         opportunities = await identify_rebalance_sell_opportunities(
             positions=[sample_position],
             stocks_by_symbol=stocks_by_symbol,
             portfolio_context=portfolio_context,
-            geo_allocations=geo_allocations,
+            country_allocations=country_allocations,
             total_value=20000,
         )
 
@@ -169,13 +169,13 @@ class TestIdentifyRebalanceSellOpportunities:
     ):
         """Test skipping when country is balanced."""
         stocks_by_symbol = {"AAPL.US": sample_stock}
-        geo_allocations = {"United States": 0.35}  # Near target of 33%
+        country_allocations = {"United States": 0.35}  # Near target of 33%
 
         opportunities = await identify_rebalance_sell_opportunities(
             positions=[sample_position],
             stocks_by_symbol=stocks_by_symbol,
             portfolio_context=portfolio_context,
-            geo_allocations=geo_allocations,
+            country_allocations=country_allocations,
             total_value=20000,
         )
 
@@ -187,7 +187,7 @@ class TestIdentifyRebalanceSellOpportunities:
     ):
         """Test using exchange rate service for non-EUR positions."""
         stocks_by_symbol = {"AAPL.US": sample_stock}
-        geo_allocations = {"United States": 0.80}
+        country_allocations = {"United States": 0.80}
 
         mock_exchange_service = AsyncMock()
         mock_exchange_service.get_rate.return_value = 1.1
@@ -196,7 +196,7 @@ class TestIdentifyRebalanceSellOpportunities:
             positions=[sample_position],
             stocks_by_symbol=stocks_by_symbol,
             portfolio_context=portfolio_context,
-            geo_allocations=geo_allocations,
+            country_allocations=country_allocations,
             total_value=20000,
             exchange_rate_service=mock_exchange_service,
         )
@@ -210,13 +210,13 @@ class TestIdentifyRebalanceSellOpportunities:
     ):
         """Test that opportunities include appropriate tags."""
         stocks_by_symbol = {"AAPL.US": sample_stock}
-        geo_allocations = {"United States": 0.80}
+        country_allocations = {"United States": 0.80}
 
         opportunities = await identify_rebalance_sell_opportunities(
             positions=[sample_position],
             stocks_by_symbol=stocks_by_symbol,
             portfolio_context=portfolio_context,
-            geo_allocations=geo_allocations,
+            country_allocations=country_allocations,
             total_value=20000,
         )
 
@@ -230,13 +230,13 @@ class TestIdentifyRebalanceSellOpportunities:
     ):
         """Test that priority is proportional to overweight amount."""
         stocks_by_symbol = {"AAPL.US": sample_stock}
-        geo_allocations = {"United States": 0.90}  # Very overweight
+        country_allocations = {"United States": 0.90}  # Very overweight
 
         opportunities = await identify_rebalance_sell_opportunities(
             positions=[sample_position],
             stocks_by_symbol=stocks_by_symbol,
             portfolio_context=portfolio_context,
-            geo_allocations=geo_allocations,
+            country_allocations=country_allocations,
             total_value=20000,
         )
 

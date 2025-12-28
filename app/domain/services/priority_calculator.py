@@ -15,7 +15,7 @@ This calculator now simply:
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 
 @dataclass
@@ -74,8 +74,6 @@ class PriorityCalculator:
     @staticmethod
     def calculate_priority(
         input_data: PriorityInput,
-        geo_weights: Optional[Dict[str, float]] = None,
-        industry_weights: Optional[Dict[str, float]] = None,
     ) -> PriorityResult:
         """
         Calculate priority score for a stock.
@@ -90,8 +88,6 @@ class PriorityCalculator:
 
         Args:
             input_data: Stock data for priority calculation
-            geo_weights: Unused (kept for API compatibility)
-            industry_weights: Unused (kept for API compatibility)
 
         Returns:
             PriorityResult with calculated priority
@@ -117,25 +113,18 @@ class PriorityCalculator:
     @staticmethod
     def calculate_priorities(
         inputs: List[PriorityInput],
-        geo_weights: Optional[Dict[str, float]] = None,
-        industry_weights: Optional[Dict[str, float]] = None,
     ) -> List[PriorityResult]:
         """
         Calculate priorities for multiple stocks.
 
         Args:
             inputs: List of stock data for priority calculation
-            geo_weights: Unused (kept for API compatibility)
-            industry_weights: Unused (kept for API compatibility)
 
         Returns:
             List of PriorityResult sorted by combined_priority (highest first)
         """
         results = [
-            PriorityCalculator.calculate_priority(
-                input_data, geo_weights, industry_weights
-            )
-            for input_data in inputs
+            PriorityCalculator.calculate_priority(input_data) for input_data in inputs
         ]
 
         # Sort by combined priority (highest first)

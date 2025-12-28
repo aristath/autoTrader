@@ -381,15 +381,17 @@ async def identify_opportunities(
     recently_bought = await trade_repo.get_recently_bought_symbols(BUY_COOLDOWN_DAYS)
 
     # Calculate current country/industry allocations
-    geo_allocations: dict[str, float] = {}
+    country_allocations: dict[str, float] = {}
     ind_allocations: dict[str, float] = {}
     for symbol, value in portfolio_context.positions.items():
-        geo = (
+        country = (
             portfolio_context.stock_countries.get(symbol, "OTHER")
             if portfolio_context.stock_countries
             else "OTHER"
         )
-        geo_allocations[geo] = geo_allocations.get(geo, 0) + value / total_value
+        country_allocations[country] = (
+            country_allocations.get(country, 0) + value / total_value
+        )
 
         industries = (
             portfolio_context.stock_industries.get(symbol)
@@ -414,7 +416,7 @@ async def identify_opportunities(
         positions,
         stocks_by_symbol,
         portfolio_context,
-        geo_allocations,
+        country_allocations,
         total_value,
         exchange_rate_service,
     )
@@ -462,7 +464,7 @@ async def identify_opportunities(
     opportunities["rebalance_buys"] = await identify_rebalance_buy_opportunities(
         eligible_stocks,
         portfolio_context,
-        geo_allocations,
+        country_allocations,
         batch_prices,
         base_trade_amount,
         exchange_rate_service,

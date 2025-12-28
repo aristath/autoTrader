@@ -16,7 +16,7 @@ async def identify_rebalance_sell_opportunities(
     positions: List[Position],
     stocks_by_symbol: dict[str, Stock],
     portfolio_context: PortfolioContext,
-    geo_allocations: Dict[str, float],
+    country_allocations: Dict[str, float],
     total_value: float,
     exchange_rate_service: Optional[ExchangeRateService] = None,
 ) -> List[ActionCandidate]:
@@ -27,7 +27,7 @@ async def identify_rebalance_sell_opportunities(
         positions: Current positions
         stocks_by_symbol: Dict mapping symbol to Stock
         portfolio_context: Portfolio context with weights
-        geo_allocations: Current country allocation percentages
+        country_allocations: Current country allocation percentages
         total_value: Total portfolio value
         exchange_rate_service: Optional exchange rate service for currency conversion
 
@@ -47,10 +47,10 @@ async def identify_rebalance_sell_opportunities(
 
         # Check for rebalance sells (overweight country/industry)
         country = stock.country
-        if country and country in geo_allocations:
+        if country and country in country_allocations:
             target = 0.33 + portfolio_context.country_weights.get(country, 0) * 0.15
-            if geo_allocations[country] > target + 0.05:  # 5%+ overweight
-                overweight = geo_allocations[country] - target
+            if country_allocations[country] > target + 0.05:  # 5%+ overweight
+                overweight = country_allocations[country] - target
                 sell_value_eur = min(position_value * 0.3, overweight * total_value)
 
                 # Calculate quantity

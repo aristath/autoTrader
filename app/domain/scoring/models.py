@@ -35,7 +35,7 @@ class PortfolioContext:
 class PortfolioScore:
     """Overall portfolio health score."""
 
-    diversification_score: float  # Geographic + industry balance (0-100)
+    diversification_score: float  # Country + industry balance (0-100)
     dividend_score: float  # Weighted average dividend yield score (0-100)
     quality_score: float  # Weighted average stock quality (0-100)
     total: float  # Combined score (0-100)

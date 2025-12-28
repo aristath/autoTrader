@@ -270,6 +270,7 @@ async def _step_update_display():
         from app.domain.services.ticker_content_service import TickerContentService
         from app.infrastructure.external.tradernet import get_tradernet_client
         from app.repositories import (
+            AllocationRepository,
             PortfolioRepository,
             PositionRepository,
             SettingsRepository,
@@ -281,6 +282,7 @@ async def _step_update_display():
         position_repo = PositionRepository()
         stock_repo = StockRepository()
         settings_repo = SettingsRepository()
+        allocation_repo = AllocationRepository()
         tradernet_client = get_tradernet_client()
 
         ticker_service = TickerContentService(
@@ -288,6 +290,7 @@ async def _step_update_display():
             position_repo=position_repo,
             stock_repo=stock_repo,
             settings_repo=settings_repo,
+            allocation_repo=allocation_repo,
             tradernet_client=tradernet_client,
         )
 
@@ -368,6 +371,7 @@ async def _get_holistic_recommendation():
     position_repo = PositionRepository()
     settings_repo = SettingsRepository()
     stock_repo = StockRepository()
+    allocation_repo = AllocationRepository()
     settings_service = SettingsService(settings_repo)
     tradernet_client = TradernetClient.shared()
 
@@ -375,6 +379,7 @@ async def _get_holistic_recommendation():
     positions = await position_repo.get_all()
     stocks = await stock_repo.get_all_active()
     settings = await settings_service.get_settings()
+    allocations = await allocation_repo.get_all()
     position_dicts = [{"symbol": p.symbol, "quantity": p.quantity} for p in positions]
     cash_balances = (
         {b.currency: b.amount for b in tradernet_client.get_cash_balances()}
@@ -382,7 +387,7 @@ async def _get_holistic_recommendation():
         else {}
     )
     portfolio_cache_key = generate_recommendation_cache_key(
-        position_dicts, settings.to_dict(), stocks, cash_balances
+        position_dicts, settings.to_dict(), stocks, cash_balances, allocations
     )
     cache_key = f"recommendations:{portfolio_cache_key}"
 

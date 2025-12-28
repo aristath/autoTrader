@@ -219,23 +219,25 @@ def _calculate_diversification_score(
     portfolio_context: PortfolioContext, total_value: float
 ) -> float:
     """Calculate diversification score (40% weight)."""
-    geo_deviations = []
+    country_deviations = []
     if portfolio_context.stock_countries:
-        geo_values: Dict[str, float] = {}
+        country_values: Dict[str, float] = {}
         for symbol, value in portfolio_context.positions.items():
-            geo = portfolio_context.stock_countries.get(symbol, "OTHER")
-            geo_values[geo] = geo_values.get(geo, 0) + value
+            country = portfolio_context.stock_countries.get(symbol, "OTHER")
+            country_values[country] = country_values.get(country, 0) + value
 
-        for geo, weight in portfolio_context.country_weights.items():
+        for country, weight in portfolio_context.country_weights.items():
             target_pct = 0.33 + (weight * 0.15)  # Base 33% +/- 15%
-            current_pct = geo_values.get(geo, 0) / total_value if total_value > 0 else 0
+            current_pct = (
+                country_values.get(country, 0) / total_value if total_value > 0 else 0
+            )
             deviation = abs(current_pct - target_pct)
-            geo_deviations.append(deviation)
+            country_deviations.append(deviation)
 
-    avg_geo_deviation = (
-        sum(geo_deviations) / len(geo_deviations) if geo_deviations else 0.2
+    avg_country_deviation = (
+        sum(country_deviations) / len(country_deviations) if country_deviations else 0.2
     )
-    return max(0, 100 * (1 - avg_geo_deviation / 0.3))
+    return max(0, 100 * (1 - avg_country_deviation / 0.3))
 
 
 def _calculate_dividend_score(
