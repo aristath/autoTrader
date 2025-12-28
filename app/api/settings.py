@@ -68,6 +68,13 @@ SETTING_DEFAULTS = {
     "stock_discovery_exchanges": "usa,europe",  # Comma-separated exchange list
     "stock_discovery_min_volume": 1000000.0,  # Minimum daily volume for liquidity
     "stock_discovery_fetch_limit": 50.0,  # Maximum candidates to fetch from API
+    # Market Regime Detection settings
+    "market_regime_detection_enabled": 1.0,  # 1.0 = enabled, 0.0 = disabled
+    "market_regime_bull_cash_reserve": 400.0,  # Cash reserve in bull market
+    "market_regime_bear_cash_reserve": 600.0,  # Cash reserve in bear market
+    "market_regime_sideways_cash_reserve": 500.0,  # Cash reserve in sideways market
+    "market_regime_bull_threshold": 0.05,  # Threshold for bull market (5% above MA)
+    "market_regime_bear_threshold": -0.05,  # Threshold for bear market (-5% below MA)
 }
 
 

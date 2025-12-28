@@ -50,6 +50,98 @@ class TestStockValidation:
         assert stock.name == "Apple Inc."
         assert stock.country == "United States"
 
+    def test_stock_min_portfolio_target_accepts_valid_range(self):
+        """Test that min_portfolio_target accepts values 0-20."""
+        stock = Stock(symbol="AAPL.US", name="Test", min_portfolio_target=0.0)
+        assert stock.min_portfolio_target == 0.0
+
+        stock = Stock(symbol="AAPL.US", name="Test", min_portfolio_target=10.0)
+        assert stock.min_portfolio_target == 10.0
+
+        stock = Stock(symbol="AAPL.US", name="Test", min_portfolio_target=20.0)
+        assert stock.min_portfolio_target == 20.0
+
+    def test_stock_min_portfolio_target_rejects_negative(self):
+        """Test that min_portfolio_target rejects values < 0."""
+        with pytest.raises(
+            ValidationError, match="min_portfolio_target must be between 0 and 20"
+        ):
+            Stock(symbol="AAPL.US", name="Test", min_portfolio_target=-1.0)
+
+    def test_stock_min_portfolio_target_rejects_over_20(self):
+        """Test that min_portfolio_target rejects values > 20."""
+        with pytest.raises(
+            ValidationError, match="min_portfolio_target must be between 0 and 20"
+        ):
+            Stock(symbol="AAPL.US", name="Test", min_portfolio_target=21.0)
+
+    def test_stock_max_portfolio_target_accepts_valid_range(self):
+        """Test that max_portfolio_target accepts values 0-30."""
+        stock = Stock(symbol="AAPL.US", name="Test", max_portfolio_target=0.0)
+        assert stock.max_portfolio_target == 0.0
+
+        stock = Stock(symbol="AAPL.US", name="Test", max_portfolio_target=15.0)
+        assert stock.max_portfolio_target == 15.0
+
+        stock = Stock(symbol="AAPL.US", name="Test", max_portfolio_target=30.0)
+        assert stock.max_portfolio_target == 30.0
+
+    def test_stock_max_portfolio_target_rejects_negative(self):
+        """Test that max_portfolio_target rejects values < 0."""
+        with pytest.raises(
+            ValidationError, match="max_portfolio_target must be between 0 and 30"
+        ):
+            Stock(symbol="AAPL.US", name="Test", max_portfolio_target=-1.0)
+
+    def test_stock_max_portfolio_target_rejects_over_30(self):
+        """Test that max_portfolio_target rejects values > 30."""
+        with pytest.raises(
+            ValidationError, match="max_portfolio_target must be between 0 and 30"
+        ):
+            Stock(symbol="AAPL.US", name="Test", max_portfolio_target=31.0)
+
+    def test_stock_max_portfolio_target_greater_than_min(self):
+        """Test that max_portfolio_target >= min_portfolio_target when both provided."""
+        stock = Stock(
+            symbol="AAPL.US",
+            name="Test",
+            min_portfolio_target=5.0,
+            max_portfolio_target=15.0,
+        )
+        assert stock.min_portfolio_target == 5.0
+        assert stock.max_portfolio_target == 15.0
+
+    def test_stock_max_portfolio_target_less_than_min_raises_error(self):
+        """Test that max_portfolio_target < min_portfolio_target raises ValidationError."""
+        with pytest.raises(
+            ValidationError,
+            match="max_portfolio_target must be >= min_portfolio_target",
+        ):
+            Stock(
+                symbol="AAPL.US",
+                name="Test",
+                min_portfolio_target=15.0,
+                max_portfolio_target=5.0,
+            )
+
+    def test_stock_portfolio_targets_none_allowed(self):
+        """Test that None values are allowed for portfolio targets."""
+        stock = Stock(symbol="AAPL.US", name="Test")
+        assert stock.min_portfolio_target is None
+        assert stock.max_portfolio_target is None
+
+    def test_stock_min_portfolio_target_without_max(self):
+        """Test that only min_portfolio_target can be set without max."""
+        stock = Stock(symbol="AAPL.US", name="Test", min_portfolio_target=5.0)
+        assert stock.min_portfolio_target == 5.0
+        assert stock.max_portfolio_target is None
+
+    def test_stock_max_portfolio_target_without_min(self):
+        """Test that only max_portfolio_target can be set without min."""
+        stock = Stock(symbol="AAPL.US", name="Test", max_portfolio_target=15.0)
+        assert stock.min_portfolio_target is None
+        assert stock.max_portfolio_target == 15.0
+
 
 class TestPositionValidation:
     """Test Position domain model validation."""
