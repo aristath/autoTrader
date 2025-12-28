@@ -5,6 +5,7 @@ Calculates expected returns for each stock by blending:
 - Historical CAGR (70% default, 80% in bull, 70% in sideways)
 - Score-adjusted target return (30% default, 20% in bull, 30% in sideways)
 - Market regime adjustment (bear: reduce by 20-30%)
+- Forward-looking market indicators (VIX, yield curve, market P/E)
 - User preference multiplier (priority_multiplier)
 - Pending dividend bonus (DRIP fallback)
 """
@@ -18,7 +19,18 @@ from app.domain.scoring.constants import (
     EXPECTED_RETURNS_CAGR_WEIGHT,
     EXPECTED_RETURNS_SCORE_WEIGHT,
     OPTIMIZER_TARGET_RETURN,
+    PE_ADJUSTMENT_MAX,
+    PE_CHEAP,
+    PE_EXPENSIVE,
+    PE_FAIR,
+    VIX_ADJUSTMENT_MAX,
+    VIX_HIGH,
+    VIX_LOW,
+    YIELD_CURVE_ADJUSTMENT_MAX,
+    YIELD_CURVE_INVERTED,
+    YIELD_CURVE_NORMAL,
 )
+from app.infrastructure.external.yahoo import market_indicators
 from app.repositories.calculations import CalculationsRepository
 from app.repositories.score import ScoreRepository
 from app.repositories.stock import StockRepository
@@ -61,6 +73,9 @@ class ExpectedReturnsCalculator:
         dividend_bonuses = dividend_bonuses or {}
         expected_returns = {}
 
+        # Calculate forward-looking market indicator adjustments (once for all symbols)
+        forward_adjustment = await self._calculate_forward_looking_adjustment()
+
         for symbol in symbols:
             try:
                 exp_return = await self._calculate_single(
@@ -68,6 +83,7 @@ class ExpectedReturnsCalculator:
                     target_return,
                     dividend_bonuses.get(symbol, 0.0),
                     regime=regime,
+                    forward_adjustment=forward_adjustment,
                 )
                 if exp_return is not None:
                     expected_returns[symbol] = exp_return
@@ -76,9 +92,106 @@ class ExpectedReturnsCalculator:
 
         logger.info(
             f"Calculated expected returns for {len(expected_returns)} symbols "
-            f"(regime: {regime or 'default'})"
+            f"(regime: {regime or 'default'}, forward adjustment: {forward_adjustment*100:+.1f}%)"
         )
         return expected_returns
+
+    async def _calculate_forward_looking_adjustment(self) -> float:
+        """
+        Calculate forward-looking market indicator adjustment.
+
+        Combines adjustments from:
+        - VIX (volatility/fear): High VIX = reduce expectations
+        - Yield curve slope: Inverted = reduce expectations
+        - Market P/E: High P/E = reduce expectations
+
+        Returns:
+            Adjustment factor (e.g., -0.05 = reduce by 5%, +0.05 = increase by 5%)
+        """
+        try:
+            # Get market indicators
+            vix = await market_indicators.get_vix()
+            yields = await market_indicators.get_treasury_yields()
+            yield_slope = market_indicators.calculate_yield_curve_slope(yields)
+            market_pe = await market_indicators.get_market_pe()
+
+            total_adjustment = 0.0
+
+            # VIX adjustment (high VIX = pessimistic)
+            if vix is not None:
+                if vix >= VIX_HIGH:
+                    # Very high volatility: reduce by up to 10%
+                    vix_adj = -VIX_ADJUSTMENT_MAX * min(1.0, (vix - VIX_HIGH) / 20.0)
+                elif vix <= VIX_LOW:
+                    # Low volatility: increase by up to 5%
+                    vix_adj = VIX_ADJUSTMENT_MAX * 0.5 * (1.0 - (vix / VIX_LOW))
+                else:
+                    # Normal range: no adjustment
+                    vix_adj = 0.0
+                total_adjustment += vix_adj
+                logger.debug(f"VIX adjustment: {vix_adj*100:+.1f}% (VIX={vix:.1f})")
+
+            # Yield curve adjustment (inverted = recession signal)
+            if yield_slope is not None:
+                if yield_slope <= YIELD_CURVE_INVERTED:
+                    # Inverted curve: reduce by up to 15%
+                    curve_adj = -YIELD_CURVE_ADJUSTMENT_MAX * min(
+                        1.0, abs(yield_slope) / 0.02
+                    )
+                elif yield_slope >= YIELD_CURVE_NORMAL:
+                    # Normal/steep curve: slight increase
+                    curve_adj = (
+                        YIELD_CURVE_ADJUSTMENT_MAX
+                        * 0.3
+                        * min(1.0, (yield_slope - YIELD_CURVE_NORMAL) / 0.02)
+                    )
+                else:
+                    # Flat curve: no adjustment
+                    curve_adj = 0.0
+                total_adjustment += curve_adj
+                logger.debug(
+                    f"Yield curve adjustment: {curve_adj*100:+.1f}% (slope={yield_slope*100:.2f}%)"
+                )
+
+            # Market P/E adjustment (high P/E = expensive market)
+            if market_pe is not None:
+                if market_pe >= PE_EXPENSIVE:
+                    # Expensive market: reduce by up to 10%
+                    pe_adj = -PE_ADJUSTMENT_MAX * min(
+                        1.0, (market_pe - PE_EXPENSIVE) / (PE_EXPENSIVE * 0.5)
+                    )
+                elif market_pe <= PE_CHEAP:
+                    # Cheap market: increase by up to 5%
+                    pe_adj = (
+                        PE_ADJUSTMENT_MAX
+                        * 0.5
+                        * (1.0 - (market_pe - PE_CHEAP) / (PE_FAIR - PE_CHEAP))
+                    )
+                else:
+                    # Fair value: no adjustment
+                    pe_adj = 0.0
+                total_adjustment += pe_adj
+                logger.debug(
+                    f"Market P/E adjustment: {pe_adj*100:+.1f}% (P/E={market_pe:.1f})"
+                )
+
+            # Cap total adjustment at ±20% to avoid extreme adjustments
+            total_adjustment = max(-0.20, min(0.20, total_adjustment))
+
+            if total_adjustment != 0.0:
+                vix_str = f"{vix:.1f}" if vix else "N/A"
+                slope_str = f"{yield_slope*100:.2f}%" if yield_slope else "N/A"
+                pe_str = f"{market_pe:.1f}" if market_pe else "N/A"
+                logger.info(
+                    f"Forward-looking adjustment: {total_adjustment*100:+.1f}% "
+                    f"(VIX={vix_str}, slope={slope_str}, P/E={pe_str})"
+                )
+
+            return total_adjustment
+
+        except Exception as e:
+            logger.warning(f"Error calculating forward-looking adjustment: {e}")
+            return 0.0
 
     async def _calculate_single(
         self,
@@ -86,6 +199,7 @@ class ExpectedReturnsCalculator:
         target_return: float,
         dividend_bonus: float,
         regime: Optional[str] = None,
+        forward_adjustment: float = 0.0,
     ) -> Optional[float]:
         """
         Calculate expected return for a single symbol.
@@ -158,6 +272,9 @@ class ExpectedReturnsCalculator:
         # Apply regime reduction (for bear markets)
         base_return = base_return * regime_reduction
 
+        # Apply forward-looking market indicator adjustment
+        base_return = base_return * (1.0 + forward_adjustment)
+
         # Apply user preference multiplier
         stock = await self._stock_repo.get_by_symbol(symbol)
         multiplier = stock.priority_multiplier if stock else 1.0
@@ -173,6 +290,7 @@ class ExpectedReturnsCalculator:
             f"{symbol}: CAGR={cagr:.2%}, div={dividend_yield:.2%}, "
             f"score={stock_score:.2f}, mult={multiplier:.2f}, "
             f"regime={regime or 'default'}, reduction={regime_reduction:.2f}, "
+            f"forward={forward_adjustment*100:+.1f}%, "
             f"bonus={dividend_bonus:.2%}, expected={clamped:.2%}"
         )
 
