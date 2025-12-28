@@ -471,6 +471,39 @@ class PortfolioOptimizer:
                 f"locked={locked_count}"
             )
 
+        # Scale down sector constraint minimums if combined with individual stock minimums > 100%
+        # This is critical - individual stock bounds can add significant minimum requirements
+        if bounds and (country_constraints or ind_constraints):
+            total_stock_min = sum(lower for lower, _ in bounds.values())
+            country_min_sum = sum(c.lower for c in country_constraints)
+            ind_min_sum = sum(c.lower for c in ind_constraints)
+            total_all_min = total_stock_min + country_min_sum + ind_min_sum
+
+            if total_all_min > 1.0:
+                logger.warning(
+                    f"Total minimum bounds (stocks={total_stock_min:.2%} + "
+                    f"country={country_min_sum:.2%} + industry={ind_min_sum:.2%} = "
+                    f"{total_all_min:.2%}) exceed 100%, scaling down sector constraints"
+                )
+                # Scale sector constraints to leave room for individual stock minimums
+                # Target: sector minimums + stock minimums = 95% (leaves 5% slack)
+                target_sector_min = max(0.0, 0.95 - total_stock_min)
+                current_sector_min = country_min_sum + ind_min_sum
+
+                if current_sector_min > 0 and target_sector_min < current_sector_min:
+                    scale_factor = target_sector_min / current_sector_min
+                    for constraint in country_constraints:
+                        constraint.lower = constraint.lower * scale_factor
+                        constraint.lower = min(constraint.lower, constraint.upper)
+                    for constraint in ind_constraints:
+                        constraint.lower = constraint.lower * scale_factor
+                        constraint.lower = min(constraint.lower, constraint.upper)
+
+                    logger.info(
+                        f"Scaled sector minimums by {scale_factor:.2%} to "
+                        f"{target_sector_min:.2%} (leaving {total_stock_min:.2%} for stocks)"
+                    )
+
         def _apply_sector_constraints(ef: EfficientFrontier) -> None:
             """Apply sector constraints to EfficientFrontier."""
             if country_mapper:
