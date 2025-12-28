@@ -21,7 +21,12 @@ SYMBOL_DATA_TTL_HOURS = 4
 
 
 class RecommendationCache:
-    """Cache for expensive recommendation calculations."""
+    """Cache for expensive recommendation calculations.
+
+    Note: This class directly calls get_db_manager() which is a known architecture
+    violation. As infrastructure code, this is more acceptable than domain violations,
+    but ideally this would use dependency injection. See ARCHITECTURE.md for details.
+    """
 
     def __init__(self):
         self._db_manager = None
