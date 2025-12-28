@@ -1,16 +1,22 @@
 """Dividend reinvestment job.
 
 Automatically reinvests dividends by executing buy orders when dividends are received.
-Groups dividends by symbol to minimize transaction costs.
+Uses yield-based strategy:
+- High-yield stocks (>=3%): reinvest in same stock
+- Low-yield stocks (<3%): use holistic planner to find best opportunities
 """
 
 import logging
 from collections import defaultdict
 from typing import Dict, List
 
-from app.application.services.rebalancing_service import calculate_min_trade_amount
+from app.application.services.rebalancing_service import (
+    RebalancingService,
+    calculate_min_trade_amount,
+)
 from app.application.services.trade_execution_service import TradeExecutionService
 from app.domain.models import DividendRecord, Recommendation
+from app.domain.scoring.constants import HIGH_DIVIDEND_REINVESTMENT_THRESHOLD
 from app.domain.services.settings_service import SettingsService
 from app.domain.value_objects.currency import Currency
 from app.domain.value_objects.recommendation_status import RecommendationStatus
@@ -22,8 +28,12 @@ from app.infrastructure.dependencies import (
     get_tradernet_client,
 )
 from app.repositories import (
+    AllocationRepository,
+    CalculationsRepository,
     DividendRepository,
+    PortfolioRepository,
     PositionRepository,
+    RecommendationRepository,
     SettingsRepository,
     StockRepository,
     TradeRepository,
@@ -32,21 +42,87 @@ from app.repositories import (
 logger = logging.getLogger(__name__)
 
 
+async def _reinvest_in_same_stock(
+    symbol: str,
+    symbol_dividends: List[DividendRecord],
+    total_amount: float,
+    client,
+    stock_repo: StockRepository,
+    recommendations: List[Recommendation],
+    dividends_to_mark: Dict[str, List[int]],
+) -> None:
+    """Reinvest dividends in the same stock (high-yield strategy)."""
+    # Get current stock price
+    try:
+        quote = client.get_quote(symbol)
+        if not quote or not hasattr(quote, "price"):
+            logger.warning(f"Could not get price for {symbol}, skipping")
+            return
+
+        price = quote.price
+        if price <= 0:
+            logger.warning(f"Invalid price {price} for {symbol}, skipping")
+            return
+
+    except Exception as e:
+        logger.error(f"Error getting price for {symbol}: {e}, skipping")
+        return
+
+    # Get stock info for name and other details
+    stock = await stock_repo.get_by_symbol(symbol)
+    if not stock:
+        logger.warning(f"Stock {symbol} not found in universe, skipping")
+        return
+
+    # Calculate shares to buy
+    quantity = int(total_amount / price)
+    if quantity <= 0:
+        logger.warning(
+            f"Symbol {symbol}: calculated quantity {quantity} is invalid, skipping"
+        )
+        return
+
+    # Adjust for min_lot
+    if stock.min_lot > 1:
+        quantity = (quantity // stock.min_lot) * stock.min_lot
+        if quantity == 0:
+            quantity = stock.min_lot
+
+    estimated_value = quantity * price
+
+    # Create BUY recommendation
+    currency = stock.currency or Currency.EUR
+    recommendation = Recommendation(
+        symbol=symbol,
+        name=stock.name,
+        side=TradeSide.BUY,
+        quantity=float(quantity),
+        estimated_price=price,
+        estimated_value=estimated_value,
+        reason=f"Dividend reinvestment (high yield): {total_amount:.2f} EUR from {len(symbol_dividends)} dividend(s)",
+        country=stock.country,
+        industry=stock.industry,
+        currency=currency,
+        status=RecommendationStatus.PENDING,
+    )
+
+    recommendations.append(recommendation)
+    dividends_to_mark[symbol] = [d.id for d in symbol_dividends if d.id is not None]
+
+
 async def auto_reinvest_dividends() -> None:
     """
-    Automatically reinvest dividends by executing buy orders.
+    Automatically reinvest dividends using yield-based strategy.
 
     Process:
     1. Get all unreinvested dividends
     2. Group dividends by symbol and sum amounts
     3. For each symbol with total >= min_trade_size:
-       - Get current stock price
-       - Calculate shares to buy
-       - Create BUY recommendation
-       - Execute trade
-       - Mark ALL dividend records for that symbol as reinvested
-    4. For small dividends (< min_trade_size) that couldn't be grouped:
-       - Set pending bonus
+       - Check dividend yield
+       - If yield >= 3%: reinvest in same stock
+       - If yield < 3%: aggregate for best opportunities
+    4. For low-yield dividends: use holistic planner to find highest-scoring opportunities
+    5. For small dividends (< min_trade_size): set pending bonus
     """
     logger.info("Starting automatic dividend reinvestment...")
 
@@ -104,10 +180,15 @@ async def auto_reinvest_dividends() -> None:
                 )
                 return
 
+        # Get dividend yields to determine reinvestment strategy
+        calc_repo = CalculationsRepository()
         recommendations: List[Recommendation] = []
         dividends_to_mark: Dict[str, List[int]] = {}  # symbol -> list of dividend IDs
+        low_yield_dividends: Dict[str, float] = (
+            {}
+        )  # symbol -> total amount for low-yield stocks
 
-        # Process each symbol
+        # Process each symbol - check yield and categorize
         for symbol, symbol_dividends in grouped_dividends.items():
             total_amount = sum(d.amount_eur for d in symbol_dividends)
 
@@ -125,64 +206,103 @@ async def auto_reinvest_dividends() -> None:
                         )
                 continue
 
-            # Get current stock price
-            try:
-                quote = client.get_quote(symbol)
-                if not quote or not hasattr(quote, "price"):
-                    logger.warning(f"Could not get price for {symbol}, skipping")
-                    continue
-
-                price = quote.price
-                if price <= 0:
-                    logger.warning(f"Invalid price {price} for {symbol}, skipping")
-                    continue
-
-            except Exception as e:
-                logger.error(f"Error getting price for {symbol}: {e}, skipping")
-                continue
-
-            # Get stock info for name and other details
-            stock = await stock_repo.get_by_symbol(symbol)
-            if not stock:
-                logger.warning(f"Stock {symbol} not found in universe, skipping")
-                continue
-
-            # Calculate shares to buy
-            quantity = int(total_amount / price)
-            if quantity <= 0:
-                logger.warning(
-                    f"Symbol {symbol}: calculated quantity {quantity} is invalid, skipping"
+            # Get dividend yield for this stock
+            dividend_yield = await calc_repo.get_metric(symbol, "DIVIDEND_YIELD")
+            if dividend_yield is None:
+                # Yield not in cache, assume low yield and use for opportunities
+                logger.debug(
+                    f"Symbol {symbol}: no dividend yield data, treating as low-yield"
                 )
+                low_yield_dividends[symbol] = total_amount
                 continue
 
-            # Adjust for min_lot
-            if stock.min_lot > 1:
-                quantity = (quantity // stock.min_lot) * stock.min_lot
-                if quantity == 0:
-                    quantity = stock.min_lot
+            # Check if yield is high enough for same-stock reinvestment
+            if dividend_yield >= HIGH_DIVIDEND_REINVESTMENT_THRESHOLD:
+                # High-yield stock (>=3%): reinvest in same stock
+                logger.info(
+                    f"Symbol {symbol}: high yield {dividend_yield*100:.1f}%, "
+                    f"reinvesting {total_amount:.2f} EUR in same stock"
+                )
+                await _reinvest_in_same_stock(
+                    symbol,
+                    symbol_dividends,
+                    total_amount,
+                    client,
+                    stock_repo,
+                    recommendations,
+                    dividends_to_mark,
+                )
+            else:
+                # Low-yield stock (<3%): aggregate for best opportunities
+                logger.info(
+                    f"Symbol {symbol}: low yield {dividend_yield*100:.1f}%, "
+                    f"aggregating {total_amount:.2f} EUR for best opportunities"
+                )
+                low_yield_dividends[symbol] = total_amount
 
-            estimated_value = quantity * price
+        # Process low-yield dividends using holistic planner
+        if low_yield_dividends:
+            total_low_yield = sum(low_yield_dividends.values())
+            logger.info(
+                f"Aggregated {len(low_yield_dividends)} low-yield dividends: "
+                f"{total_low_yield:.2f} EUR total"
+            )
+            # For low-yield dividends, use rebalancing service to find best opportunities
+            # This will use the holistic planner internally
+            allocation_repo = AllocationRepository()
+            portfolio_repo = PortfolioRepository()
+            recommendation_repo = RecommendationRepository()
 
-            # Create BUY recommendation
-            currency = stock.currency or Currency.EUR
-            recommendation = Recommendation(
-                symbol=symbol,
-                name=stock.name,
-                side=TradeSide.BUY,
-                quantity=float(quantity),
-                estimated_price=price,
-                estimated_value=estimated_value,
-                reason=f"Dividend reinvestment: {total_amount:.2f} EUR from {len(symbol_dividends)} dividend(s)",
-                country=stock.country,
-                industry=stock.industry,
-                currency=currency,
-                status=RecommendationStatus.PENDING,
+            rebalancing_service = RebalancingService(
+                stock_repo=stock_repo,
+                position_repo=position_repo,
+                allocation_repo=allocation_repo,
+                portfolio_repo=portfolio_repo,
+                trade_repo=trade_repo,
+                settings_repo=settings_repo,
+                recommendation_repo=recommendation_repo,
+                db_manager=db_manager,
+                tradernet_client=client,
+                exchange_rate_service=exchange_rate_service,
             )
 
-            recommendations.append(recommendation)
-            dividends_to_mark[symbol] = [
-                d.id for d in symbol_dividends if d.id is not None
-            ]
+            # Get recommendations for low-yield dividend amount
+            low_yield_recommendations = (
+                await rebalancing_service.calculate_rebalance_trades(
+                    available_cash=total_low_yield
+                )
+            )
+
+            # Filter to only BUY recommendations and limit to available cash
+            buy_recommendations = [
+                r for r in low_yield_recommendations if r.side == TradeSide.BUY
+            ][
+                :5
+            ]  # Limit to top 5 opportunities
+
+            if buy_recommendations:
+                logger.info(
+                    f"Found {len(buy_recommendations)} opportunities for low-yield dividends"
+                )
+                recommendations.extend(buy_recommendations)
+                # Mark all low-yield dividends as contributing to these recommendations
+                for symbol in low_yield_dividends.keys():
+                    if symbol in grouped_dividends:
+                        dividends_to_mark[symbol] = [
+                            d.id for d in grouped_dividends[symbol] if d.id is not None
+                        ]
+            else:
+                # No opportunities found, set pending bonuses
+                logger.info(
+                    "No opportunities found for low-yield dividends, setting pending bonuses"
+                )
+                for symbol in low_yield_dividends.keys():
+                    if symbol in grouped_dividends:
+                        for dividend in grouped_dividends[symbol]:
+                            if dividend.id is not None:
+                                await dividend_repo.set_pending_bonus(
+                                    dividend.id, dividend.amount_eur
+                                )
 
         # Execute trades if any
         if recommendations:

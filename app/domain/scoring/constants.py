@@ -26,6 +26,9 @@ LOW_DIVIDEND_BONUS = 0.03  # Any dividend gets small bonus
 MID_DIVIDEND_BONUS = 0.07
 HIGH_DIVIDEND_BONUS = 0.10
 
+# Dividend reinvestment strategy threshold
+HIGH_DIVIDEND_REINVESTMENT_THRESHOLD = 0.03  # 3%+ yield: reinvest in same stock
+
 # Quality score component weights (must sum to 1.0)
 QUALITY_WEIGHT_TOTAL_RETURN = 0.40
 QUALITY_WEIGHT_CONSISTENCY = 0.20
