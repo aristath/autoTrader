@@ -25,18 +25,42 @@ All sequences enforce rigid ordering: sells first, then buys.
 """
 
 import asyncio
+import hashlib
+import json
 import logging
 from dataclasses import dataclass, field
 from itertools import combinations
 from typing import Dict, List, Optional, Tuple
 
 from app.domain.models import Position, Stock
+from app.domain.portfolio_hash import generate_portfolio_hash
 from app.domain.scoring.diversification import calculate_portfolio_score
 from app.domain.scoring.end_state import calculate_portfolio_end_state_score
 from app.domain.scoring.models import PortfolioContext
 from app.domain.value_objects.trade_side import TradeSide
 
 logger = logging.getLogger(__name__)
+
+
+def _hash_sequence(sequence: List["ActionCandidate"]) -> str:
+    """
+    Generate a deterministic hash for a sequence of actions.
+
+    The hash is based on the sequence of (symbol, side, quantity) tuples,
+    making it stable across runs for the same sequence.
+
+    Args:
+        sequence: List of ActionCandidate objects
+
+    Returns:
+        MD5 hash string
+    """
+    # Create a stable representation: (symbol, side, quantity) tuples
+    sequence_repr = [(c.symbol, c.side, c.quantity) for c in sequence]
+    # Sort to make order-independent (optional - we might want order-dependent)
+    # For now, keep order-dependent since sequence order matters
+    sequence_json = json.dumps(sequence_repr, sort_keys=False)
+    return hashlib.md5(sequence_json.encode()).hexdigest()
 
 
 def _calculate_weight_gaps(
@@ -1143,6 +1167,429 @@ async def simulate_sequence(
         )
 
     return current_context, current_cash
+
+
+async def process_planner_incremental(
+    portfolio_context: PortfolioContext,
+    available_cash: float,
+    stocks: List[Stock],
+    positions: List[Position],
+    exchange_rate_service=None,
+    target_weights: Optional[Dict[str, float]] = None,
+    current_prices: Optional[Dict[str, float]] = None,
+    transaction_cost_fixed: float = 2.0,
+    transaction_cost_percent: float = 0.002,
+    max_plan_depth: int = 5,
+    max_opportunities_per_category: int = 5,
+    enable_combinatorial: bool = True,
+    priority_threshold: float = 0.3,
+    batch_size: int = 100,
+) -> Optional[HolisticPlan]:
+    """
+    Process next batch of sequences incrementally and return best result so far.
+
+    This function:
+    1. Generates sequences on first run (if not in database)
+    2. Gets next batch of sequences from database (priority order)
+    3. Processes batch (simulate, evaluate, cache)
+    4. Updates best result if better found
+    5. Returns best result from database
+
+    Args:
+        portfolio_context: Current portfolio state
+        available_cash: Available cash in EUR
+        stocks: Available stocks
+        positions: Current positions
+        exchange_rate_service: Optional exchange rate service
+        target_weights: Optional dict from optimizer (symbol -> target weight)
+        current_prices: Current prices (required if target_weights provided)
+        transaction_cost_fixed: Fixed transaction cost in EUR
+        transaction_cost_percent: Variable transaction cost as fraction
+        max_plan_depth: Maximum sequence depth to test (default 5)
+        max_opportunities_per_category: Max opportunities per category (default 5)
+        enable_combinatorial: Enable combinatorial generation (default True)
+        priority_threshold: Minimum priority for combinations (default 0.3)
+        batch_size: Number of sequences to process per batch (default 100)
+
+    Returns:
+        HolisticPlan with best sequence found so far, or None if no sequences evaluated yet
+    """
+    from datetime import datetime
+
+    from app.domain.planning.narrative import (
+        generate_plan_narrative,
+        generate_step_narrative,
+    )
+    from app.repositories.calculations import CalculationsRepository
+    from app.repositories.planner_repository import PlannerRepository
+
+    # Generate portfolio hash
+    position_dicts = [{"symbol": p.symbol, "quantity": p.quantity} for p in positions]
+    portfolio_hash = generate_portfolio_hash(position_dicts, stocks)
+
+    repo = PlannerRepository()
+
+    # Check if portfolio changed - delete sequences for other portfolio hashes
+    db = await repo._get_db()
+    rows = await db.fetchall("SELECT DISTINCT portfolio_hash FROM sequences")
+    for row in rows:
+        old_hash = row["portfolio_hash"]
+        if old_hash != portfolio_hash:
+            logger.info(
+                f"Portfolio changed ({old_hash[:8]} -> {portfolio_hash[:8]}), deleting old sequences"
+            )
+            await repo.delete_sequences_for_portfolio(old_hash)
+
+    # Generate sequences if not exist
+    if not await repo.has_sequences(portfolio_hash):
+        logger.info(f"Generating sequences for portfolio {portfolio_hash[:8]}...")
+        # Calculate current portfolio score
+        current_score = await calculate_portfolio_score(portfolio_context)
+
+        # Identify opportunities
+        if target_weights and current_prices:
+            logger.info("Using optimizer target weights for opportunity identification")
+            opportunities = await identify_opportunities_from_weights(
+                target_weights=target_weights,
+                portfolio_context=portfolio_context,
+                positions=positions,
+                stocks=stocks,
+                available_cash=available_cash,
+                current_prices=current_prices,
+                transaction_cost_fixed=transaction_cost_fixed,
+                transaction_cost_percent=transaction_cost_percent,
+                exchange_rate_service=exchange_rate_service,
+            )
+        else:
+            logger.info("Using heuristic opportunity identification")
+            opportunities = await identify_opportunities(
+                portfolio_context,
+                positions,
+                stocks,
+                available_cash,
+                exchange_rate_service,
+            )
+
+        # Generate all sequences
+        all_sequences = await generate_action_sequences(
+            opportunities,
+            available_cash,
+            max_depth=max_plan_depth,
+            max_opportunities_per_category=max_opportunities_per_category,
+            enable_combinatorial=enable_combinatorial,
+            priority_threshold=priority_threshold,
+        )
+
+        # Filter sequences (same logic as in create_holistic_plan)
+        stocks_by_symbol = {s.symbol: s for s in stocks}
+        positions_by_symbol = {p.symbol: p for p in positions}
+        feasible_sequences = []
+
+        def _get_sequence_priority(sequence: List[ActionCandidate]) -> float:
+            """Calculate estimated priority for a sequence."""
+            return sum(c.priority for c in sequence)
+
+        for sequence in all_sequences:
+            if sequence:
+                avg_priority = _get_sequence_priority(sequence) / len(sequence)
+                if avg_priority < priority_threshold:
+                    continue
+
+            is_feasible = True
+            running_cash = available_cash
+
+            for action in sequence:
+                stock = stocks_by_symbol.get(action.symbol)
+                if action.side == TradeSide.BUY:
+                    if not stock or not stock.allow_buy:
+                        is_feasible = False
+                        break
+                    if action.value_eur > running_cash:
+                        is_feasible = False
+                        break
+                    running_cash -= action.value_eur
+                elif action.side == TradeSide.SELL:
+                    if not stock or not stock.allow_sell:
+                        is_feasible = False
+                        break
+                    position = positions_by_symbol.get(action.symbol)
+                    if not position or position.quantity < action.quantity:
+                        is_feasible = False
+                        break
+                    running_cash += action.value_eur
+
+            if is_feasible:
+                feasible_sequences.append(sequence)
+
+        # Insert sequences into database
+        await repo.ensure_sequences_generated(portfolio_hash, feasible_sequences)
+        logger.info(f"Generated {len(feasible_sequences)} sequences")
+
+    # Get next batch of sequences
+    next_sequences = await repo.get_next_sequences(portfolio_hash, limit=batch_size)
+
+    if not next_sequences:
+        # No more sequences to process, return best result
+        best_result = await repo.get_best_result(portfolio_hash)
+        if not best_result:
+            return None
+
+        # Get best sequence
+        best_sequence = await repo.get_best_sequence_from_hash(
+            portfolio_hash, best_result["best_sequence_hash"]
+        )
+        if not best_sequence:
+            return None
+
+        # Get evaluation for best sequence
+        eval_row = await db.fetchone(
+            """SELECT end_score, breakdown_json, end_cash, end_context_positions_json,
+                      div_score, total_value
+               FROM evaluations
+               WHERE sequence_hash = ? AND portfolio_hash = ?""",
+            (best_result["best_sequence_hash"], portfolio_hash),
+        )
+
+        if not eval_row:
+            return None
+
+        breakdown = json.loads(eval_row["breakdown_json"])
+        current_score = await calculate_portfolio_score(portfolio_context)
+
+        # Convert sequence to HolisticSteps
+        steps = []
+        for i, action in enumerate(best_sequence):
+            narrative = generate_step_narrative(action, portfolio_context, {})
+            steps.append(
+                HolisticStep(
+                    step_number=i + 1,
+                    side=action.side,
+                    symbol=action.symbol,
+                    name=action.name,
+                    quantity=action.quantity,
+                    estimated_price=action.price,
+                    estimated_value=action.value_eur,
+                    currency=action.currency,
+                    reason=action.reason,
+                    narrative=narrative,
+                )
+            )
+
+        narrative_summary = generate_plan_narrative(
+            steps, current_score.total, eval_row["end_score"] * 100, {}
+        )
+
+        return HolisticPlan(
+            steps=steps,
+            current_score=current_score.total,
+            end_state_score=eval_row["end_score"] * 100,
+            improvement=(eval_row["end_score"] * 100) - current_score.total,
+            narrative_summary=narrative_summary,
+            score_breakdown=breakdown,
+            cash_required=sum(s.estimated_value for s in steps if s.side == "BUY"),
+            cash_generated=sum(s.estimated_value for s in steps if s.side == "SELL"),
+            feasible=True,
+        )
+
+    # Process batch
+    calc_repo = CalculationsRepository()
+    metrics_cache: Dict[str, Dict[str, float]] = {}
+    required_metrics = [
+        "CAGR_5Y",
+        "DIVIDEND_YIELD",
+        "CONSISTENCY_SCORE",
+        "FINANCIAL_STRENGTH",
+        "DIVIDEND_CONSISTENCY",
+        "PAYOUT_RATIO",
+        "SORTINO",
+        "VOLATILITY_ANNUAL",
+        "MAX_DRAWDOWN",
+        "SHARPE",
+    ]
+
+    best_in_batch = None
+    best_score_in_batch = 0.0
+
+    for seq_data in next_sequences:
+        # Deserialize sequence
+        sequence_data = json.loads(seq_data["sequence_json"])
+        sequence = [
+            ActionCandidate(
+                side=c["side"],
+                symbol=c["symbol"],
+                name=c["name"],
+                quantity=c["quantity"],
+                price=c["price"],
+                value_eur=c["value_eur"],
+                currency=c["currency"],
+                priority=c["priority"],
+                reason=c["reason"],
+                tags=c["tags"],
+            )
+            for c in sequence_data
+        ]
+
+        sequence_hash = seq_data["sequence_hash"]
+
+        # Simulate sequence
+        end_context, end_cash = await simulate_sequence(
+            sequence, portfolio_context, available_cash, stocks
+        )
+
+        # Fetch metrics for symbols in end_context if not cached
+        for symbol in end_context.positions.keys():
+            if symbol not in metrics_cache:
+                metrics = await calc_repo.get_metrics(symbol, required_metrics)
+                metrics_cache[symbol] = {
+                    k: (v if v is not None else 0.0) for k, v in metrics.items()
+                }
+
+        # Evaluate sequence
+        div_score = await calculate_portfolio_score(end_context)
+        end_score, breakdown = await calculate_portfolio_end_state_score(
+            positions=end_context.positions,
+            total_value=end_context.total_value,
+            diversification_score=div_score.total / 100,
+            metrics_cache=metrics_cache,
+        )
+
+        # Insert evaluation
+        await repo.insert_evaluation(
+            sequence_hash=sequence_hash,
+            portfolio_hash=portfolio_hash,
+            end_score=end_score,
+            breakdown=breakdown,
+            end_cash=end_cash,
+            end_context_positions=end_context.positions,
+            div_score=div_score.total,
+            total_value=end_context.total_value,
+        )
+
+        # Mark sequence as completed
+        evaluated_at = datetime.now().isoformat()
+        await repo.mark_sequence_completed(sequence_hash, portfolio_hash, evaluated_at)
+
+        # Update best if better
+        if end_score > best_score_in_batch:
+            best_score_in_batch = end_score
+            best_in_batch = sequence_hash
+
+    # Update best result if better found
+    if best_in_batch:
+        current_best = await repo.get_best_result(portfolio_hash)
+        if current_best is None or best_score_in_batch > current_best["best_score"]:
+            await repo.update_best_result(
+                portfolio_hash, best_in_batch, best_score_in_batch
+            )
+            logger.info(
+                f"New best sequence found: score {best_score_in_batch:.3f} (hash: {best_in_batch[:8]}...)"
+            )
+
+    # Return best result from database
+    best_result = await repo.get_best_result(portfolio_hash)
+    if not best_result:
+        return None
+
+    # Get best sequence and return HolisticPlan
+    best_sequence = await repo.get_best_sequence_from_hash(
+        portfolio_hash, best_result["best_sequence_hash"]
+    )
+    if not best_sequence:
+        return None
+
+    eval_row = await db.fetchone(
+        """SELECT end_score, breakdown_json, end_cash, end_context_positions_json,
+                  div_score, total_value
+           FROM evaluations
+           WHERE sequence_hash = ? AND portfolio_hash = ?""",
+        (best_result["best_sequence_hash"], portfolio_hash),
+    )
+
+    if not eval_row:
+        return None
+
+    breakdown = json.loads(eval_row["breakdown_json"])
+    current_score = await calculate_portfolio_score(portfolio_context)
+
+    steps = []
+    for i, action in enumerate(best_sequence):
+        narrative = generate_step_narrative(action, portfolio_context, {})
+        steps.append(
+            HolisticStep(
+                step_number=i + 1,
+                side=action.side,
+                symbol=action.symbol,
+                name=action.name,
+                quantity=action.quantity,
+                estimated_price=action.price,
+                estimated_value=action.value_eur,
+                currency=action.currency,
+                reason=action.reason,
+                narrative=narrative,
+            )
+        )
+
+    narrative_summary = generate_plan_narrative(
+        steps, current_score.total, eval_row["end_score"] * 100, {}
+    )
+
+    return HolisticPlan(
+        steps=steps,
+        current_score=current_score.total,
+        end_state_score=eval_row["end_score"] * 100,
+        improvement=(eval_row["end_score"] * 100) - current_score.total,
+        narrative_summary=narrative_summary,
+        score_breakdown=breakdown,
+        cash_required=sum(s.estimated_value for s in steps if s.side == "BUY"),
+        cash_generated=sum(s.estimated_value for s in steps if s.side == "SELL"),
+        feasible=True,
+    )
+
+
+async def create_holistic_plan_incremental(
+    portfolio_context: PortfolioContext,
+    available_cash: float,
+    stocks: List[Stock],
+    positions: List[Position],
+    exchange_rate_service=None,
+    target_weights: Optional[Dict[str, float]] = None,
+    current_prices: Optional[Dict[str, float]] = None,
+    transaction_cost_fixed: float = 2.0,
+    transaction_cost_percent: float = 0.002,
+    max_plan_depth: int = 5,
+    max_opportunities_per_category: int = 5,
+    enable_combinatorial: bool = True,
+    priority_threshold: float = 0.3,
+    batch_size: int = 100,
+) -> Optional[HolisticPlan]:
+    """
+    Incremental mode entry point: process next batch, return best so far.
+
+    This is a wrapper around process_planner_incremental() that reads
+    batch_size from settings if not provided.
+
+    Args:
+        Same as process_planner_incremental()
+
+    Returns:
+        HolisticPlan with best sequence found so far, or None if no sequences evaluated yet
+    """
+    return await process_planner_incremental(
+        portfolio_context=portfolio_context,
+        available_cash=available_cash,
+        stocks=stocks,
+        positions=positions,
+        exchange_rate_service=exchange_rate_service,
+        target_weights=target_weights,
+        current_prices=current_prices,
+        transaction_cost_fixed=transaction_cost_fixed,
+        transaction_cost_percent=transaction_cost_percent,
+        max_plan_depth=max_plan_depth,
+        max_opportunities_per_category=max_opportunities_per_category,
+        enable_combinatorial=enable_combinatorial,
+        priority_threshold=priority_threshold,
+        batch_size=batch_size,
+    )
 
 
 async def create_holistic_plan(
