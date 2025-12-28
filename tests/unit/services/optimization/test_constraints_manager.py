@@ -1119,21 +1119,26 @@ class TestTargetNormalization:
         assert software_constraint.target == pytest.approx(0.7 / 1.5, abs=0.001)
 
     def test_country_targets_normalized_when_sum_exceeds_100(self):
-        """Test country targets are normalized when they sum to > 100%."""
+        """Test country targets are normalized when they sum to > 100% (only active countries)."""
         manager = ConstraintsManager()
         stocks = [
             create_stock("AAPL", country="United States"),
             create_stock("SAP", country="Germany"),
         ]
         # Targets sum to 120% - should be normalized to 100%
-        country_targets = {"United States": 0.8, "Germany": 0.4}
+        # Note: Only countries with stocks are considered for normalization
+        country_targets = {
+            "United States": 0.8,
+            "Germany": 0.4,
+            "France": 0.5,
+        }  # France has no stocks
         ind_targets = {}
 
         country_constraints, ind_constraints = manager.build_sector_constraints(
             stocks, country_targets, ind_targets
         )
 
-        # Should have 2 country constraints
+        # Should have 2 country constraints (only US and Germany have stocks)
         assert len(country_constraints) == 2
 
         # Check normalized targets (0.8 + 0.4 = 1.2, so normalize: 0.8/1.2 = 0.667, 0.4/1.2 = 0.333)
@@ -1186,6 +1191,27 @@ class TestTargetNormalization:
         assert ind_constraints[0].name == "Technology"
         # Should be normalized to 1.0 (only active industry)
         assert ind_constraints[0].target == pytest.approx(1.0, abs=0.001)
+
+    def test_normalization_only_applies_to_active_countries(self):
+        """Test normalization only considers countries that have stocks."""
+        manager = ConstraintsManager()
+        stocks = [
+            create_stock("AAPL", country="United States"),
+        ]
+        # United States has stock, France doesn't
+        # Only United States should be normalized (0.8 / 0.8 = 1.0)
+        country_targets = {"United States": 0.8, "France": 0.9}  # France has no stocks
+        ind_targets = {}
+
+        country_constraints, ind_constraints = manager.build_sector_constraints(
+            stocks, country_targets, ind_targets
+        )
+
+        # Should only have United States constraint (France has no stocks)
+        assert len(country_constraints) == 1
+        assert country_constraints[0].name == "United States"
+        # Should be normalized to 1.0 (only active country)
+        assert country_constraints[0].target == pytest.approx(1.0, abs=0.001)
 
 
 class TestIndustryConcentrationCapAdjustment:
