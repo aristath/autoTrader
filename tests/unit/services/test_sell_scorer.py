@@ -216,7 +216,7 @@ class TestCalculatePortfolioBalanceScore:
         Bug caught: If concentration isn't penalized, portfolio could
         become dangerously undiversified.
         """
-        geo_allocations = {"Germany": 0.60, "United States": 0.20, "Japan": 0.20}
+        country_allocations = {"Germany": 0.60, "United States": 0.20, "Japan": 0.20}
         ind_allocations = {"Consumer Electronics": 0.30}
 
         score = calculate_portfolio_balance_score(
@@ -224,7 +224,7 @@ class TestCalculatePortfolioBalanceScore:
             total_portfolio_value=10000,
             country="Germany",  # Already at 60%
             industry="Consumer Electronics",
-            geo_allocations=geo_allocations,
+            country_allocations=country_allocations,
             ind_allocations=ind_allocations,
         )
 
@@ -237,7 +237,7 @@ class TestCalculatePortfolioBalanceScore:
         Bug caught: If underweight positions get high scores,
         system would sell what it should be buying.
         """
-        geo_allocations = {"Germany": 0.60, "United States": 0.10, "Japan": 0.30}
+        country_allocations = {"Germany": 0.60, "United States": 0.10, "Japan": 0.30}
         ind_allocations = {"Consumer Electronics": 0.20}
 
         score = calculate_portfolio_balance_score(
@@ -245,7 +245,7 @@ class TestCalculatePortfolioBalanceScore:
             total_portfolio_value=10000,
             country="United States",  # Only at 10%
             industry="Consumer Electronics",
-            geo_allocations=geo_allocations,
+            country_allocations=country_allocations,
             ind_allocations=ind_allocations,
         )
 
@@ -257,7 +257,7 @@ class TestCalculatePortfolioBalanceScore:
 
         Bug caught: Single stock concentration risk.
         """
-        geo_allocations = {"EU": 0.33, "US": 0.33, "ASIA": 0.34}
+        country_allocations = {"EU": 0.33, "US": 0.33, "ASIA": 0.34}
         ind_allocations = {"Consumer Electronics": 0.30}
 
         score = calculate_portfolio_balance_score(
@@ -265,7 +265,7 @@ class TestCalculatePortfolioBalanceScore:
             total_portfolio_value=10000,
             country="Germany",
             industry="Consumer Electronics",
-            geo_allocations=geo_allocations,
+            country_allocations=country_allocations,
             ind_allocations=ind_allocations,
         )
 
@@ -282,7 +282,7 @@ class TestCalculatePortfolioBalanceScore:
             total_portfolio_value=0,
             country="Germany",
             industry="Consumer Electronics",
-            geo_allocations={},
+            country_allocations={},
             ind_allocations={},
         )
 
@@ -300,7 +300,7 @@ class TestCalculatePortfolioBalanceScore:
             total_portfolio_value=10000,
             country="United States",
             industry="Technology, Defense",  # Both industries
-            geo_allocations={"US": 0.30},
+            country_allocations={"US": 0.30},
             ind_allocations=ind_allocations,
         )
 
@@ -317,7 +317,7 @@ class TestCalculatePortfolioBalanceScore:
             total_portfolio_value=10000,
             country="Germany",
             industry="",  # Empty
-            geo_allocations={"EU": 0.30},
+            country_allocations={"EU": 0.30},
             ind_allocations={},
         )
 

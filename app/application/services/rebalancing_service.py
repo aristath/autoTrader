@@ -279,9 +279,9 @@ class RebalancingService:
         portfolio_value = portfolio_context.total_value
 
         # Get country/industry targets from allocations
-        geo_allocations = await self._allocation_repo.get_by_type("country")
+        country_allocations = await self._allocation_repo.get_by_type("country")
         ind_allocations = await self._allocation_repo.get_by_type("industry")
-        geo_targets = {a.name: a.target_pct / 100 for a in geo_allocations}
+        country_targets = {a.name: a.target_pct / 100 for a in country_allocations}
         ind_targets = {a.name: a.target_pct / 100 for a in ind_allocations}
 
         # Get pending dividend bonuses (DRIP fallback)
@@ -298,7 +298,7 @@ class RebalancingService:
             cash_balance=available_cash,
             blend=optimizer_blend,
             target_return=optimizer_target,
-            country_targets=geo_targets,
+            country_targets=country_targets,
             ind_targets=ind_targets,
             min_cash_reserve=min_cash,
             dividend_bonuses=dividend_bonuses,

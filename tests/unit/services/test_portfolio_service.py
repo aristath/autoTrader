@@ -61,9 +61,9 @@ class TestPortfolioServiceCalculations:
         summary = await service.get_portfolio_summary()
 
         assert summary.total_value == 1000
-        assert len(summary.geographic_allocations) == 1
-        assert summary.geographic_allocations[0].name == "Germany"
-        assert summary.geographic_allocations[0].current_pct == 1.0
+        assert len(summary.country_allocations) == 1
+        assert summary.country_allocations[0].name == "Germany"
+        assert summary.country_allocations[0].current_pct == 1.0
 
     @pytest.mark.asyncio
     async def test_multiple_countries_split_correctly(self, mock_repos):
@@ -96,10 +96,12 @@ class TestPortfolioServiceCalculations:
         assert summary.total_value == 1000
 
         # Find Germany and United States allocations
-        geo_by_name = {g.name: g for g in summary.geographic_allocations}
+        country_by_name = {c.name: c for c in summary.country_allocations}
 
-        assert geo_by_name["Germany"].current_pct == pytest.approx(0.6, abs=0.01)
-        assert geo_by_name["United States"].current_pct == pytest.approx(0.4, abs=0.01)
+        assert country_by_name["Germany"].current_pct == pytest.approx(0.6, abs=0.01)
+        assert country_by_name["United States"].current_pct == pytest.approx(
+            0.4, abs=0.01
+        )
 
     @pytest.mark.asyncio
     async def test_multi_industry_splits_value_equally(self, mock_repos):
@@ -201,7 +203,7 @@ class TestPortfolioServiceCalculations:
 
         # Should have value and country but no industry allocation
         assert summary.total_value == 1000
-        assert len(summary.geographic_allocations) > 0
+        assert len(summary.country_allocations) > 0
 
     @pytest.mark.asyncio
     async def test_fallback_to_price_calculation_when_no_eur_value(self, mock_repos):
@@ -287,12 +289,12 @@ class TestPortfolioServiceCalculations:
         )
         summary = await service.get_portfolio_summary()
 
-        geo_by_name = {g.name: g for g in summary.geographic_allocations}
+        country_by_name = {c.name: c for c in summary.country_allocations}
 
         # Germany is at 70%, target weight is 0.5
         # Deviation = 0.7 - 0.5 = 0.2 (overweight)
-        assert geo_by_name["Germany"].current_pct == pytest.approx(0.7, abs=0.01)
-        assert geo_by_name["Germany"].deviation == pytest.approx(0.2, abs=0.01)
+        assert country_by_name["Germany"].current_pct == pytest.approx(0.7, abs=0.01)
+        assert country_by_name["Germany"].deviation == pytest.approx(0.2, abs=0.01)
 
     @pytest.mark.asyncio
     async def test_values_rounded_correctly(self, mock_repos):
@@ -327,5 +329,5 @@ class TestPortfolioServiceCalculations:
         assert summary.total_value == 1000.0  # Rounded to 2 decimal places
 
         # Percentages should be rounded to 4 decimal places
-        geo = summary.geographic_allocations[0]
-        assert geo.current_pct == 1.0  # Should be exactly 1.0
+        country = summary.country_allocations[0]
+        assert country.current_pct == 1.0  # Should be exactly 1.0

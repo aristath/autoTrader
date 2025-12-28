@@ -248,7 +248,7 @@ class TestCalculateSellScore:
                 country="United States",
                 industry="Consumer Electronics",
                 total_portfolio_value=100000,
-                geo_allocations={"US": 0.5},
+                country_allocations={"US": 0.5},
                 ind_allocations={"Consumer Electronics": 0.3},
             )
 
@@ -278,7 +278,7 @@ class TestCalculateSellScore:
                 country="United States",
                 industry="Consumer Electronics",
                 total_portfolio_value=100000,
-                geo_allocations={"US": 0.5},
+                country_allocations={"US": 0.5},
                 ind_allocations={"Consumer Electronics": 0.3},
             )
 
@@ -308,7 +308,7 @@ class TestCalculateSellScore:
                 country="United States",
                 industry="Consumer Electronics",
                 total_portfolio_value=100000,
-                geo_allocations={"US": 0.5},
+                country_allocations={"US": 0.5},
                 ind_allocations={"Consumer Electronics": 0.3},
             )
 
@@ -341,7 +341,7 @@ class TestCalculateSellScore:
                 country="United States",
                 industry="Consumer Electronics",
                 total_portfolio_value=100000,
-                geo_allocations={"US": 0.5},
+                country_allocations={"US": 0.5},
                 ind_allocations={"Consumer Electronics": 0.3},
                 technical_data=tech_data,
             )
@@ -413,7 +413,7 @@ class TestCalculateAllSellScores:
             results = await calculate_all_sell_scores(
                 positions=positions,
                 total_portfolio_value=50000,
-                geo_allocations={"US": 0.8},
+                country_allocations={"US": 0.8},
                 ind_allocations={"Consumer Electronics": 0.6},
             )
 
@@ -441,7 +441,7 @@ class TestCalculateAllSellScores:
             results = await calculate_all_sell_scores(
                 positions=positions,
                 total_portfolio_value=50000,
-                geo_allocations={},
+                country_allocations={},
                 ind_allocations={},
             )
 
@@ -470,7 +470,7 @@ class TestCalculateAllSellScores:
             results = await calculate_all_sell_scores(
                 positions=positions,
                 total_portfolio_value=50000,
-                geo_allocations={},
+                country_allocations={},
                 ind_allocations={},
             )
 
@@ -508,7 +508,7 @@ class TestCalculateAllSellScores:
             results = await calculate_all_sell_scores(
                 positions=positions,
                 total_portfolio_value=50000,
-                geo_allocations={},
+                country_allocations={},
                 ind_allocations={},
                 weights=custom_weights,
             )
@@ -545,7 +545,7 @@ class TestCalculateAllSellScores:
             results = await calculate_all_sell_scores(
                 positions=positions,
                 total_portfolio_value=50000,
-                geo_allocations={},
+                country_allocations={},
                 ind_allocations={},
                 technical_data=tech_data,
             )

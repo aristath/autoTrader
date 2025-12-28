@@ -204,7 +204,7 @@ class TestGetAllocation:
         mock_summary = MagicMock()
         mock_summary.total_value = 10000.0
         mock_summary.cash_balance = 1000.0
-        mock_summary.geographic_allocations = [mock_geo_alloc]
+        mock_summary.country_allocations = [mock_geo_alloc]
         mock_summary.industry_allocations = []
 
         mock_service = AsyncMock()
@@ -214,5 +214,5 @@ class TestGetAllocation:
 
         assert result["total_value"] == 10000.0
         assert result["cash_balance"] == 1000.0
-        assert len(result["geographic"]) == 1
-        assert result["geographic"][0]["name"] == "US"
+        assert len(result["country"]) == 1
+        assert result["country"][0]["name"] == "US"

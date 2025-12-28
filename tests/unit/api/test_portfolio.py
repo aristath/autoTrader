@@ -196,7 +196,7 @@ class TestGetPortfolioSummary:
         mock_us.name = "US"
         mock_us.current_pct = 0.50
 
-        mock_summary.geographic_allocations = [mock_eu, mock_asia, mock_us]
+        mock_summary.country_allocations = [mock_eu, mock_asia, mock_us]
         mock_portfolio_service.get_portfolio_summary.return_value = mock_summary
 
         result = await get_portfolio_summary(mock_portfolio_service)
@@ -221,7 +221,7 @@ class TestGetPortfolioSummary:
         mock_us.name = "US"
         mock_us.current_pct = 1.0
 
-        mock_summary.geographic_allocations = [mock_us]
+        mock_summary.country_allocations = [mock_us]
         mock_portfolio_service.get_portfolio_summary.return_value = mock_summary
 
         result = await get_portfolio_summary(mock_portfolio_service)

@@ -8,7 +8,7 @@ document.addEventListener('alpine:init', () => {
     // Data
     status: {},
     allocation: {
-      geographic: [],  // TODO: Rename to country in API response
+      country: [],
       industry: [],
       total_value: 0,
       cash_balance: 0
@@ -454,8 +454,8 @@ document.addEventListener('alpine:init', () => {
       this.activeCountries.forEach(country => {
         this.countryTargets[country] = 0;
       });
-      if (this.allocation.geographic) {
-        this.allocation.geographic.forEach(c => {
+      if (this.allocation.country) {
+        this.allocation.country.forEach(c => {
           this.countryTargets[c.name] = c.target_pct || 0;
         });
       }

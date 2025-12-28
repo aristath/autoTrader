@@ -9,6 +9,7 @@ from typing import Protocol
 
 from app.domain.portfolio_hash import generate_recommendation_cache_key
 from app.domain.repositories.protocols import (
+    IAllocationRepository,
     IPositionRepository,
     ISettingsRepository,
     IStockRepository,
@@ -37,6 +38,7 @@ class TickerContentService:
         position_repo: IPositionRepository,
         stock_repo: IStockRepository,
         settings_repo: ISettingsRepository,
+        allocation_repo: IAllocationRepository,
         tradernet_client: TradernetClient,
     ) -> None:
         """Initialize ticker content service.
@@ -46,12 +48,14 @@ class TickerContentService:
             position_repo: Position repository
             stock_repo: Stock repository
             settings_repo: Settings repository
+            allocation_repo: Allocation repository
             tradernet_client: Tradernet client for cash balances
         """
         self._portfolio_repo = portfolio_repo
         self._position_repo = position_repo
         self._stock_repo = stock_repo
         self._settings_repo = settings_repo
+        self._allocation_repo = allocation_repo
         self._tradernet_client = tradernet_client
         self._settings_service = SettingsService(settings_repo)
 
@@ -92,6 +96,7 @@ class TickerContentService:
                 positions = await self._position_repo.get_all()
                 stocks = await self._stock_repo.get_all_active()
                 settings = await self._settings_service.get_settings()
+                allocations = await self._allocation_repo.get_all()
                 position_dicts = [
                     {"symbol": p.symbol, "quantity": p.quantity} for p in positions
                 ]
@@ -104,7 +109,11 @@ class TickerContentService:
                     else {}
                 )
                 portfolio_cache_key = generate_recommendation_cache_key(
-                    position_dicts, settings.to_dict(), stocks, cash_balances
+                    position_dicts,
+                    settings.to_dict(),
+                    stocks,
+                    cash_balances,
+                    allocations,
                 )
                 cache_key = f"recommendations:{portfolio_cache_key}"
 

@@ -127,7 +127,7 @@ async def get_current_allocation(portfolio_service: PortfolioServiceDep):
                 "current_value": a.current_value,
                 "deviation": a.deviation,
             }
-            for a in summary.geographic_allocations  # TODO: Rename to country_allocations
+            for a in summary.country_allocations
         ],
         "industry": [
             {
@@ -157,7 +157,7 @@ async def get_allocation_deviations(portfolio_service: PortfolioServiceDep):
                 else ("overweight" if a.deviation > 0.02 else "balanced")
             ),
         }
-        for a in summary.geographic_allocations  # TODO: Rename to country_allocations
+        for a in summary.country_allocations
     }
 
     industry_deviations = {

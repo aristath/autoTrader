@@ -179,7 +179,7 @@ def _generate_sell_narrative(
 
         if overweight_geo:
             parts.append(f"The portfolio is overweight in {overweight_geo} region.")
-            parts.append("Trimming this position improves geographic diversification.")
+            parts.append("Trimming this position improves country diversification.")
         else:
             parts.append(f"Reason: {reason}.")
 
@@ -235,7 +235,7 @@ def _generate_buy_narrative(
         if underweight_geo:
             parts.append(f"The portfolio is underweight in {underweight_geo} region.")
             parts.append(
-                "This purchase improves geographic diversification and reduces concentration risk."
+                "This purchase improves country diversification and reduces concentration risk."
             )
         else:
             parts.append(f"Reason: {reason}.")

@@ -193,6 +193,7 @@ def get_ticker_content_service(
     position_repo: PositionRepositoryDep,
     stock_repo: StockRepositoryDep,
     settings_repo: SettingsRepositoryDep,
+    allocation_repo: AllocationRepositoryDep,
     tradernet_client: TradernetClientDep,
 ) -> TickerContentService:
     """Get TickerContentService instance."""
@@ -201,6 +202,7 @@ def get_ticker_content_service(
         position_repo=position_repo,
         stock_repo=stock_repo,
         settings_repo=settings_repo,
+        allocation_repo=allocation_repo,
         tradernet_client=tradernet_client,
     )
 

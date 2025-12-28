@@ -1,6 +1,6 @@
 /**
- * Geographic Allocation Component
- * Displays geographic weights and allows editing
+ * Country Allocation Component
+ * Displays country weights and allows editing
  * Weight scale: -1 (avoid) to +1 (prioritize), 0 = neutral
  * View mode shows deviation from calculated target allocation
  */
@@ -19,7 +19,7 @@ class GeoChart extends HTMLElement {
 
         <!-- View Mode - Show deviation from target allocation -->
         <div x-show="!$store.app.editingCountry" class="space-y-2">
-          <template x-for="country in (geographicAllocations || []).filter(c => $store.app.activeCountries && $store.app.activeCountries.includes(c.name))" :key="country.name">
+          <template x-for="country in (countryAllocations || []).filter(c => $store.app.activeCountries && $store.app.activeCountries.includes(c.name))" :key="country.name">
             <div>
               <div class="flex items-center justify-between text-sm mb-1">
                 <span class="flex items-center gap-2">
@@ -93,7 +93,7 @@ class GeoChart extends HTMLElement {
 }
 
 /**
- * Alpine.js component for geographic allocation
+ * Alpine.js component for country allocation
  */
 function geoChartComponent() {
   // Generate colors for countries (using a hash function for consistent colors)
@@ -108,10 +108,10 @@ function geoChartComponent() {
   };
 
   return {
-    get geographicAllocations() {
+    get countryAllocations() {
       const allocation = this.$store.app.allocation;
-      if (!allocation || !allocation.geographic) return [];
-      return Array.isArray(allocation.geographic) ? allocation.geographic : [];
+      if (!allocation || !allocation.country) return [];
+      return Array.isArray(allocation.country) ? allocation.country : [];
     },
 
     getCountryColor(name) {

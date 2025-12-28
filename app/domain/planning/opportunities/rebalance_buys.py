@@ -16,7 +16,7 @@ from app.domain.value_objects.trade_side import TradeSide
 async def identify_rebalance_buy_opportunities(
     stocks: List[Stock],
     portfolio_context: PortfolioContext,
-    geo_allocations: Dict[str, float],
+    country_allocations: Dict[str, float],
     batch_prices: Dict[str, float],
     base_trade_amount: float,
     exchange_rate_service: Optional[ExchangeRateService] = None,
@@ -27,7 +27,7 @@ async def identify_rebalance_buy_opportunities(
     Args:
         stocks: Available stocks
         portfolio_context: Portfolio context with weights
-        geo_allocations: Current country allocation percentages
+        country_allocations: Current country allocation percentages
         batch_prices: Dict mapping symbol to current price
         base_trade_amount: Base trade amount in EUR
         exchange_rate_service: Optional exchange rate service for currency conversion
@@ -56,7 +56,7 @@ async def identify_rebalance_buy_opportunities(
         country = stock.country
         if country:
             target = 0.33 + portfolio_context.country_weights.get(country, 0) * 0.15
-            current = geo_allocations.get(country, 0)
+            current = country_allocations.get(country, 0)
             if current < target - 0.05:  # 5%+ underweight
                 underweight = target - current
                 exchange_rate = 1.0

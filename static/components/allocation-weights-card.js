@@ -1,6 +1,6 @@
 /**
  * Allocation Weights Card Component
- * Container for geographic and industry allocation radar charts
+ * Container for country and industry allocation radar charts
  */
 class AllocationWeightsCard extends HTMLElement {
   connectedCallback() {

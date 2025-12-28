@@ -271,7 +271,7 @@ class PortfolioSummary:
 
     total_value: float
     cash_balance: float
-    geographic_allocations: list
+    country_allocations: list
     industry_allocations: list
 
 

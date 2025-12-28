@@ -167,6 +167,6 @@ class PortfolioService:
         return PortfolioSummary(
             total_value=round(total_value, 2),
             cash_balance=round(cash_balance, 2),
-            geographic_allocations=country_allocations,  # TODO: Rename to country_allocations in PortfolioSummary
+            country_allocations=country_allocations,
             industry_allocations=industry_allocations,
         )

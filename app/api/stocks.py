@@ -61,10 +61,6 @@ async def get_stocks(
     cached = cache.get("stocks_with_scores")
     if cached is not None:
         return cached
-    summary = await portfolio_service.get_portfolio_summary()
-
-    geo_weights = {g.name: g.target_pct for g in summary.geographic_allocations}
-    ind_weights = {i.name: i.target_pct for i in summary.industry_allocations}
 
     stocks_data = await stock_repo.get_with_scores()
 
@@ -98,11 +94,7 @@ async def get_stocks(
         )
         stock_dicts.append(stock_dict)
 
-    priority_results = PriorityCalculator.calculate_priorities(
-        priority_inputs,
-        geo_weights,
-        ind_weights,
-    )
+    priority_results = PriorityCalculator.calculate_priorities(priority_inputs)
 
     priority_map = {r.symbol: r.combined_priority for r in priority_results}
     for stock_dict in stock_dicts:

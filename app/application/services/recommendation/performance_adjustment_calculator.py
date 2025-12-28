@@ -18,19 +18,19 @@ from app.infrastructure.recommendation_cache import get_recommendation_cache
 logger = logging.getLogger(__name__)
 
 
-def _adjust_geo_weights(
-    base_geo_weights: dict, geo_attribution: dict, avg_geo_return: float
+def _adjust_country_weights(
+    base_country_weights: dict, country_attribution: dict, avg_country_return: float
 ) -> dict:
-    """Adjust geography weights based on performance attribution."""
+    """Adjust country weights based on performance attribution."""
     adjusted = {}
-    for geo, base_weight in base_geo_weights.items():
-        geo_return = geo_attribution.get(geo, avg_geo_return)
-        if geo_return > avg_geo_return:
-            adjusted[geo] = base_weight * 1.1
-        elif geo_return < avg_geo_return:
-            adjusted[geo] = base_weight * 0.9
+    for country, base_weight in base_country_weights.items():
+        country_return = country_attribution.get(country, avg_country_return)
+        if country_return > avg_country_return:
+            adjusted[country] = base_weight * 1.1
+        elif country_return < avg_country_return:
+            adjusted[country] = base_weight * 0.9
         else:
-            adjusted[geo] = base_weight
+            adjusted[country] = base_weight
     return adjusted
 
 
@@ -61,7 +61,7 @@ async def get_performance_adjusted_weights(
         portfolio_hash: Optional portfolio hash for caching (48h TTL)
 
     Returns:
-        Tuple of (adjusted_geo_weights, adjusted_ind_weights)
+        Tuple of (adjusted_country_weights, adjusted_ind_weights)
     """
     try:
         # Check cache first if we have a portfolio hash
@@ -71,7 +71,7 @@ async def get_performance_adjusted_weights(
             cached = await rec_cache.get_analytics(cache_key)
             if cached:
                 logger.debug("Using cached performance-adjusted weights")
-                return cached.get("geo", {}), cached.get("ind", {})
+                return cached.get("country", {}), cached.get("ind", {})
 
         # Calculate date range (last 365 days)
         end_date = datetime.now().strftime("%Y-%m-%d")
@@ -88,12 +88,12 @@ async def get_performance_adjusted_weights(
         # Get performance attribution (EXPENSIVE - ~27 seconds)
         attribution = await get_performance_attribution(returns, start_date, end_date)
 
-        geo_attribution = attribution.get("country", {})
+        country_attribution = attribution.get("country", {})
         ind_attribution = attribution.get("industry", {})
 
         allocations = await allocation_repo.get_all()
 
-        base_geo_weights = {
+        base_country_weights = {
             key.split(":", 1)[1]: val
             for key, val in allocations.items()
             if key.startswith("country:")
@@ -104,9 +104,9 @@ async def get_performance_adjusted_weights(
             if key.startswith("industry:")
         }
 
-        avg_geo_return = (
-            sum(geo_attribution.values()) / len(geo_attribution)
-            if geo_attribution
+        avg_country_return = (
+            sum(country_attribution.values()) / len(country_attribution)
+            if country_attribution
             else 0.0
         )
         avg_ind_return = (
@@ -115,20 +115,22 @@ async def get_performance_adjusted_weights(
             else 0.0
         )
 
-        adjusted_geo = _adjust_geo_weights(
-            base_geo_weights, geo_attribution, avg_geo_return
+        adjusted_country = _adjust_country_weights(
+            base_country_weights, country_attribution, avg_country_return
         )
         adjusted_ind = _adjust_ind_weights(
             base_ind_weights, ind_attribution, avg_ind_return
         )
 
         # Cache the result (48h TTL)
-        if portfolio_hash and (adjusted_geo or adjusted_ind):
+        if portfolio_hash and (adjusted_country or adjusted_ind):
             await rec_cache.set_analytics(
-                cache_key, {"geo": adjusted_geo, "ind": adjusted_ind}, ttl_hours=48
+                cache_key,
+                {"country": adjusted_country, "ind": adjusted_ind},
+                ttl_hours=48,
             )
 
-        return adjusted_geo, adjusted_ind
+        return adjusted_country, adjusted_ind
 
     except Exception as e:
         logger.debug(f"Could not calculate performance-adjusted weights: {e}")

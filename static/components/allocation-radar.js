@@ -1,10 +1,10 @@
 /**
  * Allocation Radar Chart Component
- * Displays geographic and industry allocations as radar charts
+ * Displays country and industry allocations as radar charts
  * Shows target vs current allocation for easy deviation visualization
  *
  * Attributes:
- * - type: "geographic" | "industry" | "both" (default: "both")
+ * - type: "country" | "industry" | "both" (default: "both")
  */
 class AllocationRadar extends HTMLElement {
   connectedCallback() {
@@ -13,7 +13,7 @@ class AllocationRadar extends HTMLElement {
     let html = `<div x-data="allocationRadarComponent('${type}')" x-init="init()">`;
 
     // Country Radar
-    if (type === 'geographic' || type === 'both') {
+    if (type === 'country' || type === 'both') {
       html += `
         <!-- Country Radar -->
         <div ${type === 'both' ? 'class="mb-4"' : ''}>
@@ -90,7 +90,7 @@ function allocationRadarComponent(chartType) {
 
     get geoCurrentData() {
       const activeCountries = this.geoLabels;
-      const allocation = this.$store.app.allocation?.geographic || [];
+      const allocation = this.$store.app.allocation?.country || [];
 
       if (activeCountries.length === 0 || allocation.length === 0) {
         return [];
@@ -104,7 +104,7 @@ function allocationRadarComponent(chartType) {
 
     get geoTargetData() {
       const activeCountries = this.geoLabels;
-      const allocation = this.$store.app.allocation?.geographic || [];
+      const allocation = this.$store.app.allocation?.country || [];
 
       if (activeCountries.length === 0 || allocation.length === 0) {
         return [];
@@ -200,8 +200,8 @@ function allocationRadarComponent(chartType) {
     },
 
     updateGeoChart() {
-      // Update geographic radar chart when data changes
-      if (this.chartType !== 'geographic' && this.chartType !== 'both') {
+      // Update country radar chart when data changes
+      if (this.chartType !== 'country' && this.chartType !== 'both') {
         return;
       }
 

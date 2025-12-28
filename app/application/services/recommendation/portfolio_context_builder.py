@@ -40,14 +40,14 @@ async def build_portfolio_context(
     total_value = await position_repo.get_total_value()
 
     # Build allocation weight maps
-    geo_weights: Dict[str, float] = {}
+    country_weights: Dict[str, float] = {}
     industry_weights: Dict[str, float] = {}
     for key, target_pct in allocations.items():
         parts = key.split(":", 1)
         if len(parts) == 2:
             alloc_type, name = parts
             if alloc_type == "country":
-                geo_weights[name] = target_pct
+                country_weights[name] = target_pct
             elif alloc_type == "industry":
                 industry_weights[name] = target_pct
 
@@ -66,7 +66,7 @@ async def build_portfolio_context(
             stock_scores[row["symbol"]] = row["quality_score"]
 
     return PortfolioContext(
-        country_weights=geo_weights,
+        country_weights=country_weights,
         industry_weights=industry_weights,
         positions=position_map,
         total_value=total_value if total_value > 0 else 1.0,
