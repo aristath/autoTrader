@@ -140,7 +140,18 @@ class StockRepository:
         await self.update(symbol, active=False)
 
     async def get_with_scores(self) -> List[dict]:
-        """Get all active stocks with their scores and positions."""
+        """Get all active stocks with their scores and positions.
+
+        Note: This method directly accesses multiple databases (config.db and state.db)
+        which violates the repository pattern. This is a known architecture violation
+        documented in ARCHITECTURE.md. A future refactoring could:
+        1. Create a composite repository/service that orchestrates multiple repositories
+        2. Inject ScoreRepository and PositionRepository as dependencies
+        3. Move this logic to an application service layer
+
+        For now, this approach is pragmatic as it allows efficient multi-database queries
+        without requiring significant architectural changes.
+        """
         db_manager = get_db_manager()
 
         # Fetch stocks from config.db
