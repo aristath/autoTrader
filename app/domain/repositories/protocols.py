@@ -69,6 +69,10 @@ class IPositionRepository(Protocol):
         """Update last_sold_at timestamp for a position."""
         ...
 
+    async def get_count(self) -> int:
+        """Get count of positions in database."""
+        ...
+
     async def get_total_value(self) -> float:
         """Get total portfolio value."""
         ...

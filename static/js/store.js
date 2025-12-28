@@ -132,9 +132,40 @@ document.addEventListener('alpine:init', () => {
 
     async fetchStocks() {
       try {
-        this.stocks = await API.fetchStocks();
+        const stocks = await API.fetchStocks();
+
+        // Frontend validation: check if allocation shows value but stocks don't have positions
+        // This catches edge cases where API validation might have missed something
+        // Only check if allocation has already been loaded (avoid race conditions with parallel fetchAll)
+        const allocationLoaded = this.allocation &&
+                                 this.allocation.total_value !== undefined;
+        const hasAllocationValue = allocationLoaded && this.allocation.total_value > 0;
+        const hasStockPositions = stocks.some(s => s.position_value > 0);
+
+        // If allocation shows value but stocks don't, cache might be stale
+        // Only retry once to avoid infinite loops (use a flag to prevent retry loops)
+        if (hasAllocationValue && !hasStockPositions && stocks.length > 0 && !this._stocksRetryFlag) {
+          this._stocksRetryFlag = true; // Prevent infinite retries
+          console.warn('Position data mismatch detected in frontend, retrying fetch');
+          // Wait a brief moment for any async cache invalidation to complete
+          await new Promise(resolve => setTimeout(resolve, 100));
+          const freshStocks = await API.fetchStocks();
+          // Only use fresh data if it actually has positions
+          if (freshStocks.some(s => s.position_value > 0)) {
+            this.stocks = freshStocks;
+            this._stocksRetryFlag = false; // Reset flag on success
+            return;
+          }
+          // If still no positions, log warning but use what we have
+          console.warn('Position data still missing after retry - may need manual refresh');
+          this._stocksRetryFlag = false; // Reset flag
+        }
+
+        this.stocks = stocks;
+        this._stocksRetryFlag = false; // Reset flag on normal path
       } catch (e) {
         console.error('Failed to fetch stocks:', e);
+        this._stocksRetryFlag = false; // Reset flag on error
       }
     },
 
