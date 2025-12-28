@@ -13,6 +13,7 @@ document.addEventListener('alpine:init', () => {
       total_value: 0,
       cash_balance: 0
     },
+    alerts: [],  // Concentration limit alerts
     cashBreakdown: [],  // [{currency: 'EUR', amount: 1000}, ...]
     stocks: [],
     trades: [],
@@ -106,7 +107,14 @@ document.addEventListener('alpine:init', () => {
 
     async fetchAllocation() {
       try {
-        this.allocation = await API.fetchAllocation();
+        const data = await API.fetchAllocation();
+        this.allocation = {
+          country: data.country || [],
+          industry: data.industry || [],
+          total_value: data.total_value || 0,
+          cash_balance: data.cash_balance || 0
+        };
+        this.alerts = data.alerts || [];
       } catch (e) {
         console.error('Failed to fetch allocation:', e);
       }
