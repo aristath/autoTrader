@@ -248,10 +248,14 @@ def _poll_display_text():
 
                     # Only update if we have text and it's different
                     if text and text != _last_text:
-                        logger.debug(f"Polled display text: {text[:50]}...")
+                        logger.info(f"Polled display text: {text[:50]}...")
                         if set_text(text, speed=speed):
                             _last_text = text
                             _last_text_speed = speed
+                        else:
+                            logger.warning(f"Failed to update display with polled text: {text[:50]}...")
+                    elif text:
+                        logger.debug(f"Polled text unchanged: {text[:50]}... (last: {_last_text[:50] if _last_text else 'empty'}...)")
                 else:
                     logger.debug(
                         f"Display text endpoint returned status {response.status_code}"
