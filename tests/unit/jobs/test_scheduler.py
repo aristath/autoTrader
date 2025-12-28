@@ -457,7 +457,7 @@ class TestInitScheduler:
         mock_logger.info.assert_called_once()
         log_message = mock_logger.info.call_args[0][0]
         assert "Scheduler initialized" in log_message
-        assert "7 jobs" in log_message
+        assert "8 jobs" in log_message
 
     @pytest.mark.asyncio
     async def test_replaces_existing_jobs(self):
