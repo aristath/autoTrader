@@ -1,16 +1,16 @@
 """Tradernet (Freedom24) API client service."""
 
+import asyncio
 import logging
-import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
 
-import requests
 from tradernet import TraderNetAPI
 
 from app.config import settings
+from app.domain.services.exchange_rate_service import ExchangeRateService
 from app.infrastructure.events import SystemEvent, emit
 
 # Alias for backward compatibility
@@ -29,60 +29,65 @@ def _led_api_call():
         emit(SystemEvent.API_CALL_END)
 
 
-# Cache for exchange rates (refreshed every hour)
-_exchange_rates: dict[str, float] = {}
-_rates_updated: Optional[datetime] = None
-_rates_lock = threading.Lock()
+# Global ExchangeRateService instance (set by TradernetClient)
+_exchange_rate_service: Optional[ExchangeRateService] = None
 
 
+def _get_exchange_rate_sync(from_currency: str, to_currency: str = "EUR") -> float:
+    """Get exchange rate synchronously using ExchangeRateService.
+
+    This is a sync wrapper around async ExchangeRateService.get_rate().
+    Uses asyncio.run() to call the async method from sync code.
+    Falls back to hardcoded rates if service unavailable or if called from async context.
+    """
+    global _exchange_rate_service
+
+    # Fallback rates
+    fallback_rates = {
+        ("HKD", "EUR"): 8.5,
+        ("USD", "EUR"): 1.05,
+        ("GBP", "EUR"): 0.85,
+    }
+
+    if _exchange_rate_service is None:
+        return fallback_rates.get((from_currency, to_currency), 1.0)
+
+    try:
+        # Try to get the current event loop
+        try:
+            asyncio.get_running_loop()
+            # If we're in an async context, we can't use asyncio.run()
+            # Fall back to hardcoded rates
+            logger.debug(
+                f"Called _get_exchange_rate_sync from async context, using fallback rate for {from_currency}/{to_currency}"
+            )
+            return fallback_rates.get((from_currency, to_currency), 1.0)
+        except RuntimeError:
+            # No running loop, safe to use asyncio.run()
+            pass
+
+        # Use asyncio.run() to call async method from sync context
+        return asyncio.run(_exchange_rate_service.get_rate(from_currency, to_currency))
+    except Exception as e:
+        logger.warning(
+            f"Failed to get exchange rate {from_currency}/{to_currency}: {e}"
+        )
+        return fallback_rates.get((from_currency, to_currency), 1.0)
+
+
+# Backward compatibility - deprecated, use _get_exchange_rate_sync() instead
 def get_exchange_rate(from_currency: str, to_currency: Optional[str] = None) -> float:
-    """Get exchange rate from currency to target currency using real-time data (thread-safe)."""
-    from app.domain.value_objects.currency import Currency
+    """Get exchange rate from currency to target currency (deprecated).
 
-    global _exchange_rates, _rates_updated
+    This function is kept for backward compatibility but will be removed.
+    Use ExchangeRateService directly in async code, or _get_exchange_rate_sync() in sync code.
+    """
+    from app.domain.value_objects.currency import Currency
 
     if to_currency is None:
         to_currency = Currency.EUR
 
-    if from_currency == to_currency:
-        return 1.0
-
-    with _rates_lock:
-        # Check if cache is valid (less than 1 hour old)
-        if _rates_updated and datetime.now() - _rates_updated < timedelta(hours=1):
-            cache_key = f"{from_currency}_{to_currency}"
-            if cache_key in _exchange_rates:
-                return _exchange_rates[cache_key]
-
-        # Fetch fresh rates
-        try:
-            # Use exchangerate-api (free tier)
-            url = f"https://api.exchangerate-api.com/v4/latest/{to_currency}"
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                rates = data.get("rates", {})
-
-                # Update cache with all rates
-                _exchange_rates = {}
-                for curr, rate in rates.items():
-                    # Store as "how many units of curr per 1 EUR"
-                    _exchange_rates[f"{curr}_{to_currency}"] = rate
-                _rates_updated = datetime.now()
-
-                cache_key = f"{from_currency}_{to_currency}"
-                if cache_key in _exchange_rates:
-                    return _exchange_rates[cache_key]
-        except Exception as e:
-            logger.warning(f"Failed to fetch exchange rates: {e}")
-
-        # Fallback rates if API fails
-        fallback_rates = {
-            "HKD_EUR": 8.5,  # ~8.5 HKD per EUR
-            "USD_EUR": 1.05,  # ~1.05 USD per EUR
-            "GBP_EUR": 0.85,  # ~0.85 GBP per EUR
-        }
-        return fallback_rates.get(f"{from_currency}_{to_currency}", 1.0)
+    return _get_exchange_rate_sync(from_currency, to_currency)
 
 
 @dataclass
@@ -337,11 +342,11 @@ def _convert_amount_to_eur(amount: float, currency: str) -> float:
         return amount
 
     try:
-        rate = get_exchange_rate(currency, "EUR")
+        rate = _get_exchange_rate_sync(currency, "EUR")
         if rate > 0:
             return amount / rate
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Failed to convert {amount} {currency} to EUR: {e}")
 
     return amount
 
@@ -635,7 +640,7 @@ def _parse_withdrawal_record(record: dict) -> Optional[dict]:
     amount = float(params.get("totalMoneyOut", 0))
 
     if currency != "EUR" and amount > 0:
-        rate = get_exchange_rate(currency, "EUR")
+        rate = _get_exchange_rate_sync(currency, "EUR")
         if rate > 0:
             amount = amount / rate
 
@@ -673,10 +678,21 @@ def _get_trade_fee_transactions(client) -> list[dict]:
 class TradernetClient:
     """Client for Tradernet/Freedom24 API."""
 
-    def __init__(self):
-        """Initialize the Tradernet client."""
-        self._client: Optional[Tradernet] = None
+    def __init__(self, exchange_rate_service: Optional[ExchangeRateService] = None):
+        """Initialize the Tradernet client.
+
+        Args:
+            exchange_rate_service: Optional ExchangeRateService for currency conversions.
+                                  If provided, sets global service for sync helper functions.
+        """
+        self._client: Optional[TraderNetAPI] = None
         self._connected = False
+        self._exchange_rate_service = exchange_rate_service
+
+        # Set global service for sync helper functions
+        global _exchange_rate_service
+        if exchange_rate_service is not None:
+            _exchange_rate_service = exchange_rate_service
 
     def connect(self) -> bool:
         """Connect to Tradernet API."""
@@ -747,7 +763,7 @@ class TradernetClient:
                 currency = item.get("curr", Currency.EUR)
 
                 # Get real-time exchange rate instead of API's currval
-                currency_rate = get_exchange_rate(currency, Currency.EUR)
+                currency_rate = _get_exchange_rate_sync(currency, Currency.EUR)
 
                 # Convert market_value to default currency (EUR)
                 if currency == Currency.EUR:
@@ -839,7 +855,7 @@ class TradernetClient:
                     total += amount
                 elif amount > 0:
                     # Convert to EUR using real-time exchange rate
-                    rate = get_exchange_rate(currency, Currency.EUR)
+                    rate = _get_exchange_rate_sync(currency, Currency.EUR)
                     total += amount / rate
 
             return total
@@ -1306,9 +1322,21 @@ class TradernetClient:
 _client: Optional[TradernetClient] = None
 
 
-def get_tradernet_client() -> TradernetClient:
-    """Get or create the Tradernet client singleton."""
+def get_tradernet_client(
+    exchange_rate_service: Optional[ExchangeRateService] = None,
+) -> TradernetClient:
+    """Get or create the Tradernet client singleton.
+
+    Args:
+        exchange_rate_service: Optional ExchangeRateService for currency conversions.
+                             If provided and client doesn't exist, will be passed to new client.
+    """
     global _client
     if _client is None:
-        _client = TradernetClient()
+        _client = TradernetClient(exchange_rate_service=exchange_rate_service)
+    elif exchange_rate_service is not None and _client._exchange_rate_service is None:
+        # Update existing client with service if not already set
+        _client._exchange_rate_service = exchange_rate_service
+        global _exchange_rate_service
+        _exchange_rate_service = exchange_rate_service
     return _client
