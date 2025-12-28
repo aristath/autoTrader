@@ -15,6 +15,7 @@ from app.domain.services.settings_service import SettingsService
 from app.infrastructure.external import yahoo_finance as yahoo
 from app.infrastructure.external.tradernet import TradernetClient
 from app.repositories import (
+    AllocationRepository,
     DividendRepository,
     PositionRepository,
     SettingsRepository,
@@ -117,9 +118,14 @@ async def run_optimization() -> Dict[str, Any]:
 
     portfolio_value += cash_balance
 
-    # Get allocation targets
-    geo_targets = await settings_repo.get_json("country_targets", {})
-    ind_targets = await settings_repo.get_json("industry_targets", {})
+    # Get allocation targets from allocation_repo (reads from allocation_targets table)
+    allocation_repo = AllocationRepository()
+    country_targets_pct = await allocation_repo.get_country_targets()
+    ind_targets_pct = await allocation_repo.get_industry_targets()
+
+    # Convert percentages (0-100) to fractions (0-1)
+    country_targets = {name: pct / 100.0 for name, pct in country_targets_pct.items()}
+    ind_targets = {name: pct / 100.0 for name, pct in ind_targets_pct.items()}
 
     # Get pending dividend bonuses (DRIP fallback)
     dividend_repo = DividendRepository()
@@ -135,7 +141,7 @@ async def run_optimization() -> Dict[str, Any]:
         cash_balance=cash_balance,
         blend=settings.optimizer_blend,
         target_return=settings.optimizer_target_return,
-        geo_targets=geo_targets,
+        geo_targets=country_targets,  # Will be renamed to country_targets in Commit 3
         ind_targets=ind_targets,
         min_cash_reserve=settings.min_cash_reserve,
         dividend_bonuses=dividend_bonuses,

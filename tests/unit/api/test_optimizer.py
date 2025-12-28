@@ -236,17 +236,27 @@ class TestRunOptimization:
                                     with patch(
                                         "app.api.optimizer.PortfolioOptimizer"
                                     ) as mock_optimizer_class:
-                                        # Setup repository mocks
-                                        mock_settings_repo = AsyncMock()
-                                        mock_settings_repo.get_json.side_effect = [
-                                            {"US": 0.5, "EU": 0.3},  # geo_targets
-                                            {
-                                                "Consumer Electronics": 0.4
-                                            },  # ind_targets
-                                        ]
-                                        mock_repo_class.return_value = (
-                                            mock_settings_repo
-                                        )
+                                        with patch(
+                                            "app.api.optimizer.AllocationRepository"
+                                        ) as mock_allocation_repo_class:
+                                            # Setup repository mocks
+                                            mock_settings_repo = AsyncMock()
+                                            mock_repo_class.return_value = (
+                                                mock_settings_repo
+                                            )
+
+                                            # Setup allocation_repo mock
+                                            mock_allocation_repo = AsyncMock()
+                                            mock_allocation_repo.get_country_targets.return_value = {
+                                                "United States": 50.0,  # 50% -> 0.5
+                                                "Germany": 30.0,  # 30% -> 0.3
+                                            }
+                                            mock_allocation_repo.get_industry_targets.return_value = {
+                                                "Consumer Electronics": 40.0,  # 40% -> 0.4
+                                            }
+                                            mock_allocation_repo_class.return_value = (
+                                                mock_allocation_repo
+                                            )
 
                                         mock_service = AsyncMock()
                                         mock_service.get_settings.return_value = (
@@ -364,15 +374,26 @@ class TestRunOptimization:
                                     with patch(
                                         "app.api.optimizer.PortfolioOptimizer"
                                     ) as mock_optimizer_class:
-                                        # Setup mocks (abbreviated)
-                                        mock_settings_repo = AsyncMock()
-                                        mock_settings_repo.get_json.side_effect = [
-                                            {},
-                                            {},
-                                        ]
-                                        mock_repo_class.return_value = (
-                                            mock_settings_repo
-                                        )
+                                        with patch(
+                                            "app.api.optimizer.AllocationRepository"
+                                        ) as mock_allocation_repo_class:
+                                            # Setup mocks (abbreviated)
+                                            mock_settings_repo = AsyncMock()
+                                            mock_repo_class.return_value = (
+                                                mock_settings_repo
+                                            )
+
+                                            # Setup allocation_repo mock
+                                            mock_allocation_repo = AsyncMock()
+                                            mock_allocation_repo.get_country_targets.return_value = (
+                                                {}
+                                            )
+                                            mock_allocation_repo.get_industry_targets.return_value = (
+                                                {}
+                                            )
+                                            mock_allocation_repo_class.return_value = (
+                                                mock_allocation_repo
+                                            )
 
                                         mock_service = AsyncMock()
                                         mock_service.get_settings.return_value = (
@@ -449,15 +470,26 @@ class TestRunOptimization:
                                     with patch(
                                         "app.api.optimizer.PortfolioOptimizer"
                                     ) as mock_optimizer_class:
-                                        # Setup mocks
-                                        mock_settings_repo = AsyncMock()
-                                        mock_settings_repo.get_json.side_effect = [
-                                            {},
-                                            {},
-                                        ]
-                                        mock_repo_class.return_value = (
-                                            mock_settings_repo
-                                        )
+                                        with patch(
+                                            "app.api.optimizer.AllocationRepository"
+                                        ) as mock_allocation_repo_class:
+                                            # Setup mocks
+                                            mock_settings_repo = AsyncMock()
+                                            mock_repo_class.return_value = (
+                                                mock_settings_repo
+                                            )
+
+                                            # Setup allocation_repo mock
+                                            mock_allocation_repo = AsyncMock()
+                                            mock_allocation_repo.get_country_targets.return_value = (
+                                                {}
+                                            )
+                                            mock_allocation_repo.get_industry_targets.return_value = (
+                                                {}
+                                            )
+                                            mock_allocation_repo_class.return_value = (
+                                                mock_allocation_repo
+                                            )
 
                                         mock_service = AsyncMock()
                                         mock_service.get_settings.return_value = (
@@ -533,85 +565,115 @@ class TestRunOptimization:
                                     with patch(
                                         "app.api.optimizer.PortfolioOptimizer"
                                     ) as mock_optimizer_class:
-                                        # Setup mocks
-                                        mock_settings_repo = AsyncMock()
-                                        geo_targets = {"US": 0.5, "EU": 0.3}
-                                        ind_targets = {"Consumer Electronics": 0.4}
-                                        mock_settings_repo.get_json.side_effect = [
-                                            geo_targets,
-                                            ind_targets,
-                                        ]
-                                        mock_repo_class.return_value = (
-                                            mock_settings_repo
-                                        )
+                                        with patch(
+                                            "app.api.optimizer.AllocationRepository"
+                                        ) as mock_allocation_repo_class:
+                                            # Setup mocks
+                                            mock_settings_repo = AsyncMock()
+                                            mock_repo_class.return_value = (
+                                                mock_settings_repo
+                                            )
 
-                                        mock_service = AsyncMock()
-                                        mock_service.get_settings.return_value = (
-                                            mock_settings
-                                        )
-                                        mock_service_class.return_value = mock_service
+                                            # Setup allocation_repo mock
+                                            # Returns percentages, will be converted to fractions
+                                            mock_allocation_repo = AsyncMock()
+                                            mock_allocation_repo.get_country_targets.return_value = {
+                                                "United States": 50.0,  # 50% -> 0.5
+                                                "Germany": 30.0,  # 30% -> 0.3
+                                            }
+                                            mock_allocation_repo.get_industry_targets.return_value = {
+                                                "Consumer Electronics": 40.0,  # 40% -> 0.4
+                                            }
+                                            mock_allocation_repo_class.return_value = (
+                                                mock_allocation_repo
+                                            )
 
-                                        mock_stock_repo = AsyncMock()
-                                        mock_stock_repo.get_all.return_value = [
-                                            mock_stock
-                                        ]
-                                        mock_stock_class.return_value = mock_stock_repo
+                                            # Expected converted values
+                                            country_targets = {
+                                                "United States": 0.5,
+                                                "Germany": 0.3,
+                                            }
+                                            ind_targets = {"Consumer Electronics": 0.4}
 
-                                        mock_position_repo = AsyncMock()
-                                        mock_position_repo.get_all.return_value = [
-                                            mock_position
-                                        ]
-                                        mock_position_class.return_value = (
-                                            mock_position_repo
-                                        )
+                                            mock_service = AsyncMock()
+                                            mock_service.get_settings.return_value = (
+                                                mock_settings
+                                            )
+                                            mock_service_class.return_value = (
+                                                mock_service
+                                            )
 
-                                        dividend_bonuses = {"AAPL": 100.0}
-                                        mock_dividend_repo = AsyncMock()
-                                        mock_dividend_repo.get_pending_bonuses.return_value = (
-                                            dividend_bonuses
-                                        )
-                                        mock_dividend_class.return_value = (
-                                            mock_dividend_repo
-                                        )
+                                            mock_stock_repo = AsyncMock()
+                                            mock_stock_repo.get_all.return_value = [
+                                                mock_stock
+                                            ]
+                                            mock_stock_class.return_value = (
+                                                mock_stock_repo
+                                            )
 
-                                        mock_yahoo.get_batch_quotes.return_value = {
-                                            "AAPL": 150.0
-                                        }
+                                            mock_position_repo = AsyncMock()
+                                            mock_position_repo.get_all.return_value = [
+                                                mock_position
+                                            ]
+                                            mock_position_class.return_value = (
+                                                mock_position_repo
+                                            )
 
-                                        mock_client = MagicMock()
-                                        mock_client.get_total_cash_eur.return_value = (
-                                            5000.0
-                                        )
-                                        mock_client_class.shared.return_value = (
-                                            mock_client
-                                        )
+                                            dividend_bonuses = {"AAPL": 100.0}
+                                            mock_dividend_repo = AsyncMock()
+                                            mock_dividend_repo.get_pending_bonuses.return_value = (
+                                                dividend_bonuses
+                                            )
+                                            mock_dividend_class.return_value = (
+                                                mock_dividend_repo
+                                            )
 
-                                        mock_optimizer = AsyncMock()
-                                        mock_optimizer.optimize.return_value = (
-                                            sample_optimization_result
-                                        )
-                                        mock_optimizer_class.return_value = (
-                                            mock_optimizer
-                                        )
+                                            mock_yahoo.get_batch_quotes.return_value = {
+                                                "AAPL": 150.0
+                                            }
 
-                                        await run_optimization()
+                                            mock_client = MagicMock()
+                                            mock_client.get_total_cash_eur.return_value = (
+                                                5000.0
+                                            )
+                                            mock_client_class.shared.return_value = (
+                                                mock_client
+                                            )
 
-                                        # Verify optimizer.optimize was called with correct params
-                                        call_kwargs = (
-                                            mock_optimizer.optimize.call_args.kwargs
-                                        )
-                                        assert call_kwargs["stocks"] == [mock_stock]
-                                        assert "AAPL" in call_kwargs["positions"]
-                                        assert call_kwargs["cash_balance"] == 5000.0
-                                        assert call_kwargs["blend"] == 0.5
-                                        assert call_kwargs["target_return"] == 0.11
-                                        assert call_kwargs["geo_targets"] == geo_targets
-                                        assert call_kwargs["ind_targets"] == ind_targets
-                                        assert call_kwargs["min_cash_reserve"] == 500.0
-                                        assert (
-                                            call_kwargs["dividend_bonuses"]
-                                            == dividend_bonuses
-                                        )
+                                            mock_optimizer = AsyncMock()
+                                            mock_optimizer.optimize.return_value = (
+                                                sample_optimization_result
+                                            )
+                                            mock_optimizer_class.return_value = (
+                                                mock_optimizer
+                                            )
+
+                                            await run_optimization()
+
+                                            # Verify optimizer.optimize was called with correct params
+                                            call_kwargs = (
+                                                mock_optimizer.optimize.call_args.kwargs
+                                            )
+                                            assert call_kwargs["stocks"] == [mock_stock]
+                                            assert "AAPL" in call_kwargs["positions"]
+                                            assert call_kwargs["cash_balance"] == 5000.0
+                                            assert call_kwargs["blend"] == 0.5
+                                            assert call_kwargs["target_return"] == 0.11
+                                            assert (
+                                                call_kwargs["country_targets"]
+                                                == country_targets
+                                            )
+                                            assert (
+                                                call_kwargs["ind_targets"]
+                                                == ind_targets
+                                            )
+                                            assert (
+                                                call_kwargs["min_cash_reserve"] == 500.0
+                                            )
+                                            assert (
+                                                call_kwargs["dividend_bonuses"]
+                                                == dividend_bonuses
+                                            )
 
     @pytest.mark.asyncio
     async def test_run_optimization_calculates_portfolio_value(
@@ -648,15 +710,26 @@ class TestRunOptimization:
                                     with patch(
                                         "app.api.optimizer.PortfolioOptimizer"
                                     ) as mock_optimizer_class:
-                                        # Setup mocks
-                                        mock_settings_repo = AsyncMock()
-                                        mock_settings_repo.get_json.side_effect = [
-                                            {},
-                                            {},
-                                        ]
-                                        mock_repo_class.return_value = (
-                                            mock_settings_repo
-                                        )
+                                        with patch(
+                                            "app.api.optimizer.AllocationRepository"
+                                        ) as mock_allocation_repo_class:
+                                            # Setup mocks
+                                            mock_settings_repo = AsyncMock()
+                                            mock_repo_class.return_value = (
+                                                mock_settings_repo
+                                            )
+
+                                            # Setup allocation_repo mock
+                                            mock_allocation_repo = AsyncMock()
+                                            mock_allocation_repo.get_country_targets.return_value = (
+                                                {}
+                                            )
+                                            mock_allocation_repo.get_industry_targets.return_value = (
+                                                {}
+                                            )
+                                            mock_allocation_repo_class.return_value = (
+                                                mock_allocation_repo
+                                            )
 
                                         mock_service = AsyncMock()
                                         mock_service.get_settings.return_value = (
@@ -970,15 +1043,26 @@ class TestEdgeCases:
                                     with patch(
                                         "app.api.optimizer.PortfolioOptimizer"
                                     ) as mock_optimizer_class:
-                                        # Setup mocks
-                                        mock_settings_repo = AsyncMock()
-                                        mock_settings_repo.get_json.side_effect = [
-                                            {},
-                                            {},
-                                        ]
-                                        mock_repo_class.return_value = (
-                                            mock_settings_repo
-                                        )
+                                        with patch(
+                                            "app.api.optimizer.AllocationRepository"
+                                        ) as mock_allocation_repo_class:
+                                            # Setup mocks
+                                            mock_settings_repo = AsyncMock()
+                                            mock_repo_class.return_value = (
+                                                mock_settings_repo
+                                            )
+
+                                            # Setup allocation_repo mock
+                                            mock_allocation_repo = AsyncMock()
+                                            mock_allocation_repo.get_country_targets.return_value = (
+                                                {}
+                                            )
+                                            mock_allocation_repo.get_industry_targets.return_value = (
+                                                {}
+                                            )
+                                            mock_allocation_repo_class.return_value = (
+                                                mock_allocation_repo
+                                            )
 
                                         mock_service = AsyncMock()
                                         mock_service.get_settings.return_value = (
@@ -1062,15 +1146,26 @@ class TestEdgeCases:
                                     with patch(
                                         "app.api.optimizer.PortfolioOptimizer"
                                     ) as mock_optimizer_class:
-                                        # Setup mocks
-                                        mock_settings_repo = AsyncMock()
-                                        mock_settings_repo.get_json.side_effect = [
-                                            {},
-                                            {},
-                                        ]
-                                        mock_repo_class.return_value = (
-                                            mock_settings_repo
-                                        )
+                                        with patch(
+                                            "app.api.optimizer.AllocationRepository"
+                                        ) as mock_allocation_repo_class:
+                                            # Setup mocks
+                                            mock_settings_repo = AsyncMock()
+                                            mock_repo_class.return_value = (
+                                                mock_settings_repo
+                                            )
+
+                                            # Setup allocation_repo mock
+                                            mock_allocation_repo = AsyncMock()
+                                            mock_allocation_repo.get_country_targets.return_value = (
+                                                {}
+                                            )
+                                            mock_allocation_repo.get_industry_targets.return_value = (
+                                                {}
+                                            )
+                                            mock_allocation_repo_class.return_value = (
+                                                mock_allocation_repo
+                                            )
 
                                         mock_service = AsyncMock()
                                         mock_service.get_settings.return_value = (
@@ -1173,3 +1268,377 @@ class TestEdgeCases:
 
         # Change: 0.20 * 100000 = 20000
         assert result_dict["next_action"] == "Buy AAPL ~€20,000"
+
+
+class TestOptimizerUsesAllocationRepo:
+    """Test that optimizer API uses allocation_repo instead of settings."""
+
+    @pytest.mark.asyncio
+    async def test_uses_allocation_repo_for_country_targets(
+        self, mock_settings, sample_optimization_result
+    ):
+        """Test that allocation_repo.get_country_targets() is used instead of settings."""
+        mock_stock = MagicMock()
+        mock_stock.symbol = "AAPL"
+        mock_stock.yahoo_symbol = "AAPL"
+
+        mock_position = MagicMock()
+        mock_position.symbol = "AAPL"
+
+        with patch("app.api.optimizer.SettingsRepository") as mock_settings_repo_class:
+            with patch("app.api.optimizer.SettingsService") as mock_service_class:
+                with patch("app.api.optimizer.StockRepository") as mock_stock_class:
+                    with patch(
+                        "app.api.optimizer.PositionRepository"
+                    ) as mock_position_class:
+                        with patch(
+                            "app.api.optimizer.AllocationRepository"
+                        ) as mock_allocation_repo_class:
+                            with patch(
+                                "app.api.optimizer.DividendRepository"
+                            ) as mock_dividend_class:
+                                with patch("app.api.optimizer.yahoo") as mock_yahoo:
+                                    with patch(
+                                        "app.api.optimizer.TradernetClient"
+                                    ) as mock_client_class:
+                                        with patch(
+                                            "app.api.optimizer.PortfolioOptimizer"
+                                        ) as mock_optimizer_class:
+                                            # Setup mocks
+                                            mock_settings_repo = AsyncMock()
+                                            mock_settings_repo_class.return_value = (
+                                                mock_settings_repo
+                                            )
+
+                                            mock_service = AsyncMock()
+                                            mock_service.get_settings.return_value = (
+                                                mock_settings
+                                            )
+                                            mock_service_class.return_value = (
+                                                mock_service
+                                            )
+
+                                            # Setup allocation_repo mock
+                                            # Returns percentages (0-100)
+                                            mock_allocation_repo = AsyncMock()
+                                            mock_allocation_repo.get_country_targets.return_value = {
+                                                "United States": 50.0,  # 50%
+                                                "Germany": 30.0,  # 30%
+                                            }
+                                            mock_allocation_repo.get_industry_targets.return_value = {
+                                                "Technology": 40.0,  # 40%
+                                            }
+                                            mock_allocation_repo_class.return_value = (
+                                                mock_allocation_repo
+                                            )
+
+                                            mock_stock_repo = AsyncMock()
+                                            mock_stock_repo.get_all.return_value = [
+                                                mock_stock
+                                            ]
+                                            mock_stock_class.return_value = (
+                                                mock_stock_repo
+                                            )
+
+                                            mock_position_repo = AsyncMock()
+                                            mock_position_repo.get_all.return_value = [
+                                                mock_position
+                                            ]
+                                            mock_position_class.return_value = (
+                                                mock_position_repo
+                                            )
+
+                                            mock_dividend_repo = AsyncMock()
+                                            mock_dividend_repo.get_pending_bonuses.return_value = (
+                                                {}
+                                            )
+                                            mock_dividend_class.return_value = (
+                                                mock_dividend_repo
+                                            )
+
+                                            mock_yahoo.get_batch_quotes.return_value = {
+                                                "AAPL": 150.0
+                                            }
+
+                                            mock_client = MagicMock()
+                                            mock_client.get_total_cash_eur.return_value = (
+                                                5000.0
+                                            )
+                                            mock_client_class.shared.return_value = (
+                                                mock_client
+                                            )
+
+                                            mock_optimizer = AsyncMock()
+                                            mock_optimizer.optimize.return_value = (
+                                                sample_optimization_result
+                                            )
+                                            mock_optimizer_class.return_value = (
+                                                mock_optimizer
+                                            )
+
+                                            await run_optimization()
+
+                                            # Verify allocation_repo methods were called
+                                            mock_allocation_repo.get_country_targets.assert_called_once()
+                                            mock_allocation_repo.get_industry_targets.assert_called_once()
+
+                                            # Verify settings_repo.get_json was NOT called for targets
+                                            mock_settings_repo.get_json.assert_not_called()
+
+                                            # Verify optimizer was called with converted fractions (0-1)
+                                            call_kwargs = (
+                                                mock_optimizer.optimize.call_args.kwargs
+                                            )
+                                            # 50% -> 0.5, 30% -> 0.3
+                                            assert call_kwargs["country_targets"] == {
+                                                "United States": 0.5,
+                                                "Germany": 0.3,
+                                            }
+                                            # 40% -> 0.4
+                                            assert call_kwargs["ind_targets"] == {
+                                                "Technology": 0.4
+                                            }
+
+    @pytest.mark.asyncio
+    async def test_converts_percentage_to_fraction(
+        self, mock_settings, sample_optimization_result
+    ):
+        """Test that target_pct is converted from percentage (0-100) to fraction (0-1)."""
+        mock_stock = MagicMock()
+        mock_stock.symbol = "AAPL"
+        mock_stock.yahoo_symbol = "AAPL"
+
+        mock_position = MagicMock()
+        mock_position.symbol = "AAPL"
+
+        with patch("app.api.optimizer.SettingsRepository") as mock_settings_repo_class:
+            with patch("app.api.optimizer.SettingsService") as mock_service_class:
+                with patch("app.api.optimizer.StockRepository") as mock_stock_class:
+                    with patch(
+                        "app.api.optimizer.PositionRepository"
+                    ) as mock_position_class:
+                        with patch(
+                            "app.api.optimizer.AllocationRepository"
+                        ) as mock_allocation_repo_class:
+                            with patch(
+                                "app.api.optimizer.DividendRepository"
+                            ) as mock_dividend_class:
+                                with patch("app.api.optimizer.yahoo") as mock_yahoo:
+                                    with patch(
+                                        "app.api.optimizer.TradernetClient"
+                                    ) as mock_client_class:
+                                        with patch(
+                                            "app.api.optimizer.PortfolioOptimizer"
+                                        ) as mock_optimizer_class:
+                                            # Setup mocks
+                                            mock_settings_repo = AsyncMock()
+                                            mock_settings_repo_class.return_value = (
+                                                mock_settings_repo
+                                            )
+
+                                            mock_service = AsyncMock()
+                                            mock_service.get_settings.return_value = (
+                                                mock_settings
+                                            )
+                                            mock_service_class.return_value = (
+                                                mock_service
+                                            )
+
+                                            # Setup allocation_repo to return percentages
+                                            mock_allocation_repo = AsyncMock()
+                                            mock_allocation_repo.get_country_targets.return_value = {
+                                                "United States": 50.0,  # 50% should become 0.5
+                                                "Japan": 20.0,  # 20% should become 0.2
+                                            }
+                                            mock_allocation_repo.get_industry_targets.return_value = {
+                                                "Technology": 40.0,  # 40% should become 0.4
+                                                "Finance": 15.0,  # 15% should become 0.15
+                                            }
+                                            mock_allocation_repo_class.return_value = (
+                                                mock_allocation_repo
+                                            )
+
+                                            mock_stock_repo = AsyncMock()
+                                            mock_stock_repo.get_all.return_value = [
+                                                mock_stock
+                                            ]
+                                            mock_stock_class.return_value = (
+                                                mock_stock_repo
+                                            )
+
+                                            mock_position_repo = AsyncMock()
+                                            mock_position_repo.get_all.return_value = [
+                                                mock_position
+                                            ]
+                                            mock_position_class.return_value = (
+                                                mock_position_repo
+                                            )
+
+                                            mock_dividend_repo = AsyncMock()
+                                            mock_dividend_repo.get_pending_bonuses.return_value = (
+                                                {}
+                                            )
+                                            mock_dividend_class.return_value = (
+                                                mock_dividend_repo
+                                            )
+
+                                            mock_yahoo.get_batch_quotes.return_value = {
+                                                "AAPL": 150.0
+                                            }
+
+                                            mock_client = MagicMock()
+                                            mock_client.get_total_cash_eur.return_value = (
+                                                5000.0
+                                            )
+                                            mock_client_class.shared.return_value = (
+                                                mock_client
+                                            )
+
+                                            mock_optimizer = AsyncMock()
+                                            mock_optimizer.optimize.return_value = (
+                                                sample_optimization_result
+                                            )
+                                            mock_optimizer_class.return_value = (
+                                                mock_optimizer
+                                            )
+
+                                            await run_optimization()
+
+                                            # Verify conversion: percentages divided by 100
+                                            call_kwargs = (
+                                                mock_optimizer.optimize.call_args.kwargs
+                                            )
+                                            country_targets = call_kwargs[
+                                                "country_targets"
+                                            ]
+                                            ind_targets = call_kwargs["ind_targets"]
+
+                                            # Verify country targets converted correctly
+                                            assert (
+                                                country_targets["United States"] == 0.5
+                                            )  # 50 / 100
+                                            assert (
+                                                country_targets["Japan"] == 0.2
+                                            )  # 20 / 100
+
+                                            # Verify industry targets converted correctly
+                                            assert (
+                                                ind_targets["Technology"] == 0.4
+                                            )  # 40 / 100
+                                            assert (
+                                                ind_targets["Finance"] == 0.15
+                                            )  # 15 / 100
+
+    @pytest.mark.asyncio
+    async def test_uses_allocation_repo_and_converts_percentages(
+        self, mock_settings, sample_optimization_result
+    ):
+        """Test that allocation_repo is used and percentages are converted to fractions."""
+        mock_stock = MagicMock()
+        mock_stock.symbol = "AAPL"
+        mock_stock.yahoo_symbol = "AAPL"
+
+        mock_position = MagicMock()
+        mock_position.symbol = "AAPL"
+
+        with patch("app.api.optimizer.SettingsRepository") as mock_settings_repo_class:
+            with patch("app.api.optimizer.SettingsService") as mock_service_class:
+                with patch("app.api.optimizer.StockRepository") as mock_stock_class:
+                    with patch(
+                        "app.api.optimizer.PositionRepository"
+                    ) as mock_position_class:
+                        with patch(
+                            "app.api.optimizer.AllocationRepository"
+                        ) as mock_allocation_repo_class:
+                            with patch(
+                                "app.api.optimizer.DividendRepository"
+                            ) as mock_dividend_class:
+                                with patch("app.api.optimizer.yahoo") as mock_yahoo:
+                                    with patch(
+                                        "app.api.optimizer.TradernetClient"
+                                    ) as mock_client_class:
+                                        with patch(
+                                            "app.api.optimizer.PortfolioOptimizer"
+                                        ) as mock_optimizer_class:
+                                            # Setup mocks
+                                            mock_settings_repo = AsyncMock()
+                                            mock_settings_repo_class.return_value = (
+                                                mock_settings_repo
+                                            )
+
+                                            mock_service = AsyncMock()
+                                            mock_service.get_settings.return_value = (
+                                                mock_settings
+                                            )
+                                            mock_service_class.return_value = (
+                                                mock_service
+                                            )
+
+                                            mock_allocation_repo = AsyncMock()
+                                            mock_allocation_repo.get_country_targets.return_value = {
+                                                "United States": 50.0,
+                                            }
+                                            mock_allocation_repo.get_industry_targets.return_value = (
+                                                {}
+                                            )
+                                            mock_allocation_repo_class.return_value = (
+                                                mock_allocation_repo
+                                            )
+
+                                            mock_stock_repo = AsyncMock()
+                                            mock_stock_repo.get_all.return_value = [
+                                                mock_stock
+                                            ]
+                                            mock_stock_class.return_value = (
+                                                mock_stock_repo
+                                            )
+
+                                            mock_position_repo = AsyncMock()
+                                            mock_position_repo.get_all.return_value = [
+                                                mock_position
+                                            ]
+                                            mock_position_class.return_value = (
+                                                mock_position_repo
+                                            )
+
+                                            mock_dividend_repo = AsyncMock()
+                                            mock_dividend_repo.get_pending_bonuses.return_value = (
+                                                {}
+                                            )
+                                            mock_dividend_class.return_value = (
+                                                mock_dividend_repo
+                                            )
+
+                                            mock_yahoo.get_batch_quotes.return_value = {
+                                                "AAPL": 150.0
+                                            }
+
+                                            mock_client = MagicMock()
+                                            mock_client.get_total_cash_eur.return_value = (
+                                                5000.0
+                                            )
+                                            mock_client_class.shared.return_value = (
+                                                mock_client
+                                            )
+
+                                            mock_optimizer = AsyncMock()
+                                            mock_optimizer.optimize.return_value = (
+                                                sample_optimization_result
+                                            )
+                                            mock_optimizer_class.return_value = (
+                                                mock_optimizer
+                                            )
+
+                                            await run_optimization()
+
+                                            # Verify geo_targets is passed (will be renamed to country_targets in Commit 3)
+                                            # but the value comes from allocation_repo
+                                            call_kwargs = (
+                                                mock_optimizer.optimize.call_args.kwargs
+                                            )
+                                            # For now, still passes as geo_targets (will change in Commit 3
+                                            assert "geo_targets" in call_kwargs
+                                            # Verify the value was converted from percentage
+                                            assert call_kwargs["geo_targets"] == {
+                                                "United States": 0.5
+                                            }
