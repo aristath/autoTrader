@@ -98,7 +98,7 @@ def calculate_position_size(
 
     Based on MOSEK Portfolio Cookbook principles: size positions so each
     contributes roughly equal risk to the portfolio. Stock score provides
-    a small ±10% adjustment on top.
+    a ±20% adjustment on top for conviction expression.
 
     Args:
         candidate: Stock priority data (must have volatility)
@@ -106,7 +106,7 @@ def calculate_position_size(
         min_size: Minimum trade size
 
     Returns:
-        Adjusted position size (0.5x to 2.0x of base, ±10% for score)
+        Adjusted position size (0.5x to 2.0x of base, ±20% for score)
     """
     # Use stock volatility, or default if unknown
     stock_vol = candidate.volatility if candidate.volatility else DEFAULT_VOLATILITY
@@ -117,10 +117,10 @@ def calculate_position_size(
     vol_weight = TARGET_PORTFOLIO_VOLATILITY / max(stock_vol, MIN_VOLATILITY_FOR_SIZING)
     vol_weight = max(MIN_VOL_WEIGHT, min(MAX_VOL_WEIGHT, vol_weight))
 
-    # Small stock score adjustment (±10%)
-    # Score 1.0 = +10%, Score 0.5 = -10%
-    score_adj = 1.0 + (candidate.stock_score - 0.5) * 0.2
-    score_adj = max(0.9, min(1.1, score_adj))
+    # Stock score adjustment (±20% range for better conviction expression)
+    # Score 1.0 = +20%, Score 0.5 = 0%, Score 0.0 = -20%
+    score_adj = 1.0 + (candidate.stock_score - 0.5) * 0.4
+    score_adj = max(0.8, min(1.2, score_adj))
 
     size = base_size * vol_weight * score_adj
     return max(min_size, size)
