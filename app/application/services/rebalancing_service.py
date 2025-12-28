@@ -217,6 +217,35 @@ class RebalancingService:
         min_cash = await self._settings_repo.get_float("min_cash_reserve", 500.0)
         max_plan_depth = await self._settings_repo.get_int("max_plan_depth", 5)
 
+        # Get positions and stocks (needed for portfolio value calculation)
+        positions = await self._position_repo.get_all()
+        stocks = await self._stock_repo.get_all_active()
+
+        # Get current cash balance
+        available_cash = (
+            self._tradernet_client.get_total_cash_eur()
+            if self._tradernet_client.is_connected
+            else 0.0
+        )
+
+        # Get current prices for portfolio value calculation
+        yahoo_symbols: Dict[str, Optional[str]] = {
+            s.symbol: s.yahoo_symbol for s in stocks if s.yahoo_symbol
+        }
+        current_prices = yahoo.get_batch_quotes(yahoo_symbols)
+
+        # Calculate total portfolio value (positions + cash)
+        def _get_position_value(p) -> float:
+            price = current_prices.get(p.symbol)
+            if price is not None:
+                return float(p.quantity) * float(price)
+            elif p.quantity > 0 and p.market_value_eur is not None:
+                return float(p.market_value_eur)
+            return 0.0
+
+        total_position_value = sum(_get_position_value(p) for p in positions)
+        portfolio_value = total_position_value + available_cash
+
         # Adjust cash reserve based on market regime (if enabled)
         regime_enabled = await self._settings_repo.get_float(
             "market_regime_detection_enabled", 1.0
@@ -225,21 +254,31 @@ class RebalancingService:
             try:
                 regime = await detect_market_regime(self._tradernet_client)
                 if regime == "bull":
-                    min_cash = await self._settings_repo.get_float(
-                        "market_regime_bull_cash_reserve", 400.0
+                    reserve_pct = await self._settings_repo.get_float(
+                        "market_regime_bull_cash_reserve", 0.02
                     )
-                    logger.info(f"Bull market detected: using cash reserve {min_cash}")
-                elif regime == "bear":
-                    min_cash = await self._settings_repo.get_float(
-                        "market_regime_bear_cash_reserve", 600.0
-                    )
-                    logger.info(f"Bear market detected: using cash reserve {min_cash}")
-                elif regime == "sideways":
-                    min_cash = await self._settings_repo.get_float(
-                        "market_regime_sideways_cash_reserve", 500.0
-                    )
+                    # Calculate EUR from percentage, maintain €500 floor
+                    min_cash = max(portfolio_value * reserve_pct, 500.0)
                     logger.info(
-                        f"Sideways market detected: using cash reserve {min_cash}"
+                        f"Bull market detected: using {reserve_pct*100:.1f}% cash reserve = €{min_cash:.2f}"
+                    )
+                elif regime == "bear":
+                    reserve_pct = await self._settings_repo.get_float(
+                        "market_regime_bear_cash_reserve", 0.05
+                    )
+                    # Calculate EUR from percentage, maintain €500 floor
+                    min_cash = max(portfolio_value * reserve_pct, 500.0)
+                    logger.info(
+                        f"Bear market detected: using {reserve_pct*100:.1f}% cash reserve = €{min_cash:.2f}"
+                    )
+                elif regime == "sideways":
+                    reserve_pct = await self._settings_repo.get_float(
+                        "market_regime_sideways_cash_reserve", 0.03
+                    )
+                    # Calculate EUR from percentage, maintain €500 floor
+                    min_cash = max(portfolio_value * reserve_pct, 500.0)
+                    logger.info(
+                        f"Sideways market detected: using {reserve_pct*100:.1f}% cash reserve = €{min_cash:.2f}"
                     )
             except Exception as e:
                 logger.warning(
@@ -254,23 +293,6 @@ class RebalancingService:
             allocation_repo=self._allocation_repo,
             db_manager=self._db_manager,
         )
-
-        # Get positions and stocks
-        positions = await self._position_repo.get_all()
-        stocks = await self._stock_repo.get_all_active()
-
-        # Get current cash balance
-        available_cash = (
-            self._tradernet_client.get_total_cash_eur()
-            if self._tradernet_client.is_connected
-            else 0.0
-        )
-
-        # Get current prices for all stocks
-        yahoo_symbols: Dict[str, Optional[str]] = {
-            s.symbol: s.yahoo_symbol for s in stocks if s.yahoo_symbol
-        }
-        current_prices = yahoo.get_batch_quotes(yahoo_symbols)
 
         # Build positions dict for optimizer
         positions_dict = {p.symbol: p for p in positions}

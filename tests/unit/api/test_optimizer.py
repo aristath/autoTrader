@@ -258,58 +258,62 @@ class TestRunOptimization:
                                                 mock_allocation_repo
                                             )
 
-                                        mock_service = AsyncMock()
-                                        mock_service.get_settings.return_value = (
-                                            mock_settings
-                                        )
-                                        mock_service_class.return_value = mock_service
+                                            mock_service = AsyncMock()
+                                            mock_service.get_settings.return_value = (
+                                                mock_settings
+                                            )
+                                            mock_service_class.return_value = (
+                                                mock_service
+                                            )
 
-                                        mock_stock_repo = AsyncMock()
-                                        mock_stock_repo.get_all.return_value = [
-                                            mock_stock
-                                        ]
-                                        mock_stock_class.return_value = mock_stock_repo
+                                            mock_stock_repo = AsyncMock()
+                                            mock_stock_repo.get_all.return_value = [
+                                                mock_stock
+                                            ]
+                                            mock_stock_class.return_value = (
+                                                mock_stock_repo
+                                            )
 
-                                        mock_position_repo = AsyncMock()
-                                        mock_position_repo.get_all.return_value = [
-                                            mock_position
-                                        ]
-                                        mock_position_class.return_value = (
-                                            mock_position_repo
-                                        )
+                                            mock_position_repo = AsyncMock()
+                                            mock_position_repo.get_all.return_value = [
+                                                mock_position
+                                            ]
+                                            mock_position_class.return_value = (
+                                                mock_position_repo
+                                            )
 
-                                        mock_dividend_repo = AsyncMock()
-                                        mock_dividend_repo.get_pending_bonuses.return_value = (
-                                            {}
-                                        )
-                                        mock_dividend_class.return_value = (
-                                            mock_dividend_repo
-                                        )
+                                            mock_dividend_repo = AsyncMock()
+                                            mock_dividend_repo.get_pending_bonuses.return_value = (
+                                                {}
+                                            )
+                                            mock_dividend_class.return_value = (
+                                                mock_dividend_repo
+                                            )
 
-                                        # Setup Yahoo Finance mock
-                                        mock_yahoo.get_batch_quotes.return_value = {
-                                            "AAPL": 150.0
-                                        }
+                                            # Setup Yahoo Finance mock
+                                            mock_yahoo.get_batch_quotes.return_value = {
+                                                "AAPL": 150.0
+                                            }
 
-                                        # Setup Tradernet mock
-                                        mock_client = MagicMock()
-                                        mock_client.get_total_cash_eur.return_value = (
-                                            5000.0
-                                        )
-                                        mock_client_class.shared.return_value = (
-                                            mock_client
-                                        )
+                                            # Setup Tradernet mock
+                                            mock_client = MagicMock()
+                                            mock_client.get_total_cash_eur.return_value = (
+                                                5000.0
+                                            )
+                                            mock_client_class.shared.return_value = (
+                                                mock_client
+                                            )
 
-                                        # Setup optimizer mock
-                                        mock_optimizer = AsyncMock()
-                                        mock_optimizer.optimize.return_value = (
-                                            sample_optimization_result
-                                        )
-                                        mock_optimizer_class.return_value = (
-                                            mock_optimizer
-                                        )
+                                            # Setup optimizer mock
+                                            mock_optimizer = AsyncMock()
+                                            mock_optimizer.optimize.return_value = (
+                                                sample_optimization_result
+                                            )
+                                            mock_optimizer_class.return_value = (
+                                                mock_optimizer
+                                            )
 
-                                        result = await run_optimization()
+                                            result = await run_optimization()
 
         assert result["success"] is True
         assert "result" in result
@@ -395,51 +399,57 @@ class TestRunOptimization:
                                                 mock_allocation_repo
                                             )
 
-                                        mock_service = AsyncMock()
-                                        mock_service.get_settings.return_value = (
-                                            mock_settings
-                                        )
-                                        mock_service_class.return_value = mock_service
+                                            mock_service = AsyncMock()
+                                            mock_service.get_settings.return_value = (
+                                                mock_settings
+                                            )
+                                            mock_service_class.return_value = (
+                                                mock_service
+                                            )
 
-                                        mock_stock_repo = AsyncMock()
-                                        mock_stock_repo.get_all.return_value = [
-                                            mock_stock
-                                        ]
-                                        mock_stock_class.return_value = mock_stock_repo
+                                            mock_stock_repo = AsyncMock()
+                                            mock_stock_repo.get_all.return_value = [
+                                                mock_stock
+                                            ]
+                                            mock_stock_class.return_value = (
+                                                mock_stock_repo
+                                            )
 
-                                        mock_position_repo = AsyncMock()
-                                        mock_position_repo.get_all.return_value = []
-                                        mock_position_class.return_value = (
-                                            mock_position_repo
-                                        )
+                                            mock_position_repo = AsyncMock()
+                                            mock_position_repo.get_all.return_value = []
+                                            mock_position_class.return_value = (
+                                                mock_position_repo
+                                            )
 
-                                        mock_dividend_repo = AsyncMock()
-                                        mock_dividend_repo.get_pending_bonuses.return_value = (
-                                            {}
-                                        )
-                                        mock_dividend_class.return_value = (
-                                            mock_dividend_repo
-                                        )
+                                            mock_dividend_repo = AsyncMock()
+                                            mock_dividend_repo.get_pending_bonuses.return_value = (
+                                                {}
+                                            )
+                                            mock_dividend_class.return_value = (
+                                                mock_dividend_repo
+                                            )
 
-                                        mock_yahoo.get_batch_quotes.return_value = {}
+                                            mock_yahoo.get_batch_quotes.return_value = (
+                                                {}
+                                            )
 
-                                        mock_client = MagicMock()
-                                        mock_client.get_total_cash_eur.return_value = (
-                                            5000.0
-                                        )
-                                        mock_client_class.shared.return_value = (
-                                            mock_client
-                                        )
+                                            mock_client = MagicMock()
+                                            mock_client.get_total_cash_eur.return_value = (
+                                                5000.0
+                                            )
+                                            mock_client_class.shared.return_value = (
+                                                mock_client
+                                            )
 
-                                        mock_optimizer = AsyncMock()
-                                        mock_optimizer.optimize.return_value = (
-                                            sample_optimization_result
-                                        )
-                                        mock_optimizer_class.return_value = (
-                                            mock_optimizer
-                                        )
+                                            mock_optimizer = AsyncMock()
+                                            mock_optimizer.optimize.return_value = (
+                                                sample_optimization_result
+                                            )
+                                            mock_optimizer_class.return_value = (
+                                                mock_optimizer
+                                            )
 
-                                        await run_optimization()
+                                            await run_optimization()
 
         # Verify cache was updated
         assert optimizer_module._last_optimization_result is not None
@@ -491,48 +501,54 @@ class TestRunOptimization:
                                                 mock_allocation_repo
                                             )
 
-                                        mock_service = AsyncMock()
-                                        mock_service.get_settings.return_value = (
-                                            mock_settings
-                                        )
-                                        mock_service_class.return_value = mock_service
+                                            mock_service = AsyncMock()
+                                            mock_service.get_settings.return_value = (
+                                                mock_settings
+                                            )
+                                            mock_service_class.return_value = (
+                                                mock_service
+                                            )
 
-                                        mock_stock_repo = AsyncMock()
-                                        mock_stock_repo.get_all.return_value = [
-                                            mock_stock
-                                        ]
-                                        mock_stock_class.return_value = mock_stock_repo
+                                            mock_stock_repo = AsyncMock()
+                                            mock_stock_repo.get_all.return_value = [
+                                                mock_stock
+                                            ]
+                                            mock_stock_class.return_value = (
+                                                mock_stock_repo
+                                            )
 
-                                        mock_position_repo = AsyncMock()
-                                        mock_position_repo.get_all.return_value = []
-                                        mock_position_class.return_value = (
-                                            mock_position_repo
-                                        )
+                                            mock_position_repo = AsyncMock()
+                                            mock_position_repo.get_all.return_value = []
+                                            mock_position_class.return_value = (
+                                                mock_position_repo
+                                            )
 
-                                        mock_dividend_repo = AsyncMock()
-                                        mock_dividend_repo.get_pending_bonuses.return_value = (
-                                            {}
-                                        )
-                                        mock_dividend_class.return_value = (
-                                            mock_dividend_repo
-                                        )
+                                            mock_dividend_repo = AsyncMock()
+                                            mock_dividend_repo.get_pending_bonuses.return_value = (
+                                                {}
+                                            )
+                                            mock_dividend_class.return_value = (
+                                                mock_dividend_repo
+                                            )
 
-                                        mock_yahoo.get_batch_quotes.return_value = {}
+                                            mock_yahoo.get_batch_quotes.return_value = (
+                                                {}
+                                            )
 
-                                        # Tradernet fails
-                                        mock_client_class.shared.side_effect = (
-                                            Exception("API error")
-                                        )
+                                            # Tradernet fails
+                                            mock_client_class.shared.side_effect = (
+                                                Exception("API error")
+                                            )
 
-                                        mock_optimizer = AsyncMock()
-                                        mock_optimizer.optimize.return_value = (
-                                            sample_optimization_result
-                                        )
-                                        mock_optimizer_class.return_value = (
-                                            mock_optimizer
-                                        )
+                                            mock_optimizer = AsyncMock()
+                                            mock_optimizer.optimize.return_value = (
+                                                sample_optimization_result
+                                            )
+                                            mock_optimizer_class.return_value = (
+                                                mock_optimizer
+                                            )
 
-                                        result = await run_optimization()
+                                            result = await run_optimization()
 
         # Should succeed with 0 cash balance
         assert result["success"] is True
@@ -731,66 +747,72 @@ class TestRunOptimization:
                                                 mock_allocation_repo
                                             )
 
-                                        mock_service = AsyncMock()
-                                        mock_service.get_settings.return_value = (
-                                            mock_settings
-                                        )
-                                        mock_service_class.return_value = mock_service
+                                            mock_service = AsyncMock()
+                                            mock_service.get_settings.return_value = (
+                                                mock_settings
+                                            )
+                                            mock_service_class.return_value = (
+                                                mock_service
+                                            )
 
-                                        mock_stock_repo = AsyncMock()
-                                        mock_stock_repo.get_all.return_value = [
-                                            mock_stock
-                                        ]
-                                        mock_stock_class.return_value = mock_stock_repo
+                                            mock_stock_repo = AsyncMock()
+                                            mock_stock_repo.get_all.return_value = [
+                                                mock_stock
+                                            ]
+                                            mock_stock_class.return_value = (
+                                                mock_stock_repo
+                                            )
 
-                                        mock_position_repo = AsyncMock()
-                                        mock_position_repo.get_all.return_value = [
-                                            mock_position1,
-                                            mock_position2,
-                                        ]
-                                        mock_position_class.return_value = (
-                                            mock_position_repo
-                                        )
+                                            mock_position_repo = AsyncMock()
+                                            mock_position_repo.get_all.return_value = [
+                                                mock_position1,
+                                                mock_position2,
+                                            ]
+                                            mock_position_class.return_value = (
+                                                mock_position_repo
+                                            )
 
-                                        mock_dividend_repo = AsyncMock()
-                                        mock_dividend_repo.get_pending_bonuses.return_value = (
-                                            {}
-                                        )
-                                        mock_dividend_class.return_value = (
-                                            mock_dividend_repo
-                                        )
+                                            mock_dividend_repo = AsyncMock()
+                                            mock_dividend_repo.get_pending_bonuses.return_value = (
+                                                {}
+                                            )
+                                            mock_dividend_class.return_value = (
+                                                mock_dividend_repo
+                                            )
 
-                                        mock_yahoo.get_batch_quotes.return_value = {
-                                            "AAPL": 150.0,
-                                            "GOOGL": 500.0,
-                                        }
+                                            mock_yahoo.get_batch_quotes.return_value = {
+                                                "AAPL": 150.0,
+                                                "GOOGL": 500.0,
+                                            }
 
-                                        mock_client = MagicMock()
-                                        mock_client.get_total_cash_eur.return_value = (
-                                            1000.0
-                                        )
-                                        mock_client_class.shared.return_value = (
-                                            mock_client
-                                        )
+                                            mock_client = MagicMock()
+                                            mock_client.get_total_cash_eur.return_value = (
+                                                1000.0
+                                            )
+                                            mock_client_class.shared.return_value = (
+                                                mock_client
+                                            )
 
-                                        mock_optimizer = AsyncMock()
-                                        mock_optimizer.optimize.return_value = (
-                                            sample_optimization_result
-                                        )
-                                        mock_optimizer_class.return_value = (
-                                            mock_optimizer
-                                        )
+                                            mock_optimizer = AsyncMock()
+                                            mock_optimizer.optimize.return_value = (
+                                                sample_optimization_result
+                                            )
+                                            mock_optimizer_class.return_value = (
+                                                mock_optimizer
+                                            )
 
-                                        await run_optimization()
+                                            await run_optimization()
 
-                                        # Verify portfolio value includes positions + cash
-                                        # Positions: 1500 + 2500 = 4000
-                                        # Cash: 1000
-                                        # Total: 5000
-                                        call_kwargs = (
-                                            mock_optimizer.optimize.call_args.kwargs
-                                        )
-                                        assert call_kwargs["portfolio_value"] == 5000.0
+                                            # Verify portfolio value includes positions + cash
+                                            # Positions: 1500 + 2500 = 4000
+                                            # Cash: 1000
+                                            # Total: 5000
+                                            call_kwargs = (
+                                                mock_optimizer.optimize.call_args.kwargs
+                                            )
+                                            assert (
+                                                call_kwargs["portfolio_value"] == 5000.0
+                                            )
 
 
 class TestOptimizationResultToDict:
@@ -1064,57 +1086,63 @@ class TestEdgeCases:
                                                 mock_allocation_repo
                                             )
 
-                                        mock_service = AsyncMock()
-                                        mock_service.get_settings.return_value = (
-                                            mock_settings
-                                        )
-                                        mock_service_class.return_value = mock_service
+                                            mock_service = AsyncMock()
+                                            mock_service.get_settings.return_value = (
+                                                mock_settings
+                                            )
+                                            mock_service_class.return_value = (
+                                                mock_service
+                                            )
 
-                                        mock_stock_repo = AsyncMock()
-                                        mock_stock_repo.get_all.return_value = [
-                                            mock_stock
-                                        ]
-                                        mock_stock_class.return_value = mock_stock_repo
+                                            mock_stock_repo = AsyncMock()
+                                            mock_stock_repo.get_all.return_value = [
+                                                mock_stock
+                                            ]
+                                            mock_stock_class.return_value = (
+                                                mock_stock_repo
+                                            )
 
-                                        mock_position_repo = AsyncMock()
-                                        mock_position_repo.get_all.return_value = [
-                                            mock_position
-                                        ]
-                                        mock_position_class.return_value = (
-                                            mock_position_repo
-                                        )
+                                            mock_position_repo = AsyncMock()
+                                            mock_position_repo.get_all.return_value = [
+                                                mock_position
+                                            ]
+                                            mock_position_class.return_value = (
+                                                mock_position_repo
+                                            )
 
-                                        mock_dividend_repo = AsyncMock()
-                                        mock_dividend_repo.get_pending_bonuses.return_value = (
-                                            {}
-                                        )
-                                        mock_dividend_class.return_value = (
-                                            mock_dividend_repo
-                                        )
+                                            mock_dividend_repo = AsyncMock()
+                                            mock_dividend_repo.get_pending_bonuses.return_value = (
+                                                {}
+                                            )
+                                            mock_dividend_class.return_value = (
+                                                mock_dividend_repo
+                                            )
 
-                                        # No price available
-                                        mock_yahoo.get_batch_quotes.return_value = {}
+                                            # No price available
+                                            mock_yahoo.get_batch_quotes.return_value = (
+                                                {}
+                                            )
 
-                                        mock_client = MagicMock()
-                                        mock_client.get_total_cash_eur.return_value = (
-                                            1000.0
-                                        )
-                                        mock_client_class.shared.return_value = (
-                                            mock_client
-                                        )
+                                            mock_client = MagicMock()
+                                            mock_client.get_total_cash_eur.return_value = (
+                                                1000.0
+                                            )
+                                            mock_client_class.shared.return_value = (
+                                                mock_client
+                                            )
 
-                                        mock_optimizer = AsyncMock()
-                                        mock_optimizer.optimize.return_value = (
-                                            sample_optimization_result
-                                        )
-                                        mock_optimizer_class.return_value = (
-                                            mock_optimizer
-                                        )
+                                            mock_optimizer = AsyncMock()
+                                            mock_optimizer.optimize.return_value = (
+                                                sample_optimization_result
+                                            )
+                                            mock_optimizer_class.return_value = (
+                                                mock_optimizer
+                                            )
 
-                                        result = await run_optimization()
+                                            result = await run_optimization()
 
-        # Should use market_value_eur fallback
-        assert result["success"] is True
+                                            # Should use market_value_eur fallback
+                                            assert result["success"] is True
 
     @pytest.mark.asyncio
     async def test_handles_position_with_zero_quantity(
@@ -1167,56 +1195,62 @@ class TestEdgeCases:
                                                 mock_allocation_repo
                                             )
 
-                                        mock_service = AsyncMock()
-                                        mock_service.get_settings.return_value = (
-                                            mock_settings
-                                        )
-                                        mock_service_class.return_value = mock_service
+                                            mock_service = AsyncMock()
+                                            mock_service.get_settings.return_value = (
+                                                mock_settings
+                                            )
+                                            mock_service_class.return_value = (
+                                                mock_service
+                                            )
 
-                                        mock_stock_repo = AsyncMock()
-                                        mock_stock_repo.get_all.return_value = [
-                                            mock_stock
-                                        ]
-                                        mock_stock_class.return_value = mock_stock_repo
+                                            mock_stock_repo = AsyncMock()
+                                            mock_stock_repo.get_all.return_value = [
+                                                mock_stock
+                                            ]
+                                            mock_stock_class.return_value = (
+                                                mock_stock_repo
+                                            )
 
-                                        mock_position_repo = AsyncMock()
-                                        mock_position_repo.get_all.return_value = [
-                                            mock_position
-                                        ]
-                                        mock_position_class.return_value = (
-                                            mock_position_repo
-                                        )
+                                            mock_position_repo = AsyncMock()
+                                            mock_position_repo.get_all.return_value = [
+                                                mock_position
+                                            ]
+                                            mock_position_class.return_value = (
+                                                mock_position_repo
+                                            )
 
-                                        mock_dividend_repo = AsyncMock()
-                                        mock_dividend_repo.get_pending_bonuses.return_value = (
-                                            {}
-                                        )
-                                        mock_dividend_class.return_value = (
-                                            mock_dividend_repo
-                                        )
+                                            mock_dividend_repo = AsyncMock()
+                                            mock_dividend_repo.get_pending_bonuses.return_value = (
+                                                {}
+                                            )
+                                            mock_dividend_class.return_value = (
+                                                mock_dividend_repo
+                                            )
 
-                                        mock_yahoo.get_batch_quotes.return_value = {}
+                                            mock_yahoo.get_batch_quotes.return_value = (
+                                                {}
+                                            )
 
-                                        mock_client = MagicMock()
-                                        mock_client.get_total_cash_eur.return_value = (
-                                            5000.0
-                                        )
-                                        mock_client_class.shared.return_value = (
-                                            mock_client
-                                        )
+                                            mock_client = MagicMock()
+                                            mock_client.get_total_cash_eur.return_value = (
+                                                5000.0
+                                            )
+                                            mock_client_class.shared.return_value = (
+                                                mock_client
+                                            )
 
-                                        mock_optimizer = AsyncMock()
-                                        mock_optimizer.optimize.return_value = (
-                                            sample_optimization_result
-                                        )
-                                        mock_optimizer_class.return_value = (
-                                            mock_optimizer
-                                        )
+                                            mock_optimizer = AsyncMock()
+                                            mock_optimizer.optimize.return_value = (
+                                                sample_optimization_result
+                                            )
+                                            mock_optimizer_class.return_value = (
+                                                mock_optimizer
+                                            )
 
-                                        result = await run_optimization()
+                                            result = await run_optimization()
 
-        # Should handle gracefully with 0 value
-        assert result["success"] is True
+                                            # Should handle gracefully with 0 value
+                                            assert result["success"] is True
 
     def test_handles_none_achieved_return(self):
         """Test conversion when achieved return is None."""

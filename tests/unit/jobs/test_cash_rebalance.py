@@ -266,9 +266,11 @@ class TestCheckAndRebalanceInternal:
         ):
             mock_pnl.return_value = ({"status": "ok"}, True)
             mock_get_client.return_value = mock_client
-            mock_service.return_value.get_settings.return_value = MagicMock(
-                transaction_cost_fixed=5.0,
-                transaction_cost_percent=0.1,
+            mock_service.return_value.get_settings = AsyncMock(
+                return_value=MagicMock(
+                    transaction_cost_fixed=5.0,
+                    transaction_cost_percent=0.1,
+                )
             )
 
             await _check_and_rebalance_internal()
@@ -307,7 +309,9 @@ class TestCheckAndRebalanceInternal:
         ):
             mock_pnl.return_value = ({"status": "ok"}, True)
             mock_get_client.return_value = mock_client
-            mock_service.return_value.get_settings.return_value = mock_settings
+            mock_service.return_value.get_settings = AsyncMock(
+                return_value=mock_settings
+            )
             mock_pos_repo.return_value.get_all.return_value = []
             mock_action.return_value = None
 
@@ -348,6 +352,7 @@ class TestGetNextHolisticAction:
             patch("app.jobs.cash_rebalance.PositionRepository") as mock_pos_repo,
             patch("app.jobs.cash_rebalance.SettingsRepository"),
             patch("app.jobs.cash_rebalance.StockRepository") as mock_stock_repo,
+            patch("app.jobs.cash_rebalance.AllocationRepository") as mock_alloc_repo,
             patch(
                 "app.jobs.cash_rebalance.get_tradernet_client",
                 return_value=mock_client,
@@ -359,6 +364,7 @@ class TestGetNextHolisticAction:
         ):
             mock_pos_repo.return_value.get_all = AsyncMock(return_value=[])
             mock_stock_repo.return_value.get_all_active = AsyncMock(return_value=[])
+            mock_alloc_repo.return_value.get_all = AsyncMock(return_value=[])
             mock_settings.return_value.get_settings = AsyncMock(
                 return_value=mock_settings_obj
             )
@@ -409,6 +415,7 @@ class TestRefreshRecommendationCache:
             patch("app.jobs.cash_rebalance.SettingsRepository"),
             patch("app.jobs.cash_rebalance.PositionRepository") as mock_pos_repo,
             patch("app.jobs.cash_rebalance.StockRepository") as mock_stock_repo,
+            patch("app.jobs.cash_rebalance.AllocationRepository") as mock_alloc_repo,
             patch(
                 "app.jobs.cash_rebalance.get_tradernet_client",
                 return_value=mock_client,
@@ -423,6 +430,7 @@ class TestRefreshRecommendationCache:
         ):
             mock_pos_repo.return_value.get_all = AsyncMock(return_value=[])
             mock_stock_repo.return_value.get_all_active = AsyncMock(return_value=[])
+            mock_alloc_repo.return_value.get_all = AsyncMock(return_value=[])
             mock_settings.return_value.get_settings = AsyncMock(
                 return_value=mock_settings_obj
             )
@@ -521,24 +529,25 @@ class TestEventDrivenRebalancing:
             ) as mock_service,
             patch("app.jobs.cash_rebalance.PositionRepository") as mock_pos_repo,
             patch("app.jobs.cash_rebalance.TradeRepository"),
-            patch("app.jobs.cash_rebalance.StockRepository"),
+            patch("app.jobs.cash_rebalance.StockRepository") as mock_stock_repo,
             patch("app.jobs.cash_rebalance._get_next_holistic_action") as mock_action,
             patch("app.jobs.cash_rebalance._refresh_recommendation_cache"),
             patch("app.jobs.cash_rebalance.emit"),
             patch("app.jobs.cash_rebalance.set_processing"),
             patch("app.jobs.cash_rebalance.clear_processing"),
             patch(
-                "app.domain.services.rebalancing_triggers.check_rebalance_triggers"
+                "app.domain.services.rebalancing_triggers.check_rebalance_triggers",
+                new=AsyncMock(return_value=(False, "no triggers met")),
             ) as mock_check_triggers,
         ):
             mock_pnl.return_value = ({"status": "ok"}, True)
             mock_get_client.return_value = mock_client
-            mock_service.return_value.get_settings.return_value = mock_settings
+            mock_service.return_value.get_settings = AsyncMock(
+                return_value=mock_settings
+            )
             mock_pos_repo.return_value.get_all = AsyncMock(return_value=positions)
+            mock_stock_repo.return_value.get_all_active = AsyncMock(return_value=[])
             mock_action.return_value = None
-
-            # Mock trigger check: no triggers met
-            mock_check_triggers.return_value = (False, "no triggers met")
 
             # Mock settings: event-driven enabled
             async def get_float(key, default):
@@ -620,7 +629,9 @@ class TestEventDrivenRebalancing:
                 True,
             )
             mock_get_client.return_value = mock_client
-            mock_service.return_value.get_settings.return_value = mock_settings
+            mock_service.return_value.get_settings = AsyncMock(
+                return_value=mock_settings
+            )
             mock_pos_repo.return_value.get_all = AsyncMock(return_value=positions)
             mock_stock_repo.return_value.get_all_active = AsyncMock(return_value=[])
             mock_get_action.return_value = mock_action
@@ -711,7 +722,9 @@ class TestEventDrivenRebalancing:
                 True,
             )
             mock_get_client.return_value = mock_client
-            mock_service.return_value.get_settings.return_value = mock_settings
+            mock_service.return_value.get_settings = AsyncMock(
+                return_value=mock_settings
+            )
             mock_pos_repo.return_value.get_all = AsyncMock(return_value=positions)
             mock_stock_repo.return_value.get_all_active = AsyncMock(return_value=[])
             mock_get_action.return_value = mock_action
@@ -799,7 +812,9 @@ class TestEventDrivenRebalancing:
                 True,
             )
             mock_get_client.return_value = mock_client
-            mock_service.return_value.get_settings.return_value = mock_settings
+            mock_service.return_value.get_settings = AsyncMock(
+                return_value=mock_settings
+            )
             mock_pos_repo.return_value.get_all = AsyncMock(return_value=positions)
             mock_stock_repo.return_value.get_all_active = AsyncMock(return_value=[])
             mock_get_action.return_value = mock_action

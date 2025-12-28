@@ -414,7 +414,7 @@ async def _get_next_holistic_action() -> "Recommendation | None":
     logger.info("Cache miss, calling holistic planner directly...")
     from app.infrastructure.database.manager import get_db_manager
     from app.infrastructure.dependencies import get_exchange_rate_service
-    from app.repositories import AllocationRepository, PortfolioRepository
+    from app.repositories import PortfolioRepository
 
     stock_repo = StockRepository()
     position_repo = PositionRepository()
