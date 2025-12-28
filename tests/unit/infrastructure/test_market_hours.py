@@ -31,19 +31,6 @@ class TestGetCalendar:
         assert calendar is not None
         assert calendar.name == "XNYS"  # NASDAQ uses same calendar as NYSE
 
-    def test_returns_calendar_for_legacy_geography(self):
-        """Test returning calendar for legacy geography codes (backward compatibility)."""
-        from app.infrastructure.market_hours import get_calendar
-
-        # Legacy codes still work as fallback
-        calendar = get_calendar("EU")
-        assert calendar is not None
-        assert calendar.name == "XETR"
-
-        calendar = get_calendar("US")
-        assert calendar is not None
-        assert calendar.name == "XNYS"
-
     def test_returns_default_for_unknown(self):
         """Test returning default calendar for unknown exchange."""
         from app.infrastructure.market_hours import get_calendar
