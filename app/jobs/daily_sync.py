@@ -6,8 +6,10 @@ from typing import Optional
 
 from app.domain.events import PositionUpdatedEvent, get_event_bus
 from app.domain.models import Position
+from app.domain.services.exchange_rate_service import ExchangeRateService
 from app.domain.value_objects.currency import Currency
 from app.infrastructure.database.manager import get_db_manager
+from app.infrastructure.dependencies import get_exchange_rate_service
 from app.infrastructure.events import SystemEvent, emit
 from app.infrastructure.external import yahoo_finance as yahoo
 from app.infrastructure.external.tradernet import get_tradernet_client
@@ -48,48 +50,15 @@ async def sync_portfolio():
         await _sync_portfolio_internal()
 
 
-async def _fetch_exchange_rates(currencies_needed: set) -> dict:
-    """Fetch exchange rates for currencies."""
-    exchange_rates = {"EUR": 1.0}
-    if not currencies_needed:
-        return exchange_rates
-
-    try:
-        import httpx
-
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                "https://api.exchangerate-api.com/v4/latest/EUR",
-                timeout=10.0,
-            )
-            if response.status_code == 200:
-                api_rates = response.json().get("rates", {})
-                for curr in currencies_needed:
-                    if curr in api_rates:
-                        exchange_rates[curr] = api_rates[curr]
-                        logger.info(f"Exchange rate {curr}/EUR: {api_rates[curr]}")
-    except Exception as e:
-        logger.warning(f"Failed to fetch exchange rates: {e}")
-
-    fallback_rates = {"USD": 1.05, "HKD": 8.33, "GBP": 0.85}
-    for curr in currencies_needed:
-        if curr not in exchange_rates:
-            exchange_rates[curr] = fallback_rates.get(curr, 1.0)
-            logger.warning(f"Using fallback rate for {curr}: {exchange_rates[curr]}")
-
-    return exchange_rates
-
-
-def _calculate_cash_balance_eur(cash_balances: list, exchange_rates: dict) -> float:
-    """Calculate total cash balance in EUR."""
-    cash_balance = 0.0
-    for cb in cash_balances:
-        if cb.currency == "EUR":
-            cash_balance += cb.amount
-        elif cb.amount > 0:
-            rate = exchange_rates.get(cb.currency, 1.0)
-            cash_balance += cb.amount / rate
-    return cash_balance
+async def _calculate_cash_balance_eur(
+    cash_balances: list, exchange_rate_service: ExchangeRateService
+) -> float:
+    """Calculate total cash balance in EUR using ExchangeRateService."""
+    amounts_by_currency = {cb.currency: cb.amount for cb in cash_balances}
+    amounts_in_eur = await exchange_rate_service.batch_convert_to_eur(
+        amounts_by_currency
+    )
+    return sum(amounts_in_eur.values())
 
 
 async def _determine_country(symbol: str, db_manager) -> Optional[str]:
@@ -161,7 +130,7 @@ async def _process_positions(
     positions: list,
     saved_price_data: dict,
     trade_dates: dict,
-    exchange_rates: dict,
+    exchange_rate_service: ExchangeRateService,
     db_manager,
     event_bus,
 ) -> tuple[float, float, float, dict]:
@@ -179,7 +148,7 @@ async def _process_positions(
         market_value_eur = price_data.get("market_value_eur")
 
         currency = pos.currency or Currency.EUR
-        exchange_rate = exchange_rates.get(str(currency), 1.0)
+        exchange_rate = await exchange_rate_service.get_rate(str(currency), "EUR")
 
         if current_price and exchange_rate > 0:
             market_value_eur = pos.quantity * current_price / exchange_rate
@@ -270,6 +239,7 @@ async def _sync_portfolio_internal():
         cash_balances = client.get_cash_balances()
 
         db_manager = get_db_manager()
+        exchange_rate_service = get_exchange_rate_service(db_manager)
 
         async with db_manager.state.transaction():
             # Save Yahoo-derived prices before clearing (for price continuity)
@@ -303,17 +273,9 @@ async def _sync_portfolio_internal():
             # Clear existing positions
             await db_manager.state.execute("DELETE FROM positions")
 
-            currencies_needed = set()
-            for pos in positions:
-                currency = pos.currency or Currency.EUR
-                if currency != Currency.EUR:
-                    currencies_needed.add(str(currency))
-            for cb in cash_balances:
-                if cb.currency != "EUR":
-                    currencies_needed.add(cb.currency)
-
-            exchange_rates = await _fetch_exchange_rates(currencies_needed)
-            cash_balance = _calculate_cash_balance_eur(cash_balances, exchange_rates)
+            cash_balance = await _calculate_cash_balance_eur(
+                cash_balances, exchange_rate_service
+            )
             logger.info(f"Cash balance calculated: {cash_balance:.2f} EUR")
 
             event_bus = get_event_bus()
@@ -322,7 +284,7 @@ async def _sync_portfolio_internal():
                     positions,
                     saved_price_data,
                     trade_dates,
-                    exchange_rates,
+                    exchange_rate_service,
                     db_manager,
                     event_bus,
                 )
