@@ -433,7 +433,7 @@ class TestCacheManagement:
 
         with patch("app.api.settings.cache") as mock_cache:
             with patch(
-                "app.api.settings.get_recommendation_cache",
+                "app.infrastructure.recommendation_cache.get_recommendation_cache",
                 return_value=mock_rec_cache,
             ):
                 result = await reset_cache()

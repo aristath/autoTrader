@@ -34,7 +34,7 @@ class TestIdentifyAveragingDownOpportunities:
     def portfolio_context(self):
         """Create a portfolio context with positions."""
         return PortfolioContext(
-            geo_weights={"US": 0.0},
+            country_weights={"US": 0.0},
             industry_weights={},
             positions={"AAPL.US": 5000},
             total_value=10000,
@@ -100,7 +100,7 @@ class TestIdentifyAveragingDownOpportunities:
     async def test_skips_low_quality_stock(self, sample_stock):
         """Test skipping low quality stocks."""
         portfolio_context = PortfolioContext(
-            geo_weights={},
+            country_weights={},
             industry_weights={},
             positions={"AAPL.US": 5000},
             total_value=10000,
@@ -122,7 +122,7 @@ class TestIdentifyAveragingDownOpportunities:
     async def test_skips_stock_not_owned(self, sample_stock):
         """Test skipping stocks not currently owned."""
         portfolio_context = PortfolioContext(
-            geo_weights={},
+            country_weights={},
             industry_weights={},
             positions={},  # No position
             total_value=10000,
@@ -144,7 +144,7 @@ class TestIdentifyAveragingDownOpportunities:
     async def test_skips_stock_not_down_enough(self, sample_stock):
         """Test skipping stocks that aren't down 20%+."""
         portfolio_context = PortfolioContext(
-            geo_weights={},
+            country_weights={},
             industry_weights={},
             positions={"AAPL.US": 5000},
             total_value=10000,
@@ -185,7 +185,7 @@ class TestIdentifyAveragingDownOpportunities:
     async def test_priority_based_on_quality_and_dip(self, sample_stock):
         """Test that priority is based on quality score and dip size."""
         portfolio_context = PortfolioContext(
-            geo_weights={},
+            country_weights={},
             industry_weights={},
             positions={"AAPL.US": 5000},
             total_value=10000,
