@@ -8,6 +8,8 @@ Runs as a systemd service, using native arduino-router service (no Docker requir
 import json
 import logging
 import sys
+import threading
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -42,7 +44,9 @@ logger = logging.getLogger(__name__)
 # Configuration
 API_URL = "http://localhost:8000"
 SSE_ENDPOINT = f"{API_URL}/api/status/led/display/stream"
+DISPLAY_TEXT_ENDPOINT = f"{API_URL}/api/status/display/text"
 DEFAULT_TICKER_SPEED = 50  # ms per scroll step
+POLL_INTERVAL_SECONDS = 20  # Poll API every 20 seconds as fallback
 
 # Try to import Router Bridge client
 try:
@@ -72,6 +76,7 @@ _last_text = ""
 _last_text_speed = 0
 _last_led3 = None
 _last_led4 = None
+_polling_active = False
 
 
 def set_text(text: str, speed: int = DEFAULT_TICKER_SPEED) -> bool:
@@ -204,8 +209,8 @@ def _process_display_data(data: dict) -> None:
     else:
         display_text = ""
 
-    # Skip updating display if text is empty (preserve current display like "READY")
-    # Only update if we have actual content to display
+    # If text is empty, don't update (preserve current display)
+    # The periodic poller will handle fetching fallback content
     if not display_text:
         return
 
@@ -219,12 +224,64 @@ def _process_display_data(data: dict) -> None:
             logger.error("Failed to update display text")
 
 
+def _poll_display_text():
+    """Periodically poll the display text API endpoint as a fallback.
+
+    This runs in a background thread and ensures the display always has content
+    even when the SSE stream doesn't provide updates. Fetches ticker content
+    every 20 seconds and updates the display if content is available.
+    """
+    global _last_text, _last_text_speed, _polling_active
+
+    _polling_active = True
+    logger.info("Starting periodic display text poller")
+
+    while _polling_active:
+        try:
+            # Fetch current display text from API
+            try:
+                response = _session.get(DISPLAY_TEXT_ENDPOINT, timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    text = data.get("text", "")
+                    speed = data.get("speed", DEFAULT_TICKER_SPEED)
+
+                    # Only update if we have text and it's different
+                    if text and text != _last_text:
+                        logger.debug(f"Polled display text: {text[:50]}...")
+                        if set_text(text, speed=speed):
+                            _last_text = text
+                            _last_text_speed = speed
+                else:
+                    logger.debug(
+                        f"Display text endpoint returned status {response.status_code}"
+                    )
+            except requests.exceptions.RequestException as e:
+                logger.debug(f"Failed to poll display text endpoint: {e}")
+            except Exception as e:
+                logger.debug(f"Error polling display text: {e}")
+
+            # Sleep after polling (not before, so we poll immediately on startup)
+            time.sleep(POLL_INTERVAL_SECONDS)
+
+        except Exception as e:
+            logger.error(f"Error in display text poller: {e}", exc_info=True)
+            time.sleep(POLL_INTERVAL_SECONDS)  # Wait before retrying
+
+    logger.info("Display text poller stopped")
+
+
 def main_loop():
     """Main loop - connect to SSE stream, receive events, update MCU via Router Bridge."""
-    global _last_text
+    global _last_text, _polling_active
 
     logger.info("Starting LED display native script (SSE mode)")
     logger.info(f"SSE endpoint: {SSE_ENDPOINT}")
+
+    # Start background polling thread
+    poller_thread = threading.Thread(target=_poll_display_text, daemon=True)
+    poller_thread.start()
+    logger.info("Started periodic display text poller thread")
 
     if not ROUTER_BRIDGE_AVAILABLE:
         logger.error("Router Bridge client not available. Exiting.")
@@ -296,6 +353,10 @@ def main_loop():
     except Exception as e:
         logger.error(f"Unexpected error in main loop: {e}", exc_info=True)
         sys.exit(1)
+    finally:
+        # Stop polling thread
+        _polling_active = False
+        logger.info("Stopped display text poller")
 
 
 if __name__ == "__main__":
