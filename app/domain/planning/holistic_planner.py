@@ -2373,7 +2373,13 @@ async def process_planner_incremental(
 
             for action in sequence:
                 stock = stocks_by_symbol.get(action.symbol)
-                if action.side == TradeSide.BUY:
+                # ActionCandidate.side is a string, not TradeSide enum
+                side_str = (
+                    action.side.upper()
+                    if isinstance(action.side, str)
+                    else str(action.side)
+                )
+                if side_str == "BUY":
                     if not stock or not stock.allow_buy:
                         is_feasible = False
                         break
@@ -2381,7 +2387,7 @@ async def process_planner_incremental(
                         is_feasible = False
                         break
                     running_cash -= action.value_eur
-                elif action.side == TradeSide.SELL:
+                elif side_str == "SELL":
                     if not stock or not stock.allow_sell:
                         is_feasible = False
                         break
