@@ -64,9 +64,6 @@ SETTING_DEFAULTS = {
     "enable_multi_timeframe": 0.0,  # Enable multi-timeframe optimization (short/medium/long-term) (1.0 = enabled, 0.0 = disabled)
     # Incremental Planner settings
     "incremental_planner_enabled": 1.0,  # Enable incremental planner mode (1.0 = enabled, 0.0 = disabled)
-    "planner_batch_interval_seconds": 30.0,  # Interval for batch processing in seconds (1-300) - fallback for scheduler
-    "planner_batch_size": 100.0,  # Sequences per batch (10-1000) - for scheduled mode
-    "planner_batch_size_api": 5.0,  # Small batch size for API-driven mode (5-100)
     # LED Matrix settings
     "ticker_speed": 50.0,  # Ticker scroll speed in ms per frame (lower = faster)
     "led_brightness": 150.0,  # LED brightness (0-255)
@@ -468,47 +465,6 @@ async def update_setting_value(
         await rec_cache.invalidate_all_recommendations()
         cache.invalidate_prefix("recommendations")
         return {key: data.value}
-    elif key == "planner_batch_interval_seconds":
-        # Validate range (1-300)
-        if data.value < 1 or data.value > 300:
-            raise HTTPException(
-                status_code=400,
-                detail=f"{key} must be between 1 and 300",
-            )
-        await set_setting(key, str(data.value), settings_repo)
-        # Reschedule job if scheduler is running
-        from app.jobs.scheduler import get_scheduler
-
-        try:
-            scheduler = get_scheduler()
-            if scheduler and scheduler.running:
-                from apscheduler.triggers.interval import IntervalTrigger
-
-                scheduler.reschedule_job(
-                    "planner_batch", trigger=IntervalTrigger(seconds=int(data.value))
-                )
-        except Exception:
-            # Scheduler not initialized yet, that's okay
-            pass
-        return {key: data.value}
-    elif key == "planner_batch_size":
-        # Validate range (10-1000)
-        if data.value < 10 or data.value > 1000:
-            raise HTTPException(
-                status_code=400,
-                detail=f"{key} must be between 10 and 1000",
-            )
-        await set_setting(key, str(int(data.value)), settings_repo)
-        return {key: int(data.value)}
-    elif key == "planner_batch_size_api":
-        # Validate range (5-100)
-        if data.value < 5 or data.value > 100:
-            raise HTTPException(
-                status_code=400,
-                detail=f"{key} must be between 5 and 100",
-            )
-        await set_setting(key, str(int(data.value)), settings_repo)
-        return {key: int(data.value)}
 
     await set_setting(key, str(data.value), settings_repo)
 
@@ -548,9 +504,6 @@ async def update_setting_value(
         "monte_carlo_path_count",
         "enable_multi_timeframe",
         "incremental_planner_enabled",
-        "planner_batch_interval_seconds",
-        "planner_batch_size",
-        "planner_batch_size_api",
     }
     if key in recommendation_settings:
         from app.infrastructure.recommendation_cache import get_recommendation_cache

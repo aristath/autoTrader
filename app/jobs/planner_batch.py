@@ -44,11 +44,13 @@ async def process_planner_batch_job(
     """
     Process next batch of sequences for holistic planner.
 
-    This job runs every N seconds (configurable via planner_batch_interval_seconds setting)
-    and processes the next batch of sequences from the database.
+    This job can run in two modes:
+    1. API-driven mode (max_depth > 0): Triggered by event-based trading loop, self-triggers next batches
+    2. Scheduled fallback mode (max_depth = 0): Runs every 30 minutes as fallback, only if API-driven batches are not active
 
     Args:
         max_depth: Recursion depth (for API-driven mode, prevents infinite loops)
+                   If 0, this is scheduled fallback mode
         portfolio_hash: Portfolio hash being processed (for API-driven mode)
     """
     try:
@@ -74,14 +76,26 @@ async def process_planner_batch_job(
             ]
             portfolio_hash = generate_portfolio_hash(position_dicts, stocks)
 
-        # Get settings
-        # Use small batch size for API-driven mode, otherwise use configured size
+        # Skip scheduled job if API-driven batches are active
+        # (API-driven batches have max_depth > 0 and self-trigger)
+        if max_depth == 0:
+            planner_repo = PlannerRepository()
+            # Check if there are sequences that are not fully evaluated
+            # If yes, assume API-driven batches are handling it and skip
+            if await planner_repo.has_sequences(portfolio_hash):
+                if not await planner_repo.are_all_sequences_evaluated(portfolio_hash):
+                    logger.debug(
+                        f"Skipping scheduled planner batch - API-driven batches are active "
+                        f"(sequences exist but not all evaluated for portfolio {portfolio_hash[:8]}...)"
+                    )
+                    return
+
+        # Get batch size
+        # API-driven mode uses small batches (5), scheduled fallback uses larger batches (50)
         if max_depth > 0:
-            batch_size = int(
-                await settings_repo.get_float("planner_batch_size_api", 5.0)
-            )
+            batch_size = 5  # API-driven mode: small batches for faster processing
         else:
-            batch_size = int(await settings_repo.get_float("planner_batch_size", 100.0))
+            batch_size = 50  # Scheduled fallback: larger batches, runs every 30 minutes
 
         # Build portfolio context
         portfolio_context = await build_portfolio_context(
