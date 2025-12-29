@@ -59,13 +59,9 @@ class NextActionsCard extends HTMLElement {
                 <span class="text-green-400 font-medium" x-show="$store.app.recommendations.total_score_improvement > 0" x-text="'+' + $store.app.recommendations.total_score_improvement.toFixed(1) + ' score'"></span>
                 <span class="text-red-400 font-medium" x-show="$store.app.recommendations.total_score_improvement < 0" x-text="$store.app.recommendations.total_score_improvement.toFixed(1) + ' score'"></span>
               </div>
-              <button @click="$store.app.executeRecommendation()"
-                      class="px-4 py-2 text-sm font-semibold bg-green-600 hover:bg-green-700 text-white rounded-lg shadow-md hover:shadow-lg transition-all"
-                      :disabled="$store.app.loading.execute"
-                      title="Execute first step">
-                <span x-show="$store.app.loading.execute" class="inline-block animate-spin mr-2">&#9696;</span>
-                <span x-show="!$store.app.loading.execute">Execute Step 1</span>
-              </button>
+              <div class="text-xs text-gray-500 italic">
+                Trades execute automatically every <span x-text="Math.round($store.app.settings.job_sync_cycle_minutes || 15)"></span> minutes
+              </div>
             </div>
             <div class="space-y-3">
               <template x-for="(step, index) in $store.app.recommendations.steps" :key="'step-' + step.step">
