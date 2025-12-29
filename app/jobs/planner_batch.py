@@ -92,8 +92,9 @@ async def process_planner_batch_job(
         )
 
         # Ensure Tradernet is connected before getting cash balances
+        available_cash = 0.0
         if not tradernet_client.is_connected:
-            logger.debug("Tradernet not connected, attempting to connect...")
+            logger.info("Tradernet not connected, attempting to connect...")
             if not tradernet_client.connect():
                 logger.warning(
                     "Failed to connect to Tradernet, using fallback cash calculation"
@@ -112,30 +113,42 @@ async def process_planner_batch_job(
                     available_cash = 0.0
                     logger.warning("No portfolio snapshot available, using 0.0 EUR")
             else:
-                logger.debug("Successfully connected to Tradernet")
+                logger.info("Successfully connected to Tradernet")
 
         # Get available cash (convert all currencies to EUR)
         if tradernet_client.is_connected:
             cash_balances = tradernet_client.get_cash_balances()
-        else:
-            cash_balances = []
-        logger.info(
-            f"Tradernet connected: {tradernet_client.is_connected}, "
-            f"cash_balances count: {len(cash_balances) if cash_balances else 0}"
-        )
-        if cash_balances:
-            amounts_by_currency = {b.currency: b.amount for b in cash_balances}
-            logger.info(f"Cash amounts by currency: {amounts_by_currency}")
-            amounts_in_eur = await exchange_rate_service.batch_convert_to_eur(
-                amounts_by_currency
+            logger.info(
+                f"Tradernet connected: {tradernet_client.is_connected}, "
+                f"cash_balances count: {len(cash_balances) if cash_balances else 0}"
             )
-            logger.info(f"Cash amounts in EUR: {amounts_in_eur}")
-            available_cash = sum(amounts_in_eur.values())
+            if cash_balances:
+                amounts_by_currency = {b.currency: b.amount for b in cash_balances}
+                logger.info(f"Cash amounts by currency: {amounts_by_currency}")
+                amounts_in_eur = await exchange_rate_service.batch_convert_to_eur(
+                    amounts_by_currency
+                )
+                logger.info(f"Cash amounts in EUR: {amounts_in_eur}")
+                available_cash = sum(amounts_in_eur.values())
+            else:
+                logger.warning("Tradernet connected but no cash balances returned")
+                # Fallback to snapshot if connected but no balances
+                if available_cash == 0.0:
+                    from app.repositories import PortfolioRepository
+
+                    portfolio_repo = PortfolioRepository()
+                    latest_snapshot = await portfolio_repo.get_latest()
+                    if latest_snapshot:
+                        available_cash = latest_snapshot.cash_balance
+                        logger.info(
+                            f"Using cash balance from portfolio snapshot: {available_cash:.2f} EUR"
+                        )
         else:
-            available_cash = 0.0
-            logger.warning(
-                "No cash balances available - Tradernet not connected or no balances"
-            )
+            # Already handled fallback above, but log if we still have 0
+            if available_cash == 0.0:
+                logger.warning(
+                    "Tradernet not connected and no portfolio snapshot available"
+                )
 
         # Get optimizer target weights if available
         from app.application.services.optimization.portfolio_optimizer import (
