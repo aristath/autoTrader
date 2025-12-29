@@ -38,9 +38,38 @@ async def get_status(
 ):
     """Get system health and status."""
 
-    # Get cash balance from latest portfolio snapshot
-    latest_snapshot = await portfolio_repo.get_latest()
-    cash_balance = latest_snapshot.cash_balance if latest_snapshot else 0
+    # Get cash balance from actual cash balances (more accurate than snapshot)
+    # Fallback to snapshot if Tradernet is not connected
+    cash_balance = 0.0
+    try:
+        from app.infrastructure.external.tradernet_connection import (
+            ensure_tradernet_connected,
+        )
+
+        client = await ensure_tradernet_connected(raise_on_error=False)
+        if client:
+            from app.infrastructure.database.manager import get_db_manager
+            from app.infrastructure.dependencies import get_exchange_rate_service
+
+            db_manager = get_db_manager()
+            exchange_rate_service = get_exchange_rate_service(db_manager)
+            cash_balances = client.get_cash_balances()
+            amounts_by_currency = {b.currency: b.amount for b in cash_balances}
+            amounts_in_eur = await exchange_rate_service.batch_convert_to_eur(
+                amounts_by_currency
+            )
+            cash_balance = sum(amounts_in_eur.values())
+        else:
+            # Fallback to snapshot if Tradernet not connected
+            latest_snapshot = await portfolio_repo.get_latest()
+            cash_balance = latest_snapshot.cash_balance if latest_snapshot else 0
+    except Exception as e:
+        logger.warning(
+            f"Failed to get cash balance from Tradernet: {e}, using snapshot"
+        )
+        # Fallback to snapshot on error
+        latest_snapshot = await portfolio_repo.get_latest()
+        cash_balance = latest_snapshot.cash_balance if latest_snapshot else 0
 
     # Get last sync time from positions (most recent last_updated)
     positions = await position_repo.get_all()

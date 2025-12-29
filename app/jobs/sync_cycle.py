@@ -723,18 +723,64 @@ async def _frequent_portfolio_update():
     logger.debug("Running frequent portfolio update...")
 
     try:
+        # Get portfolio hash before sync
+        from app.domain.portfolio_hash import generate_portfolio_hash
+        from app.infrastructure.external.tradernet import get_tradernet_client
+        from app.repositories import PositionRepository, StockRepository
+
+        position_repo = PositionRepository()
+        stock_repo = StockRepository()
+        client = get_tradernet_client()
+
+        positions_before = await position_repo.get_all()
+        stocks = await stock_repo.get_all_active()
+        cash_balances_before = (
+            {b.currency: b.amount for b in client.get_cash_balances()}
+            if client.is_connected
+            else {}
+        )
+        position_dicts_before = [
+            {"symbol": p.symbol, "quantity": p.quantity} for p in positions_before
+        ]
+        hash_before = generate_portfolio_hash(
+            position_dicts_before, stocks, cash_balances_before
+        )
+
         # Sync portfolio to update positions and generate new portfolio hash
         await _step_sync_portfolio()
 
-        # Invalidate recommendation caches so new recommendations can be generated
-        from app.infrastructure.cache_invalidation import get_cache_invalidation_service
-
-        cache_service = get_cache_invalidation_service()
-        cache_service.invalidate_recommendation_caches()
-
-        logger.debug(
-            "Frequent portfolio update complete, recommendation caches invalidated"
+        # Get portfolio hash after sync
+        positions_after = await position_repo.get_all()
+        cash_balances_after = (
+            {b.currency: b.amount for b in client.get_cash_balances()}
+            if client.is_connected
+            else {}
         )
+        position_dicts_after = [
+            {"symbol": p.symbol, "quantity": p.quantity} for p in positions_after
+        ]
+        hash_after = generate_portfolio_hash(
+            position_dicts_after, stocks, cash_balances_after
+        )
+
+        # Only invalidate recommendation caches if portfolio hash changed
+        if hash_before != hash_after:
+            logger.info(
+                f"Portfolio hash changed ({hash_before} -> {hash_after}), "
+                "invalidating recommendation caches"
+            )
+            from app.infrastructure.cache_invalidation import (
+                get_cache_invalidation_service,
+            )
+
+            cache_service = get_cache_invalidation_service()
+            cache_service.invalidate_recommendation_caches()
+        else:
+            logger.debug(
+                "Portfolio hash unchanged, skipping recommendation cache invalidation"
+            )
+
+        logger.debug("Frequent portfolio update complete")
     except Exception as e:
         logger.warning(f"Frequent portfolio update failed: {e}")
 
