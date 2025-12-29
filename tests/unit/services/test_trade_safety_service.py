@@ -17,6 +17,7 @@ def mock_trade_repo():
     repo = MagicMock(spec=TradeRepository)
     repo.has_recent_sell_order = AsyncMock(return_value=False)
     repo.get_recently_bought_symbols = AsyncMock(return_value=set())
+    repo.get_last_buy_date = AsyncMock(return_value=None)
     return repo
 
 
@@ -159,3 +160,67 @@ async def test_validate_trade_raises_on_error(
         )
 
     assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_check_minimum_hold_time_recent_buy_blocks_sell(
+    safety_service, mock_trade_repo
+):
+    """Test that minimum hold time check blocks sells for recently bought stocks."""
+    from datetime import datetime, timedelta
+
+    # Stock bought 30 days ago (less than 90 day minimum)
+    recent_buy_date = (datetime.now() - timedelta(days=30)).isoformat()
+    mock_trade_repo.get_last_buy_date = AsyncMock(return_value=recent_buy_date)
+
+    is_valid, error = await safety_service.check_minimum_hold_time("AAPL.US")
+
+    assert is_valid is False
+    assert "held only 30 days" in error.lower()
+    assert "minimum 90 days" in error.lower()
+
+
+@pytest.mark.asyncio
+async def test_check_minimum_hold_time_old_buy_allows_sell(
+    safety_service, mock_trade_repo
+):
+    """Test that minimum hold time check allows sells for stocks held long enough."""
+    from datetime import datetime, timedelta
+
+    # Stock bought 120 days ago (more than 90 day minimum)
+    old_buy_date = (datetime.now() - timedelta(days=120)).isoformat()
+    mock_trade_repo.get_last_buy_date = AsyncMock(return_value=old_buy_date)
+
+    is_valid, error = await safety_service.check_minimum_hold_time("AAPL.US")
+
+    assert is_valid is True
+    assert error is None
+
+
+@pytest.mark.asyncio
+async def test_validate_trade_sell_blocks_recent_buy(
+    safety_service, mock_client, mock_trade_repo, mock_position_repo
+):
+    """Test that SELL orders are blocked if stock was recently bought."""
+    from datetime import datetime, timedelta
+
+    from app.domain.models import Position
+
+    # Stock bought 30 days ago
+    recent_buy_date = (datetime.now() - timedelta(days=30)).isoformat()
+    mock_trade_repo.get_last_buy_date = AsyncMock(return_value=recent_buy_date)
+
+    # Position exists
+    position = Position(
+        symbol="AAPL.US",
+        quantity=100.0,
+        avg_price=150.0,
+    )
+    mock_position_repo.get_by_symbol = AsyncMock(return_value=position)
+
+    is_valid, error = await safety_service.validate_trade(
+        "AAPL.US", TradeSide.SELL, 50.0, mock_client, raise_on_error=False
+    )
+
+    assert is_valid is False
+    assert "held only" in error.lower() or "minimum" in error.lower()
