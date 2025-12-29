@@ -1,6 +1,7 @@
 """Trade safety service - consolidates safety checks for trade execution."""
 
 import logging
+from datetime import datetime
 from typing import Optional
 
 from fastapi import HTTPException
@@ -11,9 +12,11 @@ from app.domain.repositories.protocols import (
     IStockRepository,
     ITradeRepository,
 )
+from app.domain.scoring.constants import DEFAULT_MIN_HOLD_DAYS
 from app.domain.value_objects.trade_side import TradeSide
 from app.infrastructure.external.tradernet import TradernetClient
 from app.infrastructure.market_hours import is_market_open, should_check_market_hours
+from app.repositories.base import safe_parse_datetime_string
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +99,45 @@ class TradeSafetyService:
 
         return False, None
 
+    async def check_minimum_hold_time(
+        self, symbol: str, min_hold_days: int = DEFAULT_MIN_HOLD_DAYS
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Check if a position has been held for the minimum required days.
+
+        Args:
+            symbol: Stock symbol to check
+            min_hold_days: Minimum hold period in days (default: DEFAULT_MIN_HOLD_DAYS)
+
+        Returns:
+            Tuple of (is_valid: bool, error_message: Optional[str])
+        """
+        try:
+            last_bought_at = await self._trade_repo.get_last_buy_date(symbol)
+            if not last_bought_at:
+                # No buy date found - allow (might be legacy data or edge case)
+                logger.warning(f"No buy date found for {symbol}, allowing sell")
+                return True, None
+
+            bought_date = safe_parse_datetime_string(last_bought_at)
+            if not bought_date:
+                # Can't parse date - allow (fail open)
+                logger.warning(f"Could not parse buy date for {symbol}, allowing sell")
+                return True, None
+
+            days_held = (datetime.now() - bought_date).days
+            if days_held < min_hold_days:
+                return (
+                    False,
+                    f"Cannot sell {symbol}: held only {days_held} days (minimum {min_hold_days} days required)",
+                )
+
+            return True, None
+        except Exception as e:
+            logger.error(f"Failed to check minimum hold time for {symbol}: {e}")
+            # On error, be conservative and block
+            return False, f"Minimum hold time check failed for {symbol}"
+
     async def validate_sell_position(
         self, symbol: str, quantity: float
     ) -> tuple[bool, Optional[str]]:
@@ -177,6 +219,14 @@ class TradeSafetyService:
 
         # Validate SELL position
         if TradeSide.from_string(side).is_sell():
+            # Check minimum hold time first
+            is_valid, hold_time_error = await self.check_minimum_hold_time(symbol)
+            if not is_valid:
+                if raise_on_error:
+                    raise HTTPException(status_code=400, detail=hold_time_error)
+                return False, hold_time_error
+
+            # Check position quantity
             is_valid, validation_error = await self.validate_sell_position(
                 symbol, quantity
             )

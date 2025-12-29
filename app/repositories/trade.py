@@ -287,6 +287,17 @@ class TradeRepository:
         )
         return row["first_buy"] if row else None
 
+    async def get_last_buy_date(self, symbol: str) -> Optional[str]:
+        """Get the date of the most recent buy for a symbol (when current position was last established)."""
+        row = await self._db.fetchone(
+            """
+            SELECT MAX(executed_at) as last_buy FROM trades
+            WHERE symbol = ? AND UPPER(side) = 'BUY'
+            """,
+            (symbol.upper(),),
+        )
+        return row["last_buy"] if row else None
+
     async def get_last_sell_date(self, symbol: str) -> Optional[str]:
         """Get the date of last sell for a symbol."""
         row = await self._db.fetchone(

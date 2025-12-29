@@ -293,13 +293,13 @@ async def _sync_portfolio_internal():
             }
             logger.info(f"Saved price data for {len(saved_price_data)} positions")
 
-            # Derive first_bought_at and last_sold_at from trades table
+            # Derive first_bought_at (most recent buy) and last_sold_at from trades table
             logger.info("Querying trades table for buy/sell dates...")
             cursor = await db_manager.ledger.execute(
                 """
                 SELECT
                     symbol,
-                    MIN(CASE WHEN UPPER(side) = 'BUY' THEN executed_at END) as first_buy,
+                    MAX(CASE WHEN UPPER(side) = 'BUY' THEN executed_at END) as first_buy,
                     MAX(CASE WHEN UPPER(side) = 'SELL' THEN executed_at END) as last_sell
                 FROM trades
                 GROUP BY symbol

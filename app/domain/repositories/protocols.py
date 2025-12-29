@@ -101,6 +101,10 @@ class ITradeRepository(Protocol):
         """Get first buy date for a symbol."""
         ...
 
+    async def get_last_buy_date(self, symbol: str) -> Optional[str]:
+        """Get the most recent buy date for a symbol (when current position was last established)."""
+        ...
+
     async def get_last_sell_date(self, symbol: str) -> Optional[str]:
         """Get last sell date for a symbol."""
         ...

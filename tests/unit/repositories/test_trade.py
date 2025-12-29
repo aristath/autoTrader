@@ -355,6 +355,20 @@ class TestTradeRepositoryQueries:
         assert result == "2023-06-15"
 
     @pytest.mark.asyncio
+    async def test_get_last_buy_date(self):
+        """Test getting last buy date for symbol (most recent buy)."""
+        from app.repositories.trade import TradeRepository
+
+        mock_db = AsyncMock()
+        mock_db.fetchone = AsyncMock(return_value={"last_buy": "2024-01-20"})
+
+        repo = TradeRepository(db=mock_db)
+
+        result = await repo.get_last_buy_date("AAPL.US")
+
+        assert result == "2024-01-20"
+
+    @pytest.mark.asyncio
     async def test_get_last_sell_date(self):
         """Test getting last sell date for symbol."""
         from app.repositories.trade import TradeRepository
