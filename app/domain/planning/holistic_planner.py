@@ -954,6 +954,148 @@ def _generate_cost_optimized_pattern(
     return sequence if len(sequence) > 0 else None
 
 
+def _generate_adaptive_patterns(
+    opportunities: Dict[str, List[ActionCandidate]],
+    portfolio_context: PortfolioContext,
+    available_cash: float,
+    max_steps: int,
+    max_opportunities_per_category: int,
+    stocks_by_symbol: Optional[Dict[str, Stock]],
+) -> List[List[ActionCandidate]]:
+    """
+    Generate adaptive patterns based on portfolio gaps.
+
+    Analyzes portfolio state and generates patterns targeting:
+    - Geographic gaps (underweight countries)
+    - Sector gaps (underweight industries)
+    - Risk gaps (high/low volatility positions)
+
+    Args:
+        opportunities: Categorized opportunities
+        portfolio_context: Current portfolio state
+        available_cash: Available cash
+        max_steps: Maximum sequence length
+        max_opportunities_per_category: Max opportunities per category
+        stocks_by_symbol: Optional dict mapping symbol to Stock
+
+    Returns:
+        List of adaptive pattern sequences
+    """
+    sequences: List[List[ActionCandidate]] = []
+
+    if not portfolio_context or portfolio_context.total_value <= 0:
+        return sequences
+
+    # Calculate current allocations
+    current_country_allocations: Dict[str, float] = {}
+    current_industry_allocations: Dict[str, float] = {}
+
+    for symbol, value in portfolio_context.positions.items():
+        if value <= 0:
+            continue
+
+        weight = value / portfolio_context.total_value
+
+        # Country allocation
+        if portfolio_context.stock_countries:
+            country = portfolio_context.stock_countries.get(symbol)
+            if country:
+                current_country_allocations[country] = (
+                    current_country_allocations.get(country, 0) + weight
+                )
+
+        # Industry allocation
+        if portfolio_context.stock_industries:
+            industries_str = portfolio_context.stock_industries.get(symbol)
+            if industries_str:
+                industries = [i.strip() for i in industries_str.split(",")]
+                for industry in industries:
+                    if industry:
+                        current_industry_allocations[industry] = (
+                            current_industry_allocations.get(industry, 0) + weight
+                        )
+
+    # Identify geographic gaps
+    geographic_gaps: List[Tuple[str, float]] = []  # (country, gap)
+    if portfolio_context.country_weights:
+        for country, target_weight in portfolio_context.country_weights.items():
+            current_weight = current_country_allocations.get(country, 0)
+            # Convert target_weight (-1 to +1) to percentage
+            # Assuming 0 = 33%, +1 = 48%, -1 = 18%
+            target_pct = 0.33 + (target_weight * 0.15)
+            gap = target_pct - current_weight
+            if gap > 0.02:  # At least 2% gap
+                geographic_gaps.append((country, gap))
+
+    # Identify sector gaps
+    sector_gaps: List[Tuple[str, float]] = []  # (industry, gap)
+    if portfolio_context.industry_weights:
+        for industry, target_weight in portfolio_context.industry_weights.items():
+            current_weight = current_industry_allocations.get(industry, 0)
+            # Convert target_weight (-1 to +1) to percentage
+            # Assuming 0 = 10%, +1 = 20%, -1 = 0%
+            target_pct = 0.10 + (target_weight * 0.10)
+            gap = target_pct - current_weight
+            if gap > 0.01:  # At least 1% gap
+                sector_gaps.append((industry, gap))
+
+    # Sort gaps by size
+    geographic_gaps.sort(key=lambda x: x[1], reverse=True)
+    sector_gaps.sort(key=lambda x: x[1], reverse=True)
+
+    # Pattern 1: Geographic rebalance
+    if geographic_gaps and stocks_by_symbol:
+        geo_buys: List[ActionCandidate] = []
+        all_buys = opportunities.get("rebalance_buys", []) + opportunities.get(
+            "opportunity_buys", []
+        )
+        running_cash = available_cash
+
+        # Find buys for underweight countries
+        for country, gap in geographic_gaps[:3]:  # Top 3 gaps
+            for candidate in all_buys:
+                if len(geo_buys) >= max_steps or running_cash < candidate.value_eur:
+                    break
+                stock = stocks_by_symbol.get(candidate.symbol)
+                if stock and stock.country == country:
+                    if candidate not in geo_buys:
+                        geo_buys.append(candidate)
+                        running_cash -= candidate.value_eur
+
+        if geo_buys:
+            sequences.append(geo_buys)
+
+    # Pattern 2: Sector rotation
+    if sector_gaps and stocks_by_symbol:
+        sector_buys: List[ActionCandidate] = []
+        all_buys = opportunities.get("rebalance_buys", []) + opportunities.get(
+            "opportunity_buys", []
+        )
+        running_cash = available_cash
+
+        # Find buys for underweight industries
+        for industry, gap in sector_gaps[:3]:  # Top 3 gaps
+            for candidate in all_buys:
+                if len(sector_buys) >= max_steps or running_cash < candidate.value_eur:
+                    break
+                stock = stocks_by_symbol.get(candidate.symbol)
+                if stock and stock.industry:
+                    industries = [i.strip() for i in stock.industry.split(",")]
+                    if industry in industries:
+                        if candidate not in sector_buys:
+                            sector_buys.append(candidate)
+                            running_cash -= candidate.value_eur
+
+        if sector_buys:
+            sequences.append(sector_buys)
+
+    # Pattern 3: Risk adjustment (if we have volatility data)
+    # This would require additional metrics, so we'll skip for now
+    # Can be enhanced later with volatility data from metrics_cache
+
+    return sequences
+
+
 def _select_diverse_opportunities(
     opportunities: List[ActionCandidate],
     max_count: int,
@@ -1302,6 +1444,10 @@ def _generate_patterns_at_depth(
     if pattern11:
         sequences.append(pattern11)
 
+    # Adaptive patterns: generate based on portfolio gaps (if portfolio_context provided)
+    # Note: portfolio_context is not available in _generate_patterns_at_depth,
+    # so adaptive patterns are generated separately in create_holistic_plan
+
     # Combinatorial generation (if enabled)
     if enable_combinatorial:
         all_sells = top_profit_taking + top_rebalance_sells
@@ -1368,9 +1514,9 @@ async def generate_action_sequences(
     """
     all_sequences = []
 
-    # Build stocks_by_symbol dict for diverse selection
+    # Build stocks_by_symbol dict for diverse selection and adaptive patterns
     stocks_by_symbol: Optional[Dict[str, Stock]] = None
-    if stocks and enable_diverse_selection:
+    if stocks:
         stocks_by_symbol = {s.symbol: s for s in stocks}
 
     # Generate patterns at each depth (1 to max_depth)
@@ -2096,6 +2242,18 @@ async def create_holistic_plan(
         diversity_weight=diversity_weight,
         stocks=stocks,
     )
+
+    # Generate adaptive patterns based on portfolio gaps
+    stocks_by_symbol = {s.symbol: s for s in stocks} if stocks else None
+    adaptive_patterns = _generate_adaptive_patterns(
+        opportunities,
+        portfolio_context,
+        available_cash,
+        max_plan_depth,
+        max_opportunities_per_category,
+        stocks_by_symbol,
+    )
+    sequences.extend(adaptive_patterns)
 
     # Early filtering: Filter by priority threshold and invalid steps before simulation
     stocks_by_symbol = {s.symbol: s for s in stocks}
