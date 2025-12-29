@@ -1,14 +1,14 @@
 """Unified sync cycle job.
 
-This job runs every 15 minutes and performs these steps:
+This job runs every 5 minutes and performs these steps:
 1. Sync trades from Tradernet
 2. Sync cash flows from Tradernet
 3. Sync portfolio positions
 4. Sync prices (market-aware - only for open markets)
-5. Check trading conditions (P&L guardrails)
-6. Get recommendation (holistic - all markets)
-7. Execute trade (market-aware - BUY orders on flexible hours markets can execute when closed, SELL orders and strict hours markets require market to be open)
-8. Update display
+5. Update display
+
+Note: Trade execution is now handled by the event-based trading loop,
+not by the sync cycle. The sync cycle only handles data synchronization.
 """
 
 import logging
@@ -40,7 +40,7 @@ async def run_sync_cycle():
     """
     Run the unified sync cycle.
 
-    This is the main entry point called by the scheduler every 15 minutes.
+    This is the main entry point called by the scheduler every 5 minutes.
     """
     async with file_lock("sync_cycle", timeout=600.0):
         await _run_sync_cycle_internal()
@@ -51,9 +51,6 @@ async def _run_sync_cycle_internal():
     global _frequent_portfolio_updates_active
 
     logger.info("Starting sync cycle...")
-
-    # Stop frequent portfolio updates at the start of sync cycle
-    _stop_frequent_portfolio_updates()
 
     emit(SystemEvent.SYNC_START)
 
@@ -74,41 +71,7 @@ async def _run_sync_cycle_internal():
         set_processing("SYNCING PRICES...")
         await _step_sync_prices()
 
-        # Step 5: Check trading conditions
-        set_processing("CHECKING CONDITIONS...")
-        can_trade, pnl_status = await _step_check_trading_conditions()
-
-        if not can_trade:
-            logger.warning(f"Trading halted: {pnl_status.get('reason', 'unknown')}")
-            await _step_update_display()
-            emit(SystemEvent.SYNC_COMPLETE)
-            return
-
-        # Step 6: Get recommendation (holistic)
-        set_processing("GETTING RECOMMENDATION...")
-        recommendation = await _step_get_recommendation()
-
-        # Step 7: Execute trade (market-aware)
-        if recommendation:
-            set_processing(
-                f"EXECUTING {recommendation.side} {recommendation.symbol}..."
-            )
-            result = await _step_execute_trade(recommendation)
-            if result.get("status") == "success":
-                logger.info(
-                    f"Trade executed: {recommendation.side} {recommendation.symbol}"
-                )
-                # Re-sync portfolio after trade
-                set_processing("SYNCING PORTFOLIO...")
-                await _step_sync_portfolio()
-                # Start frequent portfolio updates to allow time for new recommendations
-                _start_frequent_portfolio_updates()
-            elif result.get("status") == "skipped":
-                logger.info(f"Trade skipped: {result.get('reason')}")
-        else:
-            logger.info("No trades recommended this cycle")
-
-        # Step 8: Update display
+        # Step 5: Update display
         await _step_update_display()
 
         logger.info("Sync cycle complete")
