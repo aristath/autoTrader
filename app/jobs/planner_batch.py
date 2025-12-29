@@ -93,25 +93,23 @@ async def process_planner_batch_job(
 
         # Ensure Tradernet is connected before getting cash balances
         available_cash = 0.0
+
+        # Always try to get cash from portfolio snapshot first as fallback
+        from app.repositories import PortfolioRepository
+
+        portfolio_repo = PortfolioRepository()
+        latest_snapshot = await portfolio_repo.get_latest()
+        snapshot_cash = latest_snapshot.cash_balance if latest_snapshot else 0.0
+
         if not tradernet_client.is_connected:
             logger.info("Tradernet not connected, attempting to connect...")
             if not tradernet_client.connect():
                 logger.warning(
-                    "Failed to connect to Tradernet, using fallback cash calculation"
-                )
-                # Fallback: try to get cash from portfolio snapshot
-                from app.repositories import PortfolioRepository
-
-                portfolio_repo = PortfolioRepository()
-                latest_snapshot = await portfolio_repo.get_latest()
-                if latest_snapshot:
-                    available_cash = latest_snapshot.cash_balance
-                    logger.info(
-                        f"Using cash balance from portfolio snapshot: {available_cash:.2f} EUR"
+                    "Failed to connect to Tradernet, using portfolio snapshot cash: {:.2f} EUR".format(
+                        snapshot_cash
                     )
-                else:
-                    available_cash = 0.0
-                    logger.warning("No portfolio snapshot available, using 0.0 EUR")
+                )
+                available_cash = snapshot_cash
             else:
                 logger.info("Successfully connected to Tradernet")
 
@@ -131,24 +129,19 @@ async def process_planner_batch_job(
                 logger.info(f"Cash amounts in EUR: {amounts_in_eur}")
                 available_cash = sum(amounts_in_eur.values())
             else:
-                logger.warning("Tradernet connected but no cash balances returned")
-                # Fallback to snapshot if connected but no balances
-                if available_cash == 0.0:
-                    from app.repositories import PortfolioRepository
-
-                    portfolio_repo = PortfolioRepository()
-                    latest_snapshot = await portfolio_repo.get_latest()
-                    if latest_snapshot:
-                        available_cash = latest_snapshot.cash_balance
-                        logger.info(
-                            f"Using cash balance from portfolio snapshot: {available_cash:.2f} EUR"
-                        )
-        else:
-            # Already handled fallback above, but log if we still have 0
-            if available_cash == 0.0:
                 logger.warning(
-                    "Tradernet not connected and no portfolio snapshot available"
+                    "Tradernet connected but no cash balances returned, using snapshot: {:.2f} EUR".format(
+                        snapshot_cash
+                    )
                 )
+                available_cash = snapshot_cash
+        else:
+            # Use snapshot if not connected
+            if available_cash == 0.0:
+                logger.info(
+                    "Using portfolio snapshot cash: {:.2f} EUR".format(snapshot_cash)
+                )
+                available_cash = snapshot_cash
 
         # Get optimizer target weights if available
         from app.application.services.optimization.portfolio_optimizer import (
