@@ -101,17 +101,46 @@ def parse_candles_list(data: list) -> list[OHLC]:
 
 
 def get_trading_mode() -> str:
-    """Get trading mode from cache."""
-    from app.infrastructure.cache import cache
+    """Get trading mode from database (not cache)."""
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
 
-    trading_mode = "research"
+    from app.api.settings import SETTING_DEFAULTS
+    from app.repositories.settings import SettingsRepository
+
+    async def _get_mode() -> str:
+        settings_repo = SettingsRepository()
+        db_value = await settings_repo.get("trading_mode")
+        if db_value in ("live", "research"):
+            return db_value
+        return str(SETTING_DEFAULTS.get("trading_mode", "research"))
+
+    def _run_in_thread() -> str:
+        """Run async function in a new thread with its own event loop."""
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
+        try:
+            return new_loop.run_until_complete(_get_mode())
+        finally:
+            new_loop.close()
+
     try:
-        cached_settings = cache.get("settings:all")
-        if cached_settings and "trading_mode" in cached_settings:
-            trading_mode = cached_settings["trading_mode"]
-    except Exception:
-        pass
-    return trading_mode
+        # Check if we're in an async context
+        try:
+            asyncio.get_running_loop()
+            # We're in an async context - use thread pool to run async function
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_run_in_thread)
+                return future.result(timeout=2.0)
+        except RuntimeError:
+            # No event loop running, safe to use asyncio.run()
+            return asyncio.run(_get_mode())
+    except Exception as e:
+        # Log error but don't fail - default to research mode for safety
+        logger.warning(
+            f"Failed to get trading mode from database: {e}, defaulting to research"
+        )
+        return "research"
 
 
 def create_research_mode_order(
