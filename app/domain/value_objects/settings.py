@@ -52,13 +52,6 @@ class Settings:
     incremental_planner_enabled: float = (
         1.0  # Enable incremental planner mode (1.0 = enabled, 0.0 = disabled)
     )
-    planner_batch_interval_seconds: float = (
-        30.0  # Interval for batch processing in seconds (1-300) - fallback for scheduler
-    )
-    planner_batch_size: float = (
-        100.0  # Sequences per batch (10-1000) - for scheduled mode
-    )
-    planner_batch_size_api: float = 5.0  # Small batch size for API-driven mode (5-100)
 
     def _validate_non_negative(self, value: float, field_name: str) -> None:
         """Validate that a value is non-negative."""
@@ -135,18 +128,6 @@ class Settings:
             5.0,
             30.0,
         )
-        self._validate_range(
-            self.planner_batch_interval_seconds,
-            "planner_batch_interval_seconds",
-            1.0,
-            300.0,
-        )
-        self._validate_range(
-            self.planner_batch_size, "planner_batch_size", 10.0, 1000.0
-        )
-        self._validate_range(
-            self.planner_batch_size_api, "planner_batch_size_api", 5.0, 100.0
-        )
 
     @classmethod
     def from_dict(cls, data: Dict[str, str]) -> "Settings":
@@ -206,11 +187,6 @@ class Settings:
                 "combinatorial_max_candidates", 12.0
             ),
             incremental_planner_enabled=get_float("incremental_planner_enabled", 1.0),
-            planner_batch_interval_seconds=get_float(
-                "planner_batch_interval_seconds", 30.0
-            ),
-            planner_batch_size=get_float("planner_batch_size", 100.0),
-            planner_batch_size_api=get_float("planner_batch_size_api", 5.0),
         )
 
     def to_dict(self) -> Dict[str, Union[float, int]]:
@@ -239,9 +215,6 @@ class Settings:
             "combinatorial_max_buys": self.combinatorial_max_buys,
             "combinatorial_max_candidates": self.combinatorial_max_candidates,
             "incremental_planner_enabled": self.incremental_planner_enabled,
-            "planner_batch_interval_seconds": self.planner_batch_interval_seconds,
-            "planner_batch_size": self.planner_batch_size,
-            "planner_batch_size_api": self.planner_batch_size_api,
         }
 
 

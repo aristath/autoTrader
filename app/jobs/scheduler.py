@@ -107,11 +107,9 @@ async def init_scheduler() -> AsyncIOScheduler:
     incremental_enabled = (
         await settings_repo.get_float("incremental_planner_enabled", 1.0) == 1.0
     )
-    planner_batch_interval = int(
-        await settings_repo.get_float(
-            "planner_batch_interval_seconds", 30.0
-        )  # Changed from 10.0 to 30.0 as fallback
-    )
+    # Scheduled planner batch runs every 30 minutes as fallback only
+    # API-driven batches (triggered by event-based trading) handle normal processing
+    planner_batch_interval = 30 * 60  # 30 minutes in seconds
 
     # Job 1: Sync Cycle - every 5 minutes (configurable, default 5.0)
     # Handles: trades, cash flows, portfolio, prices (market-aware), display
@@ -200,14 +198,17 @@ async def init_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
     )
 
-    # Job 9: Planner Batch - every N seconds (configurable, default 10)
+    # Job 9: Planner Batch - every 30 minutes (fallback only)
     # Processes next batch of sequences for holistic planner (only if incremental mode enabled)
+    # This is a fallback mechanism - normal processing is handled by API-driven batches
+    # triggered by the event-based trading loop. The scheduled job will skip if API-driven
+    # batches are active (sequences exist but not all evaluated).
     if incremental_enabled:
         scheduler.add_job(
             process_planner_batch_job,
             IntervalTrigger(seconds=planner_batch_interval),
             id="planner_batch",
-            name="Planner Batch",
+            name="Planner Batch (Fallback)",
             replace_existing=True,
         )
     else:
@@ -241,7 +242,7 @@ async def init_scheduler() -> AsyncIOScheduler:
         f"maintenance:{maintenance_hour}:00, dividend_reinvestment:{maintenance_hour}:30, "
         f"universe_pruning:1st of month {maintenance_hour}:00, "
         f"stock_discovery:15th of month 02:00, display_updater:9.9s, "
-        f"planner_batch:{planner_batch_interval}s, event_based_trading:background"
+        f"planner_batch:{planner_batch_interval//60}m (fallback), event_based_trading:background"
     )
     return scheduler
 

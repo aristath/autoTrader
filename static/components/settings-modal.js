@@ -497,36 +497,6 @@ class SettingsModal extends HTMLElement {
                     </label>
                   </div>
 
-                  <!-- Batch Interval -->
-                  <div>
-                    <span class="text-sm text-gray-300">Batch Interval</span>
-                    <p class="text-xs text-gray-500">How often to process batches (1-300 seconds)</p>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <input type="number"
-                           min="1"
-                           max="300"
-                           step="1"
-                           :value="$store.app.settings.planner_batch_interval_seconds"
-                           @change="$store.app.updateSetting('planner_batch_interval_seconds', Math.max(1, Math.min(300, parseInt($event.target.value) || 10)))"
-                           class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                    <span class="text-gray-400 text-sm">sec</span>
-                  </div>
-
-                  <!-- Batch Size -->
-                  <div>
-                    <span class="text-sm text-gray-300">Batch Size</span>
-                    <p class="text-xs text-gray-500">Sequences per batch (10-1000)</p>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <input type="number"
-                           min="10"
-                           max="1000"
-                           step="10"
-                           :value="$store.app.settings.planner_batch_size"
-                           @change="$store.app.updateSetting('planner_batch_size', Math.max(10, Math.min(1000, parseInt($event.target.value) || 100)))"
-                           class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-right font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                  </div>
                 </div>
               </div>
 

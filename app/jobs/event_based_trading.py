@@ -231,7 +231,8 @@ async def _wait_for_planning_completion():
             logger.debug(f"Could not get optimizer weights: {e}")
 
         # Get planner settings
-        batch_size = int(await settings_repo.get_float("planner_batch_size", 100.0))
+        # API-driven mode uses small batches (5) for faster processing
+        batch_size = 5
         max_plan_depth = int(await settings_repo.get_float("max_plan_depth", 5.0))
         max_opportunities_per_category = int(
             await settings_repo.get_float("max_opportunities_per_category", 5.0)
