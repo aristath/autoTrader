@@ -1216,6 +1216,116 @@ def _generate_market_regime_patterns(
     return sequences
 
 
+async def _filter_correlation_aware_sequences(
+    sequences: List[List[ActionCandidate]],
+    stocks: List[Stock],
+    max_steps: int,
+) -> List[List[ActionCandidate]]:
+    """
+    Filter sequences to avoid highly correlated positions.
+
+    Uses correlation data from risk models to identify and filter out
+    sequences that would create highly correlated positions.
+
+    Args:
+        sequences: List of candidate sequences
+        stocks: Available stocks for symbol lookup
+        max_steps: Maximum sequence length
+
+    Returns:
+        Filtered list of sequences with reduced correlation
+    """
+    from app.application.services.optimization.risk_models import RiskModelBuilder
+
+    if not sequences or not stocks:
+        return sequences
+
+    # Build correlation data
+    try:
+        # Get all buy symbols from sequences
+        all_buy_symbols = set()
+        for sequence in sequences:
+            for action in sequence:
+                if action.side == TradeSide.BUY:
+                    all_buy_symbols.add(action.symbol)
+
+        if not all_buy_symbols:
+            return sequences  # No buys to check
+
+        # Build returns DataFrame for correlation calculation
+        risk_builder = RiskModelBuilder()
+        lookback_days = 252  # 1 year
+        prices_df = await risk_builder._fetch_prices(
+            list(all_buy_symbols), lookback_days
+        )
+
+        if prices_df.empty:
+            return sequences  # No price data available
+
+        # Calculate returns and correlation matrix
+        returns_df = prices_df.pct_change().dropna()
+        if returns_df.empty:
+            return sequences
+
+        corr_matrix = returns_df.corr()
+
+        # Build correlation dict for quick lookup
+        correlations: Dict[str, float] = {}
+        symbols = list(corr_matrix.columns)
+        for i, sym1 in enumerate(symbols):
+            for sym2 in symbols[i + 1 :]:
+                corr = corr_matrix.loc[sym1, sym2]
+                # Store both directions
+                correlations[f"{sym1}:{sym2}"] = corr
+                correlations[f"{sym2}:{sym1}"] = corr
+
+    except Exception as e:
+        logger.warning(f"Failed to build correlations for filtering: {e}")
+        return sequences  # Return all if correlation check fails
+
+    # Build symbol set from stocks
+    stock_symbols = {s.symbol for s in stocks}
+
+    filtered: List[List[ActionCandidate]] = []
+    correlation_threshold = 0.7  # Filter sequences with correlation > 0.7
+
+    for sequence in sequences:
+        # Get buy symbols from sequence
+        buy_symbols = [
+            action.symbol
+            for action in sequence
+            if action.side == TradeSide.BUY and action.symbol in stock_symbols
+        ]
+
+        # Check if any pair of buys is highly correlated
+        has_high_correlation = False
+        for i, symbol1 in enumerate(buy_symbols):
+            for symbol2 in buy_symbols[i + 1 :]:
+                # Check correlation (both directions)
+                corr_key = f"{symbol1}:{symbol2}"
+                correlation = correlations.get(corr_key)
+                if correlation and abs(correlation) > correlation_threshold:
+                    has_high_correlation = True
+                    logger.debug(
+                        f"Filtering sequence due to high correlation ({correlation:.2f}) "
+                        f"between {symbol1} and {symbol2}"
+                    )
+                    break
+            if has_high_correlation:
+                break
+
+        if not has_high_correlation:
+            filtered.append(sequence)
+
+    if len(filtered) < len(sequences):
+        logger.info(
+            f"Correlation filtering: {len(sequences)} -> {len(filtered)} sequences "
+            f"(removed {len(sequences) - len(filtered)} with high correlation)"
+        )
+
+    return filtered
+
+
 def _select_diverse_opportunities(
     opportunities: List[ActionCandidate],
     max_count: int,
