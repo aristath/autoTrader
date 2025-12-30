@@ -722,8 +722,18 @@ class TradernetClient:
                                 # Parse ticker format: "SYMBOL.EXCHANGE" or just "SYMBOL"
                                 parts = ticker.split(".")
                                 symbol = parts[0].upper()
-                                exchange = (
+                                exchange_code = (
                                     parts[1].lower() if len(parts) > 1 else "unknown"
+                                )
+                                # Map exchange codes to full exchange names
+                                # "US" -> "usa", "EU" -> "europe", etc.
+                                exchange_map = {
+                                    "us": "usa",
+                                    "eu": "europe",
+                                    "uk": "ukraine",  # Tradernet uses "ukraine" for UK
+                                }
+                                exchange = exchange_map.get(
+                                    exchange_code, exchange_code
                                 )
                                 securities.append(
                                     {
