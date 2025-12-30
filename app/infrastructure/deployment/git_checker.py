@@ -27,6 +27,30 @@ class GitChecker:
             repo_dir: Path to Git repository
         """
         self.repo_dir = repo_dir
+        self._ensure_git_safe_directory()
+
+    def _ensure_git_safe_directory(self) -> None:
+        """Ensure git safe directory is configured for this repo."""
+        try:
+            # Check if already configured
+            result = subprocess.run(
+                ["git", "config", "--global", "--get-all", "safe.directory"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if str(self.repo_dir) in result.stdout:
+                return  # Already configured
+
+            # Add to safe directories
+            subprocess.run(
+                ["git", "config", "--global", "--add", "safe.directory", str(self.repo_dir)],
+                capture_output=True,
+                timeout=5,
+            )
+            logger.debug(f"Configured git safe directory: {self.repo_dir}")
+        except Exception as e:
+            logger.warning(f"Could not configure git safe directory: {e}")
 
     async def fetch_updates(self, max_retries: int = 3) -> None:
         """Fetch latest changes from remote.
