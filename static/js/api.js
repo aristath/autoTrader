@@ -90,6 +90,9 @@ const API = {
   deleteStock: (symbol) => API._delete(`/api/stocks/${symbol}`),
   refreshScore: (symbol) => API._post(`/api/stocks/${symbol}/refresh`),
   refreshAllScores: () => API._post('/api/stocks/refresh-all'),
+  fetchUniverseSuggestions: () => fetch('/api/stocks/universe-suggestions').then(r => r.json()),
+  addStockFromSuggestion: (symbol) => API._post(`/api/stocks/${symbol}/add-from-suggestion`),
+  pruneStockFromSuggestion: (symbol) => API._post(`/api/stocks/${symbol}/prune-from-suggestion`),
 
   // Trades
   fetchTrades: () => fetch('/api/trades').then(r => r.json()),
