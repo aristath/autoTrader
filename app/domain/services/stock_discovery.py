@@ -84,7 +84,7 @@ class StockDiscoveryService:
                         limit=fetch_limit,
                     )
 
-                    logger.debug(
+                    logger.info(
                         f"Fetched {len(securities)} securities from exchange {exchange}"
                     )
                     # Filter candidates
@@ -102,7 +102,7 @@ class StockDiscoveryService:
 
                         # Skip if already in universe
                         if symbol in existing_set:
-                            logger.debug(f"Skipping {symbol}: already in universe")
+                            logger.info(f"Skipping {symbol}: already in universe")
                             continue
 
                         # Filter by geography (if available in security data)
@@ -146,7 +146,9 @@ class StockDiscoveryService:
                             )
 
                         # Add candidate
-                        logger.debug(f"Adding candidate: {symbol} (volume: {volume})")
+                        logger.info(
+                            f"Adding candidate: {symbol} (volume: {volume if volume is not None else 'N/A'})"
+                        )
                         candidates.append(security)
 
                         # Respect fetch limit
