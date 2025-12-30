@@ -269,7 +269,7 @@ class TestInitScheduler:
         scheduler_module.scheduler = None
 
         mock_settings_repo = MagicMock()
-        mock_settings_repo.get_float = AsyncMock(side_effect=[15.0, 3.0])
+        mock_settings_repo.get_float = AsyncMock(side_effect=[5.0, 3.0, 5.0, 1.0])
 
         with (
             patch(
@@ -295,7 +295,7 @@ class TestInitScheduler:
         scheduler_module.scheduler = None
 
         mock_settings_repo = MagicMock()
-        mock_settings_repo.get_float = AsyncMock(side_effect=[15.0, 3.0])
+        mock_settings_repo.get_float = AsyncMock(side_effect=[5.0, 3.0, 5.0, 1.0])
 
         with (
             patch(
@@ -353,7 +353,7 @@ class TestInitScheduler:
         scheduler_module.scheduler = None
 
         mock_settings_repo = MagicMock()
-        mock_settings_repo.get_float = AsyncMock(side_effect=[15.0, 3.0])
+        mock_settings_repo.get_float = AsyncMock(side_effect=[5.0, 3.0, 5.0, 1.0])
 
         with (
             patch(
@@ -413,7 +413,7 @@ class TestInitScheduler:
         scheduler_module.scheduler = None
 
         mock_settings_repo = MagicMock()
-        mock_settings_repo.get_float = AsyncMock(side_effect=[15.0, 3.0])
+        mock_settings_repo.get_float = AsyncMock(side_effect=[5.0, 3.0, 5.0, 1.0])
 
         with (
             patch(
@@ -443,7 +443,7 @@ class TestInitScheduler:
         scheduler_module.scheduler = None
 
         mock_settings_repo = MagicMock()
-        mock_settings_repo.get_float = AsyncMock(side_effect=[15.0, 3.0])
+        mock_settings_repo.get_float = AsyncMock(side_effect=[5.0, 3.0, 5.0, 1.0])
 
         with (
             patch(
@@ -1031,7 +1031,7 @@ class TestEdgeCases:
         scheduler_module.scheduler = None
 
         mock_settings_repo = MagicMock()
-        mock_settings_repo.get_float = AsyncMock(side_effect=[15.0, 3.0])
+        mock_settings_repo.get_float = AsyncMock(side_effect=[5.0, 3.0, 5.0, 1.0])
 
         with (
             patch(
