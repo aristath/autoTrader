@@ -252,7 +252,9 @@ async def get_universe_suggestions(
                 logger.info(f"Scored {len(scored_candidates)} candidates")
                 if scored_candidates:
                     # Log sample scores for debugging
-                    sample_scores = sorted(scored_candidates, key=lambda x: x[1], reverse=True)[:5]
+                    sample_scores = sorted(
+                        scored_candidates, key=lambda x: x[1], reverse=True
+                    )[:5]
                     logger.info(
                         f"Top 5 candidate scores: {[(c.get('symbol'), round(s, 3)) for c, s in sample_scores]}"
                     )

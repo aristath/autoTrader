@@ -65,7 +65,9 @@ class ServiceManager:
                         # Process completed with error
                         stdout, stderr = process.communicate()
                         error_msg = (
-                            stderr.decode() if stderr else stdout.decode() if stdout else "Unknown error"
+                            stderr.decode()
+                            if stderr
+                            else stdout.decode() if stdout else "Unknown error"
                         )
                         logger.warning(
                             f"Service restart command failed (attempt {attempt}): {error_msg}"
@@ -73,7 +75,9 @@ class ServiceManager:
                         if attempt < max_attempts:
                             await asyncio.sleep(5)
                             continue
-                        raise ServiceRestartError(f"Failed to restart service: {error_msg}")
+                        raise ServiceRestartError(
+                            f"Failed to restart service: {error_msg}"
+                        )
 
                     # Restart was initiated successfully
                     # When restarting from within the service, this process will be killed by systemd
@@ -89,7 +93,9 @@ class ServiceManager:
                     return
 
                 except Exception as e:
-                    logger.warning(f"Error initiating service restart (attempt {attempt}): {e}")
+                    logger.warning(
+                        f"Error initiating service restart (attempt {attempt}): {e}"
+                    )
                     if attempt < max_attempts:
                         await asyncio.sleep(5)
                         continue
