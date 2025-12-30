@@ -47,61 +47,53 @@ class ServiceManager:
                 )
 
                 # Restart service
-                # Note: When restarting from within the service, the process may be killed
-                # by systemd before subprocess.run() can return. This is expected behavior.
+                # Note: When restarting from within the service, systemd will kill this process.
+                # Use Popen (non-blocking) to initiate restart without waiting for completion.
                 try:
-                    result = subprocess.run(
+                    process = subprocess.Popen(
                         ["sudo", "systemctl", "restart", self.service_name],
-                        capture_output=True,
-                        text=True,
-                        timeout=30,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
                     )
 
-                    if result.returncode != 0:
-                        error_msg = result.stderr or result.stdout
+                    # Give it a moment to initiate the restart
+                    await asyncio.sleep(1)
+
+                    # Check if process completed quickly (error case)
+                    poll_result = process.poll()
+                    if poll_result is not None and poll_result != 0:
+                        # Process completed with error
+                        stdout, stderr = process.communicate()
+                        error_msg = (
+                            stderr.decode() if stderr else stdout.decode() if stdout else "Unknown error"
+                        )
                         logger.warning(
                             f"Service restart command failed (attempt {attempt}): {error_msg}"
                         )
                         if attempt < max_attempts:
                             await asyncio.sleep(5)
                             continue
-                        raise ServiceRestartError(
-                            f"Failed to restart service: {error_msg}"
-                        )
-                except (KeyboardInterrupt, SystemExit):
-                    # Process is being killed by systemd during restart - this is expected
-                    # The service will restart and the new code will be active
+                        raise ServiceRestartError(f"Failed to restart service: {error_msg}")
+
+                    # Restart was initiated successfully
+                    # When restarting from within the service, this process will be killed by systemd
+                    # which is expected. The new service instance will start with the deployed code.
                     logger.info(
-                        "Service restart initiated - current process will be terminated by systemd"
+                        "Service restart initiated - systemd will restart the service "
+                        "(current process will be terminated)"
                     )
-                    # Give systemd a moment to process the restart
-                    await asyncio.sleep(1)
-                    # Exit gracefully - systemd will restart the service
-                    raise SystemExit(0)
 
-                # Wait for service to start
-                logger.debug("Waiting for service to start...")
-                await asyncio.sleep(2)
-
-                # Verify service is active
-                status_result = subprocess.run(
-                    ["sudo", "systemctl", "is-active", "--quiet", self.service_name],
-                    timeout=5,
-                )
-
-                if status_result.returncode == 0:
-                    logger.info(f"{self.service_name} service restarted successfully")
+                    # Don't wait for health check when restarting from within the service
+                    # The process will be killed, and the new instance will start automatically
+                    # Consider the deployment successful - files are deployed, restart is initiated
                     return
-                else:
-                    logger.warning(
-                        f"Service restart command succeeded but service is not active (attempt {attempt})"
-                    )
+
+                except Exception as e:
+                    logger.warning(f"Error initiating service restart (attempt {attempt}): {e}")
                     if attempt < max_attempts:
                         await asyncio.sleep(5)
                         continue
-                    raise ServiceRestartError(
-                        "Service restart command succeeded but service is not active"
-                    )
+                    raise ServiceRestartError(f"Error restarting service: {e}") from e
 
             except subprocess.TimeoutExpired:
                 logger.warning(f"Service restart timed out (attempt {attempt})")
