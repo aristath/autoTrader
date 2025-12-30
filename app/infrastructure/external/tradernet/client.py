@@ -694,6 +694,7 @@ class TradernetClient:
                     }
                     if exchange is not None:
                         kwargs["exchange"] = exchange
+                    logger.debug(f"Calling get_most_traded with parameters: {kwargs}")
                     result = self._client.get_most_traded(**kwargs)
                 else:
                     # Fallback: return empty list if method not available
@@ -743,6 +744,21 @@ class TradernetClient:
                         )
                         return []
                 else:
+                    # Check if this is an error response
+                    if "error" in result or "errMsg" in result:
+                        error_msg = result.get(
+                            "errMsg", result.get("error", "Unknown error")
+                        )
+                        error_code = result.get("code", "unknown")
+                        logger.error(
+                            f"Tradernet API error in get_most_traded: {error_msg} (code: {error_code})"
+                        )
+                        logger.info(
+                            f"Parameters used: instrument_type={instrument_type}, "
+                            f"exchange={exchange}, gainers={gainers}, limit={limit}"
+                        )
+                        return []
+
                     # Log the actual structure for debugging
                     logger.warning(
                         f"Unexpected get_most_traded response format: dict with keys {list(result.keys())}"
