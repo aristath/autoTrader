@@ -68,6 +68,11 @@ async def identify_profit_taking_opportunities(
                 sell_value / exchange_rate if exchange_rate > 0 else sell_value
             )
 
+            # Apply priority multiplier inversely: higher multiplier = lower sell priority
+            base_priority = windfall_rec.get("windfall_score", 0.5) + 0.5
+            multiplier = stock.priority_multiplier if stock else 1.0
+            final_priority = base_priority / multiplier
+
             opportunities.append(
                 ActionCandidate(
                     side=TradeSide.SELL,
@@ -77,8 +82,7 @@ async def identify_profit_taking_opportunities(
                     price=pos.current_price or pos.avg_price,
                     value_eur=sell_value_eur,
                     currency=pos.currency or "EUR",
-                    priority=windfall_rec.get("windfall_score", 0.5)
-                    + 0.5,  # High priority
+                    priority=final_priority,
                     reason=rec["reason"],
                     tags=["windfall", "profit_taking"],
                 )

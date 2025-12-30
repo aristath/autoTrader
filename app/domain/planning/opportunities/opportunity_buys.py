@@ -67,6 +67,11 @@ async def identify_opportunity_buy_opportunities(
             exchange_rate=exchange_rate,
         )
 
+        # Apply priority multiplier: higher multiplier = higher buy priority
+        base_priority = quality_score
+        multiplier = stock.priority_multiplier if stock else 1.0
+        final_priority = base_priority * multiplier
+
         opportunities.append(
             ActionCandidate(
                 side=TradeSide.BUY,
@@ -76,7 +81,7 @@ async def identify_opportunity_buy_opportunities(
                 price=price,
                 value_eur=sized.value_eur,
                 currency=stock.currency or "EUR",
-                priority=quality_score,
+                priority=final_priority,
                 reason=f"High quality (score: {quality_score:.2f})",
                 tags=["quality", "opportunity"],
             )

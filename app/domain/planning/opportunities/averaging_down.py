@@ -78,6 +78,11 @@ async def identify_averaging_down_opportunities(
                         exchange_rate=exchange_rate,
                     )
 
+                    # Apply priority multiplier: higher multiplier = higher buy priority
+                    base_priority = quality_score + abs(loss_pct)
+                    multiplier = stock.priority_multiplier if stock else 1.0
+                    final_priority = base_priority * multiplier
+
                     opportunities.append(
                         ActionCandidate(
                             side=TradeSide.BUY,
@@ -87,10 +92,7 @@ async def identify_averaging_down_opportunities(
                             price=price,
                             value_eur=sized.value_eur,
                             currency=stock.currency or "EUR",
-                            priority=quality_score
-                            + abs(
-                                loss_pct
-                            ),  # Higher quality + bigger dip = higher priority
+                            priority=final_priority,
                             reason=f"Quality stock down {abs(loss_pct)*100:.0f}%, averaging down",
                             tags=["averaging_down", "buy_low"],
                         )

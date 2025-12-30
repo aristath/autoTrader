@@ -71,6 +71,11 @@ async def identify_rebalance_buy_opportunities(
                     exchange_rate=exchange_rate,
                 )
 
+                # Apply priority multiplier: higher multiplier = higher buy priority
+                base_priority = underweight * 2 + quality_score * 0.5
+                multiplier = stock.priority_multiplier if stock else 1.0
+                final_priority = base_priority * multiplier
+
                 opportunities.append(
                     ActionCandidate(
                         side=TradeSide.BUY,
@@ -80,7 +85,7 @@ async def identify_rebalance_buy_opportunities(
                         price=price,
                         value_eur=sized.value_eur,
                         currency=stock.currency or "EUR",
-                        priority=underweight * 2 + quality_score * 0.5,
+                        priority=final_priority,
                         reason=f"Underweight {country} by {underweight*100:.1f}%",
                         tags=["rebalance", f"underweight_{country.lower()}"],
                     )

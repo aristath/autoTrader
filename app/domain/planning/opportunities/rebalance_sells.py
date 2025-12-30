@@ -66,6 +66,11 @@ async def identify_rebalance_sell_opportunities(
                 sell_qty = int(sell_value_native / (pos.current_price or pos.avg_price))
 
                 if sell_qty > 0:
+                    # Apply priority multiplier inversely: higher multiplier = lower sell priority
+                    base_priority = overweight * 2
+                    multiplier = stock.priority_multiplier if stock else 1.0
+                    final_priority = base_priority / multiplier
+
                     opportunities.append(
                         ActionCandidate(
                             side=TradeSide.SELL,
@@ -75,7 +80,7 @@ async def identify_rebalance_sell_opportunities(
                             price=pos.current_price or pos.avg_price,
                             value_eur=sell_value_eur,
                             currency=pos.currency or "EUR",
-                            priority=overweight * 2,  # Proportional to overweight
+                            priority=final_priority,
                             reason=f"Overweight {country} by {overweight*100:.1f}%",
                             tags=["rebalance", f"overweight_{country.lower()}"],
                         )
