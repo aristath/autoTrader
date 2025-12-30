@@ -34,10 +34,13 @@ class TestCalculateGeoGapScore:
         from app.domain.scoring.diversification import _calculate_geo_gap_score
 
         context = PortfolioContext(
-            country_weights={"US": 0.5},  # Underweight, should boost
+            country_weights={
+                "OTHER": 0.5
+            },  # Underweight, should boost (US maps to OTHER if no mapping)
             industry_weights={},
             positions={},
             total_value=0,
+            country_to_group={},  # No mapping means US -> OTHER
         )
 
         score = _calculate_geo_gap_score("US", context)
@@ -49,10 +52,13 @@ class TestCalculateGeoGapScore:
         from app.domain.scoring.diversification import _calculate_geo_gap_score
 
         context = PortfolioContext(
-            country_weights={"US": -0.5},  # Overweight, should reduce
+            country_weights={
+                "OTHER": -0.5
+            },  # Overweight, should reduce (US maps to OTHER if no mapping)
             industry_weights={},
             positions={},
             total_value=0,
+            country_to_group={},  # No mapping means US -> OTHER
         )
 
         score = _calculate_geo_gap_score("US", context)
@@ -64,10 +70,13 @@ class TestCalculateGeoGapScore:
         from app.domain.scoring.diversification import _calculate_geo_gap_score
 
         context = PortfolioContext(
-            country_weights={"US": 10.0},  # Extreme value
+            country_weights={
+                "OTHER": 10.0
+            },  # Extreme value (US maps to OTHER if no mapping)
             industry_weights={},
             positions={},
             total_value=0,
+            country_to_group={},  # No mapping means US -> OTHER
         )
 
         score = _calculate_geo_gap_score("US", context)
