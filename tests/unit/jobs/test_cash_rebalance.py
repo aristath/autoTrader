@@ -71,6 +71,14 @@ class TestValidateNextAction:
         return AsyncMock()
 
     @pytest.fixture
+    def mock_settings_repo(self):
+        """Create mock settings repository."""
+        from app.repositories import SettingsRepository
+
+        repo = AsyncMock(spec=SettingsRepository)
+        return repo
+
+    @pytest.fixture
     def mock_buy_action(self):
         """Create mock BUY action."""
         from app.domain.value_objects.trade_side import TradeSide
