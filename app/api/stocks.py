@@ -253,14 +253,23 @@ async def get_universe_suggestions(
                         # Get history database for this symbol (creates if doesn't exist)
                         history_db = await db_manager.history(symbol)
                         
-                        # Check if we already have sufficient data
+                        # Check if we already have sufficient data for scoring
+                        # Scoring requires: 50+ days of daily data AND 12+ months of monthly data
                         cursor = await history_db.execute(
                             "SELECT COUNT(*) FROM daily_prices"
                         )
                         row = await cursor.fetchone()
                         daily_count = row[0] if row else 0
                         
-                        if daily_count < 50:
+                        cursor = await history_db.execute(
+                            "SELECT COUNT(*) FROM monthly_prices"
+                        )
+                        row = await cursor.fetchone()
+                        monthly_count = row[0] if row else 0
+                        
+                        # Only fetch if we don't have sufficient data
+                        # This avoids expensive Yahoo API calls for candidates we've already processed
+                        if daily_count < 50 or monthly_count < 12:
                             # Fetch 10 years of data for initial scoring
                             logger.info(
                                 f"Fetching historical data for candidate {symbol} "
