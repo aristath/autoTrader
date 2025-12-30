@@ -29,6 +29,15 @@ def mock_position_repo():
 
 
 @pytest.fixture
+def mock_stock_repo():
+    """Mock StockRepository."""
+    from app.repositories import StockRepository
+
+    repo = MagicMock(spec=StockRepository)
+    return repo
+
+
+@pytest.fixture
 def mock_client():
     """Mock TradernetClient."""
     client = MagicMock(spec=TradernetClient)
@@ -37,9 +46,9 @@ def mock_client():
 
 
 @pytest.fixture
-def safety_service(mock_trade_repo, mock_position_repo):
+def safety_service(mock_trade_repo, mock_position_repo, mock_stock_repo):
     """Create TradeSafetyService instance."""
-    return TradeSafetyService(mock_trade_repo, mock_position_repo)
+    return TradeSafetyService(mock_trade_repo, mock_position_repo, mock_stock_repo)
 
 
 @pytest.mark.asyncio
