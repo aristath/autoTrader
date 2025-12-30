@@ -107,7 +107,7 @@ class OptimizerStatusCard extends HTMLElement {
               <div>
                 <span class="text-gray-500">Settings:</span>
                 <span class="text-gray-300 ml-1 text-xs">
-                  <a href="#" @click.prevent="$dispatch('open-settings')" class="text-blue-400 hover:text-blue-300">Edit in Settings</a>
+                  <button @click="$store.app.showSettingsModal = true" class="text-blue-400 hover:text-blue-300">Edit in Settings</button>
                 </span>
               </div>
             </div>
