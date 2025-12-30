@@ -274,6 +274,8 @@ class TestSyncPortfolioInternal:
             patch("app.jobs.daily_sync.set_processing"),
             patch("app.jobs.daily_sync.clear_processing"),
             patch("app.jobs.daily_sync.emit"),
+            patch("app.repositories.PositionRepository") as mock_position_repo_class,
+            patch("app.repositories.StockRepository") as mock_stock_repo_class,
         ):
             mock_client = MagicMock()
             mock_client.is_connected = True
@@ -283,6 +285,14 @@ class TestSyncPortfolioInternal:
             mock_get_db.return_value = mock_db
             mock_get_bus.return_value = MagicMock()
             mock_get_exchange.return_value = mock_exchange_service
+
+            mock_position_repo = AsyncMock()
+            mock_position_repo.get_all = AsyncMock(return_value=[])
+            mock_position_repo_class.return_value = mock_position_repo
+
+            mock_stock_repo = AsyncMock()
+            mock_stock_repo.get_all_active = AsyncMock(return_value=[])
+            mock_stock_repo_class.return_value = mock_stock_repo
 
             await _sync_portfolio_internal()
 

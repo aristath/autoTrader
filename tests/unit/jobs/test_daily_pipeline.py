@@ -307,9 +307,9 @@ class TestDisplayUpdates:
         ):
             await _process_single_stock("AAPL.US")
 
-        # Should show updating message for the symbol
+        # Should show processing message for the symbol
         assert any("AAPL.US" in msg for msg in processing_messages)
-        assert any("UPDATING" in msg or "DATA" in msg for msg in processing_messages)
+        assert any("PROCESSING" in msg for msg in processing_messages)
 
     @pytest.mark.asyncio
     async def test_clears_processing_after_completion(self):
