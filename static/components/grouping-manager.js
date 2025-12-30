@@ -1,8 +1,8 @@
 /**
  * Grouping Manager Component
  *
- * Allows users to create custom groups for countries and industries.
- * This replaces hardcoded mappings and scales as the portfolio grows.
+ * Modern pill/tag interface for managing country and industry groups.
+ * Shows all items inline with their group assignments and colors.
  */
 class GroupingManager extends HTMLElement {
   connectedCallback() {
@@ -10,115 +10,116 @@ class GroupingManager extends HTMLElement {
       <div x-data="groupingManager()" x-init="init()" class="space-y-6">
         <!-- Country Groups -->
         <div>
-          <h3 class="text-sm font-medium text-gray-300 mb-3">Country Groups</h3>
-          <div class="space-y-3">
-            <template x-for="(countries, groupName) in countryGroups" :key="groupName">
-              <div class="border border-gray-700 rounded p-3 bg-gray-800">
-                <div class="flex items-center justify-between mb-2">
-                  <input
-                    type="text"
-                    :value="groupName"
-                    @blur="updateCountryGroupName(groupName, $event.target.value)"
-                    class="flex-1 mr-2 px-2 py-1 border border-gray-600 rounded bg-gray-900 text-white text-sm"
-                    placeholder="Group name">
-                  <button
-                    @click="deleteCountryGroup(groupName)"
-                    class="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs">
-                    Delete
-                  </button>
-                </div>
-                <div class="space-y-2">
-                  <template x-for="(country, idx) in countries" :key="idx">
-                    <div class="flex items-center gap-2">
-                      <select
-                        :value="country"
-                        @change="updateCountryInGroup(groupName, idx, $event.target.value)"
-                        class="flex-1 px-2 py-1 border border-gray-600 rounded bg-gray-900 text-white text-sm">
-                        <option value="">-- Select Country --</option>
-                        <template x-for="c in availableCountries" :key="c">
-                          <option :value="c" :selected="c === country" x-text="c"></option>
-                        </template>
-                      </select>
-                      <button
-                        @click="removeCountryFromGroup(groupName, idx)"
-                        class="px-2 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded text-xs">
-                        Remove
-                      </button>
-                    </div>
-                  </template>
-                  <button
-                    @click="addCountryToGroup(groupName)"
-                    class="text-xs text-blue-400 hover:text-blue-300">
-                    + Add Country
-                  </button>
-                </div>
-              </div>
+          <h3 class="text-sm font-medium text-gray-300 mb-3">Countries</h3>
+          <div class="flex flex-wrap gap-2">
+            <template x-for="country in availableCountries" :key="country">
+              <button
+                @click="openAssignmentModal('country', country)"
+                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors"
+                :class="getCountryPillClass(country)">
+                <span x-text="country"></span>
+                <template x-if="getCountryGroup(country)">
+                  <span class="px-2 py-0.5 rounded text-xs font-medium"
+                        :style="'background-color: ' + getGroupColor(getCountryGroup(country)) + '; color: ' + getContrastColor(getGroupColor(getCountryGroup(country)))"
+                        x-text="'| ' + getCountryGroup(country)"></span>
+                </template>
+                <template x-if="!getCountryGroup(country)">
+                  <span class="text-yellow-400" title="Unassigned">⚠️</span>
+                </template>
+              </button>
             </template>
-            <button
-              @click="addNewCountryGroup()"
-              class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm">
-              + Add Country Group
-            </button>
-            <p x-show="Object.keys(countryGroups).length === 0" class="text-gray-400 text-sm">
-              No country groups defined. Add one to get started.
-            </p>
           </div>
         </div>
 
         <!-- Industry Groups -->
         <div>
-          <h3 class="text-sm font-medium text-gray-300 mb-3">Industry Groups</h3>
-          <div class="space-y-3">
-            <template x-for="(industries, groupName) in industryGroups" :key="groupName">
-              <div class="border border-gray-700 rounded p-3 bg-gray-800">
-                <div class="flex items-center justify-between mb-2">
-                  <input
-                    type="text"
-                    :value="groupName"
-                    @blur="updateIndustryGroupName(groupName, $event.target.value)"
-                    class="flex-1 mr-2 px-2 py-1 border border-gray-600 rounded bg-gray-900 text-white text-sm"
-                    placeholder="Group name">
-                  <button
-                    @click="deleteIndustryGroup(groupName)"
-                    class="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs">
-                    Delete
-                  </button>
-                </div>
-                <div class="space-y-2">
-                  <template x-for="(industry, idx) in industries" :key="idx">
-                    <div class="flex items-center gap-2">
-                      <select
-                        :value="industry"
-                        @change="updateIndustryInGroup(groupName, idx, $event.target.value)"
-                        class="flex-1 px-2 py-1 border border-gray-600 rounded bg-gray-900 text-white text-sm">
-                        <option value="">-- Select Industry --</option>
-                        <template x-for="i in availableIndustries" :key="i">
-                          <option :value="i" :selected="i === industry" x-text="i"></option>
-                        </template>
-                      </select>
-                      <button
-                        @click="removeIndustryFromGroup(groupName, idx)"
-                        class="px-2 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded text-xs">
-                        Remove
-                      </button>
-                    </div>
-                  </template>
-                  <button
-                    @click="addIndustryToGroup(groupName)"
-                    class="text-xs text-blue-400 hover:text-blue-300">
-                    + Add Industry
+          <h3 class="text-sm font-medium text-gray-300 mb-3">Industries</h3>
+          <div class="flex flex-wrap gap-2">
+            <template x-for="industry in availableIndustries" :key="industry">
+              <button
+                @click="openAssignmentModal('industry', industry)"
+                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors"
+                :class="getIndustryPillClass(industry)">
+                <span x-text="industry"></span>
+                <template x-if="getIndustryGroup(industry)">
+                  <span class="px-2 py-0.5 rounded text-xs font-medium"
+                        :style="'background-color: ' + getGroupColor(getIndustryGroup(industry)) + '; color: ' + getContrastColor(getGroupColor(getIndustryGroup(industry)))"
+                        x-text="'| ' + getIndustryGroup(industry)"></span>
+                </template>
+                <template x-if="!getIndustryGroup(industry)">
+                  <span class="text-yellow-400" title="Unassigned">⚠️</span>
+                </template>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Assignment Modal -->
+        <div x-show="showModal" x-transition
+             class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
+             @click.self="closeModal()">
+          <div class="bg-gray-800 border border-gray-700 rounded-lg p-6 max-w-md w-full mx-4">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-100">
+                Assign <span x-text="modalItem"></span>
+              </h3>
+              <button @click="closeModal()" class="text-gray-400 hover:text-gray-200 text-2xl leading-none">&times;</button>
+            </div>
+
+            <div class="space-y-4">
+              <!-- Current Assignment -->
+              <div x-show="getCurrentGroup()">
+                <p class="text-sm text-gray-400 mb-2">Current group:</p>
+                <div class="flex items-center gap-2">
+                  <span class="px-3 py-1.5 rounded text-sm font-medium"
+                        :style="'background-color: ' + getGroupColor(getCurrentGroup()) + '; color: ' + getContrastColor(getGroupColor(getCurrentGroup()))"
+                        x-text="getCurrentGroup()"></span>
+                  <button @click="removeAssignment()"
+                          class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors">
+                    Remove
                   </button>
                 </div>
               </div>
-            </template>
-            <button
-              @click="addNewIndustryGroup()"
-              class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm">
-              + Add Industry Group
-            </button>
-            <p x-show="Object.keys(industryGroups).length === 0" class="text-gray-400 text-sm">
-              No industry groups defined. Add one to get started.
-            </p>
+
+              <!-- Assign to Existing Group -->
+              <div>
+                <p class="text-sm text-gray-400 mb-2">Assign to existing group:</p>
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                  <template x-for="groupName in getExistingGroups()" :key="groupName">
+                    <button
+                      @click="assignToGroup(groupName)"
+                      class="w-full text-left px-3 py-2 rounded hover:bg-gray-700 transition-colors flex items-center gap-2"
+                      :class="getCurrentGroup() === groupName ? 'bg-gray-700' : ''">
+                      <span class="w-4 h-4 rounded"
+                            :style="'background-color: ' + getGroupColor(groupName)"></span>
+                      <span class="text-sm text-gray-300" x-text="groupName"></span>
+                    </button>
+                  </template>
+                  <p x-show="getExistingGroups().length === 0" class="text-xs text-gray-500 px-3 py-2">
+                    No groups exist yet. Create one below.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Create New Group -->
+              <div class="pt-4 border-t border-gray-700">
+                <p class="text-sm text-gray-400 mb-2">Create new group:</p>
+                <div class="flex gap-2">
+                  <input
+                    type="text"
+                    x-model="newGroupName"
+                    @keyup.enter="createAndAssignGroup()"
+                    placeholder="Group name (e.g., EU, US, Technology)"
+                    class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+                  <button
+                    @click="createAndAssignGroup()"
+                    :disabled="!newGroupName || !newGroupName.trim()"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white text-sm rounded transition-colors">
+                    Create & Assign
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -128,15 +129,95 @@ class GroupingManager extends HTMLElement {
 
 // Alpine.js component
 function groupingManager() {
+  // 25-color palette for groups
+  const COLOR_PALETTE = [
+    '#3B82F6', // blue
+    '#10B981', // emerald
+    '#F59E0B', // amber
+    '#EF4444', // red
+    '#8B5CF6', // violet
+    '#06B6D4', // cyan
+    '#EC4899', // pink
+    '#84CC16', // lime
+    '#F97316', // orange
+    '#6366F1', // indigo
+    '#14B8A6', // teal
+    '#A855F7', // purple
+    '#22C55E', // green
+    '#EAB308', // yellow
+    '#F43F5E', // rose
+    '#0EA5E9', // sky
+    '#64748B', // slate
+    '#78716C', // stone
+    '#B91C1C', // red-800
+    '#059669', // emerald-600
+    '#DC2626', // red-600
+    '#7C3AED', // violet-600
+    '#0891B2', // cyan-600
+    '#BE185D', // pink-700
+    '#CA8A04', // yellow-600
+  ];
+
   return {
     availableCountries: [],
     availableIndustries: [],
     countryGroups: {},
     industryGroups: {},
     loading: false,
+    showModal: false,
+    modalType: null, // 'country' or 'industry'
+    modalItem: null,
+    newGroupName: '',
+    groupColorMap: {}, // Maps group names to colors
 
     async init() {
       await this.loadData();
+      this.assignColorsToGroups();
+    },
+
+    assignColorsToGroups() {
+      // Assign colors to all existing groups
+      const allGroups = new Set();
+      Object.keys(this.countryGroups).forEach(g => allGroups.add(g));
+      Object.keys(this.industryGroups).forEach(g => allGroups.add(g));
+
+      allGroups.forEach(groupName => {
+        if (!this.groupColorMap[groupName]) {
+          // Hash group name to get consistent color
+          const hash = this.hashString(groupName);
+          const colorIndex = hash % COLOR_PALETTE.length;
+          this.groupColorMap[groupName] = COLOR_PALETTE[colorIndex];
+        }
+      });
+    },
+
+    hashString(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return Math.abs(hash);
+    },
+
+    getGroupColor(groupName) {
+      if (!groupName) return '#6B7280'; // gray default
+      if (!this.groupColorMap[groupName]) {
+        const hash = this.hashString(groupName);
+        const colorIndex = hash % COLOR_PALETTE.length;
+        this.groupColorMap[groupName] = COLOR_PALETTE[colorIndex];
+      }
+      return this.groupColorMap[groupName];
+    },
+
+    getContrastColor(hexColor) {
+      // Simple contrast calculation - return white or black based on brightness
+      const r = parseInt(hexColor.slice(1, 3), 16);
+      const g = parseInt(hexColor.slice(3, 5), 16);
+      const b = parseInt(hexColor.slice(5, 7), 16);
+      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      return brightness > 128 ? '#000000' : '#FFFFFF';
     },
 
     async loadData() {
@@ -154,10 +235,12 @@ function groupingManager() {
         const countryGroups = await countryGroupsRes.json();
         const industryGroups = await industryGroupsRes.json();
 
-        this.availableCountries = countries.countries || [];
-        this.availableIndustries = industries.industries || [];
+        this.availableCountries = (countries.countries || []).sort();
+        this.availableIndustries = (industries.industries || []).sort();
         this.countryGroups = countryGroups.groups || {};
         this.industryGroups = industryGroups.groups || {};
+
+        this.assignColorsToGroups();
       } catch (error) {
         console.error('Failed to load grouping data:', error);
         this.showError('Failed to load grouping data');
@@ -166,18 +249,161 @@ function groupingManager() {
       }
     },
 
-    async addNewCountryGroup() {
-      const groupName = prompt('Enter group name (e.g., EU, US, ASIA):');
-      if (!groupName || !groupName.trim()) return;
-
-      await this.saveCountryGroup(groupName.trim(), []);
+    getCountryGroup(country) {
+      for (const [groupName, countries] of Object.entries(this.countryGroups)) {
+        if (countries.includes(country)) {
+          return groupName;
+        }
+      }
+      return null;
     },
 
-    async addNewIndustryGroup() {
-      const groupName = prompt('Enter group name (e.g., Technology, Industrials):');
-      if (!groupName || !groupName.trim()) return;
+    getIndustryGroup(industry) {
+      for (const [groupName, industries] of Object.entries(this.industryGroups)) {
+        if (industries.includes(industry)) {
+          return groupName;
+        }
+      }
+      return null;
+    },
 
-      await this.saveIndustryGroup(groupName.trim(), []);
+    getCountryPillClass(country) {
+      const group = this.getCountryGroup(country);
+      if (group) {
+        return 'bg-gray-700 hover:bg-gray-600 text-gray-200';
+      }
+      return 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-2 border-yellow-500';
+    },
+
+    getIndustryPillClass(industry) {
+      const group = this.getIndustryGroup(industry);
+      if (group) {
+        return 'bg-gray-700 hover:bg-gray-600 text-gray-200';
+      }
+      return 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-2 border-yellow-500';
+    },
+
+    openAssignmentModal(type, item) {
+      this.modalType = type;
+      this.modalItem = item;
+      this.newGroupName = '';
+      this.showModal = true;
+    },
+
+    closeModal() {
+      this.showModal = false;
+      this.modalType = null;
+      this.modalItem = null;
+      this.newGroupName = '';
+    },
+
+    getCurrentGroup() {
+      if (this.modalType === 'country') {
+        return this.getCountryGroup(this.modalItem);
+      } else if (this.modalType === 'industry') {
+        return this.getIndustryGroup(this.modalItem);
+      }
+      return null;
+    },
+
+    getExistingGroups() {
+      if (this.modalType === 'country') {
+        return Object.keys(this.countryGroups).sort();
+      } else if (this.modalType === 'industry') {
+        return Object.keys(this.industryGroups).sort();
+      }
+      return [];
+    },
+
+    async assignToGroup(groupName) {
+      if (this.modalType === 'country') {
+        await this.assignCountryToGroup(this.modalItem, groupName);
+      } else if (this.modalType === 'industry') {
+        await this.assignIndustryToGroup(this.modalItem, groupName);
+      }
+      this.closeModal();
+    },
+
+    async createAndAssignGroup() {
+      if (!this.newGroupName || !this.newGroupName.trim()) return;
+
+      const groupName = this.newGroupName.trim();
+      if (this.modalType === 'country') {
+        await this.assignCountryToGroup(this.modalItem, groupName);
+      } else if (this.modalType === 'industry') {
+        await this.assignIndustryToGroup(this.modalItem, groupName);
+      }
+      this.closeModal();
+    },
+
+    async removeAssignment() {
+      const currentGroup = this.getCurrentGroup();
+      if (!currentGroup) return;
+
+      if (this.modalType === 'country') {
+        await this.removeCountryFromGroup(this.modalItem, currentGroup);
+      } else if (this.modalType === 'industry') {
+        await this.removeIndustryFromGroup(this.modalItem, currentGroup);
+      }
+      this.closeModal();
+    },
+
+    async assignCountryToGroup(country, groupName) {
+      // Remove from current group if any
+      const currentGroup = this.getCountryGroup(country);
+      if (currentGroup) {
+        await this.removeCountryFromGroup(country, currentGroup);
+      }
+
+      // Add to new group
+      const countries = this.countryGroups[groupName] || [];
+      if (!countries.includes(country)) {
+        countries.push(country);
+        await this.saveCountryGroup(groupName, countries);
+      }
+    },
+
+    async assignIndustryToGroup(industry, groupName) {
+      // Remove from current group if any
+      const currentGroup = this.getIndustryGroup(industry);
+      if (currentGroup) {
+        await this.removeIndustryFromGroup(industry, currentGroup);
+      }
+
+      // Add to new group
+      const industries = this.industryGroups[groupName] || [];
+      if (!industries.includes(industry)) {
+        industries.push(industry);
+        await this.saveIndustryGroup(groupName, industries);
+      }
+    },
+
+    async removeCountryFromGroup(country, groupName) {
+      const countries = [...(this.countryGroups[groupName] || [])];
+      const index = countries.indexOf(country);
+      if (index > -1) {
+        countries.splice(index, 1);
+        if (countries.length === 0) {
+          // Delete empty group
+          await this.deleteCountryGroup(groupName);
+        } else {
+          await this.saveCountryGroup(groupName, countries);
+        }
+      }
+    },
+
+    async removeIndustryFromGroup(industry, groupName) {
+      const industries = [...(this.industryGroups[groupName] || [])];
+      const index = industries.indexOf(industry);
+      if (index > -1) {
+        industries.splice(index, 1);
+        if (industries.length === 0) {
+          // Delete empty group
+          await this.deleteIndustryGroup(groupName);
+        } else {
+          await this.saveIndustryGroup(groupName, industries);
+        }
+      }
     },
 
     async saveCountryGroup(groupName, countries) {
@@ -222,27 +448,7 @@ function groupingManager() {
       }
     },
 
-    async updateCountryGroupName(oldName, newName) {
-      if (!newName || !newName.trim() || newName === oldName) return;
-
-      const countries = this.countryGroups[oldName] || [];
-      // Delete old group and create new one
-      await this.deleteCountryGroup(oldName);
-      await this.saveCountryGroup(newName.trim(), countries);
-    },
-
-    async updateIndustryGroupName(oldName, newName) {
-      if (!newName || !newName.trim() || newName === oldName) return;
-
-      const industries = this.industryGroups[oldName] || [];
-      // Delete old group and create new one
-      await this.deleteIndustryGroup(oldName);
-      await this.saveIndustryGroup(newName.trim(), industries);
-    },
-
     async deleteCountryGroup(groupName) {
-      if (!confirm(`Delete country group "${groupName}"?`)) return;
-
       try {
         const response = await fetch(`/api/allocation/groups/country/${encodeURIComponent(groupName)}`, {
           method: 'DELETE',
@@ -261,8 +467,6 @@ function groupingManager() {
     },
 
     async deleteIndustryGroup(groupName) {
-      if (!confirm(`Delete industry group "${groupName}"?`)) return;
-
       try {
         const response = await fetch(`/api/allocation/groups/industry/${encodeURIComponent(groupName)}`, {
           method: 'DELETE',
@@ -280,70 +484,7 @@ function groupingManager() {
       }
     },
 
-    addCountryToGroup(groupName) {
-      // Add empty string to trigger new select dropdown
-      const countries = [...(this.countryGroups[groupName] || []), ''];
-      this.countryGroups[groupName] = countries;
-      // Don't save yet - wait for user to select a country
-    },
-
-    addIndustryToGroup(groupName) {
-      // Add empty string to trigger new select dropdown
-      const industries = [...(this.industryGroups[groupName] || []), ''];
-      this.industryGroups[groupName] = industries;
-      // Don't save yet - wait for user to select an industry
-    },
-
-    async updateCountryInGroup(groupName, index, newCountry) {
-      const countries = [...(this.countryGroups[groupName] || [])];
-
-      if (!newCountry) {
-        // Remove empty entry if user didn't select anything
-        if (countries[index] === '') {
-          this.removeCountryFromGroup(groupName, index);
-        }
-        return;
-      }
-
-      // Update the country at this index
-      countries[index] = newCountry;
-      // Filter out empty strings and remove duplicates
-      const uniqueCountries = [...new Set(countries.filter(c => c))];
-      await this.saveCountryGroup(groupName, uniqueCountries);
-    },
-
-    async updateIndustryInGroup(groupName, index, newIndustry) {
-      const industries = [...(this.industryGroups[groupName] || [])];
-
-      if (!newIndustry) {
-        // Remove empty entry if user didn't select anything
-        if (industries[index] === '') {
-          this.removeIndustryFromGroup(groupName, index);
-        }
-        return;
-      }
-
-      // Update the industry at this index
-      industries[index] = newIndustry;
-      // Filter out empty strings and remove duplicates
-      const uniqueIndustries = [...new Set(industries.filter(i => i))];
-      await this.saveIndustryGroup(groupName, uniqueIndustries);
-    },
-
-    async removeCountryFromGroup(groupName, index) {
-      const countries = [...(this.countryGroups[groupName] || [])];
-      countries.splice(index, 1);
-      await this.saveCountryGroup(groupName, countries);
-    },
-
-    async removeIndustryFromGroup(groupName, index) {
-      const industries = [...(this.industryGroups[groupName] || [])];
-      industries.splice(index, 1);
-      await this.saveIndustryGroup(groupName, industries);
-    },
-
     showSuccess(message) {
-      // Use the app store's message system if available
       if (window.Alpine && window.Alpine.store && window.Alpine.store('app')) {
         window.Alpine.store('app').message = message;
         window.Alpine.store('app').messageType = 'success';
@@ -356,7 +497,6 @@ function groupingManager() {
     },
 
     showError(message) {
-      // Use the app store's message system if available
       if (window.Alpine && window.Alpine.store && window.Alpine.store('app')) {
         window.Alpine.store('app').message = message;
         window.Alpine.store('app').messageType = 'error';
