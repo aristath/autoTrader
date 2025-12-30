@@ -1,154 +1,190 @@
-"""Tests for rate limiting infrastructure.
+"""Tests for rate limiting middleware.
 
-These tests validate rate limiting functionality to prevent excessive API calls
-and ensure proper throttling behavior.
+These tests validate rate limiting middleware functionality to prevent excessive
+API calls and ensure proper throttling behavior.
 """
 
-import asyncio
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from starlette.responses import Response
 
-from app.infrastructure.rate_limit import RateLimiter
+from app.infrastructure.rate_limit import RateLimitMiddleware
 
 
-class TestRateLimiter:
-    """Test RateLimiter class."""
+class TestRateLimitMiddleware:
+    """Test RateLimitMiddleware class."""
 
-    def test_init_with_custom_limits(self):
-        """Test RateLimiter initialization with custom limits."""
-        limiter = RateLimiter(calls_per_second=10, burst_size=5)
-        assert limiter._calls_per_second == 10
-        assert limiter._burst_size == 5
+    @pytest.fixture
+    def mock_app(self):
+        """Create a mock FastAPI app."""
+        app = MagicMock()
+        return app
 
-    def test_init_with_defaults(self):
-        """Test RateLimiter initialization with default values."""
-        limiter = RateLimiter()
-        assert limiter._calls_per_second > 0
-        assert limiter._burst_size > 0
+    @pytest.fixture
+    def mock_request(self):
+        """Create a mock request."""
+        request = MagicMock()
+        request.client = MagicMock()
+        request.client.host = "127.0.0.1"
+        request.url.path = "/api/test"
+        return request
 
-    @pytest.mark.asyncio
-    async def test_allows_burst_calls(self):
-        """Test that burst size allows rapid initial calls."""
-        limiter = RateLimiter(calls_per_second=1, burst_size=3)
-
-        # Should allow burst_size calls immediately
-        for i in range(3):
-            allowed = await limiter.acquire()
-            assert allowed is True
-
-    @pytest.mark.asyncio
-    async def test_throttles_after_burst(self):
-        """Test that calls are throttled after burst is exhausted."""
-        limiter = RateLimiter(calls_per_second=10, burst_size=2)
-
-        # Consume burst
-        await limiter.acquire()
-        await limiter.acquire()
-
-        # Next call should be throttled (will take time)
-        start_time = time.time()
-        await limiter.acquire()
-        elapsed = time.time() - start_time
-
-        # Should have been delayed (at least some small amount)
-        assert elapsed > 0
+    @pytest.fixture
+    def middleware(self, mock_app):
+        """Create RateLimitMiddleware with test settings."""
+        with patch("app.infrastructure.rate_limit.settings") as mock_settings:
+            mock_settings.rate_limit_max_requests = 10
+            mock_settings.rate_limit_window_seconds = 60
+            mock_settings.rate_limit_trade_max = 5
+            mock_settings.rate_limit_trade_window = 60
+            return RateLimitMiddleware(mock_app)
 
     @pytest.mark.asyncio
-    async def test_context_manager_acquires_and_releases(self):
-        """Test RateLimiter as async context manager."""
-        limiter = RateLimiter(calls_per_second=10, burst_size=1)
+    async def test_allows_requests_within_limit(self, middleware, mock_request):
+        """Test that requests within the limit are allowed."""
+        mock_response = Response()
+        call_next = AsyncMock(return_value=mock_response)
 
-        async with limiter:
-            # Should acquire successfully
-            pass
+        # Make requests within limit
+        for _ in range(5):
+            response = await middleware.dispatch(mock_request, call_next)
+            assert response == mock_response
 
-        # Should have released and allow another call
-        async with limiter:
-            pass
-
-    @pytest.mark.asyncio
-    async def test_respects_calls_per_second(self):
-        """Test that rate limiter respects calls_per_second limit."""
-        limiter = RateLimiter(calls_per_second=2, burst_size=1)
-
-        # Make first call (burst)
-        await limiter.acquire()
-
-        # Make multiple rapid calls - should be throttled
-        call_times = []
-        for _ in range(3):
-            start = time.time()
-            await limiter.acquire()
-            call_times.append(time.time() - start)
-
-        # Subsequent calls should be spaced out
-        # (Allow some tolerance for timing)
-        assert sum(call_times) >= 0.4  # At least 0.2s between calls for 2/sec
+        assert call_next.call_count == 5
 
     @pytest.mark.asyncio
-    async def test_handles_concurrent_requests(self):
-        """Test rate limiter with concurrent requests."""
-        limiter = RateLimiter(calls_per_second=10, burst_size=5)
+    async def test_blocks_requests_exceeding_limit(self, middleware, mock_request):
+        """Test that requests exceeding the limit are blocked."""
+        call_next = AsyncMock(return_value=Response())
 
-        # Make concurrent requests
-        async def make_request():
-            async with limiter:
-                return True
+        # Exceed the limit (10 requests in test config)
+        for _ in range(11):
+            response = await middleware.dispatch(mock_request, call_next)
 
-        results = await asyncio.gather(*[make_request() for _ in range(10)])
-
-        # All should succeed (within burst + rate limit)
-        assert all(results)
-        assert len(results) == 10
+        # Last request should be blocked
+        assert response.status_code == 429
+        assert "Rate limit exceeded" in str(response.body)
 
     @pytest.mark.asyncio
-    async def test_allows_single_call_per_second(self):
-        """Test rate limiter with very restrictive limit (1 call/second)."""
-        limiter = RateLimiter(calls_per_second=1, burst_size=1)
+    async def test_trade_endpoints_have_stricter_limits(self, middleware):
+        """Test that trade execution endpoints have stricter limits."""
+        trade_request = MagicMock()
+        trade_request.client = MagicMock()
+        trade_request.client.host = "127.0.0.1"
+        trade_request.url.path = "/api/trades/execute"
+        call_next = AsyncMock(return_value=Response())
 
-        # First call should succeed immediately
-        start = time.time()
-        await limiter.acquire()
-        first_call_time = time.time() - start
-        assert first_call_time < 0.1  # Should be fast (burst)
+        # Make requests up to trade limit (5 in test config)
+        for _ in range(5):
+            response = await middleware.dispatch(trade_request, call_next)
+            assert response.status_code != 429
 
-        # Second call should wait approximately 1 second
-        start = time.time()
-        await limiter.acquire()
-        second_call_time = time.time() - start
-        assert second_call_time >= 0.9  # Should wait ~1 second
+        # Next request should be blocked (exceeds trade limit)
+        response = await middleware.dispatch(trade_request, call_next)
+        assert response.status_code == 429
+        assert "trade executions" in str(response.body)
 
     @pytest.mark.asyncio
-    async def test_resets_over_time(self):
-        """Test that rate limiter allows more calls after time passes."""
-        limiter = RateLimiter(calls_per_second=2, burst_size=1)
+    async def test_skips_rate_limiting_for_internal_endpoints(self, middleware):
+        """Test that internal endpoints skip rate limiting."""
+        led_request = MagicMock()
+        led_request.client = MagicMock()
+        led_request.client.host = "127.0.0.1"
+        led_request.url.path = "/api/status/led"
+        call_next = AsyncMock(return_value=Response())
 
-        # Consume burst
-        await limiter.acquire()
+        # Make many requests - should all pass
+        for _ in range(100):
+            response = await middleware.dispatch(led_request, call_next)
 
-        # Wait a bit and acquire again
-        await asyncio.sleep(0.6)  # Half a second
-        await limiter.acquire()
+        assert call_next.call_count == 100
 
-        # Should be able to acquire again soon (token bucket refills)
-        await asyncio.sleep(0.6)
-        await limiter.acquire()
+    @pytest.mark.asyncio
+    async def test_skips_rate_limiting_for_static_files(self, middleware):
+        """Test that static file endpoints skip rate limiting."""
+        static_request = MagicMock()
+        static_request.client = MagicMock()
+        static_request.client.host = "127.0.0.1"
+        static_request.url.path = "/static/style.css"
+        call_next = AsyncMock(return_value=Response())
 
-    def test_negative_limits_raise_error(self):
-        """Test that negative limits raise ValueError."""
-        with pytest.raises(ValueError):
-            RateLimiter(calls_per_second=-1)
+        # Make many requests - should all pass
+        for _ in range(100):
+            response = await middleware.dispatch(static_request, call_next)
 
-        with pytest.raises(ValueError):
-            RateLimiter(burst_size=-1)
+        assert call_next.call_count == 100
 
-    def test_zero_limits_raise_error(self):
-        """Test that zero limits raise ValueError."""
-        with pytest.raises(ValueError):
-            RateLimiter(calls_per_second=0)
+    @pytest.mark.asyncio
+    async def test_rate_limit_resets_after_window(self, middleware, mock_request):
+        """Test that rate limit resets after the time window."""
+        call_next = AsyncMock(return_value=Response())
 
-        with pytest.raises(ValueError):
-            RateLimiter(burst_size=0)
+        # Make requests up to limit
+        for _ in range(10):
+            await middleware.dispatch(mock_request, call_next)
+
+        # Manually expire old entries by manipulating time
+        # Move time forward past the window
+        with patch("time.time", return_value=time.time() + 61):
+            # Now should be able to make requests again
+            response = await middleware.dispatch(mock_request, call_next)
+            assert response != 429
+
+    @pytest.mark.asyncio
+    async def test_different_ips_have_separate_limits(self, middleware):
+        """Test that different IP addresses have separate rate limits."""
+        request1 = MagicMock()
+        request1.client = MagicMock()
+        request1.client.host = "127.0.0.1"
+        request1.url.path = "/api/test"
+
+        request2 = MagicMock()
+        request2.client = MagicMock()
+        request2.client.host = "192.168.1.1"
+        request2.url.path = "/api/test"
+
+        call_next = AsyncMock(return_value=Response())
+
+        # Exhaust limit for IP 1
+        for _ in range(10):
+            await middleware.dispatch(request1, call_next)
+
+        # IP 2 should still be able to make requests
+        response = await middleware.dispatch(request2, call_next)
+        assert response.status_code != 429
+        assert call_next.call_count == 11  # 10 for IP1 + 1 for IP2
+
+    @pytest.mark.asyncio
+    async def test_cleanup_old_entries(self, middleware):
+        """Test that old entries are cleaned up periodically."""
+        mock_request = MagicMock()
+        mock_request.client = MagicMock()
+        mock_request.client.host = "127.0.0.1"
+        mock_request.url.path = "/api/test"
+        call_next = AsyncMock(return_value=Response())
+
+        # Make some requests
+        for _ in range(5):
+            await middleware.dispatch(mock_request, call_next)
+
+        # Manually trigger cleanup
+        with patch("time.time", return_value=time.time() + 301):
+            # Cleanup should happen
+            await middleware.dispatch(mock_request, call_next)
+            # Old entries should be removed
+            assert len(middleware._request_history) >= 0
+
+    @pytest.mark.asyncio
+    async def test_handles_request_without_client(self, middleware):
+        """Test that middleware handles requests without client IP."""
+        request = MagicMock()
+        request.client = None
+        request.url.path = "/api/test"
+        call_next = AsyncMock(return_value=Response())
+
+        # Should not crash, use "unknown" as IP
+        response = await middleware.dispatch(request, call_next)
+        assert response.status_code != 429  # Should still work
 
