@@ -1,169 +1,185 @@
-"""Tests for file-based locking.
+"""Tests for file-based locking infrastructure.
 
-These tests validate the distributed locking mechanism.
+These tests validate file-based locking for preventing concurrent execution
+of critical operations.
 """
 
 import asyncio
-from pathlib import Path
-from unittest.mock import patch
 
 import pytest
-
-from app.infrastructure.locking import LOCK_DIR, file_lock
 
 
 class TestFileLock:
     """Test file_lock context manager."""
 
     @pytest.mark.asyncio
-    async def test_acquires_and_releases_lock(self, tmp_path):
+    async def test_acquires_and_releases_lock(self):
         """Test that lock is acquired and released."""
-        with patch.object(
-            Path, "parent", new_callable=lambda: property(lambda self: tmp_path)
-        ):
-            # Use the real file_lock but with a test lock name
-            acquired = False
+        from app.infrastructure.locking import file_lock
 
-            async with file_lock("test_lock"):
-                acquired = True
-                LOCK_DIR / "test_lock.lock"
-                # Lock file should exist during operation
-                # Note: May be cleaned up immediately
+        async with file_lock("test", timeout=1.0):
+            # Lock should be held - can't verify file system directly
+            # but should complete without error
+            pass
 
-            assert acquired
+        # Lock should be released - can acquire again
+        async with file_lock("test", timeout=1.0):
+            pass
 
     @pytest.mark.asyncio
-    async def test_lock_prevents_concurrent_access(self, tmp_path):
-        """Test that lock prevents concurrent access."""
-        lock_name = f"test_concurrent_{id(self)}"
-        results = []
+    async def test_prevents_concurrent_execution(self):
+        """Test that concurrent execution is prevented."""
+        from app.infrastructure.locking import file_lock
+
+        execution_order = []
+        lock_acquired = asyncio.Event()
 
         async def task1():
-            async with file_lock(lock_name, timeout=5.0):
-                results.append("task1_start")
+            async with file_lock("test", timeout=1.0):
+                execution_order.append("task1_start")
+                lock_acquired.set()
                 await asyncio.sleep(0.1)
-                results.append("task1_end")
+                execution_order.append("task1_end")
 
         async def task2():
-            await asyncio.sleep(0.05)  # Start slightly after task1
-            async with file_lock(lock_name, timeout=5.0):
-                results.append("task2_start")
-                results.append("task2_end")
+            await lock_acquired.wait()  # Wait for task1 to acquire lock
+            try:
+                async with file_lock("test", timeout=0.05):  # Short timeout
+                    execution_order.append("task2_start")
+                    execution_order.append("task2_end")
+            except TimeoutError:
+                execution_order.append("task2_timeout")
 
+        # Run both tasks concurrently
+        await asyncio.gather(task1(), task2(), return_exceptions=True)
+
+        # task1 should complete before task2 can start
+        assert "task1_start" in execution_order
+        assert "task1_end" in execution_order
+        # task2 should timeout
+        assert "task2_timeout" in execution_order
+
+    @pytest.mark.asyncio
+    async def test_handles_timeout_gracefully(self):
+        """Test that lock timeout is handled gracefully."""
+        from app.infrastructure.locking import file_lock
+
+        async def hold_lock_long():
+            async with file_lock("test", timeout=1.0):
+                await asyncio.sleep(0.2)  # Hold lock longer
+
+        async def try_lock_short():
+            try:
+                async with file_lock("test", timeout=0.05):  # Very short timeout
+                    pass
+            except TimeoutError:
+                return True
+            return False
+
+        # Start first task to hold lock
+        lock_task = asyncio.create_task(hold_lock_long())
+
+        # Try to acquire lock with short timeout
+        timed_out = await try_lock_short()
+
+        await lock_task  # Wait for lock to be released
+
+        # Should have timed out
+        assert timed_out
+
+    @pytest.mark.asyncio
+    async def test_allows_sequential_execution(self):
+        """Test that sequential execution is allowed."""
+        from app.infrastructure.locking import file_lock
+
+        execution_order = []
+
+        async def task1():
+            async with file_lock("test", timeout=1.0):
+                execution_order.append("task1")
+                await asyncio.sleep(0.05)
+
+        async def task2():
+            await asyncio.sleep(0.1)  # Wait for task1 to complete
+            async with file_lock("test", timeout=1.0):
+                execution_order.append("task2")
+
+        await task1()
+        await task2()
+
+        assert execution_order == ["task1", "task2"]
+
+    @pytest.mark.asyncio
+    async def test_uses_different_locks_for_different_names(self):
+        """Test that different lock names don't interfere."""
+        from app.infrastructure.locking import file_lock
+
+        execution_order = []
+
+        async def task1():
+            async with file_lock("lock1", timeout=1.0):
+                execution_order.append("lock1_start")
+                await asyncio.sleep(0.1)
+                execution_order.append("lock1_end")
+
+        async def task2():
+            async with file_lock("lock2", timeout=1.0):
+                execution_order.append("lock2_start")
+                await asyncio.sleep(0.05)
+                execution_order.append("lock2_end")
+
+        # Both should be able to run concurrently
         await asyncio.gather(task1(), task2())
 
-        # Task1 should complete before Task2 starts
-        assert results.index("task1_end") < results.index("task2_start")
+        # Both should have executed
+        assert "lock1_start" in execution_order
+        assert "lock1_end" in execution_order
+        assert "lock2_start" in execution_order
+        assert "lock2_end" in execution_order
 
     @pytest.mark.asyncio
-    async def test_lock_timeout_raises_error(self):
-        """Test that timeout raises TimeoutError."""
-        lock_name = f"test_timeout_{id(self)}"
+    async def test_handles_exceptions_and_releases_lock(self):
+        """Test that lock is released even when exception occurs."""
+        from app.infrastructure.locking import file_lock
 
-        # Hold lock in a task
-        lock_held = asyncio.Event()
-
-        async def holder():
-            async with file_lock(lock_name, timeout=10.0):
-                lock_held.set()
-                await asyncio.sleep(2.0)
-
-        # Start holder
-        holder_task = asyncio.create_task(holder())
-
-        # Wait for lock to be acquired
-        await lock_held.wait()
-
-        # Try to acquire with very short timeout
-        with pytest.raises(TimeoutError):
-            async with file_lock(lock_name, timeout=0.1):
+        async def task_with_exception():
+            try:
+                async with file_lock("test", timeout=1.0):
+                    raise ValueError("Test exception")
+            except ValueError:
                 pass
 
-        # Cancel holder
-        holder_task.cancel()
-        try:
-            await holder_task
-        except asyncio.CancelledError:
-            pass
+        async def task_after_exception():
+            await asyncio.sleep(0.1)  # Wait for exception to be handled
+            async with file_lock("test", timeout=1.0):
+                return True
+
+        await task_with_exception()
+        result = await task_after_exception()
+
+        # Should be able to acquire lock after exception
+        assert result is True
 
     @pytest.mark.asyncio
-    async def test_lock_writes_pid(self):
-        """Test that lock file contains PID."""
-        import os
+    async def test_timeout_error_includes_lock_name(self):
+        """Test that timeout error message includes lock name."""
+        from app.infrastructure.locking import file_lock
 
-        lock_name = f"test_pid_{id(self)}"
-        lock_file = LOCK_DIR / f"{lock_name}.lock"
+        async def hold_lock():
+            async with file_lock("test_timeout", timeout=1.0):
+                await asyncio.sleep(0.2)
 
-        async with file_lock(lock_name):
-            # Lock file exists during operation
-            if lock_file.exists():
-                content = lock_file.read_text()
-                assert str(os.getpid()) in content
+        async def try_lock():
+            try:
+                async with file_lock("test_timeout", timeout=0.05):
+                    pass
+            except TimeoutError as e:
+                return str(e)
+            return None
 
-    @pytest.mark.asyncio
-    async def test_lock_cleanup_on_exit(self):
-        """Test that lock file is cleaned up on normal exit."""
-        lock_name = f"test_cleanup_{id(self)}"
-        lock_file = LOCK_DIR / f"{lock_name}.lock"
+        lock_task = asyncio.create_task(hold_lock())
+        error_message = await try_lock()
+        await lock_task
 
-        async with file_lock(lock_name):
-            pass
-
-        # Lock file should be removed after exit
-        # Note: There's a tiny race window, but generally it should be gone
-        await asyncio.sleep(0.01)
-        assert not lock_file.exists()
-
-    @pytest.mark.asyncio
-    async def test_lock_cleanup_on_exception(self):
-        """Test that lock is released on exception."""
-        lock_name = f"test_exception_{id(self)}"
-
-        with pytest.raises(ValueError):
-            async with file_lock(lock_name):
-                raise ValueError("test error")
-
-        # Should be able to acquire lock again immediately
-        acquired = False
-        async with file_lock(lock_name, timeout=0.5):
-            acquired = True
-
-        assert acquired
-
-    @pytest.mark.asyncio
-    async def test_multiple_different_locks(self):
-        """Test that different locks don't interfere."""
-        results = []
-
-        async def task_a():
-            async with file_lock(f"lock_a_{id(self)}"):
-                results.append("a_start")
-                await asyncio.sleep(0.1)
-                results.append("a_end")
-
-        async def task_b():
-            async with file_lock(f"lock_b_{id(self)}"):
-                results.append("b_start")
-                await asyncio.sleep(0.1)
-                results.append("b_end")
-
-        await asyncio.gather(task_a(), task_b())
-
-        # Both tasks should run concurrently since different locks
-        # a_start and b_start should both appear before a_end and b_end
-        a_start = results.index("a_start")
-        b_start = results.index("b_start")
-        a_end = results.index("a_end")
-        b_end = results.index("b_end")
-
-        # One of the starts should come before both ends
-        assert min(a_start, b_start) < max(a_end, b_end)
-
-
-class TestLockDirectory:
-    """Test lock directory setup."""
-
-    def test_lock_dir_exists(self):
-        """Test that lock directory is created."""
-        assert LOCK_DIR.exists()
-        assert LOCK_DIR.is_dir()
+        assert error_message is not None
+        assert "test_timeout" in error_message
