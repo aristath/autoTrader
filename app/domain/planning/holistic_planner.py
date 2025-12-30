@@ -226,6 +226,11 @@ def _process_buy_opportunity(
         category = "rebalance_buys"
         tags = ["rebalance", "optimizer_target"]
 
+    # Apply priority multiplier: higher multiplier = higher buy priority
+    base_priority = abs(gap_info["gap"]) * 100
+    multiplier = stock.priority_multiplier if stock else 1.0
+    final_priority = base_priority * multiplier
+
     opportunities[category].append(
         ActionCandidate(
             side=TradeSide.BUY,
@@ -235,7 +240,7 @@ def _process_buy_opportunity(
             price=price,
             value_eur=trade_value,
             currency=currency,
-            priority=abs(gap_info["gap"]) * 100,
+            priority=final_priority,
             reason=f"Optimizer target: {gap_info['target']:.1%} (current: {gap_info['current']:.1%})",
             tags=tags,
         )
@@ -275,6 +280,11 @@ def _process_sell_opportunity(
 
     trade_value = quantity * price
 
+    # Apply priority multiplier inversely: higher multiplier = lower sell priority
+    base_priority = abs(gap_info["gap"]) * 100
+    multiplier = stock.priority_multiplier if stock else 1.0
+    final_priority = base_priority / multiplier
+
     opportunities["rebalance_sells"].append(
         ActionCandidate(
             side=TradeSide.SELL,
@@ -284,7 +294,7 @@ def _process_sell_opportunity(
             price=price,
             value_eur=trade_value,
             currency=position.currency,
-            priority=abs(gap_info["gap"]) * 100,
+            priority=final_priority,
             reason=f"Optimizer target: {gap_info['target']:.1%} (current: {gap_info['current']:.1%})",
             tags=["rebalance", "optimizer_target"],
         )
