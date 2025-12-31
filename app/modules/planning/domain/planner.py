@@ -657,6 +657,68 @@ class HolisticPlanner:
             feasible=feasible,
         )
 
+    async def create_plan_incremental(
+        self,
+        portfolio_context: PortfolioContext,
+        positions: List[Position],
+        securities: List[Security],
+        available_cash: float,
+        current_prices: Optional[Dict[str, float]] = None,
+        target_weights: Optional[Dict[str, float]] = None,
+        exchange_rate_service=None,
+        batch_size: int = 100,
+    ) -> Optional[HolisticPlan]:
+        """
+        Create plan using incremental processing (batch-by-batch evaluation).
+
+        This method processes sequences in batches, storing intermediate results
+        in the database. It can be called repeatedly to process the next batch.
+
+        TODO: Implement modular incremental processing
+        - Use PlannerRepository for sequence storage
+        - Generate sequences using modular pattern generators
+        - Evaluate batches using modular evaluation
+        - Support resume from previous batch
+        - Track progress in database
+
+        For now, this delegates to the existing incremental implementation.
+
+        Args:
+            portfolio_context: Current portfolio state
+            positions: Current positions
+            securities: Available securities
+            available_cash: Available cash in EUR
+            current_prices: Current prices for all securities
+            target_weights: Optional optimizer target weights
+            exchange_rate_service: Optional exchange rate service
+            batch_size: Number of sequences to process per batch
+
+        Returns:
+            HolisticPlan with best sequence found so far, or None if no sequences evaluated yet
+        """
+        # TODO: Replace with modular implementation
+        # For now, delegate to existing incremental function
+        from app.modules.planning.domain.holistic_planner import (
+            create_holistic_plan_incremental,
+        )
+
+        return await create_holistic_plan_incremental(
+            portfolio_context=portfolio_context,
+            available_cash=available_cash,
+            securities=securities,
+            positions=positions,
+            exchange_rate_service=exchange_rate_service,
+            target_weights=target_weights,
+            current_prices=current_prices,
+            transaction_cost_fixed=self.config.transaction_cost_fixed,
+            transaction_cost_percent=self.config.transaction_cost_percent,
+            max_plan_depth=self.config.max_depth,
+            max_opportunities_per_category=self.config.max_opportunities_per_category,
+            enable_combinatorial=True,  # TODO: Get from config
+            priority_threshold=self.config.priority_threshold,
+            batch_size=batch_size,
+        )
+
     async def _create_empty_plan(
         self, current_context: PortfolioContext
     ) -> HolisticPlan:
