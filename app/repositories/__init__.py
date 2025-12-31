@@ -19,8 +19,9 @@ __all__ = [
     "PositionRepository",
     "RecommendationRepository",
     "ScoreRepository",
+    "SecurityRepository",
     "SettingsRepository",
-    "StockRepository",
+    "StockRepository",  # Backward compatibility alias
     "TradeRepository",
 ]
 
@@ -65,10 +66,15 @@ def __getattr__(name: str):
         )
 
         return PositionRepository
-    elif name == "StockRepository":
-        from app.modules.universe.database.stock_repository import StockRepository
+    elif name == "SecurityRepository":
+        from app.modules.universe.database.security_repository import SecurityRepository
 
-        return StockRepository
+        return SecurityRepository
+    elif name == "StockRepository":
+        # Backward compatibility - import SecurityRepository as StockRepository
+        from app.modules.universe.database.security_repository import SecurityRepository
+
+        return SecurityRepository
     elif name == "CalculationsRepository":
         from app.repositories.calculations import CalculationsRepository
 
