@@ -1,17 +1,17 @@
-"""Stock discovery job.
+"""Security discovery job.
 
-Automatically discovers and adds high-quality stocks to the investment universe
+Automatically discovers and adds high-quality securities to the investment universe
 based on conservative criteria and user-configurable settings.
 """
 
 import logging
 
 from app.core.database.manager import get_db_manager
-from app.domain.models import Stock
+from app.domain.models import Security
 from app.infrastructure.external.tradernet import get_tradernet_client
 from app.modules.scoring.services.scoring_service import ScoringService
-from app.modules.universe.database.stock_repository import StockRepository
-from app.modules.universe.domain.stock_discovery import StockDiscoveryService
+from app.modules.universe.database.security_repository import SecurityRepository
+from app.modules.universe.domain.security_discovery import SecurityDiscoveryService
 from app.modules.universe.domain.symbol_resolver import SymbolResolver
 from app.repositories import ScoreRepository, SettingsRepository
 from app.shared.domain.value_objects.currency import Currency
@@ -19,26 +19,26 @@ from app.shared.domain.value_objects.currency import Currency
 logger = logging.getLogger(__name__)
 
 
-async def discover_new_stocks() -> None:
+async def discover_new_securities() -> None:
     """
-    Discover and add new stocks to the investment universe.
+    Discover and add new securities to the investment universe.
 
     Process:
     1. Check if discovery is enabled
     2. Get existing universe symbols
-    3. Use StockDiscoveryService to find candidates
+    3. Use SecurityDiscoveryService to find candidates
     4. Score each candidate using ScoringService
     5. Filter by score threshold
     6. Sort by score (best first)
     7. Enforce monthly limit (max_per_month)
-    8. Add stocks to universe (or flag for review if require_manual_review is true)
+    8. Add securities to universe (or flag for review if require_manual_review is true)
     """
-    logger.info("Starting stock discovery...")
+    logger.info("Starting security discovery...")
 
     try:
         # Get dependencies
         settings_repo = SettingsRepository()
-        stock_repo = StockRepository()
+        security_repo = SecurityRepository()
         # Note: Direct DB access here is a known architecture violation.
         # This job needs to coordinate multiple operations. See README.md Architecture section for details.
         db_manager = get_db_manager()
@@ -62,12 +62,12 @@ async def discover_new_stocks() -> None:
         )
 
         # Get existing universe symbols
-        existing_stocks = await stock_repo.get_all_active()
-        existing_symbols = [s.symbol for s in existing_stocks]
+        existing_securities = await security_repo.get_all_active()
+        existing_symbols = [s.symbol for s in existing_securities]
 
         # Initialize discovery service
         tradernet_client = get_tradernet_client()
-        discovery_service = StockDiscoveryService(
+        discovery_service = SecurityDiscoveryService(
             tradernet_client=tradernet_client,
             settings_repo=settings_repo,
         )
@@ -81,18 +81,18 @@ async def discover_new_stocks() -> None:
             logger.info("No new candidates found")
             return
 
-        logger.info(f"Found {len(candidates)} candidate stocks")
+        logger.info(f"Found {len(candidates)} candidate securities")
 
         # Initialize scoring service and symbol resolver
         score_repo = ScoreRepository()
         scoring_service = ScoringService(
-            stock_repo=stock_repo,
+            stock_repo=security_repo,
             score_repo=score_repo,
             db_manager=db_manager,
         )
         symbol_resolver = SymbolResolver(
             tradernet_client=tradernet_client,
-            stock_repo=stock_repo,
+            stock_repo=security_repo,
         )
 
         # Score candidates and collect results
@@ -154,7 +154,7 @@ async def discover_new_stocks() -> None:
 
         if require_manual_review:
             logger.info(
-                f"Manual review required: {len(to_add)} stocks flagged for review"
+                f"Manual review required: {len(to_add)} securities flagged for review"
             )
             for candidate, candidate_score in to_add:
                 logger.info(
@@ -162,7 +162,7 @@ async def discover_new_stocks() -> None:
                 )
             return
 
-        # Add stocks to universe
+        # Add securities to universe
         added_count = 0
         for candidate, candidate_score in to_add:
             symbol = candidate.get("symbol", "").upper()
@@ -172,14 +172,14 @@ async def discover_new_stocks() -> None:
             isin = candidate.get("isin")  # ISIN resolved earlier
 
             try:
-                # Check if stock already exists (shouldn't, but be safe)
-                existing = await stock_repo.get_by_symbol(symbol)
+                # Check if security already exists (shouldn't, but be safe)
+                existing = await security_repo.get_by_symbol(symbol)
                 if existing:
-                    logger.warning(f"Stock {symbol} already exists, skipping")
+                    logger.warning(f"Security {symbol} already exists, skipping")
                     continue
 
-                # Create stock object with ISIN for Yahoo Finance lookups
-                stock = Stock(
+                # Create security object with ISIN for Yahoo Finance lookups
+                security = Security(
                     symbol=symbol,
                     name=name,
                     country=country,
@@ -192,18 +192,22 @@ async def discover_new_stocks() -> None:
                 )
 
                 # Add to universe
-                await stock_repo.create(stock)
+                await security_repo.create(security)
                 logger.info(
-                    f"Added stock {symbol} ({name}) with score {candidate_score:.3f}"
+                    f"Added security {symbol} ({name}) with score {candidate_score:.3f}"
                     + (f", ISIN: {isin}" if isin else "")
                 )
                 added_count += 1
 
             except Exception as e:
-                logger.error(f"Failed to add stock {symbol}: {e}")
+                logger.error(f"Failed to add security {symbol}: {e}")
                 continue
 
-        logger.info(f"Stock discovery complete: {added_count} stocks added")
+        logger.info(f"Security discovery complete: {added_count} securities added")
 
     except Exception as e:
-        logger.error(f"Stock discovery failed: {e}", exc_info=True)
+        logger.error(f"Security discovery failed: {e}", exc_info=True)
+
+
+# Backward compatibility alias
+discover_new_stocks = discover_new_securities
