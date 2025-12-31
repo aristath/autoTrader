@@ -55,8 +55,12 @@ class SecurityUpdate(BaseModel):
     new_symbol: Optional[str] = None
     name: Optional[str] = None
     yahoo_symbol: Optional[str] = None
-    # country and fullExchangeName are auto-detected from Yahoo Finance - not user-editable
-    # Industry is now automatically detected from Yahoo Finance - not user-editable
+    product_type: Optional[str] = None  # Manual override for misclassifications
+    country: Optional[str] = None  # Manual entry for securities where Yahoo has no data
+    industry: Optional[str] = (
+        None  # Manual entry for securities where Yahoo has no data
+    )
+    fullExchangeName: Optional[str] = None  # Manual entry if needed
     priority_multiplier: Optional[float] = None
     min_lot: Optional[int] = None
     active: Optional[bool] = None
@@ -610,8 +614,10 @@ def _build_update_dict(
     _apply_string_update(
         updates, "yahoo_symbol", update.yahoo_symbol, lambda v: v if v else None
     )
-    # country and fullExchangeName are automatically detected from Yahoo Finance - not user-editable
-    # Industry is now automatically detected from Yahoo Finance - not user-editable
+    _apply_string_update(updates, "product_type", update.product_type)
+    _apply_string_update(updates, "country", update.country)
+    _apply_string_update(updates, "industry", update.industry)
+    _apply_string_update(updates, "fullExchangeName", update.fullExchangeName)
 
     _apply_numeric_update(
         updates,
