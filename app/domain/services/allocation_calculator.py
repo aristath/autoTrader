@@ -14,7 +14,7 @@ from app.domain.constants import (
     REBALANCE_BAND_SMALL,
     TARGET_PORTFOLIO_VOLATILITY,
 )
-from app.domain.models import StockPriority
+from app.domain.models import SecurityPriority
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ def parse_industries(industry_str: str) -> list[str]:
 
 
 def calculate_position_size(
-    candidate: StockPriority,
+    candidate: SecurityPriority,
     base_size: float,
     min_size: float,
 ) -> float:

@@ -15,7 +15,7 @@ from pypfopt import EfficientFrontier, HRPOpt
 from pypfopt.exceptions import OptimizationError
 
 from app.domain.constants import TARGET_PORTFOLIO_VOLATILITY
-from app.domain.models import Position, Stock
+from app.domain.models import Position, Security
 from app.modules.optimization.services.constraints_manager import ConstraintsManager
 from app.modules.optimization.services.expected_returns import ExpectedReturnsCalculator
 from app.modules.optimization.services.risk_models import RiskModelBuilder
@@ -89,7 +89,7 @@ class PortfolioOptimizer:
 
     async def optimize(
         self,
-        stocks: List[Stock],
+        stocks: List[Security],
         positions: Dict[str, Position],
         portfolio_value: float,
         current_prices: Dict[str, float],
