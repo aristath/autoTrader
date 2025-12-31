@@ -4,7 +4,7 @@ import json
 import logging
 
 from app.domain.models import DividendRecord
-from app.infrastructure.database.manager import get_db_manager
+from app.core.database.manager import get_db_manager
 from app.infrastructure.events import SystemEvent, emit
 from app.infrastructure.external.tradernet import get_tradernet_client
 from app.infrastructure.hardware.display_service import set_led4, set_text

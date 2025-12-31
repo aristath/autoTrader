@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from app.domain.models import StockScore
-from app.infrastructure.database import get_db_manager
+from app.core.database import get_db_manager
 from app.repositories.base import transaction_context
 
 

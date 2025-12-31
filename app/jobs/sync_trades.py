@@ -8,7 +8,7 @@ not just placed orders (which may be cancelled externally).
 import logging
 from datetime import datetime
 
-from app.infrastructure.database.manager import get_db_manager
+from app.core.database.manager import get_db_manager
 from app.infrastructure.events import SystemEvent, emit
 from app.infrastructure.external.tradernet import get_tradernet_client
 from app.infrastructure.hardware.display_service import set_led4, set_text

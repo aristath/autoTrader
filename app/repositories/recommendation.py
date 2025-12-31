@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from app.domain.value_objects.currency import Currency
-from app.infrastructure.database import get_db_manager
+from app.core.database import get_db_manager
 
 
 class RecommendationRepository:

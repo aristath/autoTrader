@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from app.config import settings
-from app.infrastructure.database.manager import get_db_manager
+from app.core.database.manager import get_db_manager
 from app.infrastructure.events import SystemEvent, emit
 from app.infrastructure.external import yahoo_finance as yahoo
 from app.infrastructure.hardware.display_service import set_led4, set_text

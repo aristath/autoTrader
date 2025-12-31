@@ -8,7 +8,7 @@ from app.domain.events import PositionUpdatedEvent, get_event_bus
 from app.domain.models import Position
 from app.domain.services.exchange_rate_service import ExchangeRateService
 from app.domain.value_objects.currency import Currency
-from app.infrastructure.database.manager import get_db_manager
+from app.core.database.manager import get_db_manager
 from app.infrastructure.dependencies import get_exchange_rate_service
 from app.infrastructure.events import SystemEvent, emit
 from app.infrastructure.external import yahoo_finance as yahoo
