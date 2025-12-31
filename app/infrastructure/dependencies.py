@@ -37,7 +37,7 @@ from app.modules.trading.services.trade_execution_service import TradeExecutionS
 from app.modules.trading.services.trade_safety_service import TradeSafetyService
 from app.modules.universe.database.security_repository import SecurityRepository
 from app.modules.universe.domain.ticker_content_service import TickerContentService
-from app.modules.universe.services.stock_setup_service import StockSetupService
+from app.modules.universe.services.security_setup_service import SecuritySetupService
 from app.repositories.calculations import CalculationsRepository
 from app.repositories.grouping import GroupingRepository
 from app.repositories.recommendation import RecommendationRepository
@@ -334,16 +334,18 @@ def get_stock_setup_service(
     scoring_service: ScoringServiceDep,
     tradernet_client: TradernetClientDep,
     db_manager: DatabaseManagerDep,
-) -> StockSetupService:
-    """Get StockSetupService instance."""
-    # StockRepositoryDep is IStockRepository, but StockSetupService needs StockRepository
-    # We can safely cast since get_stock_repository() returns StockRepository
-    return StockSetupService(
-        stock_repo=stock_repo,  # type: ignore[arg-type]
+) -> SecuritySetupService:
+    """Get SecuritySetupService instance."""
+    # StockRepositoryDep is ISecurityRepository, but SecuritySetupService needs SecurityRepository
+    # We can safely cast since get_stock_repository() returns SecurityRepository
+    return SecuritySetupService(
+        security_repo=stock_repo,  # type: ignore[arg-type]
         scoring_service=scoring_service,
         tradernet_client=tradernet_client,
         db_manager=db_manager,
     )
 
 
-StockSetupServiceDep = Annotated[StockSetupService, Depends(get_stock_setup_service)]
+SecuritySetupServiceDep = Annotated[
+    SecuritySetupService, Depends(get_stock_setup_service)
+]

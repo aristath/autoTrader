@@ -13,9 +13,9 @@ from app.infrastructure.dependencies import (
     PositionRepositoryDep,
     ScoreRepositoryDep,
     ScoringServiceDep,
+    SecuritySetupServiceDep,
     SettingsRepositoryDep,
     StockRepositoryDep,
-    StockSetupServiceDep,
 )
 from app.infrastructure.recommendation_cache import get_recommendation_cache
 from app.modules.universe.domain.priority_calculator import (
@@ -706,7 +706,7 @@ async def create_stock(
 @router.post("/add-by-identifier")
 async def add_stock_by_identifier(
     stock_data: SecurityAddByIdentifier,
-    stock_setup_service: StockSetupServiceDep,
+    stock_setup_service: SecuritySetupServiceDep,
     score_repo: ScoreRepositoryDep,
 ):
     """Add a new stock to the universe by symbol or ISIN.
@@ -741,7 +741,7 @@ async def add_stock_by_identifier(
         # to provide better error messages before starting the setup process
 
         # Add the stock
-        stock = await stock_setup_service.add_stock_by_identifier(
+        stock = await stock_setup_service.add_security_by_identifier(
             identifier=identifier,
             min_lot=stock_data.min_lot or 1,
             allow_buy=(
@@ -1185,7 +1185,7 @@ async def delete_stock(
 @router.post("/{isin}/add-from-suggestion")
 async def add_stock_from_suggestion(
     isin: str,
-    stock_setup_service: StockSetupServiceDep,
+    stock_setup_service: SecuritySetupServiceDep,
     score_repo: ScoreRepositoryDep,
 ):
     """Add a stock to the universe from a suggestion.
@@ -1214,7 +1214,7 @@ async def add_stock_from_suggestion(
             )
 
         # Add the stock
-        stock = await stock_setup_service.add_stock_by_identifier(
+        stock = await stock_setup_service.add_security_by_identifier(
             identifier=isin,
             min_lot=1,
             allow_buy=True,
