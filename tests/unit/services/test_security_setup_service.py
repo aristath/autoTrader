@@ -21,7 +21,7 @@ class TestSecuritySetupService:
     def mock_stock_repo(self):
         """Mock SecurityRepository."""
         repo = AsyncMock()
-        repo.get_by_identifier = AsyncMock(return_value=None)  # Stock doesn't exist
+        repo.get_by_identifier = AsyncMock(return_value=None)  # Security doesn't exist
         repo.create = AsyncMock()
         return repo
 

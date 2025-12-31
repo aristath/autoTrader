@@ -506,7 +506,7 @@ class TestGenerateActionSequences:
                 ActionCandidate(
                     side=TradeSide.BUY,
                     symbol="EXPENSIVE",
-                    name="Expensive Stock",
+                    name="Expensive Security",
                     quantity=100,
                     price=100.0,
                     value_eur=10000.0,  # More than available cash
@@ -563,7 +563,7 @@ class TestGenerateActionSequences:
                 ActionCandidate(
                     side=TradeSide.SELL,
                     symbol="OVERWEIGHT",
-                    name="Overweight Stock",
+                    name="Overweight Security",
                     quantity=20,
                     price=50.0,
                     value_eur=900.0,
@@ -577,7 +577,7 @@ class TestGenerateActionSequences:
                 ActionCandidate(
                     side=TradeSide.BUY,
                     symbol="UNDERWEIGHT",
-                    name="Underweight Stock",
+                    name="Underweight Security",
                     quantity=15,
                     price=60.0,
                     value_eur=800.0,
@@ -630,7 +630,7 @@ class TestGenerateActionSequences:
                 ActionCandidate(
                     side=TradeSide.SELL,
                     symbol="WINNER",
-                    name="Winner Stock",
+                    name="Winner Security",
                     quantity=10,
                     price=200.0,
                     value_eur=1800.0,

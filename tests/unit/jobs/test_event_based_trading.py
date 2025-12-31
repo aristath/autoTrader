@@ -317,7 +317,7 @@ class TestCanExecuteTrade:
 
         recommendation = Recommendation(
             symbol="UNKNOWN",
-            name="Unknown Stock",
+            name="Unknown Security",
             side=TradeSide.BUY,
             quantity=10,
             estimated_price=150.0,

@@ -289,7 +289,7 @@ class TestCalculatePortfolioBalanceScore:
         assert score == 0.5  # Neutral
 
     def test_multi_industry_stock_averages(self):
-        """Stock in multiple industries should average their weights.
+        """Security in multiple industries should average their weights.
 
         Bug caught: Multi-industry parsing errors.
         """
