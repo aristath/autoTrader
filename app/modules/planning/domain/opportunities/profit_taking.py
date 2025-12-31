@@ -5,7 +5,7 @@ Identifies windfall positions that should be trimmed for profit-taking.
 
 from typing import List, Optional
 
-from app.domain.models import Position, Stock
+from app.domain.models import Position, Security
 from app.domain.services.exchange_rate_service import ExchangeRateService
 from app.domain.value_objects.trade_side import TradeSide
 from app.modules.planning.domain.holistic_planner import ActionCandidate
@@ -14,7 +14,7 @@ from app.modules.scoring.domain.windfall import get_windfall_recommendation
 
 async def identify_profit_taking_opportunities(
     positions: List[Position],
-    stocks_by_symbol: dict[str, Stock],
+    stocks_by_symbol: dict[str, Security],
     exchange_rate_service: Optional[ExchangeRateService] = None,
 ) -> List[ActionCandidate]:
     """

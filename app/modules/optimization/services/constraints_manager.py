@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from app.domain.models import Position, Stock
+from app.domain.models import Position, Security
 from app.modules.scoring.domain.constants import (
     GEO_ALLOCATION_TOLERANCE,
     IND_ALLOCATION_TOLERANCE,
@@ -62,7 +62,7 @@ class ConstraintsManager:
 
     def calculate_weight_bounds(
         self,
-        stocks: List[Stock],
+        stocks: List[Security],
         positions: Dict[str, Position],
         portfolio_value: float,
         current_prices: Dict[str, float],
@@ -254,7 +254,7 @@ class ConstraintsManager:
 
     async def build_sector_constraints(
         self,
-        stocks: List[Stock],
+        stocks: List[Security],
         country_targets: Dict[str, float],
         ind_targets: Dict[str, float],
     ) -> Tuple[List[SectorConstraint], List[SectorConstraint]]:
