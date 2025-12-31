@@ -12,20 +12,20 @@ from app.shared.domain.value_objects.currency import Currency
 
 
 class TestStockValidation:
-    """Test Stock domain model validation."""
+    """Test Security domain model validation."""
 
     def test_stock_validates_symbol_not_empty(self):
-        """Test that Stock validates symbol is not empty."""
+        """Test that Security validates symbol is not empty."""
         with pytest.raises(ValidationError, match="Symbol cannot be empty"):
             Security(symbol="", name="Test", country="United States")
 
     def test_stock_validates_name_not_empty(self):
-        """Test that Stock validates name is not empty."""
+        """Test that Security validates name is not empty."""
         with pytest.raises(ValidationError, match="Name cannot be empty"):
             Security(symbol="AAPL.US", name="", country="United States")
 
     def test_stock_accepts_any_country(self):
-        """Test that Stock accepts any non-empty country."""
+        """Test that Security accepts any non-empty country."""
         security = Security(
             symbol="AAPL.US",
             name="Test",
@@ -35,7 +35,7 @@ class TestStockValidation:
         assert security.country == "Greece"
 
     def test_stock_validates_min_lot_positive(self):
-        """Test that Stock validates min_lot is positive."""
+        """Test that Security validates min_lot is positive."""
         security = Security(
             symbol="AAPL.US",
             name="Test",
@@ -55,7 +55,7 @@ class TestStockValidation:
         assert security.min_lot == 1  # Should default to 1
 
     def test_stock_valid_creation(self):
-        """Test that valid Stock creation works."""
+        """Test that valid Security creation works."""
         security = Security(
             symbol="AAPL.US",
             name="Apple Inc.",

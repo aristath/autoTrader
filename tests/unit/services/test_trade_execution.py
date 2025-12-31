@@ -97,7 +97,7 @@ class TestTradeValidation:
 
         return Recommendation(
             symbol=symbol,
-            name="Test Stock",
+            name="Test Security",
             side=TradeSide(side),
             quantity=quantity,
             estimated_price=price,

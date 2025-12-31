@@ -468,7 +468,7 @@ class TestRowToStock:
     """Test row to security conversion."""
 
     def test_converts_valid_row(self):
-        """Test converting a valid database row to Stock model."""
+        """Test converting a valid database row to Security model."""
         from app.modules.universe.database.security_repository import SecurityRepository
 
         mock_db = AsyncMock()

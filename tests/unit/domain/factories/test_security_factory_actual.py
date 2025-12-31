@@ -1,6 +1,6 @@
 """Tests for SecurityFactory class.
 
-These tests validate the SecurityFactory class methods for creating Stock objects.
+These tests validate the SecurityFactory class methods for creating Security objects.
 """
 
 import pytest
@@ -15,7 +15,7 @@ class TestSecurityFactoryCreateFromApiRequest:
     """Test SecurityFactory.create_from_api_request method."""
 
     def test_create_stock_with_all_fields(self):
-        """Test creating Stock with all fields from API request."""
+        """Test creating Security with all fields from API request."""
         data = {
             "symbol": "AAPL",
             "name": "Apple Inc.",
@@ -44,7 +44,7 @@ class TestSecurityFactoryCreateFromApiRequest:
         assert security.currency == Currency.USD
 
     def test_create_stock_with_minimal_required_fields(self):
-        """Test creating Stock with minimal required fields."""
+        """Test creating Security with minimal required fields."""
         data = {"symbol": "AAPL", "name": "Apple Inc."}
 
         security = SecurityFactory.create_from_api_request(data)
@@ -93,7 +93,7 @@ class TestSecurityFactoryCreateFromApiRequest:
             SecurityFactory.create_from_api_request(data)
 
     def test_create_stock_with_currency_string(self):
-        """Test creating Stock with currency as string."""
+        """Test creating Security with currency as string."""
         data = {"symbol": "AAPL", "name": "Apple Inc.", "currency": "USD"}
 
         security = SecurityFactory.create_from_api_request(data)
@@ -122,7 +122,7 @@ class TestSecurityFactoryCreateFromImport:
     """Test SecurityFactory.create_from_import method."""
 
     def test_create_stock_from_import_with_all_fields(self):
-        """Test creating Stock from import data with all fields."""
+        """Test creating Security from import data with all fields."""
         data = {
             "symbol": "MSFT",
             "name": "Microsoft Corporation",
@@ -155,7 +155,7 @@ class TestSecurityFactoryCreateFromImport:
         assert security.allow_sell is False
 
     def test_create_stock_from_import_with_defaults(self):
-        """Test creating Stock from import with default values."""
+        """Test creating Security from import with default values."""
         data = {"symbol": "GOOGL", "name": "Alphabet Inc."}
 
         security = SecurityFactory.create_from_import(data)
@@ -177,7 +177,7 @@ class TestSecurityFactoryCreateFromImport:
         assert security.symbol == "GOOGL"
 
     def test_create_stock_from_import_with_currency_string(self):
-        """Test creating Stock from import with currency as string."""
+        """Test creating Security from import with currency as string."""
         data = {"symbol": "TSLA", "name": "Tesla Inc.", "currency": "USD"}
 
         security = SecurityFactory.create_from_import(data)
@@ -185,7 +185,7 @@ class TestSecurityFactoryCreateFromImport:
         assert security.currency == Currency.USD
 
     def test_create_stock_from_import_with_currency_enum(self):
-        """Test creating Stock from import with currency as Currency enum."""
+        """Test creating Security from import with currency as Currency enum."""
         data = {"symbol": "TSLA", "name": "Tesla Inc.", "currency": Currency.USD}
 
         security = SecurityFactory.create_from_import(data)
@@ -205,7 +205,7 @@ class TestSecurityFactoryCreateWithIndustryDetection:
     """Test SecurityFactory.create_with_industry_detection method."""
 
     def test_create_stock_with_detected_industry(self):
-        """Test creating Stock with detected industry."""
+        """Test creating Security with detected industry."""
         data = {"symbol": "AAPL", "name": "Apple Inc."}
         detected_industry = "Consumer Electronics"
 
@@ -216,7 +216,7 @@ class TestSecurityFactoryCreateWithIndustryDetection:
         assert security.industry == "Consumer Electronics"
 
     def test_create_stock_with_industry_from_data(self):
-        """Test creating Stock with industry from data (when detected_industry is None)."""
+        """Test creating Security with industry from data (when detected_industry is None)."""
         data = {"symbol": "AAPL", "name": "Apple Inc.", "industry": "Technology"}
 
         security = SecurityFactory.create_with_industry_detection(data, None)

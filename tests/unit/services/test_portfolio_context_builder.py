@@ -355,7 +355,7 @@ class TestBuildPortfolioContext:
         mock_stock_repo = AsyncMock()
         mock_stock = Security(
             symbol="UNKNOWN",
-            name="Unknown Stock",
+            name="Unknown Security",
             country=None,
             currency=Currency.USD,
             industry=None,
@@ -379,7 +379,7 @@ class TestBuildPortfolioContext:
                 mock_db_manager,
             )
 
-            # Stock without country/industry should not be in the maps
+            # Security without country/industry should not be in the maps
             assert "UNKNOWN" not in context.security_countries
             assert "UNKNOWN" not in context.security_industries
 

@@ -1066,7 +1066,7 @@ class TestEdgeCases:
     def test_portfolio_target_constraint_conflict_resolution(self):
         """Test constraint behavior when portfolio targets interact with allow_buy/allow_sell."""
         manager = ConstraintsManager()
-        # Stock with min_portfolio_target=15% but current weight is 5% and allow_sell=False
+        # Security with min_portfolio_target=15% but current weight is 5% and allow_sell=False
         # allow_sell=False means can't go below current weight
         # min_portfolio_target=15% means should be at least 15%
         # Since current is 5% and can't sell, the optimizer can BUY more to reach 15%

@@ -33,7 +33,7 @@ class TestCalculatePositionSize:
         """Helper to create test candidates."""
         return SecurityPriority(
             symbol="TEST",
-            name="Test Stock",
+            name="Test Security",
             country="United States",
             industry="Consumer Electronics",
             security_score=score,

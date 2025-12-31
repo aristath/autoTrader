@@ -239,7 +239,7 @@ class TestCreateStock:
     async def test_create_stock_already_exists(self):
         """Test creating a security that already exists."""
         mock_stock_repo = AsyncMock()
-        mock_stock_repo.get_by_symbol.return_value = MagicMock()  # Stock exists
+        mock_stock_repo.get_by_symbol.return_value = MagicMock()  # Security exists
 
         mock_score_repo = AsyncMock()
         mock_scoring_service = AsyncMock()
@@ -262,7 +262,7 @@ class TestCreateStock:
     async def test_create_stock_with_industry(self):
         """Test creating a security with industry provided."""
         mock_stock_repo = AsyncMock()
-        mock_stock_repo.get_by_symbol.return_value = None  # Stock doesn't exist
+        mock_stock_repo.get_by_symbol.return_value = None  # Security doesn't exist
 
         mock_score_repo = AsyncMock()
 

@@ -179,7 +179,7 @@ async def test_check_minimum_hold_time_recent_buy_blocks_sell(
     """Test that minimum hold time check blocks sells for recently bought securities."""
     from datetime import datetime, timedelta
 
-    # Stock bought 30 days ago (less than 90 day minimum)
+    # Security bought 30 days ago (less than 90 day minimum)
     recent_buy_date = (datetime.now() - timedelta(days=30)).isoformat()
     mock_trade_repo.get_last_transaction_date = AsyncMock(return_value=recent_buy_date)
 
@@ -197,7 +197,7 @@ async def test_check_minimum_hold_time_old_buy_allows_sell(
     """Test that minimum hold time check allows sells for securities held long enough."""
     from datetime import datetime, timedelta
 
-    # Stock bought 120 days ago (more than 90 day minimum)
+    # Security bought 120 days ago (more than 90 day minimum)
     old_buy_date = (datetime.now() - timedelta(days=120)).isoformat()
     mock_trade_repo.get_last_transaction_date = AsyncMock(return_value=old_buy_date)
 
@@ -216,7 +216,7 @@ async def test_validate_trade_sell_blocks_recent_buy(
 
     from app.domain.models import Position
 
-    # Stock bought 30 days ago
+    # Security bought 30 days ago
     recent_buy_date = (datetime.now() - timedelta(days=30)).isoformat()
     mock_trade_repo.get_last_transaction_date = AsyncMock(return_value=recent_buy_date)
 

@@ -96,11 +96,11 @@ class TestCalculateExcessGain:
     """
 
     def test_consistent_grower_has_low_excess(self):
-        """Stock growing at its historical rate should have ~0 excess.
+        """Security growing at its historical rate should have ~0 excess.
 
         Bug caught: Consistent growers shouldn't be flagged as windfalls.
 
-        Example: Stock with 10% CAGR, held 3 years, up 33%
+        Example: Security with 10% CAGR, held 3 years, up 33%
         Expected: (1.10^3) - 1 = 33.1%
         Excess: 33% - 33.1% = ~0%
         """
@@ -112,11 +112,11 @@ class TestCalculateExcessGain:
         assert abs(excess) < 0.02  # Near zero excess
 
     def test_windfall_has_high_excess(self):
-        """Stock spiking far above historical growth should have high excess.
+        """Security spiking far above historical growth should have high excess.
 
         Bug caught: Windfalls should be clearly identified.
 
-        Example: Stock with 10% CAGR, held 1 year, up 80%
+        Example: Security with 10% CAGR, held 1 year, up 80%
         Expected: 10%
         Excess: 80% - 10% = 70%
         """
@@ -128,7 +128,7 @@ class TestCalculateExcessGain:
         assert excess == pytest.approx(0.70, abs=0.01)
 
     def test_underperformer_has_negative_excess(self):
-        """Stock growing slower than historical rate has negative excess.
+        """Security growing slower than historical rate has negative excess.
 
         Bug caught: Underperformers should not trigger profit-taking.
         """

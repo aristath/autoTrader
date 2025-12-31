@@ -227,7 +227,7 @@ class TestGenerateSellNarrative:
             name="Apple Inc",
             value=1000,
             tags=["windfall"],
-            reason="Stock gained 50% above normal growth",
+            reason="Security gained 50% above normal growth",
             portfolio_context=context,
             all_opportunities={},
         )

@@ -105,7 +105,7 @@ class TestPortfolioServiceCalculations:
 
     @pytest.mark.asyncio
     async def test_multi_industry_splits_value_equally(self, mock_repos):
-        """Stock in multiple industries should split value equally.
+        """Security in multiple industries should split value equally.
 
         A security with "Technology, Defense" should count 50% to each industry.
 
