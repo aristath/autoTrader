@@ -286,6 +286,53 @@ def get_stock_country_and_exchange(
         return None, None
 
 
+def get_product_type(
+    symbol: str, yahoo_symbol: Optional[str] = None, name: Optional[str] = None
+):
+    """Get product type (EQUITY, ETF, ETC, MUTUALFUND) from Yahoo Finance.
+
+    Uses Yahoo Finance quoteType field with heuristic detection for ETCs.
+    Yahoo Finance classification limitations:
+    - EQUITY: Reliable for stocks
+    - ETF: Reliable for most ETFs
+    - MUTUALFUND: Can be UCITS ETFs, ETCs, or actual mutual funds
+    - Some products return minimal/no data
+
+    Args:
+        symbol: Stock symbol (Tradernet format)
+        yahoo_symbol: Optional explicit Yahoo symbol override
+        name: Optional product name for heuristic ETC detection
+
+    Returns:
+        ProductType enum value (EQUITY, ETF, ETC, MUTUALFUND, or UNKNOWN)
+    """
+    # Import here to avoid circular dependency
+    from app.domain.value_objects.product_type import ProductType
+
+    yf_symbol = get_yahoo_symbol(symbol, yahoo_symbol)
+
+    try:
+        with _led_api_call():
+            ticker = yf.Ticker(yf_symbol)
+            info = ticker.info
+
+            quote_type = info.get("quoteType", "")
+
+            # Get name from Yahoo if not provided
+            if not name:
+                name = info.get("longName", info.get("shortName", ""))
+
+            # Use ProductType's detection logic
+            return ProductType.from_yahoo_quote_type(quote_type, name or "")
+
+    except Exception as e:
+        logger.error(f"Failed to get product type for {symbol}: {e}")
+        # Import here to avoid circular dependency
+        from app.domain.value_objects.product_type import ProductType
+
+        return ProductType.UNKNOWN
+
+
 def get_batch_quotes(symbol_yahoo_map: dict[str, Optional[str]]) -> dict[str, float]:
     """
     Get current prices for multiple symbols efficiently.
