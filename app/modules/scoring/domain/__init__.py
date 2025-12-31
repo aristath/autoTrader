@@ -1,5 +1,5 @@
 """
-Scoring Domain - Stock and portfolio scoring calculations.
+Scoring Domain - Security and portfolio scoring calculations.
 
 8-Group Buy Scoring Structure (configurable weights):
 - Long-term Performance (20%): CAGR, Sortino, Sharpe
@@ -107,7 +107,7 @@ from app.modules.scoring.domain.scorers import (
     score_rsi,
 )
 
-# Stock scorer (orchestrator)
+# Security scorer (orchestrator)
 from app.modules.scoring.domain.security_scorer import (
     calculate_security_score,
     calculate_security_score_from_prefetched,
@@ -134,10 +134,6 @@ from app.modules.scoring.domain.windfall import (
     should_take_profits,
 )
 
-# Backward compatibility aliases (after all imports)
-CalculatedStockScore = CalculatedSecurityScore
-PrefetchedStockData = PrefetchedSecurityData
-
 # === 8-GROUP SCORING MODULES ===
 
 
@@ -152,9 +148,6 @@ __all__ = [
     "PrefetchedSecurityData",
     "TechnicalData",
     "SellScore",
-    # Backward compatibility
-    "CalculatedStockScore",
-    "PrefetchedStockData",
     # Main scoring functions
     "calculate_security_score",
     "calculate_security_score_from_prefetched",

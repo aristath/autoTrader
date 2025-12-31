@@ -39,10 +39,10 @@ PORTFOLIO MANAGEMENT JOBS:
    - Automatic reinvestment of dividend payments
 
 6. universe_pruning - Monthly on 1st at configured hour
-   - Removes low-quality stocks from universe
+   - Removes low-quality securities from universe
 
 7. security_discovery - Monthly on 15th at 2:00
-   - Discovers and adds high-quality stocks
+   - Discovers and adds high-quality securities
    - Checks security_discovery_enabled setting internally
 
 SYSTEM JOBS:
@@ -138,7 +138,7 @@ async def init_scheduler() -> AsyncIOScheduler:
     from app.modules.dividends.jobs.dividend_reinvestment import auto_reinvest_dividends
     from app.modules.planning.jobs.planner_batch import process_planner_batch_job
     from app.modules.system.jobs.sync_cycle import run_sync_cycle
-    from app.modules.universe.jobs.security_discovery import discover_new_stocks
+    from app.modules.universe.jobs.security_discovery import discover_new_securities
 
     # Get settings
     job_settings = await _get_job_settings()
@@ -271,7 +271,7 @@ async def init_scheduler() -> AsyncIOScheduler:
     # JOB RELATIONSHIPS:
     # - Runs after daily_maintenance (30 minutes later)
     # - Uses holistic planner to find best opportunities for low-yield dividends
-    # - High-yield dividends (>=3%) are reinvested in same stock
+    # - High-yield dividends (>=3%) are reinvested in same security
     scheduler.add_job(
         auto_reinvest_dividends,
         CronTrigger(hour=maintenance_hour, minute=30),
@@ -281,7 +281,7 @@ async def init_scheduler() -> AsyncIOScheduler:
     )
 
     # Job 6: Universe Pruning - monthly on first day of month
-    # Handles: automatic removal of low-quality stocks
+    # Handles: automatic removal of low-quality securities
     scheduler.add_job(
         prune_universe,
         CronTrigger(day=1, hour=maintenance_hour, minute=0),
@@ -290,14 +290,14 @@ async def init_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
     )
 
-    # Job 7: Stock Discovery - monthly on 15th of month at 2am
-    # Handles: automatic discovery and addition of high-quality stocks
-    # Note: discover_new_stocks checks security_discovery_enabled internally
+    # Job 7: Security Discovery - monthly on 15th of month at 2am
+    # Handles: automatic discovery and addition of high-quality securities
+    # Note: discover_new_securities checks security_discovery_enabled internally
     scheduler.add_job(
-        discover_new_stocks,
+        discover_new_securities,
         CronTrigger(day=15, hour=2, minute=0),
         id="security_discovery",
-        name="Stock Discovery",
+        name="Security Discovery",
         replace_existing=True,
     )
 

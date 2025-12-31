@@ -831,37 +831,37 @@ async def refresh_security_data(
     isin: str,
     security_repo: SecurityRepositoryDep,
 ):
-    """Trigger full data refresh for a stock.
+    """Trigger full data refresh for a security.
 
     Runs the complete data pipeline:
     1. Sync historical prices from Yahoo
     2. Calculate technical metrics (RSI, EMA, CAGR, etc.)
-    3. Refresh stock score
+    3. Refresh security score
 
-    This bypasses the last_synced check and immediately processes the stock.
+    This bypasses the last_synced check and immediately processes the security.
 
     Args:
-        isin: Stock ISIN (e.g., US0378331005)
+        isin: Security ISIN (e.g., US0378331005)
     """
-    from app.jobs.securities_data_sync import refresh_single_stock
+    from app.jobs.securities_data_sync import refresh_single_security
 
     # Validate ISIN format
     isin = isin.strip().upper()
     if not is_isin(isin):
         raise HTTPException(status_code=400, detail="Invalid ISIN format")
 
-    stock = await security_repo.get_by_isin(isin)
-    if not stock:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    security = await security_repo.get_by_isin(isin)
+    if not security:
+        raise HTTPException(status_code=404, detail="Security not found")
 
-    symbol = stock.symbol
+    symbol = security.symbol
 
     # Invalidate recommendation cache so new data affects recommendations
     recommendation_cache = get_recommendation_cache()
     await recommendation_cache.invalidate_all_recommendations()
 
     # Run the full pipeline
-    result = await refresh_single_stock(symbol)
+    result = await refresh_single_security(symbol)
 
     if result.get("status") == "success":
         return {
