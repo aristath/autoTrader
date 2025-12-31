@@ -1,15 +1,11 @@
 """Database infrastructure.
 
-DEPRECATED: This module is kept for backward compatibility during migration.
-Import from app.core.database instead.
-
 This module provides:
 - DatabaseManager: Centralized database access
 - QueryQueue: Serialized write operations
 - Schemas: Database table definitions
 """
 
-# Backward compatibility re-exports (temporary - will be removed in Phase 5)
 from app.core.database.manager import (
     Database,
     DatabaseManager,
