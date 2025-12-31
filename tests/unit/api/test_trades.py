@@ -10,6 +10,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.domain.models import Trade
+from app.domain.value_objects.product_type import ProductType
 from app.domain.value_objects.trade_side import TradeSide
 
 
@@ -82,6 +83,7 @@ class TestGetTrades:
         mock_stock = Security(
             symbol="AAPL.US",
             name="Apple Inc.",
+            product_type=ProductType.EQUITY,
             yahoo_symbol="AAPL",
             industry="Technology",
             country="United States",
