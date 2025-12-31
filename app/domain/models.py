@@ -209,7 +209,7 @@ class Recommendation:
     reason: str  # Why this trade is recommended
     isin: Optional[str] = None  # ISIN for broker-agnostic identification
     country: Optional[str] = None
-    currency: Currency = Currency.EUR  # Stock's native currency
+    currency: Currency = Currency.EUR  # Security's native currency
     status: RecommendationStatus = RecommendationStatus.PENDING
     industry: Optional[str] = None
     priority: Optional[float] = None
@@ -304,7 +304,7 @@ class DividendRecord:
 
     Tracks dividend payments and whether they were successfully reinvested.
     If reinvestment wasn't possible (dividend too small), a pending_bonus
-    is calculated which the optimizer uses to boost the stock's expected return.
+    is calculated which the optimizer uses to boost the security's expected return.
     """
 
     symbol: str
