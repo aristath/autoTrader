@@ -4,8 +4,8 @@ from datetime import datetime
 
 import pytest
 
-from app.domain.models import Position, Stock, Trade
-from app.repositories import PositionRepository, StockRepository
+from app.domain.models import Position, Security, Trade
+from app.repositories import PositionRepository, SecurityRepository
 from app.repositories.base import transaction_context
 
 
@@ -32,11 +32,11 @@ async def test_trade_creation_and_retrieval(db, trade_repo):
 
 
 @pytest.mark.asyncio
-async def test_transaction_commit_on_success(db, stock_repo, trade_repo):
+async def test_transaction_commit_on_success(db, security_repo, trade_repo):
     """Test that transactions commit successfully when no errors occur."""
     # Create stocks first (required for trade history JOIN)
     for symbol in ["AAPL", "MSFT"]:
-        stock = Stock(
+        stock = Security(
             symbol=symbol,
             yahoo_symbol=symbol,
             name=f"{symbol} Inc.",
@@ -46,7 +46,7 @@ async def test_transaction_commit_on_success(db, stock_repo, trade_repo):
             min_lot=1,
             active=True,
         )
-        await stock_repo.create(stock)
+        await security_repo.create(stock)
 
     trade1 = Trade(
         symbol="AAPL",
@@ -81,10 +81,10 @@ async def test_transaction_commit_on_success(db, stock_repo, trade_repo):
 @pytest.mark.asyncio
 async def test_multiple_repository_operations_in_transaction(db):
     """Test multiple repository operations within a single transaction."""
-    stock_repo = StockRepository(db=db)
+    security_repo = SecurityRepository(db=db)
     position_repo = PositionRepository(db=db)
 
-    stock = Stock(
+    stock = Security(
         symbol="AAPL",
         yahoo_symbol="AAPL",
         name="Apple Inc.",
@@ -107,11 +107,11 @@ async def test_multiple_repository_operations_in_transaction(db):
     )
 
     async with transaction_context(db):
-        await stock_repo.create(stock)
+        await security_repo.create(stock)
         await position_repo.upsert(position)
 
     # Both should be committed
-    retrieved_stock = await stock_repo.get_by_symbol("AAPL")
+    retrieved_stock = await security_repo.get_by_symbol("AAPL")
     retrieved_position = await position_repo.get_by_symbol("AAPL")
 
     assert retrieved_stock is not None
@@ -121,11 +121,11 @@ async def test_multiple_repository_operations_in_transaction(db):
 
 
 @pytest.mark.asyncio
-async def test_auto_commit_behavior(db, stock_repo, trade_repo):
+async def test_auto_commit_behavior(db, security_repo, trade_repo):
     """Test that auto_commit=True commits immediately."""
     # Create stocks first (required for trade history JOIN)
     for symbol in ["AAPL", "MSFT"]:
-        stock = Stock(
+        stock = Security(
             symbol=symbol,
             yahoo_symbol=symbol,
             name=f"{symbol} Inc.",
@@ -135,7 +135,7 @@ async def test_auto_commit_behavior(db, stock_repo, trade_repo):
             min_lot=1,
             active=True,
         )
-        await stock_repo.create(stock)
+        await security_repo.create(stock)
 
     trade = Trade(
         symbol="AAPL",

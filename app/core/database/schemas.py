@@ -26,12 +26,13 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 CONFIG_SCHEMA = """
--- Stock universe
-CREATE TABLE IF NOT EXISTS stocks (
+-- Security universe (stocks, ETFs, ETCs, mutual funds)
+CREATE TABLE IF NOT EXISTS securities (
     symbol TEXT PRIMARY KEY,
     yahoo_symbol TEXT,
     isin TEXT,                   -- International Securities Identification Number (12 chars)
     name TEXT NOT NULL,
+    product_type TEXT,           -- Product type: EQUITY, ETF, ETC, MUTUALFUND, UNKNOWN
     industry TEXT,
     country TEXT,                -- Country name from Yahoo Finance (e.g., "United States", "Germany")
     fullExchangeName TEXT,       -- Exchange name from Yahoo Finance (e.g., "NASDAQ", "XETR")
@@ -41,16 +42,16 @@ CREATE TABLE IF NOT EXISTS stocks (
     allow_buy INTEGER DEFAULT 1,
     allow_sell INTEGER DEFAULT 0,
     currency TEXT,
-    last_synced TEXT,           -- When stock data was last fully synced (daily pipeline)
+    last_synced TEXT,           -- When security data was last fully synced (daily pipeline)
     min_portfolio_target REAL,  -- Minimum target portfolio allocation percentage (0-20)
     max_portfolio_target REAL,  -- Maximum target portfolio allocation percentage (0-30)
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_stocks_active ON stocks(active);
--- Note: idx_stocks_country is created in migration v5 when country column is added
--- Note: idx_stocks_isin is created in migration or init_config_schema for new databases
+CREATE INDEX IF NOT EXISTS idx_securities_active ON securities(active);
+-- Note: idx_securities_country is created in migration v5 when country column is added
+-- Note: idx_securities_isin is created in migration or init_config_schema for new databases
 
 -- Allocation targets (group-based weightings)
 CREATE TABLE IF NOT EXISTS allocation_targets (
@@ -212,21 +213,23 @@ async def init_config_schema(db):
         )
 
         # Create isin index for new installs
-        await db.execute("CREATE INDEX IF NOT EXISTS idx_stocks_isin ON stocks(isin)")
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_securities_isin ON securities(isin)"
+        )
 
         # Record schema version
         await db.execute(
             "INSERT INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
             (
-                8,
+                10,
                 now,
-                "Initial config schema with portfolio_hash recommendations, last_synced, country, fullExchangeName, portfolio targets, custom grouping, and isin",
+                "Initial config schema with securities table, portfolio_hash recommendations, last_synced, country, fullExchangeName, portfolio targets, custom grouping, isin, and product_type",
             ),
         )
 
         await db.commit()
         logger.info(
-            "Config database initialized with schema version 8 (includes portfolio_hash, last_synced, portfolio targets, custom grouping, and isin)"
+            "Config database initialized with schema version 10 (securities table with product_type, portfolio_hash, last_synced, portfolio targets, custom grouping, isin)"
         )
     elif current_version == 1:
         # Migration: Add recommendations table (version 1 -> 2)
@@ -337,7 +340,7 @@ async def init_config_schema(db):
         logger.info("Migrating config database to schema version 4 (last_synced)...")
 
         # Check if last_synced column exists
-        cursor = await db.execute("PRAGMA table_info(stocks)")
+        cursor = await db.execute("PRAGMA table_info(securities)")
         columns = [row[1] for row in await cursor.fetchall()]
 
         if "last_synced" not in columns:
@@ -360,7 +363,7 @@ async def init_config_schema(db):
         )
 
         # Check if country column exists
-        cursor = await db.execute("PRAGMA table_info(stocks)")
+        cursor = await db.execute("PRAGMA table_info(securities)")
         columns = [row[1] for row in await cursor.fetchall()]
 
         if "country" not in columns:
@@ -406,7 +409,7 @@ async def init_config_schema(db):
         )
 
         # Check if min_portfolio_target column exists
-        cursor = await db.execute("PRAGMA table_info(stocks)")
+        cursor = await db.execute("PRAGMA table_info(securities)")
         columns = [row[1] for row in await cursor.fetchall()]
 
         if "min_portfolio_target" not in columns:
@@ -524,6 +527,165 @@ async def init_config_schema(db):
         )
         await db.commit()
         logger.info("Config database migrated to schema version 8 (isin column)")
+        current_version = 8  # Continue to next migration
+
+    if current_version == 8:
+        # Migration: Add product_type column to stocks table (version 8 -> 9)
+        now = datetime.now().isoformat()
+        logger.info(
+            "Migrating config database to schema version 9 (product_type column)..."
+        )
+
+        # Check if product_type column exists
+        cursor = await db.execute("PRAGMA table_info(stocks)")
+        columns = [row[1] for row in await cursor.fetchall()]
+
+        if "product_type" not in columns:
+            await db.execute("ALTER TABLE stocks ADD COLUMN product_type TEXT")
+            logger.info("Added product_type column to stocks table")
+
+            # Set all inactive securities to UNKNOWN (safe default)
+            # Active securities will be set to UNKNOWN but validation will prevent trading
+            # until product_type is properly classified via backfill script
+            await db.execute(
+                "UPDATE stocks SET product_type = 'UNKNOWN' WHERE product_type IS NULL"
+            )
+
+            # Count securities that need classification
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM stocks WHERE product_type = 'UNKNOWN' AND active = 1"
+            )
+            active_unknown_count = (await cursor.fetchone())[0]
+
+            if active_unknown_count > 0:
+                logger.warning(
+                    f"{active_unknown_count} active securities have product_type=UNKNOWN. "
+                    "Run scripts/backfill_product_types.py to classify them before trading."
+                )
+            else:
+                logger.info("All active securities have product_type set")
+
+        await db.execute(
+            "INSERT INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
+            (
+                9,
+                now,
+                "Added product_type column to stocks for product classification (EQUITY, ETF, ETC, MUTUALFUND)",
+            ),
+        )
+        await db.commit()
+        logger.info(
+            "Config database migrated to schema version 9 (product_type column)"
+        )
+        current_version = 9  # Continue to next migration
+
+    if current_version == 9:
+        # Migration: Rename stocks table to securities (version 9 -> 10)
+        now = datetime.now().isoformat()
+        logger.info(
+            "Migrating config database to schema version 10 (rename stocks to securities)..."
+        )
+
+        # Check if stocks table exists (not already migrated)
+        cursor = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='stocks'"
+        )
+        if await cursor.fetchone():
+            # Begin transaction for atomic migration
+            await db.execute("BEGIN TRANSACTION")
+
+            try:
+                # Validate data before migration
+                cursor = await db.execute("SELECT COUNT(*) FROM stocks")
+                count_before = (await cursor.fetchone())[0]
+                logger.info(f"Found {count_before} securities in stocks table")
+
+                # Create securities table with new schema
+                await db.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS securities (
+                        symbol TEXT PRIMARY KEY,
+                        yahoo_symbol TEXT,
+                        isin TEXT,
+                        name TEXT NOT NULL,
+                        product_type TEXT,
+                        industry TEXT,
+                        country TEXT,
+                        fullExchangeName TEXT,
+                        priority_multiplier REAL DEFAULT 1.0,
+                        min_lot INTEGER DEFAULT 1,
+                        active INTEGER DEFAULT 1,
+                        allow_buy INTEGER DEFAULT 1,
+                        allow_sell INTEGER DEFAULT 0,
+                        currency TEXT,
+                        last_synced TEXT,
+                        min_portfolio_target REAL,
+                        max_portfolio_target REAL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """
+                )
+
+                # Copy all data from stocks to securities
+                await db.execute(
+                    """
+                    INSERT INTO securities
+                    SELECT * FROM stocks
+                    """
+                )
+
+                # Validate data after migration
+                cursor = await db.execute("SELECT COUNT(*) FROM securities")
+                count_after = (await cursor.fetchone())[0]
+
+                if count_before != count_after:
+                    raise Exception(
+                        f"Data loss detected: {count_before} rows before, "
+                        f"{count_after} rows after migration"
+                    )
+
+                logger.info(f"Successfully copied {count_after} securities")
+
+                # Create indexes on new table
+                await db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_securities_active ON securities(active)"
+                )
+                await db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_securities_country ON securities(country)"
+                )
+                await db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_securities_isin ON securities(isin)"
+                )
+
+                # Drop old table
+                await db.execute("DROP TABLE stocks")
+
+                # Commit transaction
+                await db.execute("COMMIT")
+                logger.info(
+                    "Migration v10 successful: Renamed stocks table to securities, "
+                    f"data preserved ({count_after} rows)"
+                )
+
+            except Exception as e:
+                # Rollback on any error
+                await db.execute("ROLLBACK")
+                logger.error(f"Migration v10 failed, rolled back: {e}")
+                raise
+
+        await db.execute(
+            "INSERT INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
+            (
+                10,
+                now,
+                "Renamed stocks table to securities (architectural refactoring to support multiple product types)",
+            ),
+        )
+        await db.commit()
+        logger.info(
+            "Config database migrated to schema version 10 (stocks → securities)"
+        )
 
 
 # =============================================================================

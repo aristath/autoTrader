@@ -19,10 +19,14 @@ class PortfolioContext:
     total_value: float
 
     # Additional data for portfolio scoring
-    stock_countries: Optional[Dict[str, str]] = None  # symbol -> country (individual)
-    stock_industries: Optional[Dict[str, str]] = None  # symbol -> industry (individual)
-    stock_scores: Optional[Dict[str, float]] = None  # symbol -> quality_score
-    stock_dividends: Optional[Dict[str, float]] = None  # symbol -> dividend_yield
+    security_countries: Optional[Dict[str, str]] = (
+        None  # symbol -> country (individual)
+    )
+    security_industries: Optional[Dict[str, str]] = (
+        None  # symbol -> industry (individual)
+    )
+    security_scores: Optional[Dict[str, float]] = None  # symbol -> quality_score
+    security_dividends: Optional[Dict[str, float]] = None  # symbol -> dividend_yield
 
     # Group mappings (for mapping individual countries/industries to groups)
     country_to_group: Optional[Dict[str, str]] = None  # country -> group_name
@@ -41,13 +45,13 @@ class PortfolioScore:
 
     diversification_score: float  # Country + industry balance (0-100)
     dividend_score: float  # Weighted average dividend yield score (0-100)
-    quality_score: float  # Weighted average stock quality (0-100)
+    quality_score: float  # Weighted average security quality (0-100)
     total: float  # Combined score (0-100)
 
 
 @dataclass
-class CalculatedStockScore:
-    """Complete stock score with all components."""
+class CalculatedSecurityScore:
+    """Complete security score with all components."""
 
     symbol: str
     total_score: float  # Final weighted score
@@ -62,7 +66,7 @@ class CalculatedStockScore:
 
 
 @dataclass
-class PrefetchedStockData:
+class PrefetchedSecurityData:
     """Pre-fetched data to avoid duplicate API calls."""
 
     daily_prices: list  # List of dicts with date, close, high, low, open, volume
@@ -96,3 +100,8 @@ class SellScore:
     suggested_sell_value: float
     profit_pct: float
     days_held: int
+
+
+# Backward compatibility aliases
+CalculatedStockScore = CalculatedSecurityScore
+PrefetchedStockData = PrefetchedSecurityData

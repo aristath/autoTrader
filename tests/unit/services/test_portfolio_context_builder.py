@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.domain.models import Stock
+from app.domain.models import Security
 from app.domain.scoring import PortfolioContext
 from app.shared.domain.value_objects.currency import Currency
 
@@ -30,7 +30,7 @@ def mock_position_repo():
 def mock_stock_repo():
     """Mock stock repository."""
     repo = AsyncMock()
-    mock_stock = Stock(
+    mock_stock = Security(
         symbol="AAPL",
         name="Apple Inc.",
         country="United States",
@@ -244,8 +244,8 @@ class TestBuildPortfolioContext:
                 mock_db_manager,
             )
 
-            assert context.stock_scores is not None
-            assert context.stock_scores["AAPL"] == 0.85
+            assert context.security_scores is not None
+            assert context.security_scores["AAPL"] == 0.85
 
     @pytest.mark.asyncio
     async def test_handles_empty_positions(
@@ -338,10 +338,10 @@ class TestBuildPortfolioContext:
                 mock_db_manager,
             )
 
-            assert context.stock_countries is not None
-            assert context.stock_countries["AAPL"] == "United States"
-            assert context.stock_industries is not None
-            assert context.stock_industries["AAPL"] == "Technology"
+            assert context.security_countries is not None
+            assert context.security_countries["AAPL"] == "United States"
+            assert context.security_industries is not None
+            assert context.security_industries["AAPL"] == "Technology"
 
     @pytest.mark.asyncio
     async def test_handles_stocks_without_country_or_industry(
@@ -353,7 +353,7 @@ class TestBuildPortfolioContext:
         )
 
         mock_stock_repo = AsyncMock()
-        mock_stock = Stock(
+        mock_stock = Security(
             symbol="UNKNOWN",
             name="Unknown Stock",
             country=None,
@@ -380,8 +380,8 @@ class TestBuildPortfolioContext:
             )
 
             # Stock without country/industry should not be in the maps
-            assert "UNKNOWN" not in context.stock_countries
-            assert "UNKNOWN" not in context.stock_industries
+            assert "UNKNOWN" not in context.security_countries
+            assert "UNKNOWN" not in context.security_industries
 
     @pytest.mark.asyncio
     async def test_handles_empty_allocation_targets(
@@ -450,4 +450,6 @@ class TestBuildPortfolioContext:
             )
 
             # Should not include score if quality_score is None
-            assert context.stock_scores is None or "AAPL" not in context.stock_scores
+            assert (
+                context.security_scores is None or "AAPL" not in context.security_scores
+            )

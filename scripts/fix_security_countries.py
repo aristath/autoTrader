@@ -12,13 +12,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.core.database.manager import get_db_manager
-from app.modules.universe.database.stock_repository import StockRepository
+from app.modules.universe.database.security_repository import SecurityRepository
 
 
 async def fix_missing_countries():
     """Fix missing country data by inferring from exchange names."""
     db_manager = get_db_manager()
-    stock_repo = StockRepository()
+    security_repo = SecurityRepository()
 
     # Exchange to country mapping (from stocks_data_sync.py)
     exchange_to_country = {
@@ -51,7 +51,7 @@ async def fix_missing_countries():
 
     # Get stocks missing country but with exchange name
     cursor = await db_manager.config.execute(
-        """SELECT symbol, fullExchangeName FROM stocks 
+        """SELECT symbol, fullExchangeName FROM securities
         WHERE active = 1 AND country IS NULL AND fullExchangeName IS NOT NULL
         ORDER BY symbol"""
     )
@@ -61,8 +61,10 @@ async def fix_missing_countries():
     for symbol, exchange in rows:
         if exchange in exchange_to_country:
             country = exchange_to_country[exchange]
-            print(f"Updating {symbol}: setting country = {country} (from exchange {exchange})")
-            await stock_repo.update(symbol, country=country)
+            print(
+                f"Updating {symbol}: setting country = {country} (from exchange {exchange})"
+            )
+            await security_repo.update(symbol, country=country)
             updated += 1
         else:
             print(f"Warning: {symbol} has exchange '{exchange}' not in mapping")
@@ -77,7 +79,7 @@ async def check_missing_data():
 
     cursor = await db_manager.config.execute(
         """SELECT symbol, name, country, industry, fullExchangeName, yahoo_symbol, currency
-        FROM stocks 
+        FROM securities
         WHERE active = 1 AND (country IS NULL OR industry IS NULL OR currency IS NULL)
         ORDER BY symbol"""
     )
@@ -117,4 +119,3 @@ async def main():
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main()))
-

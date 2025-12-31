@@ -5,9 +5,9 @@ from datetime import datetime
 
 import pytest
 
-from app.domain.models import Position, Stock, Trade
+from app.domain.models import Position, Security, Trade
 from app.infrastructure.locking import file_lock
-from app.repositories import PositionRepository, StockRepository, TradeRepository
+from app.repositories import PositionRepository, SecurityRepository, TradeRepository
 
 
 @pytest.mark.asyncio
@@ -114,9 +114,9 @@ async def test_concurrent_position_updates_with_lock(db):
 async def test_concurrent_trade_execution_atomicity(db):
     """Test that concurrent trade executions maintain atomicity."""
     # Create stocks first (required for trade history JOIN)
-    stock_repo = StockRepository(db=db)
+    security_repo = SecurityRepository(db=db)
     for symbol in ["AAPL", "MSFT", "GOOGL"]:
-        stock = Stock(
+        stock = Security(
             symbol=symbol,
             yahoo_symbol=symbol,
             name=f"{symbol} Inc.",
@@ -126,7 +126,7 @@ async def test_concurrent_trade_execution_atomicity(db):
             min_lot=1,
             active=True,
         )
-        await stock_repo.create(stock)
+        await security_repo.create(stock)
 
     trade_repo = TradeRepository(db=db)
     trades_created = []

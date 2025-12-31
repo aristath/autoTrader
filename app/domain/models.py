@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 from app.domain.exceptions import ValidationError
+from app.domain.value_objects.product_type import ProductType
 from app.domain.value_objects.recommendation_status import RecommendationStatus
 from app.domain.value_objects.trade_side import TradeSide
 
@@ -17,15 +18,24 @@ from app.modules.allocation.domain.models import AllocationTarget
 
 # CashFlow moved to modules/cash_flows/domain/models.py
 from app.modules.cash_flows.domain.models import CashFlow
+
+# Position, PortfolioSnapshot, DailyPrice, MonthlyPrice moved to modules/portfolio/domain/models.py
+from app.modules.portfolio.domain.models import (
+    DailyPrice,
+    MonthlyPrice,
+    PortfolioSnapshot,
+    Position,
+)
 from app.shared.domain.value_objects.currency import Currency
 
 
 @dataclass
-class Stock:
-    """Stock in the investment universe."""
+class Security:
+    """Security in the investment universe (stocks, ETFs, ETCs, mutual funds)."""
 
     symbol: str
     name: str
+    product_type: Optional[ProductType] = None  # EQUITY, ETF, ETC, MUTUALFUND, UNKNOWN
     country: Optional[str] = None
     fullExchangeName: Optional[str] = None
     yahoo_symbol: Optional[str] = None
@@ -37,7 +47,7 @@ class Stock:
     allow_buy: bool = True
     allow_sell: bool = False
     currency: Optional[Currency] = None
-    last_synced: Optional[str] = None  # ISO datetime when stock data was last synced
+    last_synced: Optional[str] = None  # ISO datetime when security data was last synced
     min_portfolio_target: Optional[float] = (
         None  # Minimum target portfolio allocation percentage (0-20)
     )
@@ -46,7 +56,7 @@ class Stock:
     )
 
     def __post_init__(self):
-        """Validate stock data."""
+        """Validate security data."""
         if not self.symbol or not self.symbol.strip():
             raise ValidationError("Symbol cannot be empty")
 
@@ -80,9 +90,21 @@ class Stock:
                     "max_portfolio_target must be >= min_portfolio_target"
                 )
 
+        # Validate product_type for active securities
+        if self.active:
+            if self.product_type is None:
+                raise ValidationError(
+                    f"Active security {self.symbol} must have product_type set. "
+                    "Run backfill script or set manually via API."
+                )
+            if self.product_type == ProductType.UNKNOWN:
+                raise ValidationError(
+                    f"Active security {self.symbol} cannot have product_type=UNKNOWN. "
+                    "Product type must be classified before activating security."
+                )
+
 
 # Position moved to modules/portfolio/domain/models.py
-from app.modules.portfolio.domain.models import Position
 
 
 @dataclass
@@ -118,8 +140,8 @@ class Trade:
 
 
 @dataclass
-class StockScore:
-    """Calculated score for a stock."""
+class SecurityScore:
+    """Calculated score for a security (stock, ETF, ETC, mutual fund)."""
 
     symbol: str
     isin: Optional[str] = None  # ISIN for broker-agnostic identification
@@ -157,11 +179,6 @@ class StockScore:
 
 
 # PortfolioSnapshot, DailyPrice, MonthlyPrice moved to modules/portfolio/domain/models.py
-from app.modules.portfolio.domain.models import (
-    DailyPrice,
-    MonthlyPrice,
-    PortfolioSnapshot,
-)
 
 # Allocation and Portfolio Models
 # Moved from app/services/allocator.py
@@ -205,7 +222,7 @@ class Recommendation:
     reason: str  # Why this trade is recommended
     isin: Optional[str] = None  # ISIN for broker-agnostic identification
     country: Optional[str] = None
-    currency: Currency = Currency.EUR  # Stock's native currency
+    currency: Currency = Currency.EUR  # Security's native currency
     status: RecommendationStatus = RecommendationStatus.PENDING
     industry: Optional[str] = None
     priority: Optional[float] = None
@@ -252,13 +269,13 @@ class Recommendation:
 
 
 @dataclass
-class StockPriority:
-    """Priority score for a stock candidate."""
+class SecurityPriority:
+    """Priority score for a security candidate (stock, ETF, ETC, mutual fund)."""
 
     symbol: str
     name: str
     industry: str
-    stock_score: float
+    security_score: float  # Overall quality score for the security
     volatility: float  # Raw volatility (0.0-1.0)
     multiplier: float  # Manual priority multiplier
     min_lot: int  # Minimum lot size for trading
@@ -300,7 +317,7 @@ class DividendRecord:
 
     Tracks dividend payments and whether they were successfully reinvested.
     If reinvestment wasn't possible (dividend too small), a pending_bonus
-    is calculated which the optimizer uses to boost the stock's expected return.
+    is calculated which the optimizer uses to boost the security's expected return.
     """
 
     symbol: str
@@ -336,10 +353,10 @@ class DividendRecord:
 
 # Export all models including re-exported CashFlow
 __all__ = [
-    "Stock",
+    "Security",
     "Position",
     "Trade",
-    "StockScore",
+    "SecurityScore",
     "AllocationTarget",
     "CashFlow",  # Re-exported from modules/cash_flows/domain/models.py
     "PortfolioSnapshot",
@@ -348,7 +365,7 @@ __all__ = [
     "AllocationStatus",
     "PortfolioSummary",
     "Recommendation",
-    "StockPriority",
+    "SecurityPriority",
     "MultiStepRecommendation",
     "DividendRecord",
 ]

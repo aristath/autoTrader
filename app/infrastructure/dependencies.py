@@ -12,8 +12,8 @@ from app.core.database.manager import DatabaseManager, get_db_manager
 from app.domain.repositories.protocols import (
     IAllocationRepository,
     IPositionRepository,
+    ISecurityRepository,
     ISettingsRepository,
-    IStockRepository,
     ITradeRepository,
 )
 from app.domain.services.exchange_rate_service import ExchangeRateService
@@ -35,9 +35,9 @@ from app.modules.rebalancing.services.rebalancing_service import RebalancingServ
 from app.modules.scoring.services.scoring_service import ScoringService
 from app.modules.trading.services.trade_execution_service import TradeExecutionService
 from app.modules.trading.services.trade_safety_service import TradeSafetyService
-from app.modules.universe.database.stock_repository import StockRepository
+from app.modules.universe.database.security_repository import SecurityRepository
 from app.modules.universe.domain.ticker_content_service import TickerContentService
-from app.modules.universe.services.stock_setup_service import StockSetupService
+from app.modules.universe.services.security_setup_service import SecuritySetupService
 from app.repositories.calculations import CalculationsRepository
 from app.repositories.grouping import GroupingRepository
 from app.repositories.recommendation import RecommendationRepository
@@ -49,9 +49,9 @@ from app.shared.services import CurrencyExchangeService
 # Repository Dependencies
 
 
-def get_stock_repository() -> StockRepository:
-    """Get StockRepository instance."""
-    return StockRepository()
+def get_security_repository() -> SecurityRepository:
+    """Get SecurityRepository instance."""
+    return SecurityRepository()
 
 
 def get_position_repository() -> IPositionRepository:
@@ -124,7 +124,7 @@ def get_display_state_manager() -> DisplayStateManager:
 
 
 # Type aliases for use in function signatures
-StockRepositoryDep = Annotated[IStockRepository, Depends(get_stock_repository)]
+SecurityRepositoryDep = Annotated[ISecurityRepository, Depends(get_security_repository)]
 PositionRepositoryDep = Annotated[IPositionRepository, Depends(get_position_repository)]
 TradeRepositoryDep = Annotated[ITradeRepository, Depends(get_trade_repository)]
 ScoreRepositoryDep = Annotated[ScoreRepository, Depends(get_score_repository)]
@@ -159,25 +159,25 @@ def get_portfolio_service(
     portfolio_repo: PortfolioRepositoryDep,
     position_repo: PositionRepositoryDep,
     allocation_repo: AllocationRepositoryDep,
-    stock_repo: StockRepositoryDep,
+    security_repo: SecurityRepositoryDep,
 ) -> PortfolioService:
     """Get PortfolioService instance."""
     return PortfolioService(
         portfolio_repo=portfolio_repo,
         position_repo=position_repo,
         allocation_repo=allocation_repo,
-        stock_repo=stock_repo,
+        security_repo=security_repo,
     )
 
 
 def get_scoring_service(
-    stock_repo: StockRepositoryDep,
+    security_repo: SecurityRepositoryDep,
     score_repo: ScoreRepositoryDep,
     db_manager: DatabaseManagerDep,
 ) -> ScoringService:
     """Get ScoringService instance."""
     return ScoringService(
-        stock_repo=stock_repo,
+        security_repo=security_repo,
         score_repo=score_repo,
         db_manager=db_manager,
     )
@@ -200,7 +200,7 @@ def get_exchange_rate_service(
 def get_ticker_content_service(
     portfolio_repo: PortfolioRepositoryDep,
     position_repo: PositionRepositoryDep,
-    stock_repo: StockRepositoryDep,
+    security_repo: SecurityRepositoryDep,
     settings_repo: SettingsRepositoryDep,
     allocation_repo: AllocationRepositoryDep,
     tradernet_client: TradernetClientDep,
@@ -209,7 +209,7 @@ def get_ticker_content_service(
     return TickerContentService(
         portfolio_repo=portfolio_repo,
         position_repo=position_repo,
-        stock_repo=stock_repo,
+        security_repo=security_repo,
         settings_repo=settings_repo,
         allocation_repo=allocation_repo,
         tradernet_client=tradernet_client,
@@ -224,7 +224,7 @@ def get_currency_exchange_service_dep(
 
 
 def get_rebalancing_service(
-    stock_repo: StockRepositoryDep,
+    security_repo: SecurityRepositoryDep,
     position_repo: PositionRepositoryDep,
     allocation_repo: AllocationRepositoryDep,
     portfolio_repo: PortfolioRepositoryDep,
@@ -239,7 +239,7 @@ def get_rebalancing_service(
 ) -> RebalancingService:
     """Get RebalancingService instance."""
     return RebalancingService(
-        stock_repo=stock_repo,
+        security_repo=security_repo,
         position_repo=position_repo,
         allocation_repo=allocation_repo,
         portfolio_repo=portfolio_repo,
@@ -265,11 +265,11 @@ def get_trade_execution_service(
     settings_repo: SettingsRepositoryDep,
 ) -> TradeExecutionService:
     """Get TradeExecutionService instance."""
-    stock_repo = get_stock_repository()
+    security_repo = get_security_repository()
     return TradeExecutionService(
         trade_repo=trade_repo,
         position_repo=position_repo,
-        stock_repo=stock_repo,
+        security_repo=security_repo,
         tradernet_client=tradernet_client,
         currency_exchange_service=currency_exchange_service,
         exchange_rate_service=exchange_rate_service,
@@ -280,13 +280,13 @@ def get_trade_execution_service(
 def get_trade_safety_service(
     trade_repo: TradeRepositoryDep,
     position_repo: PositionRepositoryDep,
-    stock_repo: StockRepositoryDep,
+    security_repo: SecurityRepositoryDep,
 ) -> TradeSafetyService:
     """Get TradeSafetyService instance."""
     return TradeSafetyService(
         trade_repo=trade_repo,
         position_repo=position_repo,
-        stock_repo=stock_repo,
+        security_repo=security_repo,
     )
 
 
@@ -322,21 +322,23 @@ ConcentrationAlertServiceDep = Annotated[
 ]
 
 
-def get_stock_setup_service(
-    stock_repo: StockRepositoryDep,
+def get_security_setup_service(
+    security_repo: SecurityRepositoryDep,
     scoring_service: ScoringServiceDep,
     tradernet_client: TradernetClientDep,
     db_manager: DatabaseManagerDep,
-) -> StockSetupService:
-    """Get StockSetupService instance."""
-    # StockRepositoryDep is IStockRepository, but StockSetupService needs StockRepository
-    # We can safely cast since get_stock_repository() returns StockRepository
-    return StockSetupService(
-        stock_repo=stock_repo,  # type: ignore[arg-type]
+) -> SecuritySetupService:
+    """Get SecuritySetupService instance."""
+    # SecurityRepositoryDep is ISecurityRepository, but SecuritySetupService needs SecurityRepository
+    # We can safely cast since get_security_repository() returns SecurityRepository
+    return SecuritySetupService(
+        security_repo=security_repo,  # type: ignore[arg-type]
         scoring_service=scoring_service,
         tradernet_client=tradernet_client,
         db_manager=db_manager,
     )
 
 
-StockSetupServiceDep = Annotated[StockSetupService, Depends(get_stock_setup_service)]
+SecuritySetupServiceDep = Annotated[
+    SecuritySetupService, Depends(get_security_setup_service)
+]

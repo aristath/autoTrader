@@ -12,7 +12,7 @@ Autonomous portfolio management system for Arduino Uno Q. Manages retirement fun
 - [Configuration](#configuration)
 - [API Reference](#api-reference)
 - [Background Jobs](#background-jobs)
-- [Stock Scoring](#stock-scoring)
+- [Security Scoring](#stock-scoring)
 - [Trading System](#trading-system)
 - [LED Display](#led-display)
 - [Deployment](#deployment)
@@ -27,12 +27,12 @@ Autonomous portfolio management system for Arduino Uno Q. Manages retirement fun
 - **Event-Based Trading**: Executes trades only after holistic planner completes all scenario evaluations
 - **Automated Rebalancing**: Invests monthly deposits according to allocation targets
 - **Holistic Planner**: Evaluates multiple trading sequences to find optimal portfolio adjustments
-- **Stock Scoring Engine**: Multi-factor scoring (Technical 50%, Analyst 30%, Fundamental 20%)
+- **Security Scoring Engine**: Multi-factor scoring (Technical 50%, Analyst 30%, Fundamental 20%)
 - **Portfolio Optimizer**: Mean-Variance and Hierarchical Risk Parity (HRP) optimization
 - **Geographic Allocation**: Configurable country/region targets (default: EU 50%, Asia 30%, US 20%)
 - **Industry Diversification**: Configurable industry group targets
 - **Dividend Reinvestment**: Automatic reinvestment of dividend payments
-- **Universe Management**: Automatic stock discovery and pruning
+- **Universe Management**: Automatic security discovery and pruning
 - **Web Dashboard**: Real-time portfolio view with Alpine.js + Tailwind CSS
 - **LED Status Display**: At-a-glance portfolio health on Arduino Uno Q's 8x13 LED matrix
 - **Remote Access**: Secure access via Cloudflare Tunnel
@@ -290,17 +290,17 @@ Many settings are stored in the database and can be configured via the Settings 
 - `GET /api/portfolio/cash-breakdown` - Cash balance breakdown
 - `GET /api/portfolio/analytics` - Portfolio analytics and metrics
 
-### Stocks
+### Securities
 
-- `GET /api/stocks` - Stock universe with scores and priorities
-- `GET /api/stocks/{isin}` - Get single stock details by ISIN (e.g., US0378331005)
-- `POST /api/stocks` - Add new stock to universe
-- `POST /api/stocks/add-by-identifier` - Add stock by symbol or ISIN
-- `PUT /api/stocks/{isin}` - Update stock settings (ISIN required)
-- `DELETE /api/stocks/{isin}` - Remove stock from universe (ISIN required)
-- `POST /api/stocks/refresh-all` - Recalculate all stock scores
-- `POST /api/stocks/{isin}/refresh` - Refresh single stock score (ISIN required)
-- `POST /api/stocks/{isin}/refresh-data` - Refresh stock data from APIs (ISIN required)
+- `GET /api/securities` - Securities universe with scores and priorities (stocks, ETFs, ETCs)
+- `GET /api/securities/{isin}` - Get single security details by ISIN (e.g., US0378331005)
+- `POST /api/securities` - Add new security to universe
+- `POST /api/securities/add-by-identifier` - Add security by symbol or ISIN
+- `PUT /api/securities/{isin}` - Update security settings (ISIN required)
+- `DELETE /api/securities/{isin}` - Remove security from universe (ISIN required)
+- `POST /api/securities/refresh-all` - Recalculate all security scores
+- `POST /api/securities/{isin}/refresh` - Refresh single security score (ISIN required)
+- `POST /api/securities/{isin}/refresh-data` - Refresh security data from APIs (ISIN required)
 
 ### Trades
 
@@ -388,7 +388,7 @@ Many settings are stored in the database and can be configured via the Settings 
 - `POST /api/status/jobs/dividend-reinvestment` - Trigger dividend reinvestment
 - `POST /api/status/jobs/universe-pruning` - Trigger universe pruning
 - `POST /api/status/jobs/planner-batch` - Trigger planner batch job
-- `POST /api/status/jobs/stock-discovery` - Trigger stock discovery
+- `POST /api/status/jobs/security-discovery` - Trigger security discovery
 - `POST /api/status/locks/clear` - Clear stale lock files
 
 ### Health Check
@@ -463,7 +463,7 @@ Job intervals can be configured via Settings API:
 
 Use `POST /api/settings/reschedule-jobs` to apply changes.
 
-## Stock Scoring
+## Security Scoring
 
 The scoring system uses 8 groups with weighted components:
 
@@ -917,15 +917,15 @@ rm -rf /home/arduino/arduino-trader
 sudo /home/arduino/repos/autoTrader/deploy/setup.sh
 ```
 
-## Stock Universe
+## Security Universe
 
-The system manages a diversified stock universe. Default configuration includes stocks across:
+The system manages a diversified security universe. Default configuration includes stocks across:
 
 - **EU (50%)**: ASML, SAP, LVMH, Novo Nordisk, Siemens, BNP, Airbus, Sanofi
 - **Asia (30%)**: SoftBank, NTT, Toyota, Sony, Samsung, Alibaba, ICBC, WuXi
 - **US (20%)**: Apple, Microsoft, J&J, JPMorgan, Caterpillar, P&G, UnitedHealth, Visa, Home Depot
 
-Stocks can be added/removed via API or automatically via stock discovery/universe pruning jobs.
+Stocks can be added/removed via API or automatically via security discovery/universe pruning jobs.
 
 ## Tech Stack
 

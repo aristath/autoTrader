@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.domain.models import Position, Stock
+from app.domain.models import Position, Security
 from app.modules.planning.domain.holistic_planner import create_holistic_plan
 from app.modules.scoring.domain.models import PortfolioContext
 
@@ -33,18 +33,18 @@ async def test_metrics_prefetching_reduces_db_queries():
         industry_weights={"Technology": 0.5, "Finance": 0.5},
         positions={"AAPL.US": 5000, "MSFT.US": 3000, "SAP.DE": 2000},
         total_value=10000,
-        stock_countries={
+        security_countries={
             "AAPL.US": "United States",
             "MSFT.US": "United States",
             "SAP.DE": "Germany",
         },
-        stock_industries={
+        security_industries={
             "AAPL.US": "Technology",
             "MSFT.US": "Technology",
             "SAP.DE": "Technology",
         },
-        stock_scores={"AAPL.US": 0.8, "MSFT.US": 0.7, "SAP.DE": 0.6},
-        stock_dividends={"AAPL.US": 0.015, "MSFT.US": 0.01, "SAP.DE": 0.02},
+        security_scores={"AAPL.US": 0.8, "MSFT.US": 0.7, "SAP.DE": 0.6},
+        security_dividends={"AAPL.US": 0.015, "MSFT.US": 0.01, "SAP.DE": 0.02},
     )
 
     positions = [
@@ -75,7 +75,7 @@ async def test_metrics_prefetching_reduces_db_queries():
     ]
 
     stocks = [
-        Stock(
+        Security(
             symbol="AAPL.US",
             name="Apple Inc",
             country="United States",
@@ -84,7 +84,7 @@ async def test_metrics_prefetching_reduces_db_queries():
             allow_sell=True,
             min_lot=1,
         ),
-        Stock(
+        Security(
             symbol="MSFT.US",
             name="Microsoft Corp",
             country="United States",
@@ -93,7 +93,7 @@ async def test_metrics_prefetching_reduces_db_queries():
             allow_sell=True,
             min_lot=1,
         ),
-        Stock(
+        Security(
             symbol="SAP.DE",
             name="SAP SE",
             country="Germany",
@@ -162,10 +162,10 @@ async def test_parallel_evaluation_improves_performance():
         industry_weights={"Technology": 1.0},
         positions={"AAPL.US": 10000},
         total_value=10000,
-        stock_countries={"AAPL.US": "United States"},
-        stock_industries={"AAPL.US": "Technology"},
-        stock_scores={"AAPL.US": 0.8},
-        stock_dividends={"AAPL.US": 0.015},
+        security_countries={"AAPL.US": "United States"},
+        security_industries={"AAPL.US": "Technology"},
+        security_scores={"AAPL.US": 0.8},
+        security_dividends={"AAPL.US": 0.015},
     )
 
     positions = [
@@ -180,7 +180,7 @@ async def test_parallel_evaluation_improves_performance():
     ]
 
     stocks = [
-        Stock(
+        Security(
             symbol="AAPL.US",
             name="Apple Inc",
             country="United States",

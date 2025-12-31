@@ -14,7 +14,7 @@ from app.infrastructure.external import yahoo_finance as yahoo
 from app.infrastructure.external.tradernet import get_tradernet_client
 from app.infrastructure.locking import file_lock
 from app.modules.display.services.display_service import set_led3, set_led4, set_text
-from app.modules.universe.database.stock_repository import StockRepository
+from app.modules.universe.database.security_repository import SecurityRepository
 from app.shared.domain.value_objects.currency import Currency
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ async def _calculate_cash_balance_eur(
 async def _determine_country(symbol: str, db_manager) -> Optional[str]:
     """Determine country for a symbol."""
     cursor = await db_manager.config.execute(
-        "SELECT country FROM stocks WHERE symbol = ?", (symbol,)
+        "SELECT country FROM securities WHERE symbol = ?", (symbol,)
     )
     row = await cursor.fetchone()
     if row:
@@ -248,13 +248,13 @@ async def _sync_portfolio_internal():
     try:
         # Get portfolio hash before sync for cache invalidation comparison
         from app.domain.portfolio_hash import generate_portfolio_hash
-        from app.repositories import PositionRepository, StockRepository
+        from app.repositories import PositionRepository, SecurityRepository
 
         position_repo = PositionRepository()
-        stock_repo = StockRepository()
+        security_repo = SecurityRepository()
 
         positions_before = await position_repo.get_all()
-        stocks = await stock_repo.get_all_active()
+        stocks = await security_repo.get_all_active()
         cash_balances_before_raw = client.get_cash_balances()
         cash_balances_before = (
             {b.currency: b.amount for b in cash_balances_before_raw}
@@ -363,7 +363,7 @@ async def _sync_portfolio_internal():
         )
 
         # Check and add missing portfolio stocks to universe
-        await _ensure_portfolio_stocks_in_universe(positions, client, stock_repo)
+        await _ensure_portfolio_stocks_in_universe(positions, client, security_repo)
 
         # Sync stock currencies
         await sync_stock_currencies()
@@ -431,6 +431,8 @@ async def sync_prices():
 
 async def _sync_prices_internal():
     """Internal price sync implementation."""
+    from app.repositories import SecurityRepository
+
     logger.info("Starting price sync")
 
     set_text("UPDATING STOCK PRICES...")
@@ -439,10 +441,10 @@ async def _sync_prices_internal():
 
     try:
         # Note: Direct DB access here is a known architecture violation.
-        # This could use StockRepository.get_all_active() but needs yahoo_symbol field.
+        # This could use SecurityRepository.get_all_active() but needs yahoo_symbol field.
         # See README.md Architecture section for details.
-        stock_repo = StockRepository()
-        stocks = await stock_repo.get_all_active()
+        security_repo = SecurityRepository()
+        stocks = await security_repo.get_all_active()
 
         # Extract symbols and yahoo_symbols
         rows = [
@@ -502,6 +504,8 @@ async def sync_stock_currencies():
     """
     Fetch and store trading currency for all stocks from Tradernet.
     """
+    from app.repositories import SecurityRepository
+
     logger.info("Starting stock currency sync")
 
     set_text("SYNCING STOCK CURRENCIES...")
@@ -515,9 +519,9 @@ async def sync_stock_currencies():
             return
 
     try:
-        # Note: Using StockRepository instead of direct DB access
-        stock_repo = StockRepository()
-        stocks = await stock_repo.get_all_active()
+        # Note: Using SecurityRepository instead of direct DB access
+        security_repo = SecurityRepository()
+        stocks = await security_repo.get_all_active()
         symbols = [stock.symbol for stock in stocks]
 
         if not symbols:
@@ -538,7 +542,7 @@ async def sync_stock_currencies():
                     currency = q.get("x_curr")
                     if symbol and currency:
                         await db_manager.config.execute(
-                            "UPDATE stocks SET currency = ? WHERE symbol = ?",
+                            "UPDATE securities SET currency = ? WHERE symbol = ?",
                             (currency, symbol),
                         )
                         updated += 1
@@ -551,7 +555,7 @@ async def sync_stock_currencies():
 
 
 async def _ensure_portfolio_stocks_in_universe(
-    positions: list, client, stock_repo: StockRepository
+    positions: list, client, security_repo: SecurityRepository
 ) -> None:
     """Ensure all portfolio stocks are in the universe.
 
@@ -566,7 +570,7 @@ async def _ensure_portfolio_stocks_in_universe(
     Args:
         positions: List of Position objects from Tradernet
         client: TradernetClient instance
-        stock_repo: StockRepository instance
+        security_repo: SecurityRepository instance
     """
     if not positions:
         logger.debug("No positions to check for universe membership")
@@ -581,7 +585,7 @@ async def _ensure_portfolio_stocks_in_universe(
     # Check which stocks are missing from universe
     missing_symbols = []
     for symbol in position_symbols:
-        existing = await stock_repo.get_by_symbol(symbol)
+        existing = await security_repo.get_by_symbol(symbol)
         if not existing:
             missing_symbols.append(symbol)
             logger.info(f"Portfolio stock {symbol} not in universe - will add")
@@ -598,17 +602,19 @@ async def _ensure_portfolio_stocks_in_universe(
         get_score_repository,
         get_scoring_service,
     )
-    from app.modules.universe.services.stock_setup_service import StockSetupService
+    from app.modules.universe.services.security_setup_service import (
+        SecuritySetupService,
+    )
 
     db_manager = get_db_manager()
     score_repo = get_score_repository()
     scoring_service = get_scoring_service(
-        stock_repo=stock_repo,
+        security_repo=security_repo,
         score_repo=score_repo,
         db_manager=db_manager,
     )
-    stock_setup_service = StockSetupService(
-        stock_repo=stock_repo,
+    stock_setup_service = SecuritySetupService(
+        security_repo=security_repo,
         scoring_service=scoring_service,
         tradernet_client=client,
         db_manager=db_manager,
@@ -620,7 +626,7 @@ async def _ensure_portfolio_stocks_in_universe(
     for symbol in missing_symbols:
         try:
             logger.info(f"Adding {symbol} to universe...")
-            stock = await stock_setup_service.add_stock_by_identifier(
+            stock = await stock_setup_service.add_security_by_identifier(
                 identifier=symbol,
                 min_lot=1,
                 allow_buy=True,

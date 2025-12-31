@@ -77,9 +77,9 @@ class TestGetTrades:
         mock_repo.get_history = AsyncMock(return_value=mock_trades)
 
         mock_stock_repo = AsyncMock()
-        from app.domain.models import Stock
+        from app.domain.models import Security
 
-        mock_stock = Stock(
+        mock_stock = Security(
             symbol="AAPL.US",
             name="Apple Inc.",
             yahoo_symbol="AAPL",
@@ -115,7 +115,7 @@ class TestExecuteTrade:
         with pytest.raises(HTTPException) as exc_info:
             await execute_trade(
                 trade=request,
-                stock_repo=mock_stock_repo,
+                security_repo=mock_stock_repo,
                 trade_repo=AsyncMock(),
                 position_repo=AsyncMock(),
                 safety_service=AsyncMock(),
@@ -157,7 +157,7 @@ class TestExecuteTrade:
 
             result = await execute_trade(
                 trade=request,
-                stock_repo=mock_stock_repo,
+                security_repo=mock_stock_repo,
                 trade_repo=AsyncMock(),
                 position_repo=AsyncMock(),
                 safety_service=mock_safety_service,
@@ -191,7 +191,7 @@ class TestExecuteTrade:
             with pytest.raises(HTTPException) as exc_info:
                 await execute_trade(
                     trade=request,
-                    stock_repo=mock_stock_repo,
+                    security_repo=mock_stock_repo,
                     trade_repo=AsyncMock(),
                     position_repo=AsyncMock(),
                     safety_service=mock_safety_service,

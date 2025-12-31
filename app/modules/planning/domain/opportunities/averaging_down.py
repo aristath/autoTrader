@@ -5,7 +5,7 @@ Identifies quality stocks that are down and present averaging down opportunities
 
 from typing import Dict, List, Optional
 
-from app.domain.models import Stock
+from app.domain.models import Security
 from app.domain.services.exchange_rate_service import ExchangeRateService
 from app.domain.value_objects.trade_side import TradeSide
 from app.modules.planning.domain.holistic_planner import ActionCandidate
@@ -14,7 +14,7 @@ from app.modules.trading.domain.trade_sizing_service import TradeSizingService
 
 
 async def identify_averaging_down_opportunities(
-    stocks: List[Stock],
+    stocks: List[Security],
     portfolio_context: PortfolioContext,
     batch_prices: Dict[str, float],
     base_trade_amount: float,
@@ -46,8 +46,8 @@ async def identify_averaging_down_opportunities(
 
         # Get quality score
         quality_score = (
-            portfolio_context.stock_scores.get(stock.symbol, 0.5)
-            if portfolio_context.stock_scores
+            portfolio_context.security_scores.get(stock.symbol, 0.5)
+            if portfolio_context.security_scores
             else 0.5
         )
         if quality_score < 0.6:  # Need at least 0.6 for averaging down
