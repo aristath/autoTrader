@@ -449,11 +449,27 @@ async def _validate_trade_before_execution(
     return None, 0
 
 
-async def _execute_and_record_trade(trade, client, service) -> Optional[dict]:
+async def _execute_and_record_trade(
+    trade, client, service, security_repo
+) -> Optional[dict]:
     """Execute trade and record it if successful."""
     execution_result = await _execute_single_trade(trade, client)
     if execution_result and execution_result.get("status") == "success":
         result = execution_result["result"]
+
+        # Look up security to get bucket_id and isin
+        bucket_id = "core"
+        isin = None
+        try:
+            security = await security_repo.get_by_symbol(trade.symbol)
+            if security:
+                bucket_id = getattr(security, "bucket_id", "core")
+                isin = getattr(security, "isin", None)
+        except Exception as e:
+            logger.warning(
+                f"Failed to lookup security {trade.symbol} for bucket attribution: {e}"
+            )
+
         await service.record_trade(
             symbol=trade.symbol,
             side=trade.side,
@@ -463,6 +479,8 @@ async def _execute_and_record_trade(trade, client, service) -> Optional[dict]:
             currency=trade.currency,
             estimated_price=trade.estimated_price,
             source="tradernet",
+            isin=isin,
+            bucket_id=bucket_id,
         )
         return execution_result
     return execution_result
@@ -510,7 +528,9 @@ async def _process_single_trade(
         if validation_result:
             return validation_result, skipped
 
-        execution_result = await _execute_and_record_trade(trade, client, service)
+        execution_result = await _execute_and_record_trade(
+            trade, client, service, security_repo
+        )
         return execution_result, 0
 
     except Exception as e:
