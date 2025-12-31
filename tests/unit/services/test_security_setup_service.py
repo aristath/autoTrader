@@ -96,16 +96,16 @@ class TestSecuritySetupService:
 
         # Mock Yahoo Finance data
         with patch(
-            "app.modules.universe.services.stock_setup_service.yahoo"
+            "app.modules.universe.services.security_setup_service.yahoo"
         ) as mock_yahoo:
             mock_yahoo.get_stock_country_and_exchange.return_value = ("US", "NASDAQ")
             mock_yahoo.get_stock_industry.return_value = "Technology"
 
             with patch(
-                "app.modules.universe.services.stock_setup_service._sync_historical_for_symbol",
+                "app.modules.universe.services.security_setup_service._sync_historical_for_symbol",
                 new_callable=AsyncMock,
             ) as mock_sync:
-                result = await service.add_stock_by_identifier("AAPL.US")
+                result = await service.add_security_by_identifier("AAPL.US")
 
                 assert isinstance(result, Security)
                 assert result.symbol == "AAPL.US"
@@ -140,16 +140,16 @@ class TestSecuritySetupService:
 
         # Mock Yahoo Finance data
         with patch(
-            "app.modules.universe.services.stock_setup_service.yahoo"
+            "app.modules.universe.services.security_setup_service.yahoo"
         ) as mock_yahoo:
             mock_yahoo.get_stock_country_and_exchange.return_value = ("US", "NASDAQ")
             mock_yahoo.get_stock_industry.return_value = "Technology"
 
             with patch(
-                "app.modules.universe.services.stock_setup_service._sync_historical_for_symbol",
+                "app.modules.universe.services.security_setup_service._sync_historical_for_symbol",
                 new_callable=AsyncMock,
             ):
-                result = await service.add_stock_by_identifier("US0378331005")
+                result = await service.add_security_by_identifier("US0378331005")
 
                 assert isinstance(result, Security)
                 assert result.symbol == "AAPL.US"
@@ -176,17 +176,17 @@ class TestSecuritySetupService:
         )
         mock_stock_repo.get_by_identifier.return_value = existing_stock
 
-        with pytest.raises(ValueError, match="Stock already exists"):
-            await service.add_stock_by_identifier("AAPL.US")
+        with pytest.raises(ValueError, match="Security already exists"):
+            await service.add_security_by_identifier("AAPL.US")
 
     @pytest.mark.asyncio
     async def test_raises_error_if_identifier_empty(self, service):
         """Test that ValueError is raised for empty identifier."""
         with pytest.raises(ValueError, match="Identifier cannot be empty"):
-            await service.add_stock_by_identifier("")
+            await service.add_security_by_identifier("")
 
         with pytest.raises(ValueError, match="Identifier cannot be empty"):
-            await service.add_stock_by_identifier("   ")
+            await service.add_security_by_identifier("   ")
 
     @pytest.mark.asyncio
     async def test_raises_error_if_yahoo_format_provided(
@@ -195,8 +195,8 @@ class TestSecuritySetupService:
         """Test that ValueError is raised for Yahoo format identifiers."""
         mock_symbol_resolver.detect_type.return_value = IdentifierType.YAHOO
 
-        with pytest.raises(ValueError, match="Cannot add stock with identifier"):
-            await service.add_stock_by_identifier("AAPL")
+        with pytest.raises(ValueError, match="Cannot add security with identifier"):
+            await service.add_security_by_identifier("AAPL")
 
     @pytest.mark.asyncio
     async def test_normalizes_identifier_to_uppercase(
@@ -215,19 +215,19 @@ class TestSecuritySetupService:
         }
 
         with patch(
-            "app.modules.universe.services.stock_setup_service.yahoo"
+            "app.modules.universe.services.security_setup_service.yahoo"
         ) as mock_yahoo:
             mock_yahoo.get_stock_country_and_exchange.return_value = ("US", "NASDAQ")
             mock_yahoo.get_stock_industry.return_value = "Technology"
 
             with patch(
-                "app.modules.universe.services.stock_setup_service._sync_historical_for_symbol",
+                "app.modules.universe.services.security_setup_service._sync_historical_for_symbol",
                 new_callable=AsyncMock,
             ):
                 # Identifier should be normalized
                 mock_symbol_resolver.detect_type.assert_not_called()
 
-                result = await service.add_stock_by_identifier("aapl.us")
+                result = await service.add_security_by_identifier("aapl.us")
 
                 # Should have been called with uppercase
                 mock_symbol_resolver.detect_type.assert_called_with("AAPL.US")
@@ -250,19 +250,19 @@ class TestSecuritySetupService:
         }
 
         with patch(
-            "app.modules.universe.services.stock_setup_service.yahoo"
+            "app.modules.universe.services.security_setup_service.yahoo"
         ) as mock_yahoo:
             mock_yahoo.get_stock_country_and_exchange.return_value = ("US", "NASDAQ")
             mock_yahoo.get_stock_industry.return_value = "Technology"
 
             with patch(
-                "app.modules.universe.services.stock_setup_service._sync_historical_for_symbol",
+                "app.modules.universe.services.security_setup_service._sync_historical_for_symbol",
                 new_callable=AsyncMock,
             ) as mock_sync:
                 mock_sync.side_effect = Exception("Historical data fetch failed")
 
                 # Should still create stock
-                result = await service.add_stock_by_identifier("AAPL.US")
+                result = await service.add_security_by_identifier("AAPL.US")
 
                 assert isinstance(result, Security)
                 mock_stock_repo.create.assert_called_once()
@@ -287,17 +287,17 @@ class TestSecuritySetupService:
         )
 
         with patch(
-            "app.modules.universe.services.stock_setup_service.yahoo"
+            "app.modules.universe.services.security_setup_service.yahoo"
         ) as mock_yahoo:
             mock_yahoo.get_stock_country_and_exchange.return_value = ("US", "NASDAQ")
             mock_yahoo.get_stock_industry.return_value = "Technology"
 
             with patch(
-                "app.modules.universe.services.stock_setup_service._sync_historical_for_symbol",
+                "app.modules.universe.services.security_setup_service._sync_historical_for_symbol",
                 new_callable=AsyncMock,
             ):
                 # Should still create stock
-                result = await service.add_stock_by_identifier("AAPL.US")
+                result = await service.add_security_by_identifier("AAPL.US")
 
                 assert isinstance(result, Security)
                 mock_stock_repo.create.assert_called_once()
@@ -306,7 +306,7 @@ class TestSecuritySetupService:
     async def test_publishes_stock_added_event(
         self, service, mock_stock_repo, mock_tradernet_client
     ):
-        """Test that StockAddedEvent is published when stock is added."""
+        """Test that SecurityAddedEvent is published when stock is added."""
         mock_tradernet_client.get_quotes_raw.return_value = {
             "result": {
                 "q": [
@@ -320,16 +320,16 @@ class TestSecuritySetupService:
 
         with (
             patch(
-                "app.modules.universe.services.stock_setup_service.yahoo"
+                "app.modules.universe.services.security_setup_service.yahoo"
             ) as mock_yahoo,
             patch(
-                "app.modules.universe.services.stock_setup_service.get_event_bus"
+                "app.modules.universe.services.security_setup_service.get_event_bus"
             ) as mock_event_bus,
             patch(
-                "app.modules.universe.services.stock_setup_service.StockAddedEvent"
+                "app.modules.universe.services.security_setup_service.SecurityAddedEvent"
             ) as mock_event_class,
             patch(
-                "app.modules.universe.services.stock_setup_service._sync_historical_for_symbol",
+                "app.modules.universe.services.security_setup_service._sync_historical_for_symbol",
                 new_callable=AsyncMock,
             ),
         ):
@@ -342,7 +342,7 @@ class TestSecuritySetupService:
             mock_event = MagicMock()
             mock_event_class.return_value = mock_event
 
-            await service.add_stock_by_identifier("AAPL.US")
+            await service.add_security_by_identifier("AAPL.US")
 
             # Should publish event
             mock_bus.publish.assert_called_once()
@@ -366,17 +366,17 @@ class TestSecuritySetupService:
 
         with (
             patch(
-                "app.modules.universe.services.stock_setup_service.yahoo"
+                "app.modules.universe.services.security_setup_service.yahoo"
             ) as mock_yahoo,
             patch(
-                "app.modules.universe.services.stock_setup_service._sync_historical_for_symbol",
+                "app.modules.universe.services.security_setup_service._sync_historical_for_symbol",
                 new_callable=AsyncMock,
             ),
         ):
             mock_yahoo.get_stock_country_and_exchange.return_value = ("US", "NASDAQ")
             mock_yahoo.get_stock_industry.return_value = "Technology"
 
-            result = await service.add_stock_by_identifier("AAPL.US", min_lot=10)
+            result = await service.add_security_by_identifier("AAPL.US", min_lot=10)
 
             assert result.min_lot == 10
 
@@ -398,17 +398,17 @@ class TestSecuritySetupService:
 
         with (
             patch(
-                "app.modules.universe.services.stock_setup_service.yahoo"
+                "app.modules.universe.services.security_setup_service.yahoo"
             ) as mock_yahoo,
             patch(
-                "app.modules.universe.services.stock_setup_service._sync_historical_for_symbol",
+                "app.modules.universe.services.security_setup_service._sync_historical_for_symbol",
                 new_callable=AsyncMock,
             ),
         ):
             mock_yahoo.get_stock_country_and_exchange.return_value = ("US", "NASDAQ")
             mock_yahoo.get_stock_industry.return_value = "Technology"
 
-            result = await service.add_stock_by_identifier(
+            result = await service.add_security_by_identifier(
                 "AAPL.US", allow_buy=False, allow_sell=False
             )
 
