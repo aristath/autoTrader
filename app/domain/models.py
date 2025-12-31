@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 from app.domain.exceptions import ValidationError
+from app.domain.value_objects.product_type import ProductType
 from app.domain.value_objects.recommendation_status import RecommendationStatus
 from app.domain.value_objects.trade_side import TradeSide
 
@@ -17,6 +18,14 @@ from app.modules.allocation.domain.models import AllocationTarget
 
 # CashFlow moved to modules/cash_flows/domain/models.py
 from app.modules.cash_flows.domain.models import CashFlow
+
+# Position, PortfolioSnapshot, DailyPrice, MonthlyPrice moved to modules/portfolio/domain/models.py
+from app.modules.portfolio.domain.models import (
+    DailyPrice,
+    MonthlyPrice,
+    PortfolioSnapshot,
+    Position,
+)
 from app.shared.domain.value_objects.currency import Currency
 
 
@@ -26,6 +35,7 @@ class Stock:
 
     symbol: str
     name: str
+    product_type: Optional[ProductType] = None  # EQUITY, ETF, ETC, MUTUALFUND, UNKNOWN
     country: Optional[str] = None
     fullExchangeName: Optional[str] = None
     yahoo_symbol: Optional[str] = None
@@ -82,7 +92,6 @@ class Stock:
 
 
 # Position moved to modules/portfolio/domain/models.py
-from app.modules.portfolio.domain.models import Position
 
 
 @dataclass
@@ -157,11 +166,6 @@ class StockScore:
 
 
 # PortfolioSnapshot, DailyPrice, MonthlyPrice moved to modules/portfolio/domain/models.py
-from app.modules.portfolio.domain.models import (
-    DailyPrice,
-    MonthlyPrice,
-    PortfolioSnapshot,
-)
 
 # Allocation and Portfolio Models
 # Moved from app/services/allocator.py
