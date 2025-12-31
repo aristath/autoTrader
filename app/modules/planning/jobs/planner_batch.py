@@ -18,8 +18,8 @@ from app.modules.planning.services.portfolio_context_builder import (
 from app.repositories import (
     AllocationRepository,
     PositionRepository,
+    SecurityRepository,
     SettingsRepository,
-    StockRepository,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ async def process_planner_batch_job(
 
         db_manager = get_db_manager()
         position_repo = PositionRepository()
-        stock_repo = StockRepository()
+        security_repo = SecurityRepository()
         settings_repo = SettingsRepository()
         allocation_repo = AllocationRepository()
         tradernet_client = TradernetClient()
@@ -69,7 +69,7 @@ async def process_planner_batch_job(
 
         # Get current portfolio state
         positions = await position_repo.get_all()
-        stocks = await stock_repo.get_all_active()
+        stocks = await security_repo.get_all_active()
 
         # Fetch pending orders
         pending_orders = []
@@ -117,7 +117,7 @@ async def process_planner_batch_job(
         # Build portfolio context
         portfolio_context = await build_portfolio_context(
             position_repo=position_repo,
-            stock_repo=stock_repo,
+            security_repo=security_repo,
             allocation_repo=allocation_repo,
             db_manager=db_manager,
         )

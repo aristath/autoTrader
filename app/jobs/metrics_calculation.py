@@ -22,7 +22,6 @@ from app.modules.scoring.domain.caching import (
     get_sharpe_ratio,
 )
 from app.modules.scoring.domain.calculations import calculate_cagr
-from app.modules.universe.database.stock_repository import StockRepository
 from app.repositories.calculations import CalculationsRepository
 
 logger = logging.getLogger(__name__)
@@ -220,8 +219,10 @@ async def calculate_metrics_for_all_stocks() -> dict:
     Returns:
         Dict with statistics: {"processed": int, "total_metrics": int, "errors": int}
     """
-    stock_repo = StockRepository()
-    active_stocks = await stock_repo.get_all_active()
+    from app.modules.universe.database.security_repository import SecurityRepository
+
+    security_repo = SecurityRepository()
+    active_stocks = await security_repo.get_all_active()
 
     stats = {
         "processed": 0,

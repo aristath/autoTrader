@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.domain.models import StockScore
-from app.domain.scoring import CalculatedStockScore
+from app.domain.models import SecurityScore
+from app.modules.scoring.domain import CalculatedSecurityScore
 from app.modules.scoring.services.scoring_service import (
     ScoringService,
     _to_domain_score,
@@ -25,7 +25,7 @@ class TestToDomainScore:
 
     def test_converts_with_all_group_scores(self):
         """Test conversion when all group scores are present."""
-        calc_score = CalculatedStockScore(
+        calc_score = CalculatedSecurityScore(
             symbol="TEST",
             total_score=85.5,
             volatility=0.25,
@@ -63,7 +63,7 @@ class TestToDomainScore:
 
     def test_converts_with_only_long_term_score(self):
         """Test quality_score uses only long_term when fundamentals missing."""
-        calc_score = CalculatedStockScore(
+        calc_score = CalculatedSecurityScore(
             symbol="TEST",
             total_score=75.0,
             volatility=0.20,
@@ -84,7 +84,7 @@ class TestToDomainScore:
 
     def test_converts_with_only_fundamentals_score(self):
         """Test quality_score uses only fundamentals when long_term missing."""
-        calc_score = CalculatedStockScore(
+        calc_score = CalculatedSecurityScore(
             symbol="TEST",
             total_score=70.0,
             volatility=0.18,
@@ -105,7 +105,7 @@ class TestToDomainScore:
 
     def test_converts_with_no_group_scores(self):
         """Test conversion when group_scores is None."""
-        calc_score = CalculatedStockScore(
+        calc_score = CalculatedSecurityScore(
             symbol="TEST",
             total_score=60.0,
             volatility=0.30,
@@ -127,7 +127,7 @@ class TestToDomainScore:
 
     def test_converts_with_empty_group_scores(self):
         """Test conversion when group_scores is empty dict."""
-        calc_score = CalculatedStockScore(
+        calc_score = CalculatedSecurityScore(
             symbol="TEST",
             total_score=60.0,
             volatility=0.30,
@@ -144,7 +144,7 @@ class TestToDomainScore:
 
     def test_history_years_calculated_from_cagr(self):
         """Test history_years is set when CAGR data is present."""
-        calc_score = CalculatedStockScore(
+        calc_score = CalculatedSecurityScore(
             symbol="TEST",
             total_score=80.0,
             volatility=0.22,
@@ -162,7 +162,7 @@ class TestToDomainScore:
 
     def test_history_years_none_without_cagr(self):
         """Test history_years is None when no CAGR data."""
-        calc_score = CalculatedStockScore(
+        calc_score = CalculatedSecurityScore(
             symbol="TEST",
             total_score=70.0,
             volatility=0.25,
@@ -184,13 +184,13 @@ class TestScoringServiceInit:
 
     def test_init_sets_dependencies(self):
         """Test that all dependencies are set on initialization."""
-        stock_repo = AsyncMock()
+        security_repo = AsyncMock()
         score_repo = AsyncMock()
         db_manager = AsyncMock()
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
 
-        assert service.stock_repo == stock_repo
+        assert service.security_repo == security_repo
         assert service.score_repo == score_repo
         assert service._db_manager == db_manager
 
@@ -201,7 +201,7 @@ class TestGetPriceData:
     @pytest.mark.asyncio
     async def test_fetches_daily_and_monthly_prices(self):
         """Test that daily and monthly prices are fetched correctly."""
-        stock_repo = AsyncMock()
+        security_repo = AsyncMock()
         score_repo = AsyncMock()
         db_manager = AsyncMock()
 
@@ -246,7 +246,7 @@ class TestGetPriceData:
             [monthly_row1, monthly_row2],
         ]
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
         daily_prices, monthly_prices = await service._get_price_data("TEST", "TEST.US")
 
         # Verify database manager was called
@@ -268,7 +268,7 @@ class TestGetPriceData:
     @pytest.mark.asyncio
     async def test_handles_empty_results(self):
         """Test handling of empty database results."""
-        stock_repo = AsyncMock()
+        security_repo = AsyncMock()
         score_repo = AsyncMock()
         db_manager = AsyncMock()
 
@@ -276,7 +276,7 @@ class TestGetPriceData:
         db_manager.history.return_value = history_db
         history_db.fetchall.side_effect = [[], []]
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
         daily_prices, monthly_prices = await service._get_price_data("TEST", "TEST.US")
 
         assert daily_prices == []
@@ -289,15 +289,15 @@ class TestCalculateAndSaveScore:
     @pytest.fixture
     def mock_services(self):
         """Create mock services for testing."""
-        stock_repo = AsyncMock()
+        security_repo = AsyncMock()
         score_repo = AsyncMock()
         db_manager = AsyncMock()
-        return stock_repo, score_repo, db_manager
+        return security_repo, score_repo, db_manager
 
     @pytest.mark.asyncio
     async def test_successful_calculation_and_save(self, mock_services):
         """Test successful score calculation and database save."""
-        stock_repo, score_repo, db_manager = mock_services
+        security_repo, score_repo, db_manager = mock_services
 
         # Mock price data
         history_db = AsyncMock()
@@ -332,7 +332,7 @@ class TestCalculateAndSaveScore:
         mock_fundamentals = {"pe_ratio": 15.0, "eps": 5.0}
 
         # Mock calculate_stock_score
-        mock_calculated_score = CalculatedStockScore(
+        mock_calculated_score = CalculatedSecurityScore(
             symbol="TEST",
             total_score=85.0,
             volatility=0.22,
@@ -347,7 +347,7 @@ class TestCalculateAndSaveScore:
             },
         )
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
 
         with (
             patch(
@@ -373,14 +373,14 @@ class TestCalculateAndSaveScore:
         # Verify score was saved
         score_repo.upsert.assert_called_once()
         saved_score = score_repo.upsert.call_args[0][0]
-        assert isinstance(saved_score, StockScore)
+        assert isinstance(saved_score, SecurityScore)
         assert saved_score.symbol == "TEST"
         assert saved_score.total_score == 85.0
 
     @pytest.mark.asyncio
     async def test_uses_symbol_as_yahoo_symbol_fallback(self, mock_services):
         """Test that symbol is used when yahoo_symbol is None."""
-        stock_repo, score_repo, db_manager = mock_services
+        security_repo, score_repo, db_manager = mock_services
 
         history_db = AsyncMock()
         db_manager.history.return_value = history_db
@@ -407,7 +407,7 @@ class TestCalculateAndSaveScore:
 
         history_db.fetchall.side_effect = [daily_rows, monthly_rows]
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
 
         with (
             patch(
@@ -427,7 +427,7 @@ class TestCalculateAndSaveScore:
     @pytest.mark.asyncio
     async def test_returns_none_when_insufficient_daily_data(self, mock_services):
         """Test returns None when daily data has less than 50 days."""
-        stock_repo, score_repo, db_manager = mock_services
+        security_repo, score_repo, db_manager = mock_services
 
         history_db = AsyncMock()
         db_manager.history.return_value = history_db
@@ -454,7 +454,7 @@ class TestCalculateAndSaveScore:
 
         history_db.fetchall.side_effect = [daily_rows, monthly_rows]
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
 
         result = await service.calculate_and_save_score("TEST")
 
@@ -465,7 +465,7 @@ class TestCalculateAndSaveScore:
     @pytest.mark.asyncio
     async def test_returns_none_when_insufficient_monthly_data(self, mock_services):
         """Test returns None when monthly data has less than 12 months."""
-        stock_repo, score_repo, db_manager = mock_services
+        security_repo, score_repo, db_manager = mock_services
 
         history_db = AsyncMock()
         db_manager.history.return_value = history_db
@@ -495,7 +495,7 @@ class TestCalculateAndSaveScore:
 
         history_db.fetchall.side_effect = [daily_rows, monthly_rows]
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
 
         result = await service.calculate_and_save_score("TEST")
 
@@ -506,7 +506,7 @@ class TestCalculateAndSaveScore:
     @pytest.mark.asyncio
     async def test_returns_none_when_calculation_fails(self, mock_services):
         """Test returns None when score calculation returns None."""
-        stock_repo, score_repo, db_manager = mock_services
+        security_repo, score_repo, db_manager = mock_services
 
         history_db = AsyncMock()
         db_manager.history.return_value = history_db
@@ -535,7 +535,7 @@ class TestCalculateAndSaveScore:
 
         history_db.fetchall.side_effect = [daily_rows, monthly_rows]
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
 
         with (
             patch(
@@ -556,12 +556,12 @@ class TestCalculateAndSaveScore:
     @pytest.mark.asyncio
     async def test_handles_exception_gracefully(self, mock_services):
         """Test that exceptions are caught and logged, returning None."""
-        stock_repo, score_repo, db_manager = mock_services
+        security_repo, score_repo, db_manager = mock_services
 
         # Make database raise an exception
         db_manager.history.side_effect = Exception("Database connection failed")
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
 
         result = await service.calculate_and_save_score("TEST")
 
@@ -576,7 +576,7 @@ class TestCalculateAndSaveScore:
         - country is passed as-is (None when not provided)
         - industry defaults to "UNKNOWN" when not provided
         """
-        stock_repo, score_repo, db_manager = mock_services
+        security_repo, score_repo, db_manager = mock_services
 
         history_db = AsyncMock()
         db_manager.history.return_value = history_db
@@ -605,7 +605,7 @@ class TestCalculateAndSaveScore:
 
         history_db.fetchall.side_effect = [daily_rows, monthly_rows]
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
 
         with (
             patch(
@@ -634,15 +634,15 @@ class TestScoreAllStocks:
     @pytest.fixture
     def mock_services(self):
         """Create mock services for testing."""
-        stock_repo = AsyncMock()
+        security_repo = AsyncMock()
         score_repo = AsyncMock()
         db_manager = AsyncMock()
-        return stock_repo, score_repo, db_manager
+        return security_repo, score_repo, db_manager
 
     @pytest.mark.asyncio
     async def test_scores_all_active_stocks(self, mock_services):
         """Test that all active stocks are scored."""
-        stock_repo, score_repo, db_manager = mock_services
+        security_repo, score_repo, db_manager = mock_services
 
         # Mock active stocks
         mock_stock1 = MagicMock()
@@ -657,18 +657,18 @@ class TestScoreAllStocks:
         mock_stock2.country = "Germany"
         mock_stock2.industry = "Banks - Diversified"
 
-        stock_repo.get_all_active.return_value = [mock_stock1, mock_stock2]
+        security_repo.get_all_active.return_value = [mock_stock1, mock_stock2]
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
 
         # Mock calculate_and_save_score to return different scores
-        score1 = CalculatedStockScore(
+        score1 = CalculatedSecurityScore(
             symbol="STOCK1",
             total_score=85.0,
             volatility=0.20,
             calculated_at=datetime(2024, 1, 15, 10, 30),
         )
-        score2 = CalculatedStockScore(
+        score2 = CalculatedSecurityScore(
             symbol="STOCK2",
             total_score=90.0,
             volatility=0.18,
@@ -704,11 +704,11 @@ class TestScoreAllStocks:
     @pytest.mark.asyncio
     async def test_handles_no_active_stocks(self, mock_services):
         """Test handling when no active stocks exist."""
-        stock_repo, score_repo, db_manager = mock_services
+        security_repo, score_repo, db_manager = mock_services
 
-        stock_repo.get_all_active.return_value = []
+        security_repo.get_all_active.return_value = []
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
         service.calculate_and_save_score = AsyncMock()
 
         scores = await service.score_all_stocks()
@@ -720,7 +720,7 @@ class TestScoreAllStocks:
     @pytest.mark.asyncio
     async def test_skips_failed_calculations(self, mock_services):
         """Test that failed calculations are skipped and don't break the loop."""
-        stock_repo, score_repo, db_manager = mock_services
+        security_repo, score_repo, db_manager = mock_services
 
         # Mock active stocks
         mock_stock1 = MagicMock()
@@ -741,22 +741,22 @@ class TestScoreAllStocks:
         mock_stock3.country = "United States"
         mock_stock3.industry = "Drug Manufacturers"
 
-        stock_repo.get_all_active.return_value = [
+        security_repo.get_all_active.return_value = [
             mock_stock1,
             mock_stock2,
             mock_stock3,
         ]
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
 
         # Mock calculate_and_save_score: STOCK2 fails, others succeed
-        score1 = CalculatedStockScore(
+        score1 = CalculatedSecurityScore(
             symbol="STOCK1",
             total_score=85.0,
             volatility=0.20,
             calculated_at=datetime(2024, 1, 15, 10, 30),
         )
-        score3 = CalculatedStockScore(
+        score3 = CalculatedSecurityScore(
             symbol="STOCK3",
             total_score=88.0,
             volatility=0.22,
@@ -780,7 +780,7 @@ class TestScoreAllStocks:
     @pytest.mark.asyncio
     async def test_processes_stocks_with_none_attributes(self, mock_services):
         """Test handling stocks with None yahoo_symbol, country, or industry."""
-        stock_repo, score_repo, db_manager = mock_services
+        security_repo, score_repo, db_manager = mock_services
 
         # Mock stock with None attributes
         mock_stock = MagicMock()
@@ -789,11 +789,11 @@ class TestScoreAllStocks:
         mock_stock.country = None
         mock_stock.industry = None
 
-        stock_repo.get_all_active.return_value = [mock_stock]
+        security_repo.get_all_active.return_value = [mock_stock]
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
 
-        score = CalculatedStockScore(
+        score = CalculatedSecurityScore(
             symbol="TEST",
             total_score=75.0,
             volatility=0.25,
@@ -823,7 +823,7 @@ class TestScoringServiceEdgeCases:
     @pytest.mark.asyncio
     async def test_empty_daily_prices_list(self):
         """Test handling when daily_prices is an empty list."""
-        stock_repo = AsyncMock()
+        security_repo = AsyncMock()
         score_repo = AsyncMock()
         db_manager = AsyncMock()
 
@@ -831,7 +831,7 @@ class TestScoringServiceEdgeCases:
         db_manager.history.return_value = history_db
         history_db.fetchall.side_effect = [[], []]
 
-        service = ScoringService(stock_repo, score_repo, db_manager)
+        service = ScoringService(security_repo, score_repo, db_manager)
 
         result = await service.calculate_and_save_score("TEST")
 
@@ -840,7 +840,7 @@ class TestScoringServiceEdgeCases:
     @pytest.mark.asyncio
     async def test_score_with_zero_volatility(self):
         """Test handling score with zero volatility."""
-        calc_score = CalculatedStockScore(
+        calc_score = CalculatedSecurityScore(
             symbol="TEST",
             total_score=80.0,
             volatility=0.0,  # Zero volatility
@@ -855,7 +855,7 @@ class TestScoringServiceEdgeCases:
     @pytest.mark.asyncio
     async def test_score_with_negative_values(self):
         """Test handling score with negative group scores."""
-        calc_score = CalculatedStockScore(
+        calc_score = CalculatedSecurityScore(
             symbol="TEST",
             total_score=50.0,
             volatility=0.30,
@@ -874,7 +874,7 @@ class TestScoringServiceEdgeCases:
     @pytest.mark.asyncio
     async def test_score_with_very_high_values(self):
         """Test handling score with values above 100."""
-        calc_score = CalculatedStockScore(
+        calc_score = CalculatedSecurityScore(
             symbol="TEST",
             total_score=150.0,  # Above normal range
             volatility=0.15,

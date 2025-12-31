@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.domain.models import Stock
+from app.domain.models import Security
 from app.modules.planning.domain.opportunities.averaging_down import (
     identify_averaging_down_opportunities,
 )
@@ -20,7 +20,7 @@ class TestIdentifyAveragingDownOpportunities:
     @pytest.fixture
     def sample_stock(self):
         """Create a sample stock."""
-        return Stock(
+        return Security(
             symbol="AAPL.US",
             name="Apple Inc",
             min_lot=1,
@@ -40,7 +40,7 @@ class TestIdentifyAveragingDownOpportunities:
             total_value=10000,
             position_avg_prices={"AAPL.US": 150.0},
             current_prices={"AAPL.US": 110.0},
-            stock_scores={"AAPL.US": 0.75},
+            security_scores={"AAPL.US": 0.75},
         )
 
     @pytest.mark.asyncio
@@ -63,7 +63,7 @@ class TestIdentifyAveragingDownOpportunities:
     @pytest.mark.asyncio
     async def test_skips_stock_not_allowed_to_buy(self, portfolio_context):
         """Test skipping stocks that are not allowed to buy."""
-        stock = Stock(
+        stock = Security(
             symbol="AAPL.US",
             name="Apple Inc",
             min_lot=1,
@@ -105,7 +105,7 @@ class TestIdentifyAveragingDownOpportunities:
             positions={"AAPL.US": 5000},
             total_value=10000,
             position_avg_prices={"AAPL.US": 150.0},
-            stock_scores={"AAPL.US": 0.4},  # Low quality
+            security_scores={"AAPL.US": 0.4},  # Low quality
         )
         batch_prices = {"AAPL.US": 110.0}
 
@@ -127,7 +127,7 @@ class TestIdentifyAveragingDownOpportunities:
             positions={},  # No position
             total_value=10000,
             position_avg_prices={},
-            stock_scores={"AAPL.US": 0.8},
+            security_scores={"AAPL.US": 0.8},
         )
         batch_prices = {"AAPL.US": 110.0}
 
@@ -149,7 +149,7 @@ class TestIdentifyAveragingDownOpportunities:
             positions={"AAPL.US": 5000},
             total_value=10000,
             position_avg_prices={"AAPL.US": 150.0},
-            stock_scores={"AAPL.US": 0.8},
+            security_scores={"AAPL.US": 0.8},
         )
         batch_prices = {"AAPL.US": 140.0}  # Only 7% down
 
@@ -190,7 +190,7 @@ class TestIdentifyAveragingDownOpportunities:
             positions={"AAPL.US": 5000},
             total_value=10000,
             position_avg_prices={"AAPL.US": 150.0},
-            stock_scores={"AAPL.US": 0.8},
+            security_scores={"AAPL.US": 0.8},
         )
         batch_prices = {"AAPL.US": 100.0}  # 33% down
 

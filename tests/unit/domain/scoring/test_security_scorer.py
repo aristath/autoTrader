@@ -13,11 +13,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.modules.scoring.domain.models import (
-    CalculatedStockScore,
+    CalculatedSecurityScore,
     PortfolioContext,
     PrefetchedStockData,
 )
-from app.modules.scoring.domain.stock_scorer import (
+from app.modules.scoring.domain.security_scorer import (
     SCORE_WEIGHTS,
     calculate_stock_score,
     calculate_stock_score_from_prefetched,
@@ -57,7 +57,7 @@ class TestCalculateStockScore:
 
     @pytest.mark.asyncio
     async def test_returns_calculated_stock_score(self):
-        """Test that function returns CalculatedStockScore object."""
+        """Test that function returns CalculatedSecurityScore object."""
         # Mock all scoring group functions
         mock_result = MagicMock()
         mock_result.score = 0.7
@@ -65,37 +65,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -107,7 +107,7 @@ class TestCalculateStockScore:
                 fundamentals=MagicMock(),
             )
 
-        assert isinstance(result, CalculatedStockScore)
+        assert isinstance(result, CalculatedSecurityScore)
         assert result.symbol == "AAPL.US"
         assert isinstance(result.calculated_at, datetime)
 
@@ -120,37 +120,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -187,37 +187,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -254,37 +254,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -316,37 +316,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=create_mock_result(0.8),  # 20% weight
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=create_mock_result(0.7),  # 15% weight
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=create_mock_result(0.6),  # 15% weight
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=create_mock_result(0.5),  # 12% weight
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=create_mock_result(0.9),  # 10% weight
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=create_mock_result(0.4),  # 10% weight
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=create_mock_result(0.3),  # 10% weight
             ),
@@ -388,37 +388,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -449,37 +449,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -508,37 +508,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -565,37 +565,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -621,36 +621,36 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 mock_long_term,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -682,36 +682,36 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 mock_short_term,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -740,36 +740,36 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 mock_opportunity,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -798,37 +798,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 mock_opinion,
             ),
         ):
@@ -868,42 +868,42 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_diversification_score",
+                "app.domain.scoring.security_scorer.calculate_diversification_score",
                 return_value=mock_diversification,
             ) as mock_div,
         ):
@@ -937,37 +937,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -1002,37 +1002,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -1058,37 +1058,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -1117,37 +1117,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -1188,37 +1188,37 @@ class TestCalculateStockScore:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -1255,37 +1255,37 @@ class TestCalculateStockScoreFromPrefetched:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
@@ -1295,7 +1295,7 @@ class TestCalculateStockScoreFromPrefetched:
                 prefetched=prefetched,
             )
 
-        assert isinstance(result, CalculatedStockScore)
+        assert isinstance(result, CalculatedSecurityScore)
         assert result.symbol == "AAPL.US"
 
     @pytest.mark.asyncio
@@ -1331,37 +1331,37 @@ class TestCalculateStockScoreFromPrefetched:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ) as mock_long_term,
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ) as mock_opportunity,
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ) as mock_opinion,
@@ -1402,37 +1402,37 @@ class TestCalculateStockScoreFromPrefetched:
 
         with (
             patch(
-                "app.domain.scoring.stock_scorer.calculate_long_term_score",
+                "app.domain.scoring.security_scorer.calculate_long_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_fundamentals_score",
+                "app.domain.scoring.security_scorer.calculate_fundamentals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opportunity_score",
+                "app.domain.scoring.security_scorer.calculate_opportunity_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_dividends_score",
+                "app.domain.scoring.security_scorer.calculate_dividends_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_short_term_score",
+                "app.domain.scoring.security_scorer.calculate_short_term_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_technicals_score",
+                "app.domain.scoring.security_scorer.calculate_technicals_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
             patch(
-                "app.domain.scoring.stock_scorer.calculate_opinion_score",
+                "app.domain.scoring.security_scorer.calculate_opinion_score",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),

@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from itertools import combinations
 from typing import Dict, List, Optional, Set, Tuple
 
-from app.domain.models import Position, Stock
+from app.domain.models import Position, Security
 from app.domain.portfolio_hash import generate_portfolio_hash
 from app.domain.value_objects.trade_side import TradeSide
 from app.modules.scoring.domain.diversification import calculate_portfolio_score
@@ -142,7 +142,7 @@ def _is_trade_worthwhile(
 
 async def _compute_ineligible_symbols(
     positions: List[Position],
-    stocks_by_symbol: Dict[str, Stock],
+    stocks_by_symbol: Dict[str, Security],
     trade_repo,
     settings_repo,
 ) -> Set[str]:
@@ -199,7 +199,7 @@ async def _compute_ineligible_symbols(
 
 def _process_buy_opportunity(
     gap_info: dict,
-    stock: Optional[Stock],
+    stock: Optional[Security],
     position: Optional[Position],
     price: float,
     opportunities: dict,
@@ -251,7 +251,7 @@ def _process_buy_opportunity(
 
 def _process_sell_opportunity(
     gap_info: dict,
-    stock: Optional[Stock],
+    stock: Optional[Security],
     position: Position,
     price: float,
     opportunities: dict,
@@ -398,7 +398,7 @@ async def identify_opportunities_from_weights(
     target_weights: Dict[str, float],
     portfolio_context: PortfolioContext,
     positions: List[Position],
-    stocks: List[Stock],
+    stocks: List[Security],
     available_cash: float,
     current_prices: Dict[str, float],
     transaction_cost_fixed: float = 2.0,
@@ -507,7 +507,7 @@ async def identify_opportunities_from_weights(
 async def identify_opportunities(
     portfolio_context: PortfolioContext,
     positions: List[Position],
-    stocks: List[Stock],
+    stocks: List[Security],
     available_cash: float,
     exchange_rate_service=None,
 ) -> Dict[str, List[ActionCandidate]]:
@@ -576,8 +576,8 @@ async def identify_opportunities(
     for symbol, value in portfolio_context.positions.items():
         # Map country to group
         country = (
-            portfolio_context.stock_countries.get(symbol, "OTHER")
-            if portfolio_context.stock_countries
+            portfolio_context.security_countries.get(symbol, "OTHER")
+            if portfolio_context.security_countries
             else "OTHER"
         )
         group = country_to_group.get(country, "OTHER")
@@ -587,8 +587,8 @@ async def identify_opportunities(
 
         # Map industries to groups
         industries = (
-            portfolio_context.stock_industries.get(symbol)
-            if portfolio_context.stock_industries
+            portfolio_context.security_industries.get(symbol)
+            if portfolio_context.security_industries
             else None
         )
         if industries:
@@ -696,8 +696,8 @@ async def identify_opportunities(
         and s.symbol not in recently_bought
         and batch_prices.get(s.symbol, 0) > 0
         and (
-            portfolio_context.stock_scores.get(s.symbol, 0.5)
-            if portfolio_context.stock_scores
+            portfolio_context.security_scores.get(s.symbol, 0.5)
+            if portfolio_context.security_scores
             else 0.5
         )
         >= app_settings.min_stock_score
@@ -1094,7 +1094,7 @@ def _generate_adaptive_patterns(
     available_cash: float,
     max_steps: int,
     max_opportunities_per_category: int,
-    stocks_by_symbol: Optional[Dict[str, Stock]],
+    stocks_by_symbol: Optional[Dict[str, Security]],
 ) -> List[List[ActionCandidate]]:
     """
     Generate adaptive patterns based on portfolio gaps.
@@ -1134,8 +1134,8 @@ def _generate_adaptive_patterns(
         weight = value / portfolio_context.total_value
 
         # Map country to group and aggregate by group
-        if portfolio_context.stock_countries:
-            country = portfolio_context.stock_countries.get(symbol)
+        if portfolio_context.security_countries:
+            country = portfolio_context.security_countries.get(symbol)
             if country:
                 group = country_to_group.get(country, "OTHER")
                 current_group_country_allocations[group] = (
@@ -1143,8 +1143,8 @@ def _generate_adaptive_patterns(
                 )
 
         # Map industry to group and aggregate by group
-        if portfolio_context.stock_industries:
-            industries_str = portfolio_context.stock_industries.get(symbol)
+        if portfolio_context.security_industries:
+            industries_str = portfolio_context.security_industries.get(symbol)
             if industries_str:
                 industries = [i.strip() for i in industries_str.split(",")]
                 for industry in industries:
@@ -1353,7 +1353,7 @@ def _generate_market_regime_patterns(
 
 async def _filter_correlation_aware_sequences(
     sequences: List[List[ActionCandidate]],
-    stocks: List[Stock],
+    stocks: List[Security],
     max_steps: int,
 ) -> List[List[ActionCandidate]]:
     """
@@ -1581,7 +1581,7 @@ def _generate_constraint_relaxation_scenarios(
 def _select_diverse_opportunities(
     opportunities: List[ActionCandidate],
     max_count: int,
-    stocks_by_symbol: Optional[Dict[str, Stock]] = None,
+    stocks_by_symbol: Optional[Dict[str, Security]] = None,
     diversity_weight: float = 0.3,
 ) -> List[ActionCandidate]:
     """
@@ -1702,7 +1702,7 @@ def _generate_enhanced_combinations(
     max_steps: int = 5,
     max_combinations: int = 50,
     max_candidates: int = 12,
-    stocks_by_symbol: Optional[Dict[str, Stock]] = None,
+    stocks_by_symbol: Optional[Dict[str, Security]] = None,
 ) -> List[List[ActionCandidate]]:
     """
     Generate combinations with priority-based sampling and diversity constraints.
@@ -1952,7 +1952,7 @@ def _generate_patterns_at_depth(
     combinatorial_max_candidates: int = 12,
     enable_diverse_selection: bool = True,
     diversity_weight: float = 0.3,
-    stocks_by_symbol: Optional[Dict[str, Stock]] = None,
+    stocks_by_symbol: Optional[Dict[str, Security]] = None,
 ) -> List[List[ActionCandidate]]:
     """Generate sequence patterns capped at a specific depth."""
     sequences = []
@@ -2161,7 +2161,7 @@ async def generate_action_sequences(
     combinatorial_max_candidates: int = 12,
     enable_diverse_selection: bool = True,
     diversity_weight: float = 0.3,
-    stocks: Optional[List[Stock]] = None,
+    stocks: Optional[List[Security]] = None,
 ) -> List[List[ActionCandidate]]:
     """
     Generate candidate action sequences at all depths (1 to max_depth).
@@ -2194,7 +2194,7 @@ async def generate_action_sequences(
     all_sequences = []
 
     # Build stocks_by_symbol dict for diverse selection and adaptive patterns
-    stocks_by_symbol: Optional[Dict[str, Stock]] = None
+    stocks_by_symbol: Optional[Dict[str, Security]] = None
     if stocks:
         stocks_by_symbol = {s.symbol: s for s in stocks}
 
@@ -2261,7 +2261,7 @@ async def simulate_sequence(
     sequence: List[ActionCandidate],
     portfolio_context: PortfolioContext,
     available_cash: float,
-    stocks: List[Stock],
+    stocks: List[Security],
     price_adjustments: Optional[Dict[str, float]] = None,
 ) -> Tuple[PortfolioContext, float]:
     """
@@ -2297,8 +2297,8 @@ async def simulate_sequence(
             # Note: Currency conversion would happen here if needed
 
         new_positions = dict(current_context.positions)
-        new_geographies = dict(current_context.stock_countries or {})
-        new_industries = dict(current_context.stock_industries or {})
+        new_geographies = dict(current_context.security_countries or {})
+        new_industries = dict(current_context.security_industries or {})
 
         if action.side == TradeSide.SELL:
             # Reduce position (cash is PART of portfolio, so total doesn't change)
@@ -2340,10 +2340,10 @@ async def simulate_sequence(
             industry_weights=current_context.industry_weights,
             positions=new_positions,
             total_value=new_total,
-            stock_countries=new_geographies,
-            stock_industries=new_industries,
-            stock_scores=current_context.stock_scores,
-            stock_dividends=current_context.stock_dividends,
+            security_countries=new_geographies,
+            security_industries=new_industries,
+            security_scores=current_context.security_scores,
+            security_dividends=current_context.security_dividends,
         )
 
     return current_context, current_cash
@@ -2352,7 +2352,7 @@ async def simulate_sequence(
 async def process_planner_incremental(
     portfolio_context: PortfolioContext,
     available_cash: float,
-    stocks: List[Stock],
+    stocks: List[Security],
     positions: List[Position],
     exchange_rate_service=None,
     target_weights: Optional[Dict[str, float]] = None,
@@ -2903,7 +2903,7 @@ async def process_planner_incremental(
 async def create_holistic_plan_incremental(
     portfolio_context: PortfolioContext,
     available_cash: float,
-    stocks: List[Stock],
+    stocks: List[Security],
     positions: List[Position],
     exchange_rate_service=None,
     target_weights: Optional[Dict[str, float]] = None,
@@ -2957,7 +2957,7 @@ async def create_holistic_plan_incremental(
 async def create_holistic_plan(
     portfolio_context: PortfolioContext,
     available_cash: float,
-    stocks: List[Stock],
+    stocks: List[Security],
     positions: List[Position],
     exchange_rate_service=None,
     target_weights: Optional[Dict[str, float]] = None,

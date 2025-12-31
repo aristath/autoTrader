@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from app.domain.constants import BUY_COOLDOWN_DAYS
 from app.domain.repositories.protocols import (
     IPositionRepository,
-    IStockRepository,
+    ISecurityRepository,
     ITradeRepository,
 )
 from app.domain.value_objects.trade_side import TradeSide
@@ -28,11 +28,11 @@ class TradeSafetyService:
         self,
         trade_repo: ITradeRepository,
         position_repo: IPositionRepository,
-        stock_repo: IStockRepository,
+        security_repo: ISecurityRepository,
     ):
         self._trade_repo = trade_repo
         self._position_repo = position_repo
-        self._stock_repo = stock_repo
+        self._stock_repo = security_repo
 
     async def check_pending_orders(
         self, symbol: str, side: str, client: TradernetClient, hours: int = 2

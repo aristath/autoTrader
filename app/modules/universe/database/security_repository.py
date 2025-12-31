@@ -1,15 +1,16 @@
-"""Stock repository - CRUD operations for stocks table."""
+"""Security repository - CRUD operations for securities table."""
 
 from datetime import datetime
 from typing import List, Optional
 
 from app.core.database.manager import get_db_manager
-from app.domain.models import Stock
+from app.domain.models import Security
+from app.domain.value_objects.product_type import ProductType
 from app.repositories.base import transaction_context
 
 
-class StockRepository:
-    """Repository for stock universe operations."""
+class SecurityRepository:
+    """Repository for security universe operations."""
 
     def __init__(self, db=None):
         """Initialize repository.
@@ -29,26 +30,26 @@ class StockRepository:
         else:
             self._db = get_db_manager().config
 
-    async def get_by_symbol(self, symbol: str) -> Optional[Stock]:
-        """Get stock by symbol."""
+    async def get_by_symbol(self, symbol: str) -> Optional[Security]:
+        """Get security by symbol."""
         row = await self._db.fetchone(
-            "SELECT * FROM stocks WHERE symbol = ?", (symbol.upper(),)
+            "SELECT * FROM securities WHERE symbol = ?", (symbol.upper(),)
         )
         if not row:
             return None
-        return self._row_to_stock(row)
+        return self._row_to_security(row)
 
-    async def get_by_isin(self, isin: str) -> Optional[Stock]:
-        """Get stock by ISIN."""
+    async def get_by_isin(self, isin: str) -> Optional[Security]:
+        """Get security by ISIN."""
         row = await self._db.fetchone(
-            "SELECT * FROM stocks WHERE isin = ?", (isin.upper(),)
+            "SELECT * FROM securities WHERE isin = ?", (isin.upper(),)
         )
         if not row:
             return None
-        return self._row_to_stock(row)
+        return self._row_to_security(row)
 
-    async def get_by_identifier(self, identifier: str) -> Optional[Stock]:
-        """Get stock by symbol or ISIN.
+    async def get_by_identifier(self, identifier: str) -> Optional[Security]:
+        """Get security by symbol or ISIN.
 
         Checks if identifier looks like an ISIN (12 chars, starts with 2 letters)
         and queries accordingly.
@@ -63,52 +64,53 @@ class StockRepository:
 
         # Check if it looks like an ISIN (12 chars, country code + alphanumeric)
         if len(identifier) == 12 and identifier[:2].isalpha():
-            stock = await self.get_by_isin(identifier)
-            if stock:
-                return stock
+            sec = await self.get_by_isin(identifier)
+            if sec:
+                return sec
 
         # Try symbol lookup
         return await self.get_by_symbol(identifier)
 
-    async def get_all_active(self) -> List[Stock]:
+    async def get_all_active(self) -> List[Security]:
         """Get all active stocks."""
-        rows = await self._db.fetchall("SELECT * FROM stocks WHERE active = 1")
-        return [self._row_to_stock(row) for row in rows]
+        rows = await self._db.fetchall("SELECT * FROM securities WHERE active = 1")
+        return [self._row_to_security(row) for row in rows]
 
-    async def get_all(self) -> List[Stock]:
+    async def get_all(self) -> List[Security]:
         """Get all stocks (active and inactive)."""
-        rows = await self._db.fetchall("SELECT * FROM stocks")
-        return [self._row_to_stock(row) for row in rows]
+        rows = await self._db.fetchall("SELECT * FROM securities")
+        return [self._row_to_security(row) for row in rows]
 
-    async def create(self, stock: Stock) -> None:
-        """Create a new stock."""
+    async def create(self, security: Security) -> None:
+        """Create a new security."""
         now = datetime.now().isoformat()
         async with transaction_context(self._db) as conn:
             await conn.execute(
                 """
-                INSERT INTO stocks
-                (symbol, yahoo_symbol, isin, name, industry, country, fullExchangeName,
+                INSERT INTO securities
+                (symbol, yahoo_symbol, isin, name, product_type, industry, country, fullExchangeName,
                  priority_multiplier, min_lot, active, allow_buy, allow_sell,
                  currency, min_portfolio_target, max_portfolio_target,
                  created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    stock.symbol.upper(),
-                    stock.yahoo_symbol,
-                    stock.isin,
-                    stock.name,
-                    stock.industry,
-                    stock.country,
-                    stock.fullExchangeName,
-                    stock.priority_multiplier,
-                    stock.min_lot,
-                    1 if stock.active else 0,
-                    1 if stock.allow_buy else 0,
-                    1 if stock.allow_sell else 0,
-                    stock.currency,
-                    stock.min_portfolio_target,
-                    stock.max_portfolio_target,
+                    security.symbol.upper(),
+                    security.yahoo_symbol,
+                    security.isin,
+                    security.name,
+                    security.product_type.value if security.product_type else None,
+                    security.industry,
+                    security.country,
+                    security.fullExchangeName,
+                    security.priority_multiplier,
+                    security.min_lot,
+                    1 if security.active else 0,
+                    1 if security.allow_buy else 0,
+                    1 if security.allow_sell else 0,
+                    security.currency,
+                    security.min_portfolio_target,
+                    security.max_portfolio_target,
                     now,
                     now,
                 ),
@@ -134,9 +136,11 @@ class StockRepository:
             "allow_sell",
             "updated_at",
             "name",
+            "product_type",
             "sector",
             "industry",
             "country",
+            "fullExchangeName",
             "currency",
             "exchange",
             "market_cap",
@@ -171,7 +175,7 @@ class StockRepository:
 
         async with transaction_context(self._db) as conn:
             await conn.execute(
-                f"UPDATE stocks SET {set_clause} WHERE symbol = ?", values
+                f"UPDATE securities SET {set_clause} WHERE symbol = ?", values
             )
 
     async def delete(self, symbol: str) -> None:
@@ -198,7 +202,9 @@ class StockRepository:
         db_manager = get_db_manager()
 
         # Fetch stocks from config.db
-        stock_rows = await self._db.fetchall("SELECT * FROM stocks WHERE active = 1")
+        stock_rows = await self._db.fetchall(
+            "SELECT * FROM securities WHERE active = 1"
+        )
         stocks = {
             row["symbol"]: {key: row[key] for key in row.keys()} for row in stock_rows
         }
@@ -245,14 +251,21 @@ class StockRepository:
 
         return result
 
-    def _row_to_stock(self, row) -> Stock:
-        """Convert database row to Stock model."""
+    def _row_to_security(self, row) -> Security:
+        """Convert database row to Security model."""
         keys = row.keys()
-        return Stock(
+
+        # Extract product_type from database row
+        product_type = None
+        if "product_type" in keys and row["product_type"]:
+            product_type = ProductType.from_string(row["product_type"])
+
+        return Security(
             symbol=row["symbol"],
             yahoo_symbol=row["yahoo_symbol"],
             isin=row["isin"] if "isin" in keys else None,
             name=row["name"],
+            product_type=product_type,
             industry=row["industry"],
             country=row["country"] if "country" in keys else None,
             fullExchangeName=(

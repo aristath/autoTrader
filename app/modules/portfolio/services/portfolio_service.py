@@ -7,7 +7,7 @@ from app.domain.models import AllocationStatus, PortfolioSummary
 from app.domain.repositories.protocols import (
     IAllocationRepository,
     IPositionRepository,
-    IStockRepository,
+    ISecurityRepository,
 )
 from app.domain.services.allocation_calculator import parse_industries
 from app.modules.portfolio.database.portfolio_repository import PortfolioRepository
@@ -21,12 +21,12 @@ class PortfolioService:
         portfolio_repo: PortfolioRepository,
         position_repo: IPositionRepository,
         allocation_repo: IAllocationRepository,
-        stock_repo: IStockRepository,
+        security_repo: ISecurityRepository,
     ):
         self._portfolio_repo = portfolio_repo
         self._position_repo = position_repo
         self._allocation_repo = allocation_repo
-        self._stock_repo = stock_repo
+        self._stock_repo = security_repo
 
     def _calculate_position_value(self, pos: dict) -> float:
         """Calculate EUR value for a position."""
@@ -138,7 +138,7 @@ class PortfolioService:
         Returns complete summary with geographic and industry breakdowns.
         """
         targets = await self._allocation_repo.get_all()
-        positions = await self._position_repo.get_with_stock_info()
+        positions = await self._position_repo.get_with_security_info()
 
         country_values, industry_values, total_value = self._aggregate_position_values(
             positions

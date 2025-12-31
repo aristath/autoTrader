@@ -8,13 +8,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.core.database.manager import get_db_manager
-from app.modules.universe.database.stock_repository import StockRepository
+from app.modules.universe.database.security_repository import SecurityRepository
 
 
 async def update_missing_countries():
     """Update missing country data using exchange-to-country mapping."""
     db_manager = get_db_manager()
-    stock_repo = StockRepository()
+    security_repo = SecurityRepository()
 
     # Exchange to country mapping
     exchange_to_country = {
@@ -25,7 +25,7 @@ async def update_missing_countries():
 
     # Get stocks missing country but with exchange name
     cursor = await db_manager.config.execute(
-        """SELECT symbol, fullExchangeName FROM stocks 
+        """SELECT symbol, fullExchangeName FROM securities
         WHERE active = 1 AND country IS NULL AND fullExchangeName IS NOT NULL
         ORDER BY symbol"""
     )
@@ -35,8 +35,10 @@ async def update_missing_countries():
     for symbol, exchange in rows:
         if exchange in exchange_to_country:
             country = exchange_to_country[exchange]
-            print(f"Updating {symbol}: setting country = {country} (from exchange {exchange})")
-            await stock_repo.update(symbol, country=country)
+            print(
+                f"Updating {symbol}: setting country = {country} (from exchange {exchange})"
+            )
+            await security_repo.update(symbol, country=country)
             updated += 1
         else:
             print(f"Warning: {symbol} has exchange '{exchange}' not in mapping")
@@ -52,4 +54,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
