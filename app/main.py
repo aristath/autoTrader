@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import charts, optimizer, planner, portfolio, recommendations
+from app.api import charts, planner, portfolio, recommendations
 from app.api import settings as settings_api
 from app.api import status, stocks, trades
 from app.config import settings
@@ -24,6 +24,7 @@ from app.infrastructure.external.tradernet import get_tradernet_client
 from app.jobs.scheduler import init_scheduler, start_scheduler, stop_scheduler
 from app.modules.allocation.api import allocation
 from app.modules.cash_flows.api import cash_flows
+from app.modules.optimization.api import optimizer
 
 # Log format with correlation ID
 log_format = logging.Formatter(

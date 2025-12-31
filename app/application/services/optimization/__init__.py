@@ -1,24 +1,20 @@
-"""
-Portfolio Optimization Service.
+"""Portfolio Optimization Service.
 
-Provides portfolio-level optimization using PyPortfolioOpt with a blended
-Mean-Variance + Hierarchical Risk Parity approach.
+DEPRECATED: This module is kept for backward compatibility during migration.
+Import from app.modules.optimization.services instead.
 """
 
-from app.application.services.optimization.constraints_manager import (
+# Backward compatibility re-exports (temporary - will be removed in Phase 5)
+from app.modules.optimization.services import (
     ConstraintsManager,
-    SectorConstraint,
-    WeightBounds,
-)
-from app.application.services.optimization.expected_returns import (
     ExpectedReturnsCalculator,
-)
-from app.application.services.optimization.portfolio_optimizer import (
     OptimizationResult,
     PortfolioOptimizer,
+    RiskModelBuilder,
+    SectorConstraint,
+    WeightBounds,
     WeightChange,
 )
-from app.application.services.optimization.risk_models import RiskModelBuilder
 
 __all__ = [
     "PortfolioOptimizer",
