@@ -212,7 +212,7 @@ class CurrencyExchangeService:
         """Get rate from ExchangeRateService as fallback when Tradernet quote fails."""
         try:
             from app.domain.services.exchange_rate_service import ExchangeRateService
-            from app.infrastructure.database.manager import get_db_manager
+            from app.core.database.manager import get_db_manager
 
             db_manager = get_db_manager()
             exchange_rate_service = ExchangeRateService(db_manager)

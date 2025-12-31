@@ -315,7 +315,7 @@ async def _get_holistic_recommendation():
     from app.domain.value_objects.recommendation_status import RecommendationStatus
     from app.domain.value_objects.trade_side import TradeSide
     from app.infrastructure.cache import cache
-    from app.infrastructure.database import get_db_manager
+    from app.core.database import get_db_manager
     from app.infrastructure.external.tradernet import TradernetClient
     from app.repositories import (
         AllocationRepository,

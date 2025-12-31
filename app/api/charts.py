@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.modules.universe.domain.symbol_resolver import is_isin
 from app.infrastructure.cache import cache
-from app.infrastructure.database.manager import DatabaseManager
+from app.core.database.manager import DatabaseManager
 from app.infrastructure.dependencies import DatabaseManagerDep, StockRepositoryDep
 from app.infrastructure.external import yahoo_finance as yahoo
 from app.infrastructure.external.tradernet_connection import ensure_tradernet_connected

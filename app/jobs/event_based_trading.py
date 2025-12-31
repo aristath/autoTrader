@@ -169,7 +169,7 @@ async def _wait_for_planning_completion():
     for the current portfolio hash have been evaluated (completed=1).
     """
     from app.domain.services.exchange_rate_service import ExchangeRateService
-    from app.infrastructure.database.manager import get_db_manager
+    from app.core.database.manager import get_db_manager
     from app.infrastructure.external.tradernet import TradernetClient
     from app.modules.planning.domain.holistic_planner import (
         create_holistic_plan_incremental,

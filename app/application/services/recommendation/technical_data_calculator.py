@@ -12,7 +12,7 @@ import pandas as pd
 import pandas_ta as ta
 
 from app.modules.scoring.domain.models import TechnicalData
-from app.infrastructure.database.manager import DatabaseManager
+from app.core.database.manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
