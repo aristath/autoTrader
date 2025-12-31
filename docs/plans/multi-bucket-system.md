@@ -734,6 +734,111 @@ Consider pausing during: Bear markets, High Volatility
 
 ---
 
+## Architectural Clarifications
+
+### Virtual Cash Consistency
+
+All cash-affecting operations must atomically update both trade records and virtual bucket balances:
+
+```python
+async def record_trade_settlement(bucket_id: str, amount: float, currency: str):
+    async with db.transaction():
+        await trades_repo.mark_settled(trade_id)
+        await bucket_balances_repo.adjust(bucket_id, currency, amount)
+```
+
+Every operation goes through helpers that update both. Never touch one without the other.
+
+### Research Mode Data
+
+Same tables, with a `mode` column:
+
+```sql
+ALTER TABLE trades ADD COLUMN mode TEXT DEFAULT 'live';  -- 'live', 'research'
+```
+
+Research mode trades are tracked alongside real trades but filtered appropriately. When satellite goes live, research history is preserved for reference.
+
+### Planner Configuration
+
+Planner factory creates configured instances per satellite:
+
+```python
+def create_planner_for_bucket(bucket: Bucket) -> Planner:
+    config = parse_strategy_config(bucket.strategy_config)
+    return Planner(
+        risk_appetite=config.sliders.risk_appetite,
+        hold_duration=config.sliders.hold_duration,
+        # ... etc
+    )
+```
+
+One planner class, instantiated with different configs. Each satellite gets its own instance. No global state, clean separation.
+
+### Bucket Independence
+
+Each bucket operates with its own virtual cash. No competition for resources between buckets - they run independently. Brokerage execution is sequential (as it already is).
+
+### Retirement Prerequisites
+
+Before retiring a satellite:
+1. User must pause the satellite
+2. All pending transactions must complete
+3. System verifies clean state (no open orders, no unsettled trades)
+4. Only then is retirement allowed
+
+### Satellites Database
+
+Separate `satellites.db` database with proper schema:
+
+```sql
+-- satellites.db
+
+CREATE TABLE satellites (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    notes TEXT,
+    status TEXT DEFAULT 'research',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE satellite_settings (
+    satellite_id TEXT PRIMARY KEY,
+    preset TEXT,
+    risk_appetite REAL,
+    hold_duration REAL,
+    entry_style REAL,
+    position_spread REAL,
+    profit_taking REAL,
+    trailing_stops INTEGER,
+    follow_regime INTEGER,
+    auto_harvest INTEGER,
+    pause_high_volatility INTEGER,
+    dividend_handling TEXT,
+    FOREIGN KEY (satellite_id) REFERENCES satellites(id)
+);
+
+CREATE TABLE satellite_balances (
+    satellite_id TEXT,
+    currency TEXT,
+    balance REAL DEFAULT 0,
+    last_updated TEXT,
+    PRIMARY KEY (satellite_id, currency)
+);
+
+CREATE TABLE satellite_transactions (
+    id INTEGER PRIMARY KEY,
+    satellite_id TEXT,
+    type TEXT,
+    amount REAL,
+    currency TEXT,
+    description TEXT,
+    created_at TEXT
+);
+```
+
+---
+
 ## Open Questions
 
 1. **Preset refinement**: What exact slider values for each preset?
@@ -742,7 +847,7 @@ Consider pausing during: Bear markets, High Volatility
 
 3. **Regime detection accuracy**: How reliable is our market regime detection? How to handle regime transitions?
 
-4. **Research mode simulation**: How much virtual capital should a research-mode satellite assume it has?
+4. **Research mode virtual capital**: How much virtual capital should a research-mode satellite assume it has?
 
 ---
 
