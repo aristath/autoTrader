@@ -4,7 +4,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Awaitable, Callable, Dict
+from typing import Any, Awaitable, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class HealthCheckResult:
 
     status: HealthStatus
     message: str = ""
-    details: Dict[str, Any] | None = None
+    details: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         if self.details is None:
@@ -51,8 +51,8 @@ class HealthCheck:
         self.name = name
         self.check_func = check_func
         self.critical = critical
-        self.last_result: HealthCheckResult | None = None
-        self.last_check_time: float | None = None
+        self.last_result: Optional[HealthCheckResult] = None
+        self.last_check_time: Optional[float] = None
 
     async def run(self) -> HealthCheckResult:
         """Run the health check."""

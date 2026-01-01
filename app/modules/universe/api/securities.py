@@ -580,7 +580,7 @@ async def _validate_symbol_change(
 def _apply_string_update(
     updates: dict,
     field_name: str,
-    value: str | None,
+    value: Optional[str],
     transform=None,
     allow_none: bool = False,
 ) -> None:
@@ -611,14 +611,16 @@ def _apply_numeric_update(
             updates[field_name] = value
 
 
-def _apply_boolean_update(updates: dict, field_name: str, value: bool | None) -> None:
+def _apply_boolean_update(
+    updates: dict, field_name: str, value: Optional[bool]
+) -> None:
     """Apply a boolean field update."""
     if value is not None:
         updates[field_name] = value
 
 
 def _build_update_dict(
-    update: SecurityUpdate, new_symbol: str | None
+    update: SecurityUpdate, new_symbol: Optional[str]
 ) -> dict[str, str | float | int | bool | None]:
     """Build dictionary of fields to update."""
     updates: dict[str, str | float | int | bool | None] = {}
