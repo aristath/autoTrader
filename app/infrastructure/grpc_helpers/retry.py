@@ -10,6 +10,10 @@ T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 
+# Jitter constants to prevent thundering herd problem
+JITTER_MIN_MULTIPLIER = 0.5  # Minimum jitter multiplier (50% of base delay)
+JITTER_MAX_MULTIPLIER = 1.5  # Maximum jitter multiplier (150% of base delay)
+
 
 @dataclass
 class RetryConfig:
@@ -72,7 +76,7 @@ async def retry_with_backoff(
 
             # Add jitter to prevent thundering herd
             if config.jitter:
-                delay = delay * (0.5 + random.random())
+                delay = delay * (JITTER_MIN_MULTIPLIER + random.random())
 
             logger.warning(
                 f"Attempt {attempt + 1}/{config.max_attempts} failed: {e}. "

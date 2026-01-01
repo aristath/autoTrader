@@ -58,6 +58,7 @@ class CircuitBreaker:
         self.success_count = 0
         self.last_failure_time: float | None = None
         self._lock = asyncio.Lock()
+        self._half_open_call_in_progress = False
 
     @property
     def is_open(self) -> bool:
@@ -87,22 +88,33 @@ class CircuitBreaker:
         Raises:
             CircuitBreakerError: If circuit is open
         """
+        # Check state and handle HALF_OPEN specially to prevent race conditions
         async with self._lock:
-            # Check if we should transition to half-open
             if self.state == CircuitState.OPEN:
                 if self._should_attempt_reset():
                     self.state = CircuitState.HALF_OPEN
                     self.success_count = 0
+                    self._half_open_call_in_progress = False
                 else:
                     raise CircuitBreakerError("Circuit breaker is OPEN")
 
+            # In HALF_OPEN state, only allow one request at a time
+            if self.state == CircuitState.HALF_OPEN:
+                if self._half_open_call_in_progress:
+                    raise CircuitBreakerError(
+                        "Circuit breaker is HALF_OPEN with request in progress"
+                    )
+                self._half_open_call_in_progress = True
+
         try:
-            # Execute the function
+            # Execute the function (lock released for performance)
             result = await func()
 
             # Record success
             async with self._lock:
                 await self._on_success()
+                if self.state != CircuitState.HALF_OPEN:
+                    self._half_open_call_in_progress = False
 
             return result
 
@@ -110,6 +122,7 @@ class CircuitBreaker:
             # Record failure
             async with self._lock:
                 await self._on_failure()
+                self._half_open_call_in_progress = False
 
             raise e
 
