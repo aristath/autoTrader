@@ -1,4 +1,4 @@
-"""Retry logic with exponential backoff for gRPC calls."""
+"""Retry logic with exponential backoff for HTTP calls."""
 
 import asyncio
 import logging

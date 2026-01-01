@@ -1,4 +1,4 @@
-"""Resilience utilities for HTTP/gRPC clients (circuit breaker, retry)."""
+"""Resilience utilities for HTTP clients (circuit breaker, retry)."""
 
 from app.infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,

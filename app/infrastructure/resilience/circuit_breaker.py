@@ -1,4 +1,4 @@
-"""Circuit breaker pattern implementation for HTTP/gRPC clients."""
+"""Circuit breaker pattern implementation for HTTP clients."""
 
 import asyncio
 import time
