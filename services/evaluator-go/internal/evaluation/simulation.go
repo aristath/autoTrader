@@ -65,6 +65,8 @@ func SimulateSequence(
 		// Start with references - will copy only if BUY action modifies them
 		newGeographies := currentContext.SecurityCountries
 		newIndustries := currentContext.SecurityIndustries
+		geographiesCopied := false
+		industriesCopied := false
 
 		if action.Side.IsSell() {
 			// Reduce position (cash is PART of portfolio, so total doesn't change)
@@ -105,18 +107,22 @@ func SimulateSequence(
 			if country != nil {
 				if newGeographies == nil {
 					newGeographies = make(map[string]string)
-				} else if newGeographies == currentContext.SecurityCountries {
+					geographiesCopied = true
+				} else if !geographiesCopied {
 					// First modification - need to copy
 					newGeographies = copyStringMap(newGeographies)
+					geographiesCopied = true
 				}
 				newGeographies[action.Symbol] = *country
 			}
 			if industry != nil {
 				if newIndustries == nil {
 					newIndustries = make(map[string]string)
-				} else if newIndustries == currentContext.SecurityIndustries {
+					industriesCopied = true
+				} else if !industriesCopied {
 					// First modification - need to copy
 					newIndustries = copyStringMap(newIndustries)
+					industriesCopied = true
 				}
 				newIndustries[action.Symbol] = *industry
 			}
