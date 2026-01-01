@@ -2,6 +2,11 @@
 #
 # Arduino Trader - Setup Script for Arduino Uno Q
 #
+# DEPRECATION NOTICE:
+# This script is for the legacy monolith deployment (main branch).
+# For microservices deployment (micro-services branch - RECOMMENDED),
+# use the interactive installer instead: sudo ./install.sh
+#
 # Run this on the Arduino Uno Q Linux side to set up the trading system.
 # Usage: sudo ./setup.sh
 #
@@ -11,6 +16,12 @@ set -e
 echo "====================================="
 echo "Arduino Trader - Setup Script"
 echo "====================================="
+echo ""
+echo "NOTE: For microservices deployment (recommended),"
+echo "use the interactive installer: sudo ./install.sh"
+echo ""
+echo "Continuing with legacy monolith setup..."
+sleep 3
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
