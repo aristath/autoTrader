@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Protocol
 
+from app.domain.models import Position, Security
 from app.modules.planning.domain.holistic_planner import HolisticPlan
 
 
@@ -12,8 +13,8 @@ class PlanRequest:
 
     portfolio_hash: str
     available_cash: float
-    securities: List[Any]
-    positions: List[Any]
+    securities: List[Security]
+    positions: List[Position]
     target_weights: Optional[Dict[str, float]] = None
     parameters: Optional[Dict[str, Any]] = None
 

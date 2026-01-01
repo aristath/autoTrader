@@ -57,10 +57,8 @@ class LocalPlanningService:
 
         try:
             # Build PortfolioContext from request
-            # Note: request.securities and request.positions are already
-            # domain objects from the caller
-            securities: list[Security] = request.securities  # type: ignore[assignment]
-            positions: list[Position] = request.positions  # type: ignore[assignment]
+            securities: list[Security] = request.securities
+            positions: list[Position] = request.positions
 
             # Build position values for portfolio context
             position_values = {p.symbol: (p.market_value_eur or 0.0) for p in positions}
