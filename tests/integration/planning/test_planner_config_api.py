@@ -44,7 +44,7 @@ name = "Invalid"
 
 
 @pytest.mark.asyncio
-async def test_create_planner_config(sample_toml):
+async def test_create_planner_config(sample_toml, db_manager):
     """Test creating a new planner configuration via API."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True
@@ -66,7 +66,7 @@ async def test_create_planner_config(sample_toml):
 
 
 @pytest.mark.asyncio
-async def test_create_planner_invalid_toml(invalid_toml):
+async def test_create_planner_invalid_toml(invalid_toml, db_manager):
     """Test creating planner with invalid TOML returns error."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True
@@ -85,7 +85,7 @@ async def test_create_planner_invalid_toml(invalid_toml):
 
 
 @pytest.mark.asyncio
-async def test_list_planners(sample_toml):
+async def test_list_planners(sample_toml, db_manager):
     """Test listing all planner configurations."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True
@@ -111,7 +111,7 @@ async def test_list_planners(sample_toml):
 
 
 @pytest.mark.asyncio
-async def test_get_planner_by_id(sample_toml):
+async def test_get_planner_by_id(sample_toml, db_manager):
     """Test retrieving a specific planner configuration."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True
@@ -137,7 +137,7 @@ async def test_get_planner_by_id(sample_toml):
 
 
 @pytest.mark.asyncio
-async def test_get_nonexistent_planner():
+async def test_get_nonexistent_planner(db_manager):
     """Test getting a planner that doesn't exist returns 404."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True
@@ -147,7 +147,7 @@ async def test_get_nonexistent_planner():
 
 
 @pytest.mark.asyncio
-async def test_update_planner(sample_toml, updated_toml):
+async def test_update_planner(sample_toml, updated_toml, db_manager):
     """Test updating a planner configuration."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True
@@ -176,7 +176,7 @@ async def test_update_planner(sample_toml, updated_toml):
 
 
 @pytest.mark.asyncio
-async def test_update_planner_name_only(sample_toml):
+async def test_update_planner_name_only(sample_toml, db_manager):
     """Test updating only the planner name."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True
@@ -205,7 +205,7 @@ async def test_update_planner_name_only(sample_toml):
 
 
 @pytest.mark.asyncio
-async def test_update_planner_invalid_toml(sample_toml, invalid_toml):
+async def test_update_planner_invalid_toml(sample_toml, invalid_toml, db_manager):
     """Test updating planner with invalid TOML returns error."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True
@@ -231,7 +231,7 @@ async def test_update_planner_invalid_toml(sample_toml, invalid_toml):
 
 
 @pytest.mark.asyncio
-async def test_delete_planner(sample_toml):
+async def test_delete_planner(sample_toml, db_manager):
     """Test deleting a planner configuration."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True
@@ -258,7 +258,7 @@ async def test_delete_planner(sample_toml):
 
 
 @pytest.mark.asyncio
-async def test_validate_toml_valid(sample_toml):
+async def test_validate_toml_valid(sample_toml, db_manager):
     """Test TOML validation endpoint with valid TOML."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True
@@ -274,7 +274,7 @@ async def test_validate_toml_valid(sample_toml):
 
 
 @pytest.mark.asyncio
-async def test_validate_toml_invalid(invalid_toml):
+async def test_validate_toml_invalid(invalid_toml, db_manager):
     """Test TOML validation endpoint with invalid TOML."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True
@@ -291,7 +291,7 @@ async def test_validate_toml_invalid(invalid_toml):
 
 
 @pytest.mark.asyncio
-async def test_get_planner_history(sample_toml, updated_toml):
+async def test_get_planner_history(sample_toml, updated_toml, db_manager):
     """Test retrieving version history for a planner."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True
@@ -326,7 +326,7 @@ async def test_get_planner_history(sample_toml, updated_toml):
 
 
 @pytest.mark.asyncio
-async def test_apply_planner_without_bucket(sample_toml):
+async def test_apply_planner_without_bucket(sample_toml, db_manager):
     """Test applying a planner without an associated bucket fails."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True

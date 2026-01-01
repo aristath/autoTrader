@@ -1,9 +1,17 @@
 """Local Generator Service - Domain service wrapper for sequence generation."""
 
-from typing import AsyncIterator, Dict, List
+from typing import AsyncIterator, Dict, List, Optional
 
-from app.modules.planning.domain.holistic_planner import generate_action_sequences
+from app.domain.models import Security
+from app.modules.planning.domain.holistic_planner import (
+    _filter_correlation_aware_sequences,
+    _generate_adaptive_patterns,
+    _generate_constraint_relaxation_scenarios,
+    _generate_partial_execution_scenarios,
+    generate_action_sequences,
+)
 from app.modules.planning.domain.models import ActionCandidate
+from app.modules.scoring.domain.models import PortfolioContext
 from services.generator.models import (
     ActionCandidateModel,
     GenerateSequencesRequest,
@@ -63,17 +71,68 @@ class LocalGeneratorService:
             ],
         }
 
+        # Convert securities if provided
+        securities: Optional[List[Security]] = None
+        securities_by_symbol: Optional[Dict[str, Security]] = None
+        if request.securities:
+            securities = self._to_securities(request.securities)
+            securities_by_symbol = {s.symbol: s for s in securities}
+
         # Call domain logic to generate sequences
         all_sequences = await generate_action_sequences(
             opportunities=opportunities,
             available_cash=request.feasibility.available_cash,
             max_depth=request.combinatorial.max_depth,
             enable_combinatorial=request.combinatorial.enable_weighted_combinations,
+            securities=securities,
         )
+
+        # Generate adaptive patterns if portfolio context provided
+        if (
+            request.combinatorial.enable_adaptive_patterns
+            and request.portfolio_context
+            and securities_by_symbol
+        ):
+            portfolio_context = self._to_portfolio_context(request.portfolio_context)
+            adaptive_patterns = _generate_adaptive_patterns(
+                opportunities=opportunities,
+                portfolio_context=portfolio_context,
+                available_cash=request.feasibility.available_cash,
+                max_steps=request.combinatorial.max_depth,
+                max_opportunities_per_category=5,
+                securities_by_symbol=securities_by_symbol,
+            )
+            all_sequences.extend(adaptive_patterns)
+
+        # Filter sequences for correlation if enabled and securities provided
+        if request.filters.enable_correlation_aware and securities:
+            all_sequences = await _filter_correlation_aware_sequences(
+                all_sequences, securities, request.combinatorial.max_depth
+            )
+
+        # Generate partial execution scenarios if enabled
+        if request.combinatorial.enable_partial_execution:
+            partial_sequences = _generate_partial_execution_scenarios(
+                all_sequences, request.combinatorial.max_depth
+            )
+            all_sequences.extend(partial_sequences)
+
+        # Generate constraint relaxation scenarios if enabled
+        if request.combinatorial.enable_constraint_relaxation and request.positions:
+            positions = self._to_positions(request.positions)
+            relaxed_sequences = _generate_constraint_relaxation_scenarios(
+                all_sequences, request.feasibility.available_cash, positions
+            )
+            all_sequences.extend(relaxed_sequences)
+
+        # Convert positions for feasibility filtering
+        positions = None
+        if request.positions:
+            positions = self._to_positions(request.positions)
 
         # Apply feasibility filtering
         feasible_sequences = self._apply_feasibility_filter(
-            all_sequences, request.feasibility
+            all_sequences, request.feasibility, securities, positions
         )
 
         # Yield in batches
@@ -99,53 +158,167 @@ class LocalGeneratorService:
             )
 
     def _apply_feasibility_filter(
-        self, sequences: List[List[ActionCandidate]], feasibility
+        self,
+        sequences: List[List[ActionCandidate]],
+        feasibility,
+        securities: Optional[List[Security]] = None,
+        positions=None,
     ) -> List[List[ActionCandidate]]:
         """
-        Filter sequences by feasibility (cash requirements).
+        Filter sequences by feasibility.
+
+        Matches monolithic planner's comprehensive feasibility checks:
+        - Priority threshold
+        - Duplicate symbols
+        - Allow_buy/allow_sell flags
+        - Cash availability (running cash check)
+        - Position quantity validation
+        - Minimum trade value
 
         Args:
             sequences: Generated sequences
             feasibility: Feasibility settings
+            securities: Optional securities for allow_buy/allow_sell checks
+            positions: Optional positions for sell quantity validation
 
         Returns:
             Filtered sequences that are feasible
         """
+        from app.domain.value_objects.trade_side import TradeSide
+
+        # Build lookups
+        securities_by_symbol = {}
+        if securities:
+            securities_by_symbol = {s.symbol: s for s in securities}
+
+        positions_by_symbol = {}
+        if positions:
+            positions_by_symbol = {p.symbol: p for p in positions}
+
         feasible = []
         for sequence in sequences:
-            # Calculate total cash required for sequence
-            cash_required = 0.0
-            cash_generated = 0.0
+            # Skip empty sequences
+            if not sequence:
+                continue
+
+            # Priority threshold check
+            if sequence:
+                avg_priority = sum(c.priority for c in sequence) / len(sequence)
+                if avg_priority < feasibility.priority_threshold:
+                    continue
+
+            # Running cash and position validation
+            is_feasible = True
+            running_cash = feasibility.available_cash
 
             for action in sequence:
-                trade_cost = (
-                    feasibility.transaction_cost_fixed
-                    + action.value_eur * feasibility.transaction_cost_percent
+                # Get side
+                side = (
+                    action.side
+                    if isinstance(action.side, TradeSide)
+                    else TradeSide(action.side)
                 )
 
-                side_str = (
-                    action.side.value
-                    if hasattr(action.side, "value")
-                    else str(action.side)
-                )
-                if side_str == "BUY":
-                    cash_required += action.value_eur + trade_cost
-                else:  # SELL
-                    cash_generated += action.value_eur - trade_cost
+                # Check allow_buy/allow_sell flags
+                security = securities_by_symbol.get(action.symbol)
 
-            net_cash_required = cash_required - cash_generated
+                if side == TradeSide.BUY:
+                    if security and not security.allow_buy:
+                        is_feasible = False
+                        break
 
-            # Check if sequence is feasible
-            if net_cash_required <= feasibility.available_cash:
-                # Also check minimum trade value
-                all_above_min = all(
-                    action.value_eur >= feasibility.min_trade_value
-                    for action in sequence
-                )
-                if all_above_min:
-                    feasible.append(sequence)
+                    # Check minimum trade value
+                    if action.value_eur < feasibility.min_trade_value:
+                        is_feasible = False
+                        break
+
+                    # Calculate cost with transaction fees
+                    trade_cost = (
+                        feasibility.transaction_cost_fixed
+                        + action.value_eur * feasibility.transaction_cost_percent
+                    )
+                    total_cost = action.value_eur + trade_cost
+
+                    # Check if we have enough running cash
+                    if total_cost > running_cash:
+                        is_feasible = False
+                        break
+
+                    running_cash -= total_cost
+
+                elif side == TradeSide.SELL:
+                    if security and not security.allow_sell:
+                        is_feasible = False
+                        break
+
+                    # Check minimum trade value
+                    if action.value_eur < feasibility.min_trade_value:
+                        is_feasible = False
+                        break
+
+                    # Check if we have the position to sell (only if positions provided)
+                    if positions_by_symbol:
+                        position = positions_by_symbol.get(action.symbol)
+                        if position is None or position.quantity < action.quantity:
+                            is_feasible = False
+                            break
+
+                    # Calculate proceeds after transaction fees
+                    trade_cost = (
+                        feasibility.transaction_cost_fixed
+                        + action.value_eur * feasibility.transaction_cost_percent
+                    )
+                    proceeds = action.value_eur - trade_cost
+
+                    running_cash += proceeds
+
+            if is_feasible:
+                feasible.append(sequence)
 
         return feasible
+
+    def _to_portfolio_context(self, context_input) -> PortfolioContext:
+        """Convert Pydantic portfolio context to domain model."""
+        return PortfolioContext(
+            total_value=context_input.total_value,
+            positions=context_input.positions,
+            country_weights=context_input.country_weights,
+            industry_weights=context_input.industry_weights,
+        )
+
+    def _to_positions(self, positions_input):
+        """Convert Pydantic positions to domain Position models."""
+        from app.domain.models import Position
+
+        return [
+            Position(
+                symbol=p.symbol,
+                quantity=p.quantity,
+                average_cost=p.avg_price,
+                market_value_eur=p.market_value_eur,
+                unrealized_gain_loss=0.0,  # Not needed for constraint relaxation
+                unrealized_gain_loss_percent=0.0,
+            )
+            for p in positions_input
+        ]
+
+    def _to_securities(self, securities_input) -> List[Security]:
+        """Convert Pydantic securities to domain Security models."""
+        from app.domain.value_objects.product_type import ProductType
+
+        return [
+            Security(
+                symbol=s.symbol,
+                name=s.name,
+                isin=None,
+                country=s.country,
+                industry=s.industry,
+                allow_buy=s.allow_buy,
+                allow_sell=s.allow_sell,
+                product_type=ProductType.EQUITY,
+            )
+            for s in securities_input
+        ]
 
     def _action_candidate_from_model(
         self, model: ActionCandidateModel

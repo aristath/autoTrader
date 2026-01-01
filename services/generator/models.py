@@ -57,6 +57,36 @@ class FeasibilitySettings(BaseModel):
     transaction_cost_fixed: float = Field(default=2.0, ge=0.0)
     transaction_cost_percent: float = Field(default=0.002, ge=0.0, le=0.1)
     min_trade_value: float = Field(default=100.0, ge=0.0)
+    priority_threshold: float = Field(default=0.3, ge=0.0, le=1.0)
+
+
+class PortfolioContextInput(BaseModel):
+    """Portfolio context for adaptive pattern generation."""
+
+    total_value: float
+    positions: Dict[str, float]  # symbol -> value_eur
+    country_weights: Dict[str, float] = Field(default_factory=dict)
+    industry_weights: Dict[str, float] = Field(default_factory=dict)
+
+
+class PositionInput(BaseModel):
+    """Position information for constraint relaxation."""
+
+    symbol: str
+    quantity: int
+    avg_price: float
+    market_value_eur: float
+
+
+class SecurityInput(BaseModel):
+    """Security information for adaptive patterns and correlation filtering."""
+
+    symbol: str
+    name: str
+    country: Optional[str] = None
+    industry: Optional[str] = None
+    allow_buy: bool = True
+    allow_sell: bool = True
 
 
 class GenerateSequencesRequest(BaseModel):
@@ -67,6 +97,10 @@ class GenerateSequencesRequest(BaseModel):
     combinatorial: CombinatorialSettings = Field(default_factory=CombinatorialSettings)
     filters: FilterSettings = Field(default_factory=FilterSettings)
     batch_size: int = Field(default=500, ge=10, le=5000)
+    # Optional fields for advanced pattern generation
+    portfolio_context: Optional[PortfolioContextInput] = None
+    positions: List[PositionInput] = Field(default_factory=list)
+    securities: List[SecurityInput] = Field(default_factory=list)
 
 
 class SequenceBatch(BaseModel):
