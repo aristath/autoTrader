@@ -11,11 +11,9 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements
 COPY services/planning/requirements.txt /app/services/planning/
-COPY contracts /app/contracts/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r /app/services/planning/requirements.txt
-RUN pip install --no-cache-dir -e /app/contracts/
 
 # Copy application code
 COPY app /app/app/

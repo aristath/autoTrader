@@ -11,11 +11,9 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements
 COPY services/scoring/requirements.txt /app/services/scoring/
-COPY contracts /app/contracts/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r /app/services/scoring/requirements.txt
-RUN pip install --no-cache-dir -e /app/contracts/
 
 # Copy application code
 COPY app /app/app/

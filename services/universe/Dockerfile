@@ -11,11 +11,9 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements
 COPY services/universe/requirements.txt /app/services/universe/
-COPY contracts /app/contracts/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r /app/services/universe/requirements.txt
-RUN pip install --no-cache-dir -e /app/contracts/
 
 # Copy application code
 COPY app /app/app/

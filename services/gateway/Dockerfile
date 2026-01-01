@@ -11,11 +11,9 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements
 COPY services/gateway/requirements.txt /app/services/gateway/
-COPY contracts /app/contracts/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r /app/services/gateway/requirements.txt
-RUN pip install --no-cache-dir -e /app/contracts/
 
 # Copy application code
 COPY app /app/app/
