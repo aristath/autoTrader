@@ -1,0 +1,30 @@
+# Planning Service Dockerfile
+
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY services/planning/requirements.txt /app/services/planning/
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r /app/services/planning/requirements.txt
+
+# Copy application code
+COPY app /app/app/
+COPY services/planning /app/services/planning/
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# Expose HTTP port
+EXPOSE 8006
+
+# Run the service
+CMD ["python", "-m", "services.planning.main"]

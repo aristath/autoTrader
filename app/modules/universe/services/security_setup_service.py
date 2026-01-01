@@ -11,10 +11,10 @@ from typing import Optional
 from app.core.database.manager import DatabaseManager
 from app.domain.events import SecurityAddedEvent, get_event_bus
 from app.domain.models import Security
+from app.domain.repositories.protocols import ISecurityRepository
 from app.infrastructure.external import yahoo_finance as yahoo
 from app.infrastructure.external.tradernet import TradernetClient
 from app.jobs.securities_data_sync import _sync_historical_for_symbol
-from app.modules.universe.database.security_repository import SecurityRepository
 from app.modules.universe.domain.symbol_resolver import IdentifierType, SymbolResolver
 from app.shared.domain.value_objects.currency import Currency
 
@@ -26,7 +26,7 @@ class SecuritySetupService:
 
     def __init__(
         self,
-        security_repo: SecurityRepository,
+        security_repo: ISecurityRepository,
         scoring_service,
         tradernet_client: TradernetClient,
         db_manager: DatabaseManager,

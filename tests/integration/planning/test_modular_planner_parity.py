@@ -7,6 +7,7 @@ to ensure identical behavior.
 import pytest
 
 from app.domain.models import Position, Security
+from app.domain.value_objects.product_type import ProductType
 from app.modules.planning.domain.config.models import PlannerConfiguration
 from app.modules.planning.domain.planner import HolisticPlanner
 from app.modules.planning.domain.planner_adapter import create_holistic_plan_modular
@@ -82,6 +83,7 @@ def sample_securities():
         Security(
             symbol="AAPL",
             name="Apple Inc.",
+            product_type=ProductType.EQUITY,
             country="USA",
             industry="Technology",
             currency="USD",
@@ -91,6 +93,7 @@ def sample_securities():
         Security(
             symbol="MSFT",
             name="Microsoft Corp.",
+            product_type=ProductType.EQUITY,
             country="USA",
             industry="Technology",
             currency="USD",
@@ -100,6 +103,7 @@ def sample_securities():
         Security(
             symbol="JNJ",
             name="Johnson & Johnson",
+            product_type=ProductType.EQUITY,
             country="USA",
             industry="Healthcare",
             currency="USD",
@@ -109,6 +113,7 @@ def sample_securities():
         Security(
             symbol="SAP",
             name="SAP SE",
+            product_type=ProductType.EQUITY,
             country="Germany",
             industry="Technology",
             currency="EUR",
@@ -120,7 +125,7 @@ def sample_securities():
 
 @pytest.mark.asyncio
 async def test_modular_planner_basic_execution(
-    sample_portfolio_context, sample_positions, sample_securities
+    sample_portfolio_context, sample_positions, sample_securities, db_manager
 ):
     """Test that modular planner executes without errors."""
     config = PlannerConfiguration(
@@ -153,7 +158,7 @@ async def test_modular_planner_basic_execution(
 
 @pytest.mark.asyncio
 async def test_modular_adapter_execution(
-    sample_portfolio_context, sample_positions, sample_securities
+    sample_portfolio_context, sample_positions, sample_securities, db_manager
 ):
     """Test that modular adapter executes without errors."""
     plan = await create_holistic_plan_modular(
@@ -236,7 +241,7 @@ async def test_modular_vs_monolithic_identical_output(
 
 
 @pytest.mark.asyncio
-async def test_modular_planner_empty_portfolio(sample_securities):
+async def test_modular_planner_empty_portfolio(sample_securities, db_manager):
     """Test modular planner with empty portfolio."""
     empty_context = PortfolioContext(
         country_weights={},
@@ -276,7 +281,7 @@ async def test_modular_planner_empty_portfolio(sample_securities):
 
 @pytest.mark.asyncio
 async def test_modular_planner_no_cash(
-    sample_portfolio_context, sample_positions, sample_securities
+    sample_portfolio_context, sample_positions, sample_securities, db_manager
 ):
     """Test modular planner with no available cash."""
     config = PlannerConfiguration(

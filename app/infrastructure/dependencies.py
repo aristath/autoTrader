@@ -41,7 +41,6 @@ from app.modules.scoring.services.scoring_service import ScoringService
 from app.modules.trading.services.trade_execution_service import TradeExecutionService
 from app.modules.trading.services.trade_safety_service import TradeSafetyService
 from app.modules.universe.database.security_repository import SecurityRepository
-from app.modules.universe.domain.ticker_content_service import TickerContentService
 from app.modules.universe.services.security_setup_service import SecuritySetupService
 from app.repositories.calculations import CalculationsRepository
 from app.repositories.grouping import GroupingRepository
@@ -66,8 +65,7 @@ def get_position_repository() -> IPositionRepository:
 
 def get_trade_repository() -> ITradeRepository:
     """Get TradeRepository instance."""
-    # Type ignore: TradeRepository implements ITradeRepository
-    return TradeRepository()  # type: ignore[return-value]
+    return TradeRepository()
 
 
 def get_score_repository() -> ScoreRepository:
@@ -214,25 +212,6 @@ def get_exchange_rate_service(
     return ExchangeRateService(db_manager=db_manager)
 
 
-def get_ticker_content_service(
-    portfolio_repo: PortfolioRepositoryDep,
-    position_repo: PositionRepositoryDep,
-    security_repo: SecurityRepositoryDep,
-    settings_repo: SettingsRepositoryDep,
-    allocation_repo: AllocationRepositoryDep,
-    tradernet_client: TradernetClientDep,
-) -> TickerContentService:
-    """Get TickerContentService instance."""
-    return TickerContentService(
-        portfolio_repo=portfolio_repo,
-        position_repo=position_repo,
-        security_repo=security_repo,
-        settings_repo=settings_repo,
-        allocation_repo=allocation_repo,
-        tradernet_client=tradernet_client,
-    )
-
-
 def get_currency_exchange_service_dep(
     tradernet_client: TradernetClientDep,
 ) -> CurrencyExchangeService:
@@ -322,9 +301,6 @@ CurrencyExchangeServiceDep = Annotated[
 ExchangeRateServiceDep = Annotated[
     ExchangeRateService, Depends(get_exchange_rate_service)
 ]
-TickerContentServiceDep = Annotated[
-    TickerContentService, Depends(get_ticker_content_service)
-]
 
 
 def get_concentration_alert_service(
@@ -346,10 +322,8 @@ def get_security_setup_service(
     db_manager: DatabaseManagerDep,
 ) -> SecuritySetupService:
     """Get SecuritySetupService instance."""
-    # SecurityRepositoryDep is ISecurityRepository, but SecuritySetupService needs SecurityRepository
-    # We can safely cast since get_security_repository() returns SecurityRepository
     return SecuritySetupService(
-        security_repo=security_repo,  # type: ignore[arg-type]
+        security_repo=security_repo,
         scoring_service=scoring_service,
         tradernet_client=tradernet_client,
         db_manager=db_manager,
@@ -402,3 +376,10 @@ BalanceServiceDep = Annotated[BalanceService, Depends(get_balance_service)]
 ReconciliationServiceDep = Annotated[
     ReconciliationService, Depends(get_reconciliation_service)
 ]
+
+
+# Note: Legacy gRPC microservices dependency injection removed.
+# For REST microservices, use HTTP clients via service locator:
+#   from app.infrastructure.service_discovery import get_service_locator
+#   locator = get_service_locator()
+#   client = locator.create_http_client("service_name")

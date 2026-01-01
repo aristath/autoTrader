@@ -1,6 +1,7 @@
 """Cache invalidation service - centralizes cache invalidation patterns."""
 
 import logging
+from typing import Optional
 
 from app.core.cache.cache import SimpleCache
 
@@ -63,7 +64,7 @@ class CacheInvalidationService:
 
 
 def get_cache_invalidation_service(
-    cache: SimpleCache | None = None,
+    cache: Optional[SimpleCache] = None,
 ) -> CacheInvalidationService:
     """
     Get or create a CacheInvalidationService instance.

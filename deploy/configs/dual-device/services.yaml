@@ -1,0 +1,156 @@
+# Dual Device Service Configuration
+# Services distributed across two Arduino Uno Q devices
+
+deployment:
+  mode: "distributed"
+
+services:
+  # Core services on Device 1
+  planning:
+    mode: "remote"
+    device_id: "device1"
+    address: "192.168.1.100"  # Replace with actual Device 1 IP
+    port: 50051
+    client:
+      timeout_seconds: 300
+      max_retries: 3
+
+  scoring:
+    mode: "remote"
+    device_id: "device1"
+    address: "192.168.1.100"
+    port: 50052
+    client:
+      timeout_seconds: 60
+      max_retries: 3
+
+  universe:
+    mode: "remote"
+    device_id: "device1"
+    address: "192.168.1.100"
+    port: 50056
+    client:
+      timeout_seconds: 180
+      max_retries: 3
+
+  # Planning Microservices (HTTP-only)
+  opportunity:
+    mode: "remote"
+    device_id: "device1"
+    address: "192.168.1.100"
+    port: 8008
+    http_port: 8008
+    client:
+      timeout_seconds: 30
+      max_retries: 3
+      retry_backoff_ms: 1000
+    health_check:
+      enabled: true
+      interval_seconds: 30
+
+  generator:
+    mode: "remote"
+    device_id: "device1"
+    address: "192.168.1.100"
+    port: 8009
+    http_port: 8009
+    client:
+      timeout_seconds: 60
+      max_retries: 3
+      retry_backoff_ms: 1000
+    health_check:
+      enabled: true
+      interval_seconds: 30
+
+  evaluator-1:
+    mode: "remote"
+    device_id: "device1"
+    address: "192.168.1.100"
+    port: 8010
+    http_port: 8010
+    client:
+      timeout_seconds: 120
+      max_retries: 3
+      retry_backoff_ms: 1000
+    health_check:
+      enabled: true
+      interval_seconds: 30
+
+  evaluator-2:
+    mode: "remote"
+    device_id: "device1"
+    address: "192.168.1.100"
+    port: 8020
+    http_port: 8020
+    client:
+      timeout_seconds: 120
+      max_retries: 3
+      retry_backoff_ms: 1000
+    health_check:
+      enabled: true
+      interval_seconds: 30
+
+  evaluator-3:
+    mode: "remote"
+    device_id: "device1"
+    address: "192.168.1.100"
+    port: 8030
+    http_port: 8030
+    client:
+      timeout_seconds: 120
+      max_retries: 3
+      retry_backoff_ms: 1000
+    health_check:
+      enabled: true
+      interval_seconds: 30
+
+  coordinator:
+    mode: "remote"
+    device_id: "device1"
+    address: "192.168.1.100"
+    port: 8011
+    http_port: 8011
+    client:
+      timeout_seconds: 300
+      max_retries: 3
+      retry_backoff_ms: 1000
+    health_check:
+      enabled: true
+      interval_seconds: 30
+
+  gateway:
+    mode: "remote"
+    device_id: "device1"
+    address: "192.168.1.100"
+    port: 50057
+    client:
+      timeout_seconds: 300
+      max_retries: 3
+
+  # Execution services on Device 2
+  portfolio:
+    mode: "remote"
+    device_id: "device2"
+    address: "192.168.1.101"  # Replace with actual Device 2 IP
+    port: 50054
+    client:
+      timeout_seconds: 30
+      max_retries: 3
+
+  trading:
+    mode: "remote"
+    device_id: "device2"
+    address: "192.168.1.101"
+    port: 50055
+    client:
+      timeout_seconds: 60
+      max_retries: 3
+
+  optimization:
+    mode: "remote"
+    device_id: "device2"
+    address: "192.168.1.101"
+    port: 50053
+    client:
+      timeout_seconds: 120
+      max_retries: 3

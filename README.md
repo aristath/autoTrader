@@ -170,9 +170,105 @@ Some pragmatic violations exist for performance/convenience on the Arduino's con
 
 Other violations are documented in code comments where they occur.
 
+### REST Microservices
+
+The system includes 7 REST microservices that can run locally or distributed across multiple Arduino devices:
+
+```
+services/
+├── universe/        # Security management (Port 8001)
+│   ├── models.py          # Pydantic request/response models
+│   ├── dependencies.py    # Dependency injection
+│   ├── routes.py          # 8 REST endpoints
+│   └── main.py            # FastAPI application
+│
+├── portfolio/       # Position management (Port 8002)
+│   └── ...                # 7 REST endpoints
+│
+├── trading/         # Trade execution (Port 8003)
+│   └── ...                # 6 REST endpoints
+│
+├── scoring/         # Security scoring (Port 8004)
+│   └── ...                # 4 REST endpoints
+│
+├── optimization/    # Portfolio optimization (Port 8005)
+│   └── ...                # 3 REST endpoints
+│
+├── planning/        # Portfolio planning (Port 8006)
+│   └── ...                # 4 REST endpoints
+│
+└── gateway/         # System orchestration (Port 8007)
+    └── ...                # 4 REST endpoints
+```
+
+**Architecture Benefits:**
+- **35-43% memory savings** per service vs gRPC (525-910MB total)
+- **Simple HTTP/JSON** - no protobuf compilation, universal compatibility
+- **Built-in resilience** - circuit breakers, retries, automatic failover
+- **OpenAPI documentation** - interactive docs at `/docs` for each service
+- **Flexible deployment** - run all locally or distribute across devices
+
+**Starting Services:**
+```bash
+# Start individual service
+cd services/universe
+../../venv/bin/python main.py
+
+# Start all services
+for svc in universe portfolio trading scoring optimization planning gateway; do
+    cd services/$svc && ../../venv/bin/python main.py &
+done
+```
+
+**Using HTTP Clients:**
+```python
+from app.infrastructure.service_discovery import get_service_locator
+
+locator = get_service_locator()
+universe_client = locator.create_http_client("universe")
+
+# Get tradable securities
+securities = await universe_client.get_securities(tradable_only=True)
+```
+
+**Resource Considerations:**
+
+For Arduino Uno Q deployment (2GB RAM, limited CPU):
+- **Local mode** (all services in main process): ~63MB memory, minimal overhead
+- **Distributed mode** (across multiple devices): ~476MB total (68MB per service)
+- Batch operations are optimized for constrained environments
+- Services use connection pooling and keep-alive optimization
+
 ## Quick Start
 
-### Local Development
+### Microservices Installation (Recommended)
+
+**Interactive installer** for easy setup:
+
+```bash
+# Clone repository
+git clone https://github.com/aristath/autoTrader.git
+cd autoTrader
+
+# Run interactive installer
+sudo ./install.sh
+
+# Follow the prompts:
+# 1. Select services (use 'all' for single-device)
+# 2. Enter Tradernet API credentials
+# 3. Wait for installation (~15 minutes)
+```
+
+Access the dashboard at `http://localhost:8000`
+
+**Installation Options:**
+- **Single-device**: Select "all" services during installation
+- **Distributed**: Run installer on each device, select specific services
+- **Modifying existing**: Re-run installer to add/remove services
+
+### Local Development (Monolith)
+
+For development/testing on the main branch:
 
 ```bash
 # Clone repository
@@ -198,36 +294,6 @@ uvicorn app.main:app --reload
 ```
 
 Access the dashboard at `http://localhost:8000`
-
-### Arduino Uno Q Deployment
-
-```bash
-# SSH into your Arduino Uno Q
-ssh arduino@192.168.1.11  # Password: aristath
-
-# Clone repository
-cd /home/arduino
-mkdir -p repos && cd repos
-git clone https://github.com/aristath/autoTrader.git
-cd autoTrader
-
-# Run setup script (installs main app and LED display)
-sudo deploy/setup.sh
-
-# Edit configuration
-nano /home/arduino/arduino-trader/.env
-
-# Restart service
-sudo systemctl restart arduino-trader
-```
-
-The setup script automatically:
-- Creates Python virtual environment
-- Installs dependencies
-- Sets up systemd service
-- Deploys LED display Docker app
-- Compiles and uploads Arduino sketch
-- Configures auto-deployment
 
 ## Configuration
 

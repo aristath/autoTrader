@@ -1,0 +1,205 @@
+version: '3.8'
+
+services:
+  planning:
+    build:
+      context: .
+      dockerfile: services/planning/Dockerfile
+    ports:
+      - "8006:8006"
+    volumes:
+      - ./app/config:/app/app/config:ro
+    environment:
+      - DEVICE_CONFIG_PATH=/app/app/config/device.yaml
+      - SERVICES_CONFIG_PATH=/app/app/config/services.yaml
+    networks:
+      - arduino-trader
+
+  opportunity:
+    build:
+      context: .
+      dockerfile: services/opportunity/Dockerfile
+    ports:
+      - "8008:8008"
+    volumes:
+      - ./app/config:/app/app/config:ro
+    environment:
+      - DEVICE_CONFIG_PATH=/app/app/config/device.yaml
+      - SERVICES_CONFIG_PATH=/app/app/config/services.yaml
+    networks:
+      - arduino-trader
+
+  generator:
+    build:
+      context: .
+      dockerfile: services/generator/Dockerfile
+    ports:
+      - "8009:8009"
+    volumes:
+      - ./app/config:/app/app/config:ro
+    environment:
+      - DEVICE_CONFIG_PATH=/app/app/config/device.yaml
+      - SERVICES_CONFIG_PATH=/app/app/config/services.yaml
+    networks:
+      - arduino-trader
+
+  evaluator-1:
+    build:
+      context: .
+      dockerfile: services/evaluator/Dockerfile
+    ports:
+      - "8010:8010"
+    volumes:
+      - ./app/config:/app/app/config:ro
+    environment:
+      - DEVICE_CONFIG_PATH=/app/app/config/device.yaml
+      - SERVICES_CONFIG_PATH=/app/app/config/services.yaml
+      - EVALUATOR_PORT=8010
+    networks:
+      - arduino-trader
+
+  evaluator-2:
+    build:
+      context: .
+      dockerfile: services/evaluator/Dockerfile
+    ports:
+      - "8020:8020"
+    volumes:
+      - ./app/config:/app/app/config:ro
+    environment:
+      - DEVICE_CONFIG_PATH=/app/app/config/device.yaml
+      - SERVICES_CONFIG_PATH=/app/app/config/services.yaml
+      - EVALUATOR_PORT=8020
+    networks:
+      - arduino-trader
+
+  evaluator-3:
+    build:
+      context: .
+      dockerfile: services/evaluator/Dockerfile
+    ports:
+      - "8030:8030"
+    volumes:
+      - ./app/config:/app/app/config:ro
+    environment:
+      - DEVICE_CONFIG_PATH=/app/app/config/device.yaml
+      - SERVICES_CONFIG_PATH=/app/app/config/services.yaml
+      - EVALUATOR_PORT=8030
+    networks:
+      - arduino-trader
+
+  coordinator:
+    build:
+      context: .
+      dockerfile: services/coordinator/Dockerfile
+    ports:
+      - "8011:8011"
+    volumes:
+      - ./app/config:/app/app/config:ro
+    environment:
+      - DEVICE_CONFIG_PATH=/app/app/config/device.yaml
+      - SERVICES_CONFIG_PATH=/app/app/config/services.yaml
+    networks:
+      - arduino-trader
+    depends_on:
+      - opportunity
+      - generator
+      - evaluator-1
+      - evaluator-2
+      - evaluator-3
+
+  scoring:
+    build:
+      context: .
+      dockerfile: services/scoring/Dockerfile
+    ports:
+      - "8004:8004"
+    volumes:
+      - ./app/config:/app/app/config:ro
+    environment:
+      - DEVICE_CONFIG_PATH=/app/app/config/device.yaml
+      - SERVICES_CONFIG_PATH=/app/app/config/services.yaml
+    networks:
+      - arduino-trader
+
+  optimization:
+    build:
+      context: .
+      dockerfile: services/optimization/Dockerfile
+    ports:
+      - "8005:8005"
+    volumes:
+      - ./app/config:/app/app/config:ro
+    environment:
+      - DEVICE_CONFIG_PATH=/app/app/config/device.yaml
+      - SERVICES_CONFIG_PATH=/app/app/config/services.yaml
+    networks:
+      - arduino-trader
+
+  portfolio:
+    build:
+      context: .
+      dockerfile: services/portfolio/Dockerfile
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./app/config:/app/app/config:ro
+    environment:
+      - DEVICE_CONFIG_PATH=/app/app/config/device.yaml
+      - SERVICES_CONFIG_PATH=/app/app/config/services.yaml
+    networks:
+      - arduino-trader
+
+  trading:
+    build:
+      context: .
+      dockerfile: services/trading/Dockerfile
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./app/config:/app/app/config:ro
+    environment:
+      - DEVICE_CONFIG_PATH=/app/app/config/device.yaml
+      - SERVICES_CONFIG_PATH=/app/app/config/services.yaml
+    networks:
+      - arduino-trader
+
+  universe:
+    build:
+      context: .
+      dockerfile: services/universe/Dockerfile
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./app/config:/app/app/config:ro
+    environment:
+      - DEVICE_CONFIG_PATH=/app/app/config/device.yaml
+      - SERVICES_CONFIG_PATH=/app/app/config/services.yaml
+    networks:
+      - arduino-trader
+
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    ports:
+      - "8007:8007"
+      - "8000:8007"  # Expose gateway on port 8000 for backward compatibility
+    volumes:
+      - ./app/config:/app/app/config:ro
+    environment:
+      - DEVICE_CONFIG_PATH=/app/app/config/device.yaml
+      - SERVICES_CONFIG_PATH=/app/app/config/services.yaml
+    networks:
+      - arduino-trader
+    depends_on:
+      - planning
+      - scoring
+      - optimization
+      - portfolio
+      - trading
+      - universe
+
+networks:
+  arduino-trader:
+    driver: bridge

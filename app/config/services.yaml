@@ -1,0 +1,192 @@
+# Service Discovery Configuration
+# Maps services to devices and ports
+
+deployment:
+  # Deployment mode: "local", "distributed", "load_balanced"
+  mode: "local"
+
+# TLS/mTLS Configuration
+# Enable for secure communication in distributed mode
+tls:
+  # Enable TLS encryption (recommended for dual-device deployment)
+  enabled: false
+
+  # Enable mutual TLS (mTLS) for client authentication
+  # Requires enabled: true
+  mutual: false
+
+  # Certificate paths (relative to project root or absolute)
+  # Generate using: ./scripts/generate_certs.sh [--mtls]
+  ca_cert: "certs/ca-cert.pem"
+  server_cert: "certs/server-cert.pem"
+  server_key: "certs/server-key.pem"
+
+  # Client certificates (required when mutual: true)
+  # Use device-specific certificates (device1-client-cert.pem, device2-client-cert.pem, etc.)
+  client_cert: "certs/device1-client-cert.pem"
+  client_key: "certs/device1-client-key.pem"
+
+  # Server hostname for certificate validation (must match server cert CN/SAN)
+  server_hostname_override: "arduino-trader-server"
+
+services:
+  planning:
+    # Service mode: "local" (in-process) or "remote" (gRPC)
+    mode: "local"
+
+    # Device assignment (used when mode: remote)
+    device_id: "primary"
+
+    # Network configuration
+    port: 50051
+
+    # gRPC client configuration (used when mode: remote)
+    client:
+      timeout_seconds: 300
+      max_retries: 3
+      retry_backoff_ms: 1000
+      keepalive_interval_seconds: 30
+      keepalive_timeout_seconds: 10
+
+    # Health check configuration
+    health_check:
+      enabled: true
+      interval_seconds: 30
+      timeout_seconds: 5
+
+  scoring:
+    mode: "local"
+    device_id: "primary"
+    port: 50052
+    client:
+      timeout_seconds: 60
+      max_retries: 3
+      retry_backoff_ms: 1000
+    health_check:
+      enabled: true
+      interval_seconds: 30
+
+  optimization:
+    mode: "local"
+    device_id: "primary"
+    port: 50053
+    client:
+      timeout_seconds: 120
+      max_retries: 2
+    health_check:
+      enabled: true
+      interval_seconds: 60
+
+  portfolio:
+    mode: "local"
+    device_id: "primary"
+    port: 50054
+    client:
+      timeout_seconds: 30
+      max_retries: 5
+      # Portfolio is critical - aggressive retries
+    health_check:
+      enabled: true
+      interval_seconds: 15
+
+  trading:
+    mode: "local"
+    device_id: "primary"
+    port: 50055
+    client:
+      timeout_seconds: 60
+      max_retries: 3
+    health_check:
+      enabled: true
+      interval_seconds: 30
+
+  universe:
+    mode: "local"
+    device_id: "primary"
+    port: 50056
+    client:
+      timeout_seconds: 120
+      max_retries: 3
+    health_check:
+      enabled: true
+      interval_seconds: 60
+
+  gateway:
+    mode: "local"
+    device_id: "primary"
+    port: 50057
+    http_port: 8000  # REST API for web UI
+    client:
+      timeout_seconds: 30
+      max_retries: 3
+    health_check:
+      enabled: true
+      interval_seconds: 15
+
+  opportunity:
+    mode: "local"
+    device_id: "primary"
+    port: 8008
+    health_endpoint: "/opportunity/health"
+    client:
+      timeout_seconds: 10
+      max_retries: 3
+    health_check:
+      enabled: true
+      interval_seconds: 30
+
+  generator:
+    mode: "local"
+    device_id: "primary"
+    port: 8009
+    health_endpoint: "/generator/health"
+    client:
+      timeout_seconds: 30
+      max_retries: 3
+    health_check:
+      enabled: true
+      interval_seconds: 30
+
+  evaluator:
+    mode: "local"
+    instances:
+      - device_id: "primary"
+        port: 8010
+        health_endpoint: "/evaluator/health"
+      - device_id: "primary"
+        port: 8020
+        health_endpoint: "/evaluator/health"
+      - device_id: "primary"
+        port: 8030
+        health_endpoint: "/evaluator/health"
+    load_balancing: "round_robin"
+    client:
+      timeout_seconds: 120
+      max_retries: 2
+    health_check:
+      enabled: true
+      interval_seconds: 60
+
+  coordinator:
+    mode: "local"
+    device_id: "primary"
+    port: 8011
+    health_endpoint: "/coordinator/health"
+    client:
+      timeout_seconds: 300
+      max_retries: 2
+    health_check:
+      enabled: true
+      interval_seconds: 30
+
+# Device registry - maps device IDs to network addresses
+devices:
+  primary:
+    address: "localhost"
+    # When running distributed, change to actual IP
+    # address: "192.168.1.11"
+
+  compute-1:
+    address: "192.168.1.10"
+
+  # Add more devices as needed
