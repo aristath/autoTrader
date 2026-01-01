@@ -19,9 +19,6 @@ from app.domain.repositories.protocols import (
 from app.domain.services.exchange_rate_service import ExchangeRateService
 from app.domain.services.settings_service import SettingsService
 from app.infrastructure.external.tradernet import TradernetClient, get_tradernet_client
-
-# Microservices imports
-from app.infrastructure.service_discovery import get_service_locator
 from app.modules.allocation.database.allocation_repository import AllocationRepository
 from app.modules.allocation.services.concentration_alerts import (
     ConcentrationAlertService,
@@ -31,60 +28,21 @@ from app.modules.display.services.display_service import (
     DisplayStateManager,
     _display_state_manager,
 )
-from app.modules.gateway.services.gateway_service_interface import (
-    GatewayServiceInterface,
-)
-from app.modules.gateway.services.grpc_gateway_client import GrpcGatewayClient
-from app.modules.gateway.services.local_gateway_service import LocalGatewayService
-from app.modules.optimization.services.grpc_optimization_client import (
-    GrpcOptimizationClient,
-)
-from app.modules.optimization.services.local_optimization_service import (
-    LocalOptimizationService,
-)
-from app.modules.optimization.services.optimization_service_interface import (
-    OptimizationServiceInterface,
-)
-from app.modules.planning.services.grpc_planning_client import GrpcPlanningClient
-from app.modules.planning.services.local_planning_service import LocalPlanningService
-from app.modules.planning.services.planning_service_interface import (
-    PlanningServiceInterface,
-)
 from app.modules.portfolio.database.portfolio_repository import PortfolioRepository
 from app.modules.portfolio.database.position_repository import PositionRepository
-from app.modules.portfolio.services.grpc_portfolio_client import GrpcPortfolioClient
-from app.modules.portfolio.services.local_portfolio_service import LocalPortfolioService
 from app.modules.portfolio.services.portfolio_service import PortfolioService
-from app.modules.portfolio.services.portfolio_service_interface import (
-    PortfolioServiceInterface,
-)
 from app.modules.rebalancing.services.rebalancing_service import RebalancingService
 from app.modules.satellites.database.balance_repository import BalanceRepository
 from app.modules.satellites.database.bucket_repository import BucketRepository
 from app.modules.satellites.services.balance_service import BalanceService
 from app.modules.satellites.services.bucket_service import BucketService
 from app.modules.satellites.services.reconciliation_service import ReconciliationService
-from app.modules.scoring.services.grpc_scoring_client import GrpcScoringClient
-from app.modules.scoring.services.local_scoring_service import LocalScoringService
 from app.modules.scoring.services.scoring_service import ScoringService
-from app.modules.scoring.services.scoring_service_interface import (
-    ScoringServiceInterface,
-)
-from app.modules.trading.services.grpc_trading_client import GrpcTradingClient
-from app.modules.trading.services.local_trading_service import LocalTradingService
 from app.modules.trading.services.trade_execution_service import TradeExecutionService
 from app.modules.trading.services.trade_safety_service import TradeSafetyService
-from app.modules.trading.services.trading_service_interface import (
-    TradingServiceInterface,
-)
 from app.modules.universe.database.security_repository import SecurityRepository
 from app.modules.universe.domain.ticker_content_service import TickerContentService
-from app.modules.universe.services.grpc_universe_client import GrpcUniverseClient
-from app.modules.universe.services.local_universe_service import LocalUniverseService
 from app.modules.universe.services.security_setup_service import SecuritySetupService
-from app.modules.universe.services.universe_service_interface import (
-    UniverseServiceInterface,
-)
 from app.repositories.calculations import CalculationsRepository
 from app.repositories.grouping import GroupingRepository
 from app.repositories.recommendation import RecommendationRepository
@@ -446,157 +404,8 @@ ReconciliationServiceDep = Annotated[
 ]
 
 
-# Microservices Dependencies
-# These functions provide dependency injection for microservices,
-# automatically switching between local (in-process) and remote (gRPC)
-# implementations based on service configuration.
-
-
-def get_planning_service_microservices() -> PlanningServiceInterface:
-    """
-    Get Planning service implementation based on configuration.
-
-    Returns local implementation if service is configured as local,
-    otherwise returns gRPC client.
-    """
-    locator = get_service_locator()
-
-    if locator.is_service_local("planning"):
-        # Return in-process implementation
-        return LocalPlanningService()
-    else:
-        # Return gRPC client
-        channel = locator.create_channel("planning")
-        return GrpcPlanningClient(channel)
-
-
-def get_scoring_service_microservices() -> ScoringServiceInterface:
-    """
-    Get Scoring service implementation based on configuration.
-
-    Returns local implementation if service is configured as local,
-    otherwise returns gRPC client.
-    """
-    locator = get_service_locator()
-
-    if locator.is_service_local("scoring"):
-        # Return in-process implementation
-        return LocalScoringService()
-    else:
-        # Return gRPC client
-        channel = locator.create_channel("scoring")
-        return GrpcScoringClient(channel)
-
-
-def get_optimization_service_microservices() -> OptimizationServiceInterface:
-    """
-    Get Optimization service implementation based on configuration.
-
-    Returns local implementation if service is configured as local,
-    otherwise returns gRPC client.
-    """
-    locator = get_service_locator()
-
-    if locator.is_service_local("optimization"):
-        # Return in-process implementation
-        return LocalOptimizationService()
-    else:
-        # Return gRPC client
-        channel = locator.create_channel("optimization")
-        return GrpcOptimizationClient(channel)
-
-
-def get_portfolio_service_microservices() -> PortfolioServiceInterface:
-    """
-    Get Portfolio service implementation based on configuration.
-
-    Returns local implementation if service is configured as local,
-    otherwise returns gRPC client.
-    """
-    locator = get_service_locator()
-
-    if locator.is_service_local("portfolio"):
-        # Return in-process implementation
-        return LocalPortfolioService()
-    else:
-        # Return gRPC client
-        channel = locator.create_channel("portfolio")
-        return GrpcPortfolioClient(channel)
-
-
-def get_trading_service_microservices() -> TradingServiceInterface:
-    """
-    Get Trading service implementation based on configuration.
-
-    Returns local implementation if service is configured as local,
-    otherwise returns gRPC client.
-    """
-    locator = get_service_locator()
-
-    if locator.is_service_local("trading"):
-        # Return in-process implementation
-        return LocalTradingService()
-    else:
-        # Return gRPC client
-        channel = locator.create_channel("trading")
-        return GrpcTradingClient(channel)
-
-
-def get_universe_service_microservices() -> UniverseServiceInterface:
-    """
-    Get Universe service implementation based on configuration.
-
-    Returns local implementation if service is configured as local,
-    otherwise returns gRPC client.
-    """
-    locator = get_service_locator()
-
-    if locator.is_service_local("universe"):
-        # Return in-process implementation
-        return LocalUniverseService()
-    else:
-        # Return gRPC client
-        channel = locator.create_channel("universe")
-        return GrpcUniverseClient(channel)
-
-
-def get_gateway_service_microservices() -> GatewayServiceInterface:
-    """
-    Get Gateway service implementation based on configuration.
-
-    Returns local implementation if service is configured as local,
-    otherwise returns gRPC client.
-    """
-    locator = get_service_locator()
-
-    if locator.is_service_local("gateway"):
-        # Return in-process implementation
-        return LocalGatewayService()
-    else:
-        # Return gRPC client
-        channel = locator.create_channel("gateway")
-        return GrpcGatewayClient(channel)
-
-
-# Type aliases for microservices
-PlanningServiceMicroservicesDep = Annotated[
-    PlanningServiceInterface, Depends(get_planning_service_microservices)
-]
-ScoringServiceMicroservicesDep = Annotated[
-    ScoringServiceInterface, Depends(get_scoring_service_microservices)
-]
-OptimizationServiceMicroservicesDep = Annotated[
-    OptimizationServiceInterface, Depends(get_optimization_service_microservices)
-]
-PortfolioServiceMicroservicesDep = Annotated[
-    PortfolioServiceInterface, Depends(get_portfolio_service_microservices)
-]
-TradingServiceMicroservicesDep = Annotated[
-    TradingServiceInterface, Depends(get_trading_service_microservices)
-]
-UniverseServiceMicroservicesDep = Annotated[
-    UniverseServiceInterface, Depends(get_universe_service_microservices)
-]
-GatewayServiceMicroservicesDep = Annotated[
-    GatewayServiceInterface, Depends(get_gateway_service_microservices)
-]
+# Note: Legacy gRPC microservices dependency injection removed.
+# For REST microservices, use HTTP clients via service locator:
+#   from app.infrastructure.service_discovery import get_service_locator
+#   locator = get_service_locator()
+#   client = locator.create_http_client("service_name")
