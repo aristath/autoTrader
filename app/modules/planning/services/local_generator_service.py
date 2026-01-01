@@ -1,7 +1,8 @@
 """Local Generator Service - Domain service wrapper for sequence generation."""
 
-from typing import AsyncIterator, List
+from typing import AsyncIterator, Dict, List
 
+from app.modules.planning.domain.holistic_planner import generate_action_sequences
 from app.modules.planning.domain.models import ActionCandidate
 from services.generator.models import (
     ActionCandidateModel,
@@ -37,32 +38,52 @@ class LocalGeneratorService:
 
         Yields:
             SequenceBatch objects containing sequences
-
-        TODO: Extract logic from holistic_planner.py:
-            - generate_action_sequences() (lines 2136-2242) - MAIN FUNCTION
-            - _generate_patterns_at_depth() (lines 1927-2133)
-            - _generate_combinations() (lines 1863-1925)
-            - _generate_weighted_combinations() (lines 1730-1860)
-            - _generate_adaptive_patterns() (lines 1076-1338)
-            - _filter_correlation_aware_sequences() (lines 1339-1420)
-            - _generate_partial_execution_scenarios() (lines 1422-1490)
-            - _generate_constraint_relaxation_scenarios() (lines 1492-1560)
-            - _hash_sequence() (lines 71-89)
-            - Helper functions (lines 1562-1650)
-            - Feasibility filtering (lines 3114-3205 from create_holistic_plan)
         """
-        # TODO: Implement sequence generation logic
-        # For now, return empty batch
-        all_sequences: List[List[ActionCandidate]] = []
+        # Convert Pydantic opportunities to domain format
+        opportunities: Dict[str, List[ActionCandidate]] = {
+            "profit_taking": [
+                self._action_candidate_from_model(a)
+                for a in request.opportunities.profit_taking
+            ],
+            "averaging_down": [
+                self._action_candidate_from_model(a)
+                for a in request.opportunities.averaging_down
+            ],
+            "rebalance_sells": [
+                self._action_candidate_from_model(a)
+                for a in request.opportunities.rebalance_sells
+            ],
+            "rebalance_buys": [
+                self._action_candidate_from_model(a)
+                for a in request.opportunities.rebalance_buys
+            ],
+            "opportunity_buys": [
+                self._action_candidate_from_model(a)
+                for a in request.opportunities.opportunity_buys
+            ],
+        }
+
+        # Call domain logic to generate sequences
+        all_sequences = await generate_action_sequences(
+            opportunities=opportunities,
+            available_cash=request.feasibility.available_cash,
+            max_depth=request.combinatorial.max_depth,
+            enable_combinatorial=request.combinatorial.enable_weighted_combinations,
+        )
+
+        # Apply feasibility filtering
+        feasible_sequences = self._apply_feasibility_filter(
+            all_sequences, request.feasibility
+        )
 
         # Yield in batches
         batch_size = request.batch_size
-        total_batches = max(1, (len(all_sequences) + batch_size - 1) // batch_size)
+        total_batches = max(1, (len(feasible_sequences) + batch_size - 1) // batch_size)
 
         for batch_number in range(total_batches):
             start_idx = batch_number * batch_size
-            end_idx = min(start_idx + batch_size, len(all_sequences))
-            batch_sequences = all_sequences[start_idx:end_idx]
+            end_idx = min(start_idx + batch_size, len(feasible_sequences))
+            batch_sequences = feasible_sequences[start_idx:end_idx]
 
             # Convert domain models to Pydantic
             pydantic_sequences = [
@@ -76,6 +97,82 @@ class LocalGeneratorService:
                 total_batches=total_batches,
                 more_available=batch_number < total_batches - 1,
             )
+
+    def _apply_feasibility_filter(
+        self, sequences: List[List[ActionCandidate]], feasibility
+    ) -> List[List[ActionCandidate]]:
+        """
+        Filter sequences by feasibility (cash requirements).
+
+        Args:
+            sequences: Generated sequences
+            feasibility: Feasibility settings
+
+        Returns:
+            Filtered sequences that are feasible
+        """
+        feasible = []
+        for sequence in sequences:
+            # Calculate total cash required for sequence
+            cash_required = 0.0
+            cash_generated = 0.0
+
+            for action in sequence:
+                trade_cost = (
+                    feasibility.transaction_cost_fixed
+                    + action.value_eur * feasibility.transaction_cost_percent
+                )
+
+                side_str = (
+                    action.side.value
+                    if hasattr(action.side, "value")
+                    else str(action.side)
+                )
+                if side_str == "BUY":
+                    cash_required += action.value_eur + trade_cost
+                else:  # SELL
+                    cash_generated += action.value_eur - trade_cost
+
+            net_cash_required = cash_required - cash_generated
+
+            # Check if sequence is feasible
+            if net_cash_required <= feasibility.available_cash:
+                # Also check minimum trade value
+                all_above_min = all(
+                    action.value_eur >= feasibility.min_trade_value
+                    for action in sequence
+                )
+                if all_above_min:
+                    feasible.append(sequence)
+
+        return feasible
+
+    def _action_candidate_from_model(
+        self, model: ActionCandidateModel
+    ) -> ActionCandidate:
+        """
+        Convert Pydantic model to domain ActionCandidate.
+
+        Args:
+            model: Pydantic ActionCandidateModel
+
+        Returns:
+            Domain ActionCandidate
+        """
+        from app.domain.value_objects.trade_side import TradeSide
+
+        return ActionCandidate(
+            side=TradeSide(model.side),
+            symbol=model.symbol,
+            name=model.name,
+            quantity=model.quantity,
+            price=model.price,
+            value_eur=model.value_eur,
+            currency=model.currency,
+            priority=model.priority,
+            reason=model.reason,
+            tags=model.tags,
+        )
 
     def _action_candidate_to_model(
         self, action: ActionCandidate
