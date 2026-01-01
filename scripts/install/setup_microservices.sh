@@ -95,7 +95,7 @@ EOF
 print_installation_summary() {
     local app_url="http://localhost:8000"
 
-    if [ ${#SELECTED_SERVICES[@]} -eq 7 ]; then
+    if [ ${#SELECTED_SERVICES[@]} -eq 13 ]; then
         echo "Mode: Single-device (all services)"
     else
         echo "Mode: Distributed (${#SELECTED_SERVICES[@]} local services)"

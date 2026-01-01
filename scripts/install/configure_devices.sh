@@ -5,7 +5,7 @@
 #
 
 configure_device_addresses() {
-    local all_services=("planning" "scoring" "optimization" "portfolio" "trading" "universe" "gateway")
+    local all_services=("planning" "opportunity" "generator" "coordinator" "evaluator-1" "evaluator-2" "evaluator-3" "scoring" "optimization" "portfolio" "trading" "universe" "gateway")
     local remote_services=()
 
     # Determine which services are remote (not in SELECTED_SERVICES)
@@ -112,6 +112,12 @@ get_service_port() {
         "optimization") echo "8005" ;;
         "planning") echo "8006" ;;
         "gateway") echo "8007" ;;
+        "opportunity") echo "8008" ;;
+        "generator") echo "8009" ;;
+        "evaluator-1") echo "8010" ;;
+        "coordinator") echo "8011" ;;
+        "evaluator-2") echo "8020" ;;
+        "evaluator-3") echo "8030" ;;
         *) echo "8001" ;;
     esac
 }

@@ -125,7 +125,7 @@ EOF
 generate_services_yaml() {
     local config_dir="/home/arduino/arduino-trader/app/config"
     local services_yaml="${config_dir}/services.yaml"
-    local all_services=("planning" "scoring" "optimization" "portfolio" "trading" "universe" "gateway")
+    local all_services=("planning" "opportunity" "generator" "coordinator" "evaluator-1" "evaluator-2" "evaluator-3" "scoring" "optimization" "portfolio" "trading" "universe" "gateway")
 
     # Start YAML file
     cat > "$services_yaml" << 'EOF'

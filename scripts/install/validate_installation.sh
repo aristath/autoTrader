@@ -27,7 +27,7 @@ validate_installation() {
 
     # Test remote services
     local remote_services=()
-    local all_services=("planning" "scoring" "optimization" "portfolio" "trading" "universe" "gateway")
+    local all_services=("planning" "opportunity" "generator" "coordinator" "evaluator-1" "evaluator-2" "evaluator-3" "scoring" "optimization" "portfolio" "trading" "universe" "gateway")
 
     for service in "${all_services[@]}"; do
         if [[ ! " ${SELECTED_SERVICES[@]} " =~ " ${service} " ]]; then
