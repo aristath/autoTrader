@@ -117,7 +117,6 @@ async def create_holistic_plan_modular(
         settings_repo=settings_repo,
         trade_repo=trade_repo,
         metrics_cache=None,  # TODO: Add metrics cache support
-        risk_profile=None,  # TODO: Add risk profile support
     )
 
     # Create plan using modular planner

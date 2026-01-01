@@ -23,14 +23,13 @@ async def evaluate_end_state(
     transaction_cost_percent: float = 0.002,
     cost_penalty_factor: float = 0.0,
     metrics_cache=None,
-    risk_profile=None,
 ) -> Tuple[float, Dict]:
     """
     Evaluate the end state of a portfolio after executing a sequence.
 
     This is the core single-objective evaluation function that:
     1. Calculates diversification score
-    2. Calculates end-state score with risk profile
+    2. Calculates end-state score (uses default "balanced" risk profile)
     3. Applies transaction cost penalty if enabled
     4. Returns final score and detailed breakdown
 
@@ -41,7 +40,6 @@ async def evaluate_end_state(
         transaction_cost_percent: Variable cost as fraction
         cost_penalty_factor: Penalty factor for transaction costs (0.0 = no penalty)
         metrics_cache: Optional cache for metrics lookup
-        risk_profile: Optional risk profile for scoring
 
     Returns:
         Tuple of (final_score, breakdown_dict)
@@ -49,13 +47,12 @@ async def evaluate_end_state(
     # Calculate diversification score for end state
     div_score = await calculate_portfolio_score(end_context)
 
-    # Calculate full end-state score with risk profile
+    # Calculate full end-state score (uses default "balanced" risk profile)
     end_score, breakdown_dict = await calculate_portfolio_end_state_score(
         positions=end_context.positions,
         total_value=end_context.total_value,
         diversification_score=div_score.total / 100,  # Normalize to 0-1
         metrics_cache=metrics_cache,
-        risk_profile=risk_profile,
     )
 
     # Ensure breakdown is a dict we can modify
@@ -156,7 +153,6 @@ async def evaluate_with_price_scenario(
     transaction_cost_percent: float = 0.002,
     cost_penalty_factor: float = 0.0,
     metrics_cache=None,
-    risk_profile=None,
 ) -> Tuple[float, Dict]:
     """
     Evaluate sequence with a specific price scenario.
@@ -172,7 +168,6 @@ async def evaluate_with_price_scenario(
         transaction_cost_percent: Variable cost as fraction
         cost_penalty_factor: Cost penalty factor
         metrics_cache: Optional metrics cache
-        risk_profile: Optional risk profile
 
     Returns:
         Tuple of (scenario_score, breakdown_with_scenario_info)
@@ -184,7 +179,6 @@ async def evaluate_with_price_scenario(
         transaction_cost_percent=transaction_cost_percent,
         cost_penalty_factor=cost_penalty_factor,
         metrics_cache=metrics_cache,
-        risk_profile=risk_profile,
     )
 
     # Add price scenario info to breakdown
