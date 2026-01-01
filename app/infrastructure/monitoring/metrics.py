@@ -194,21 +194,6 @@ def get_metrics_registry() -> MetricsRegistry:
 
 
 # Common metrics
-def record_grpc_request(service: str, method: str, status: str, duration: float):
-    """Record gRPC request metrics."""
-    # Request counter
-    _registry.counter(
-        "grpc_requests_total",
-        labels={"service": service, "method": method, "status": status},
-    ).inc()
-
-    # Request duration histogram
-    _registry.histogram(
-        "grpc_request_duration_seconds",
-        labels={"service": service, "method": method},
-    ).observe(duration)
-
-
 def record_service_health(service: str, healthy: bool):
     """Record service health status."""
     _registry.gauge("service_health", labels={"service": service}).set(
@@ -255,12 +240,3 @@ class Timer:
         if self.start_time is not None:
             duration = time.time() - self.start_time
             self.callback(duration)
-
-
-def time_grpc_request(service: str, method: str, status: str = "success"):
-    """Create timer for gRPC request."""
-
-    def record_duration(duration: float):
-        record_grpc_request(service, method, status, duration)
-
-    return Timer(record_duration)
