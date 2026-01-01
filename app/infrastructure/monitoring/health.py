@@ -171,11 +171,33 @@ class HealthCheckRegistry:
 
 # Common health check functions
 async def check_database_connection() -> HealthCheckResult:
-    """Example: Check database connection."""
-    # TODO: Implement actual database check
-    return HealthCheckResult(
-        status=HealthStatus.HEALTHY, message="Database connection OK"
-    )
+    """Check database connection and integrity."""
+    try:
+        from app.core.database import get_db_manager
+
+        db_manager = get_db_manager()
+
+        # Quick connectivity check - try to access ledger database
+        async with db_manager.ledger.transaction() as conn:
+            cursor = await conn.execute("SELECT 1")
+            result = await cursor.fetchone()
+
+        if result and result[0] == 1:
+            return HealthCheckResult(
+                status=HealthStatus.HEALTHY,
+                message="Database connection OK",
+                details={"ledger_accessible": True},
+            )
+        else:
+            return HealthCheckResult(
+                status=HealthStatus.UNHEALTHY,
+                message="Database query failed",
+            )
+    except Exception as e:
+        return HealthCheckResult(
+            status=HealthStatus.UNHEALTHY,
+            message=f"Database connection failed: {e}",
+        )
 
 
 async def check_memory_usage(threshold_pct: float = 90.0) -> HealthCheckResult:
