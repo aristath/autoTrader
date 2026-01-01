@@ -331,14 +331,14 @@ async def process_planner_batch_job(
         # Use factory service for satellite buckets to leverage bucket-specific configurations
         if bucket_id != "core":
             try:
-                # Import satellite repository
-                from app.modules.satellites.database.satellite_repository import (
-                    SatelliteRepository,
+                # Import bucket repository to get satellite settings
+                from app.modules.satellites.database.bucket_repository import (
+                    BucketRepository,
                 )
 
                 # Load satellite settings
-                satellite_repo = SatelliteRepository()
-                satellite_settings = await satellite_repo.get_settings(bucket_id)
+                bucket_repo = BucketRepository()
+                satellite_settings = await bucket_repo.get_settings(bucket_id)
 
                 if satellite_settings:
                     # Create planner using factory service
