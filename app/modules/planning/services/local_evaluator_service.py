@@ -1,11 +1,14 @@
 """Local Evaluator Service - Domain service wrapper for sequence evaluation."""
 
-from typing import List
+from typing import Dict, List
 
 from app.domain.models import Security
 from app.modules.planning.domain.holistic_planner import simulate_sequence
 from app.modules.planning.domain.models import ActionCandidate
+from app.modules.scoring.domain.diversification import calculate_portfolio_score
+from app.modules.scoring.domain.end_state import calculate_portfolio_end_state_score
 from app.modules.scoring.domain.models import PortfolioContext
+from app.repositories.calculations import CalculationsRepository
 from services.evaluator.models import (
     ActionCandidateModel,
     EvaluateSequencesRequest,
@@ -46,6 +49,9 @@ class LocalEvaluatorService:
         portfolio_context = self._to_portfolio_context(request)
         securities = self._to_securities(request.securities)
 
+        # Pre-fetch metrics for all symbols in all sequences (optimization)
+        metrics_cache = await self._fetch_metrics_batch(request)
+
         # Evaluate each sequence
         evaluated = []
         for pydantic_sequence in request.sequences:
@@ -61,11 +67,17 @@ class LocalEvaluatorService:
                 securities=securities,
             )
 
-            # Calculate scores (simplified - can be enhanced with full scoring logic)
-            # Note: Full scoring with diversification, risk, and end-state metrics
-            # can be added by integrating calculate_portfolio_score() and
-            # calculate_portfolio_end_state_score() from scoring module
-            end_state_score = 0.75  # Placeholder
+            # Calculate real scores (matching monolithic planner)
+            # Step 1: Calculate diversification score
+            div_score = await calculate_portfolio_score(final_context)
+
+            # Step 2: Calculate full end-state score
+            end_score, breakdown = await calculate_portfolio_end_state_score(
+                positions=final_context.positions,
+                total_value=final_context.total_value,
+                diversification_score=div_score.total / 100,  # Normalize to 0-1
+                metrics_cache=metrics_cache,
+            )
 
             # Calculate transaction costs
             total_cost = sum(
@@ -83,20 +95,19 @@ class LocalEvaluatorService:
                 if action.side == "BUY"
             )
 
-            # Simple scoring (can be enhanced)
-            total_score = end_state_score
-
             evaluated.append(
                 SequenceEvaluationResult(
                     sequence=pydantic_sequence,
-                    end_state_score=end_state_score,
-                    diversification_score=0.7,  # Placeholder
-                    risk_score=0.8,  # Placeholder
-                    total_score=total_score,
+                    end_state_score=end_score,
+                    diversification_score=div_score.total / 100,  # Normalize to 0-1
+                    risk_score=breakdown.get(
+                        "stability", 0.5
+                    ),  # Extract from breakdown
+                    total_score=end_score,  # Use end_score as total_score
                     total_cost=total_cost,
                     cash_required=cash_required,
                     feasible=cash_required <= request.portfolio_context.total_value_eur,
-                    metrics={},
+                    metrics=breakdown,
                 )
             )
 
@@ -109,6 +120,60 @@ class LocalEvaluatorService:
             total_evaluated=len(request.sequences),
             beam_width=request.settings.beam_width,
         )
+
+    async def _fetch_metrics_batch(
+        self, request: EvaluateSequencesRequest
+    ) -> Dict[str, Dict[str, float]]:
+        """
+        Pre-fetch all metrics for symbols in sequences (optimization).
+
+        This matches the monolithic planner's approach of batching metric lookups
+        to reduce database round-trips.
+
+        Args:
+            request: Request containing sequences with symbols
+
+        Returns:
+            Dict mapping symbol -> metrics dict
+        """
+        # Collect all unique symbols from all sequences
+        symbols = set()
+        for sequence in request.sequences:
+            for action in sequence:
+                symbols.add(action.symbol)
+
+        # Also include existing positions
+        for position in request.positions:
+            symbols.add(position.symbol)
+
+        # Required metrics for end-state scoring
+        required_metrics = [
+            "CAGR_5Y",
+            "DIVIDEND_YIELD",
+            "CONSISTENCY_SCORE",
+            "P_E_RATIO",
+            "P_B_RATIO",
+            "DEBT_TO_EQUITY",
+            "DIVIDEND_PAYOUT_RATIO",
+            "DIVIDEND_GROWTH_3Y",
+            "MAX_DRAWDOWN_5Y",
+            "VOLATILITY_5Y",
+            "SHARPE_RATIO",
+            "SORTINO_RATIO",
+        ]
+
+        # Fetch metrics for all symbols
+        calc_repo = CalculationsRepository()
+        metrics_cache: Dict[str, Dict[str, float]] = {}
+
+        for symbol in symbols:
+            metrics = await calc_repo.get_metrics(symbol, required_metrics)
+            # Convert None to 0.0 for missing metrics
+            metrics_cache[symbol] = {
+                k: (v if v is not None else 0.0) for k, v in metrics.items()
+            }
+
+        return metrics_cache
 
     def _to_portfolio_context(
         self, request: EvaluateSequencesRequest

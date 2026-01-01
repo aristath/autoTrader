@@ -123,9 +123,60 @@ async def test_evaluate_sequences(evaluator_service, sample_request):
         industry_weights={"Technology": 0.21},
     )
 
-    with patch(
-        "app.modules.planning.services.local_evaluator_service.simulate_sequence",
-        new=AsyncMock(return_value=(mock_context, 5000.0)),
+    # Mock scoring functions
+    from app.modules.scoring.domain.models import PortfolioScore
+
+    mock_portfolio_score = PortfolioScore(
+        diversification_score=70.0, dividend_score=60.0, quality_score=80.0, total=70.0
+    )
+
+    # Mock CalculationsRepository
+    mock_calc_repo = AsyncMock()
+    mock_calc_repo.get_metrics = AsyncMock(
+        return_value={
+            "CAGR_5Y": 0.15,
+            "DIVIDEND_YIELD": 0.02,
+            "CONSISTENCY_SCORE": 0.75,
+            "P_E_RATIO": 25.0,
+            "P_B_RATIO": 5.0,
+            "DEBT_TO_EQUITY": 0.5,
+            "DIVIDEND_PAYOUT_RATIO": 0.3,
+            "DIVIDEND_GROWTH_3Y": 0.1,
+            "MAX_DRAWDOWN_5Y": -0.15,
+            "VOLATILITY_5Y": 0.2,
+            "SHARPE_RATIO": 1.5,
+            "SORTINO_RATIO": 2.0,
+        }
+    )
+
+    with (
+        patch(
+            "app.modules.planning.services.local_evaluator_service.simulate_sequence",
+            new=AsyncMock(return_value=(mock_context, 5000.0)),
+        ),
+        patch(
+            "app.modules.planning.services.local_evaluator_service.CalculationsRepository",
+            return_value=mock_calc_repo,
+        ),
+        patch(
+            "app.modules.planning.services.local_evaluator_service.calculate_portfolio_score",
+            new=AsyncMock(return_value=mock_portfolio_score),
+        ),
+        patch(
+            "app.modules.planning.services.local_evaluator_service.calculate_portfolio_end_state_score",
+            new=AsyncMock(
+                return_value=(
+                    0.72,
+                    {
+                        "total_return": 0.75,
+                        "diversification": 0.70,
+                        "long_term_promise": 0.68,
+                        "stability": 0.73,
+                        "opinion": 0.50,
+                    },
+                )
+            ),
+        ),
     ):
         response = await evaluator_service.evaluate_sequences(sample_request)
 
@@ -143,6 +194,13 @@ async def test_evaluate_sequences(evaluator_service, sample_request):
             response.top_sequences[0].total_score
             >= response.top_sequences[1].total_score
         )
+
+    # Verify real scoring was used (not placeholders)
+    for seq in response.top_sequences:
+        assert seq.end_state_score == 0.72
+        assert seq.diversification_score == 0.70
+        assert seq.risk_score == 0.73  # stability from breakdown
+        assert seq.total_score == 0.72
 
 
 @pytest.mark.asyncio
@@ -199,9 +257,59 @@ async def test_evaluate_sequences_beam_limit(evaluator_service):
         industry_weights={"Technology": 0.002},
     )
 
-    with patch(
-        "app.modules.planning.services.local_evaluator_service.simulate_sequence",
-        new=AsyncMock(return_value=(mock_context, 99800.0)),
+    # Mock scoring functions
+    from app.modules.scoring.domain.models import PortfolioScore
+
+    mock_portfolio_score = PortfolioScore(
+        diversification_score=70.0, dividend_score=60.0, quality_score=80.0, total=70.0
+    )
+
+    mock_calc_repo = AsyncMock()
+    mock_calc_repo.get_metrics = AsyncMock(
+        return_value={
+            "CAGR_5Y": 0.15,
+            "DIVIDEND_YIELD": 0.02,
+            "CONSISTENCY_SCORE": 0.75,
+            "P_E_RATIO": 25.0,
+            "P_B_RATIO": 5.0,
+            "DEBT_TO_EQUITY": 0.5,
+            "DIVIDEND_PAYOUT_RATIO": 0.3,
+            "DIVIDEND_GROWTH_3Y": 0.1,
+            "MAX_DRAWDOWN_5Y": -0.15,
+            "VOLATILITY_5Y": 0.2,
+            "SHARPE_RATIO": 1.5,
+            "SORTINO_RATIO": 2.0,
+        }
+    )
+
+    with (
+        patch(
+            "app.modules.planning.services.local_evaluator_service.simulate_sequence",
+            new=AsyncMock(return_value=(mock_context, 99800.0)),
+        ),
+        patch(
+            "app.modules.planning.services.local_evaluator_service.CalculationsRepository",
+            return_value=mock_calc_repo,
+        ),
+        patch(
+            "app.modules.planning.services.local_evaluator_service.calculate_portfolio_score",
+            new=AsyncMock(return_value=mock_portfolio_score),
+        ),
+        patch(
+            "app.modules.planning.services.local_evaluator_service.calculate_portfolio_end_state_score",
+            new=AsyncMock(
+                return_value=(
+                    0.72,
+                    {
+                        "total_return": 0.75,
+                        "diversification": 0.70,
+                        "long_term_promise": 0.68,
+                        "stability": 0.73,
+                        "opinion": 0.50,
+                    },
+                )
+            ),
+        ),
     ):
         response = await evaluator_service.evaluate_sequences(request)
 
