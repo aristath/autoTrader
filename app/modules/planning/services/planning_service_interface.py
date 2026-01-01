@@ -33,7 +33,7 @@ class PlanUpdate:
 class PlanningServiceInterface(Protocol):
     """Planning service interface."""
 
-    async def create_plan(self, request: PlanRequest) -> AsyncIterator[PlanUpdate]:
+    def create_plan(self, request: PlanRequest) -> AsyncIterator[PlanUpdate]:
         """
         Create a new portfolio plan.
 

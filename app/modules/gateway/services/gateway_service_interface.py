@@ -36,7 +36,7 @@ class GatewayServiceInterface(Protocol):
         """
         ...
 
-    async def trigger_trading_cycle(
+    def trigger_trading_cycle(
         self, dry_run: bool = False
     ) -> AsyncIterator[TradingCycleUpdate]:
         """
