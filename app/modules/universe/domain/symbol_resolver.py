@@ -13,8 +13,8 @@ from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
+    from app.domain.repositories.protocols import ISecurityRepository
     from app.infrastructure.external.tradernet import TradernetClient
-    from app.modules.universe.database.security_repository import SecurityRepository
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ class SymbolResolver:
     def __init__(
         self,
         tradernet_client: "TradernetClient",
-        security_repo: Optional["SecurityRepository"] = None,
+        security_repo: Optional["ISecurityRepository"] = None,
     ):
         """Initialize the resolver.
 

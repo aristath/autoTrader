@@ -66,8 +66,7 @@ def get_position_repository() -> IPositionRepository:
 
 def get_trade_repository() -> ITradeRepository:
     """Get TradeRepository instance."""
-    # Type ignore: TradeRepository implements ITradeRepository
-    return TradeRepository()  # type: ignore[return-value]
+    return TradeRepository()
 
 
 def get_score_repository() -> ScoreRepository:
@@ -346,10 +345,8 @@ def get_security_setup_service(
     db_manager: DatabaseManagerDep,
 ) -> SecuritySetupService:
     """Get SecuritySetupService instance."""
-    # SecurityRepositoryDep is ISecurityRepository, but SecuritySetupService needs SecurityRepository
-    # We can safely cast since get_security_repository() returns SecurityRepository
     return SecuritySetupService(
-        security_repo=security_repo,  # type: ignore[arg-type]
+        security_repo=security_repo,
         scoring_service=scoring_service,
         tradernet_client=tradernet_client,
         db_manager=db_manager,

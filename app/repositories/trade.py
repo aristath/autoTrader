@@ -6,6 +6,7 @@ from typing import List, Optional, Set
 
 from app.core.database import get_db_manager
 from app.domain.models import Trade
+from app.domain.repositories.protocols import ITradeRepository
 from app.repositories.base import safe_get_datetime, transaction_context
 
 logger = logging.getLogger(__name__)
@@ -91,7 +92,7 @@ def _process_in_range_trades(
         )
 
 
-class TradeRepository:
+class TradeRepository(ITradeRepository):
     """Repository for trade history operations (append-only ledger)."""
 
     def __init__(self, db=None):
