@@ -200,9 +200,13 @@ async def process_planner_batch_job(
             ]
 
             # Apply pending orders
+            # Allow negative cash for hypothetical planning scenarios
             adjusted_position_dicts, adjusted_cash_balances = (
                 apply_pending_orders_to_portfolio(
-                    position_dicts_for_adjustment, cash_balances_dict, pending_orders
+                    position_dicts_for_adjustment,
+                    cash_balances_dict,
+                    pending_orders,
+                    allow_negative_cash=True,
                 )
             )
 
