@@ -1,0 +1,28 @@
+# Device Configuration
+# This file identifies the device and determines which services run
+
+device:
+  # Unique device identifier
+  # Options: "primary", "compute-1", "device-1", "device-2", etc.
+  id: "primary"
+
+  # Human-readable name
+  name: "Arduino Uno Q - Main Device"
+
+  # Device role(s)
+  # Can be: "all", "compute", "state", "gateway", or specific services
+  roles:
+    - "all"  # Run all services locally
+
+  # Network configuration
+  network:
+    # This device's IP address (for service binding)
+    bind_address: "0.0.0.0"
+
+    # Advertised address (for other devices to reach this one)
+    advertise_address: "localhost"
+
+  # Resource limits
+  resources:
+    max_workers: 10        # gRPC server thread pool size
+    max_memory_mb: 2048    # Memory limit hint
