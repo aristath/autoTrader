@@ -195,7 +195,9 @@ class TestDividendGrouping:
             "MSFT": create_stock("MSFT", "Microsoft Corporation"),
         }
 
-        from app.jobs.dividend_reinvestment import auto_reinvest_dividends
+        from app.modules.dividends.jobs.dividend_reinvestment import (
+            auto_reinvest_dividends,
+        )
 
         with mock_dividend_reinvestment_dependencies(
             mock_dividend_repo=mock_dividend_repo,
@@ -250,7 +252,9 @@ class TestDividendGrouping:
 
         stocks_by_symbol = {"AAPL": create_stock("AAPL", "Apple Inc.")}
 
-        from app.jobs.dividend_reinvestment import auto_reinvest_dividends
+        from app.modules.dividends.jobs.dividend_reinvestment import (
+            auto_reinvest_dividends,
+        )
 
         with mock_dividend_reinvestment_dependencies(
             mock_dividend_repo=mock_dividend_repo,
@@ -295,7 +299,9 @@ class TestReinvestmentExecution:
 
         stocks_by_symbol = {"AAPL": create_stock("AAPL", "Apple Inc.")}
 
-        from app.jobs.dividend_reinvestment import auto_reinvest_dividends
+        from app.modules.dividends.jobs.dividend_reinvestment import (
+            auto_reinvest_dividends,
+        )
 
         with mock_dividend_reinvestment_dependencies(
             mock_dividend_repo=mock_dividend_repo,
@@ -329,7 +335,9 @@ class TestReinvestmentExecution:
 
         stocks_by_symbol = {"AAPL": create_stock("AAPL", "Apple Inc.")}
 
-        from app.jobs.dividend_reinvestment import auto_reinvest_dividends
+        from app.modules.dividends.jobs.dividend_reinvestment import (
+            auto_reinvest_dividends,
+        )
 
         with mock_dividend_reinvestment_dependencies(
             mock_dividend_repo=mock_dividend_repo,
@@ -370,7 +378,9 @@ class TestReinvestmentExecution:
 
         stocks_by_symbol = {"AAPL": create_stock("AAPL", "Apple Inc.")}
 
-        from app.jobs.dividend_reinvestment import auto_reinvest_dividends
+        from app.modules.dividends.jobs.dividend_reinvestment import (
+            auto_reinvest_dividends,
+        )
 
         with mock_dividend_reinvestment_dependencies(
             mock_dividend_repo=mock_dividend_repo,
@@ -416,7 +426,9 @@ class TestDividendMarking:
 
         stocks_by_symbol = {"AAPL": create_stock("AAPL", "Apple Inc.")}
 
-        from app.jobs.dividend_reinvestment import auto_reinvest_dividends
+        from app.modules.dividends.jobs.dividend_reinvestment import (
+            auto_reinvest_dividends,
+        )
 
         with mock_dividend_reinvestment_dependencies(
             mock_dividend_repo=mock_dividend_repo,
@@ -460,7 +472,9 @@ class TestPendingBonus:
 
         stocks_by_symbol = {"AAPL": create_stock("AAPL", "Apple Inc.")}
 
-        from app.jobs.dividend_reinvestment import auto_reinvest_dividends
+        from app.modules.dividends.jobs.dividend_reinvestment import (
+            auto_reinvest_dividends,
+        )
 
         with mock_dividend_reinvestment_dependencies(
             mock_dividend_repo=mock_dividend_repo,
@@ -494,7 +508,9 @@ class TestErrorHandling:
 
         mock_trade_execution_service = AsyncMock()
 
-        from app.jobs.dividend_reinvestment import auto_reinvest_dividends
+        from app.modules.dividends.jobs.dividend_reinvestment import (
+            auto_reinvest_dividends,
+        )
 
         with mock_dividend_reinvestment_dependencies(
             mock_dividend_repo=mock_dividend_repo,
@@ -527,7 +543,9 @@ class TestErrorHandling:
 
         stocks_by_symbol = {"AAPL": create_stock("AAPL", "Apple Inc.")}
 
-        from app.jobs.dividend_reinvestment import auto_reinvest_dividends
+        from app.modules.dividends.jobs.dividend_reinvestment import (
+            auto_reinvest_dividends,
+        )
 
         with mock_dividend_reinvestment_dependencies(
             mock_dividend_repo=mock_dividend_repo,
@@ -577,7 +595,9 @@ class TestErrorHandling:
             "MSFT": create_stock("MSFT", "Microsoft Corporation"),
         }
 
-        from app.jobs.dividend_reinvestment import auto_reinvest_dividends
+        from app.modules.dividends.jobs.dividend_reinvestment import (
+            auto_reinvest_dividends,
+        )
 
         with mock_dividend_reinvestment_dependencies(
             mock_dividend_repo=mock_dividend_repo,
@@ -619,7 +639,9 @@ class TestErrorHandling:
 
         stocks_by_symbol = {"AAPL": create_stock("AAPL", "Apple Inc.")}
 
-        from app.jobs.dividend_reinvestment import auto_reinvest_dividends
+        from app.modules.dividends.jobs.dividend_reinvestment import (
+            auto_reinvest_dividends,
+        )
 
         with mock_dividend_reinvestment_dependencies(
             mock_dividend_repo=mock_dividend_repo,
@@ -661,7 +683,9 @@ class TestStateVerification:
 
         stocks_by_symbol = {"AAPL": create_stock("AAPL", "Apple Inc.")}
 
-        from app.jobs.dividend_reinvestment import auto_reinvest_dividends
+        from app.modules.dividends.jobs.dividend_reinvestment import (
+            auto_reinvest_dividends,
+        )
 
         with mock_dividend_reinvestment_dependencies(
             mock_dividend_repo=mock_dividend_repo,

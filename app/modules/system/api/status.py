@@ -417,7 +417,7 @@ async def trigger_weekly_maintenance():
 @router.post("/jobs/dividend-reinvestment")
 async def trigger_dividend_reinvestment():
     """Manually trigger dividend reinvestment."""
-    from app.jobs.dividend_reinvestment import auto_reinvest_dividends
+    from app.modules.dividends.jobs.dividend_reinvestment import auto_reinvest_dividends
 
     try:
         await auto_reinvest_dividends()
