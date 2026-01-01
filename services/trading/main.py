@@ -26,12 +26,16 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Add CORS middleware
+# CORS Configuration - Multi-device deployment without authentication
+# SECURITY NOTE: Wildcard origins acceptable for internal network deployment
+# as documented in REST_API_SECURITY.md Phase 1 (no authentication yet).
+# Credentials disabled for security (prevents CSRF attacks).
+# TODO Phase 2: Add authentication and restrict origins to known devices.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure based on deployment
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=["*"],  # All origins on internal network
+    allow_credentials=False,  # CRITICAL: Must be False with wildcard origins
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["*"],
 )
 
