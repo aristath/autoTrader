@@ -12,13 +12,30 @@ priority_threshold = 0.3                # Minimum priority to include
 enable_diverse_selection = true         # Enable diversity in selection
 diversity_weight = 0.3                  # Weight for diversity vs priority
 
-# Transaction costs
-transaction_cost_fixed = 5.0            # Fixed cost per trade (EUR)
-transaction_cost_percent = 0.001        # Variable cost (0.1%)
+# Transaction costs (match old planner defaults)
+transaction_cost_fixed = 2.0            # Fixed cost per trade (EUR)
+transaction_cost_percent = 0.002        # Variable cost (0.2%)
 
 # Trade permissions
 allow_sell = true
 allow_buy = true
+
+# Eligibility and risk management
+min_hold_days = 90                      # Minimum days before selling
+sell_cooldown_days = 180                # Days to wait after selling
+max_loss_threshold = -0.20              # Maximum loss before forced sell (-20%)
+
+# Search and optimization
+beam_width = 10                         # Beam search width (1-50)
+cost_penalty_factor = 0.1               # Transaction cost penalty factor (0.0-1.0)
+
+# Advanced evaluation features
+enable_multi_objective = false          # Multi-objective Pareto optimization
+enable_stochastic_scenarios = false     # Stochastic price scenarios
+enable_monte_carlo_paths = false        # Monte Carlo path simulation
+monte_carlo_path_count = 100            # Number of MC paths (10-500)
+enable_multi_timeframe = false          # Multi-timeframe evaluation
+enable_market_regime_scenarios = false  # Market regime scenarios
 
 # ============================================================================
 # OPPORTUNITY CALCULATORS
@@ -142,8 +159,8 @@ market_regime = "sideways"
 [sequence_generators.combinatorial]
 enabled = false                         # Disabled by default (expensive)
 [sequence_generators.combinatorial.params]
-max_sells = 3
-max_buys = 3
+max_sells = 4                           # Match old planner default
+max_buys = 4                            # Match old planner default
 priority_threshold = 0.3
 max_steps = 5
 max_combinations = 50
@@ -152,8 +169,8 @@ max_candidates = 12
 [sequence_generators.enhanced_combinatorial]
 enabled = true
 [sequence_generators.enhanced_combinatorial.params]
-max_sells = 3
-max_buys = 3
+max_sells = 4                           # Match old planner default
+max_buys = 4                            # Match old planner default
 priority_threshold = 0.3
 max_steps = 5
 max_combinations = 50
