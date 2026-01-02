@@ -181,9 +181,241 @@ func (v *Validator) ValidateQuick(config *domain.PlannerConfiguration) error {
 }
 
 // ValidateParams validates module-specific parameters.
-// This is a placeholder for future parameter validation logic.
 func (v *Validator) ValidateParams(moduleName string, params map[string]interface{}) error {
-	// TODO: Implement module-specific parameter validation
-	// For now, we accept any parameters
+	var errors ValidationErrors
+
+	// Define validation rules for common parameter types
+	validators := map[string]func(interface{}) error{
+		"threshold": func(val interface{}) error {
+			if f, ok := val.(float64); ok {
+				if f < 0.0 || f > 1.0 {
+					return fmt.Errorf("must be between 0.0 and 1.0")
+				}
+				return nil
+			}
+			return fmt.Errorf("must be a number")
+		},
+		"weight": func(val interface{}) error {
+			if f, ok := val.(float64); ok {
+				if f < 0.0 || f > 1.0 {
+					return fmt.Errorf("must be between 0.0 and 1.0")
+				}
+				return nil
+			}
+			return fmt.Errorf("must be a number")
+		},
+		"min_value": func(val interface{}) error {
+			if f, ok := val.(float64); ok {
+				if f < 0.0 {
+					return fmt.Errorf("must be >= 0.0")
+				}
+				return nil
+			}
+			return fmt.Errorf("must be a number")
+		},
+		"max_value": func(val interface{}) error {
+			if f, ok := val.(float64); ok {
+				if f < 0.0 {
+					return fmt.Errorf("must be >= 0.0")
+				}
+				return nil
+			}
+			return fmt.Errorf("must be a number")
+		},
+		"count": func(val interface{}) error {
+			if i, ok := val.(int); ok {
+				if i <= 0 {
+					return fmt.Errorf("must be > 0")
+				}
+				return nil
+			}
+			if f, ok := val.(float64); ok {
+				if f <= 0 {
+					return fmt.Errorf("must be > 0")
+				}
+				return nil
+			}
+			return fmt.Errorf("must be an integer")
+		},
+		"percentage": func(val interface{}) error {
+			if f, ok := val.(float64); ok {
+				if f < 0.0 || f > 100.0 {
+					return fmt.Errorf("must be between 0.0 and 100.0")
+				}
+				return nil
+			}
+			return fmt.Errorf("must be a number")
+		},
+		"factor": func(val interface{}) error {
+			if f, ok := val.(float64); ok {
+				if f <= 0.0 {
+					return fmt.Errorf("must be > 0.0")
+				}
+				return nil
+			}
+			return fmt.Errorf("must be a number")
+		},
+	}
+
+	// Module-specific parameter requirements
+	requiredParams := getRequiredParams(moduleName)
+
+	// Check required parameters
+	for paramName, paramType := range requiredParams {
+		value, exists := params[paramName]
+		if !exists {
+			errors = append(errors, ValidationError{
+				Field:   fmt.Sprintf("%s.%s", moduleName, paramName),
+				Message: "required parameter is missing",
+			})
+			continue
+		}
+
+		// Validate parameter type and value
+		if validator, ok := validators[paramType]; ok {
+			if err := validator(value); err != nil {
+				errors = append(errors, ValidationError{
+					Field:   fmt.Sprintf("%s.%s", moduleName, paramName),
+					Message: err.Error(),
+				})
+			}
+		}
+	}
+
+	// Validate cross-parameter constraints
+	if err := validateCrossConstraints(moduleName, params); err != nil {
+		errors = append(errors, ValidationError{
+			Field:   moduleName,
+			Message: err.Error(),
+		})
+	}
+
+	if len(errors) > 0 {
+		return errors
+	}
+
+	return nil
+}
+
+// getRequiredParams returns required parameters for each module type.
+func getRequiredParams(moduleName string) map[string]string {
+	// Define required parameters per module (paramName -> paramType)
+	paramMap := map[string]map[string]string{
+		// Opportunity Calculators
+		"profit_taking": {
+			"gain_threshold": "threshold",
+			"windfall_score": "threshold",
+			"min_hold_days":  "count",
+			"sell_cooldown":  "count",
+		},
+		"averaging_down": {
+			"loss_threshold":    "threshold",
+			"max_loss_allowed":  "threshold",
+			"buy_cooldown_days": "count",
+		},
+		"opportunity_buys": {
+			"scoring_weight":    "weight",
+			"max_opportunities": "count",
+		},
+		"rebalance_sells": {
+			"over_weight_threshold": "threshold",
+		},
+		"rebalance_buys": {
+			"under_weight_threshold": "threshold",
+		},
+		"weight_based": {
+			"target_weight_tolerance": "threshold",
+		},
+
+		// Pattern Generators
+		"direct_buy":        {},
+		"profit_taking":     {},
+		"rebalance":         {},
+		"averaging_down":    {},
+		"single_best":       {},
+		"multi_sell":        {},
+		"mixed_strategy":    {},
+		"opportunity_first": {},
+		"deep_rebalance":    {},
+		"cash_generation":   {},
+		"cost_optimized":    {},
+		"adaptive": {
+			"adaptation_rate": "factor",
+		},
+		"market_regime": {
+			"regime_threshold": "threshold",
+		},
+
+		// Sequence Generators
+		"combinatorial": {
+			"max_combinations": "count",
+		},
+		"enhanced_combinatorial": {
+			"max_combinations":  "count",
+			"pruning_threshold": "threshold",
+		},
+		"partial_execution": {
+			"min_completion_ratio": "threshold",
+		},
+		"constraint_relaxation": {
+			"relaxation_factor": "factor",
+		},
+
+		// Filters
+		"correlation_aware": {
+			"correlation_threshold": "threshold",
+		},
+		"diversity": {
+			"diversity_threshold": "threshold",
+		},
+		"eligibility": {},
+		"recently_traded": {
+			"cooldown_days": "count",
+		},
+	}
+
+	if params, ok := paramMap[moduleName]; ok {
+		return params
+	}
+
+	// Unknown module - no required params (accept any)
+	return map[string]string{}
+}
+
+// validateCrossConstraints validates cross-parameter constraints.
+func validateCrossConstraints(moduleName string, params map[string]interface{}) error {
+	// Check module-specific cross-parameter constraints
+	switch moduleName {
+	case "profit_taking":
+		// Ensure min_hold_days < sell_cooldown
+		if minHold, ok1 := params["min_hold_days"].(float64); ok1 {
+			if cooldown, ok2 := params["sell_cooldown"].(float64); ok2 {
+				if minHold >= cooldown {
+					return fmt.Errorf("min_hold_days must be less than sell_cooldown")
+				}
+			}
+		}
+
+	case "averaging_down":
+		// Ensure loss_threshold <= max_loss_allowed
+		if lossThresh, ok1 := params["loss_threshold"].(float64); ok1 {
+			if maxLoss, ok2 := params["max_loss_allowed"].(float64); ok2 {
+				if lossThresh > maxLoss {
+					return fmt.Errorf("loss_threshold cannot exceed max_loss_allowed")
+				}
+			}
+		}
+
+	case "enhanced_combinatorial":
+		// Ensure pruning_threshold is reasonable for max_combinations
+		if maxComb, ok1 := params["max_combinations"].(float64); ok1 {
+			if pruning, ok2 := params["pruning_threshold"].(float64); ok2 {
+				if pruning > 0.9 && maxComb > 1000 {
+					return fmt.Errorf("high pruning_threshold with large max_combinations may filter too aggressively")
+				}
+			}
+		}
+	}
+
 	return nil
 }

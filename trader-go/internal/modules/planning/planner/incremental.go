@@ -11,15 +11,24 @@ import (
 
 // IncrementalPlanner handles batch generation and incremental evaluation of sequences.
 type IncrementalPlanner struct {
-	planner *Planner
-	log     zerolog.Logger
+	planner    *Planner
+	repository Repository
+	log        zerolog.Logger
+}
+
+// Repository interface defines operations needed for persistence.
+type Repository interface {
+	InsertSequence(portfolioHash string, sequence domain.ActionSequence) (int, error)
+	InsertEvaluation(result domain.EvaluationResult) error
+	UpsertBestResult(portfolioHash string, result domain.EvaluationResult, sequence domain.ActionSequence) error
 }
 
 // NewIncrementalPlanner creates a new incremental planner.
-func NewIncrementalPlanner(planner *Planner, log zerolog.Logger) *IncrementalPlanner {
+func NewIncrementalPlanner(planner *Planner, repository Repository, log zerolog.Logger) *IncrementalPlanner {
 	return &IncrementalPlanner{
-		planner: planner,
-		log:     log.With().Str("component", "incremental_planner").Logger(),
+		planner:    planner,
+		repository: repository,
+		log:        log.With().Str("component", "incremental_planner").Logger(),
 	}
 }
 
@@ -83,6 +92,21 @@ func (ip *IncrementalPlanner) GenerateBatch(
 		result.EndTime = time.Now()
 		result.Elapsed = result.EndTime.Sub(result.StartTime)
 		return result, nil
+	}
+
+	// Persist all sequences to database for tracking
+	if batchConfig.SaveProgress && ip.repository != nil {
+		for _, seq := range sequences {
+			if _, err := ip.repository.InsertSequence(result.PortfolioHash, seq); err != nil {
+				ip.log.Warn().
+					Err(err).
+					Str("pattern", seq.PatternType).
+					Msg("Failed to persist sequence")
+			}
+		}
+		ip.log.Info().
+			Int("sequences_persisted", len(sequences)).
+			Msg("All sequences persisted to database")
 	}
 
 	// Step 3: Evaluate sequences in batches
@@ -167,9 +191,42 @@ func (ip *IncrementalPlanner) GenerateBatch(
 			Float64("elapsed_seconds", batchElapsed.Seconds()).
 			Msg("Batch complete")
 
-		// TODO: Save progress to database if enabled
-		if batchConfig.SaveProgress {
-			// Would save batchResults to database here
+		// Save progress to database if enabled
+		if batchConfig.SaveProgress && ip.repository != nil {
+			// Persist evaluation results and update best if improved
+			for i, evalResult := range batchResults {
+				// Insert evaluation result
+				if err := ip.repository.InsertEvaluation(evalResult); err != nil {
+					ip.log.Warn().
+						Err(err).
+						Str("sequence_hash", evalResult.SequenceHash).
+						Msg("Failed to persist evaluation result")
+					continue
+				}
+
+				// Update best result if this is better
+				if evalResult.Feasible && evalResult.EndScore > result.BestScore {
+					if err := ip.repository.UpsertBestResult(
+						result.PortfolioHash,
+						evalResult,
+						batchSequences[i],
+					); err != nil {
+						ip.log.Warn().
+							Err(err).
+							Float64("score", evalResult.EndScore).
+							Msg("Failed to update best result")
+					} else {
+						ip.log.Info().
+							Float64("new_best_score", evalResult.EndScore).
+							Msg("Best result updated in database")
+					}
+				}
+			}
+
+			ip.log.Debug().
+				Int("batch_num", batchNum).
+				Int("persisted", len(batchResults)).
+				Msg("Batch results persisted to database")
 		}
 
 		// Check early stopping condition
