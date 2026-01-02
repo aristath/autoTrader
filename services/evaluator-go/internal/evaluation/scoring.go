@@ -6,6 +6,21 @@ import (
 	"github.com/aristath/arduino-trader/services/evaluator-go/internal/models"
 )
 
+// Scoring weight constants
+const (
+	// Diversification component weights
+	GeoWeight      = 0.40 // Geographic diversification weight
+	IndustryWeight = 0.30 // Industry diversification weight
+	QualityWeight  = 0.30 // Quality/dividend score weight
+
+	// Deviation scoring scale
+	DeviationScale = 0.3 // Maximum deviation for 0 score (30%)
+
+	// Quality scoring weights
+	SecurityQualityWeight = 0.6 // Weight for security quality score
+	DividendYieldWeight   = 0.4 // Weight for dividend yield
+)
+
 // CalculateTransactionCost calculates total transaction cost for a sequence.
 //
 // Args:
@@ -52,7 +67,7 @@ func CalculateDiversificationScore(portfolioContext models.PortfolioContext) flo
 	qualityScore := calculateQualityScore(portfolioContext, totalValue)
 
 	// Combined score
-	diversificationScore := geoDivScore*0.40 + indDivScore*0.30 + qualityScore*0.30
+	diversificationScore := geoDivScore*GeoWeight + indDivScore*IndustryWeight + qualityScore*QualityWeight
 
 	return math.Min(1.0, diversificationScore)
 }
@@ -104,7 +119,7 @@ func calculateGeoDiversification(portfolioContext models.PortfolioContext, total
 	// Convert deviation to score (lower deviation = higher score)
 	// Perfect alignment (0 deviation) = 1.0
 	// 30% average deviation = 0.0
-	geoScore := math.Max(0, 1.0-avgDeviation/0.3)
+	geoScore := math.Max(0, 1.0-avgDeviation/DeviationScale)
 
 	return geoScore
 }
@@ -154,7 +169,7 @@ func calculateIndustryDiversification(portfolioContext models.PortfolioContext, 
 	avgDeviation := sum(deviations) / float64(len(deviations))
 
 	// Convert deviation to score (lower deviation = higher score)
-	indScore := math.Max(0, 1.0-avgDeviation/0.3)
+	indScore := math.Max(0, 1.0-avgDeviation/DeviationScale)
 
 	return indScore
 }
@@ -195,7 +210,7 @@ func calculateQualityScore(portfolioContext models.PortfolioContext, totalValue 
 	if hasQuality && hasDividend {
 		// Quality is 0-1, dividend is yield (normalize to 0-1 by capping at 10%)
 		normalizedDividend := math.Min(1.0, weightedDividend*10)
-		qualityScore = weightedQuality*0.6 + normalizedDividend*0.4
+		qualityScore = weightedQuality*SecurityQualityWeight + normalizedDividend*DividendYieldWeight
 	} else if hasQuality {
 		qualityScore = weightedQuality
 	} else if hasDividend {
@@ -266,12 +281,19 @@ func EvaluateSequence(
 	)
 
 	if !feasible {
+		// Calculate transaction costs even for infeasible sequences (useful for debugging)
+		txCosts := CalculateTransactionCost(
+			sequence,
+			context.TransactionCostFixed,
+			context.TransactionCostPercent,
+		)
+
 		return models.SequenceEvaluationResult{
 			Sequence:         sequence,
 			Score:            0.0,
 			EndCashEUR:       context.AvailableCashEUR,
 			EndPortfolio:     context.PortfolioContext,
-			TransactionCosts: 0.0,
+			TransactionCosts: txCosts,
 			Feasible:         false,
 		}
 	}
@@ -292,7 +314,7 @@ func EvaluateSequence(
 		sequence,
 		context.TransactionCostFixed,
 		context.TransactionCostPercent,
-		0.1, // Default cost penalty factor
+		context.CostPenaltyFactor,
 	)
 
 	return models.SequenceEvaluationResult{

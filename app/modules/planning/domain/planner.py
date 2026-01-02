@@ -597,7 +597,7 @@ class HolisticPlanner:
 
         except GoEvaluationError as e:
             # Fall back to Python evaluation if Go service fails
-            logger.warning(
+            logger.info(
                 f"Go evaluation failed ({e}), falling back to Python evaluation"
             )
             return await self._evaluate_sequences_python(sequences, eval_context)

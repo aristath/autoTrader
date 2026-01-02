@@ -110,6 +110,7 @@ class GoEvaluationClient:
         securities: List[Security],
         transaction_cost_fixed: float = 2.0,
         transaction_cost_percent: float = 0.002,
+        cost_penalty_factor: float = 0.1,
         price_adjustments: Optional[Dict[str, float]] = None,
     ) -> List[Dict[str, Any]]:
         """
@@ -122,6 +123,7 @@ class GoEvaluationClient:
             securities: List of securities for metadata lookup
             transaction_cost_fixed: Fixed transaction cost (EUR)
             transaction_cost_percent: Percentage transaction cost (fraction)
+            cost_penalty_factor: Penalty factor for transaction costs (default: 0.1)
             price_adjustments: Optional price multipliers for stochastic evaluation
 
         Returns:
@@ -148,6 +150,7 @@ class GoEvaluationClient:
                 transaction_cost_fixed,
                 transaction_cost_percent,
                 price_adjustments,
+                cost_penalty_factor,
             ),
         }
 
@@ -200,6 +203,7 @@ class GoEvaluationClient:
         symbol_volatilities: Optional[Dict[str, float]] = None,
         transaction_cost_fixed: float = 2.0,
         transaction_cost_percent: float = 0.002,
+        cost_penalty_factor: float = 0.1,
     ) -> Dict[str, Any]:
         """
         Evaluate sequence using Monte Carlo simulation (100x faster in Go).
@@ -216,6 +220,7 @@ class GoEvaluationClient:
             symbol_volatilities: Annual volatility per symbol (e.g., {"AAPL": 0.25})
             transaction_cost_fixed: Fixed transaction cost (EUR)
             transaction_cost_percent: Percentage transaction cost (fraction)
+            cost_penalty_factor: Penalty factor for transaction costs (default: 0.1)
 
         Returns:
             Dict with Monte Carlo results:
@@ -248,6 +253,7 @@ class GoEvaluationClient:
                 transaction_cost_fixed,
                 transaction_cost_percent,
                 None,  # No price adjustments for Monte Carlo
+                cost_penalty_factor,
             ),
             "paths": monte_carlo_paths,
             "symbol_volatilities": symbol_volatilities or {},
@@ -293,6 +299,7 @@ class GoEvaluationClient:
         weights: Optional[Dict[str, float]] = None,
         transaction_cost_fixed: float = 2.0,
         transaction_cost_percent: float = 0.002,
+        cost_penalty_factor: float = 0.1,
     ) -> Dict[str, Any]:
         """
         Evaluate sequence under stochastic price scenarios (10x faster in Go).
@@ -309,6 +316,7 @@ class GoEvaluationClient:
             weights: Weight per scenario (default: base 40%, others 15% each)
             transaction_cost_fixed: Fixed transaction cost (EUR)
             transaction_cost_percent: Percentage transaction cost (fraction)
+            cost_penalty_factor: Penalty factor for transaction costs (default: 0.1)
 
         Returns:
             Dict with stochastic results:
@@ -353,6 +361,7 @@ class GoEvaluationClient:
                 transaction_cost_fixed,
                 transaction_cost_percent,
                 None,  # No price adjustments for stochastic (generated per scenario)
+                cost_penalty_factor,
             ),
             "shifts": shifts,
             "weights": weights,
@@ -395,6 +404,7 @@ class GoEvaluationClient:
         securities: List[Security],
         transaction_cost_fixed: float = 2.0,
         transaction_cost_percent: float = 0.002,
+        cost_penalty_factor: float = 0.1,
     ) -> List[Dict[str, Any]]:
         """
         Simulate multiple sequences in parallel using Go service (10x faster).
@@ -409,6 +419,7 @@ class GoEvaluationClient:
             securities: List of securities for metadata lookup
             transaction_cost_fixed: Fixed transaction cost (EUR)
             transaction_cost_percent: Percentage transaction cost (fraction)
+            cost_penalty_factor: Penalty factor for transaction costs (default: 0.1)
 
         Returns:
             List of simulation results:
@@ -438,6 +449,7 @@ class GoEvaluationClient:
                 transaction_cost_fixed,
                 transaction_cost_percent,
                 None,
+                cost_penalty_factor,
             ),
         }
 
@@ -510,6 +522,7 @@ class GoEvaluationClient:
         transaction_cost_fixed: float,
         transaction_cost_percent: float,
         price_adjustments: Optional[Dict[str, float]],
+        cost_penalty_factor: float = 0.1,
     ) -> Dict[str, Any]:
         """
         Serialize evaluation context to JSON-compatible format for Go service.
@@ -521,6 +534,7 @@ class GoEvaluationClient:
             transaction_cost_fixed: Fixed transaction cost
             transaction_cost_percent: Percentage transaction cost
             price_adjustments: Optional price multipliers
+            cost_penalty_factor: Penalty factor for transaction costs (default: 0.1)
 
         Returns:
             Dict representing evaluation context
@@ -540,7 +554,6 @@ class GoEvaluationClient:
                 "position_avg_prices": portfolio_context.position_avg_prices or {},
                 "current_prices": portfolio_context.current_prices or {},
             },
-            "positions": [],  # Not needed by Go service (uses portfolio_context.positions)
             "securities": [
                 {
                     "symbol": s.symbol,
@@ -557,6 +570,7 @@ class GoEvaluationClient:
             "stocks_by_symbol": {},  # Computed by Go service
             "transaction_cost_fixed": transaction_cost_fixed,
             "transaction_cost_percent": transaction_cost_percent,
+            "cost_penalty_factor": cost_penalty_factor,
             "price_adjustments": price_adjustments or {},
         }
 
