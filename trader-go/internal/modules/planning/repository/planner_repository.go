@@ -242,15 +242,19 @@ func (r *PlannerRepository) InsertEvaluation(
 	portfolioHash string,
 	evaluation *domain.EvaluationResult,
 ) (int64, error) {
-	metricsData, err := json.Marshal(evaluation.Metrics)
+	metricsData, err := json.Marshal(evaluation.ScoreBreakdown)
 	if err != nil {
 		return 0, fmt.Errorf("failed to marshal metrics: %w", err)
 	}
 
+	// Calculate delta score (improvement over baseline)
+	// For now we'll use 0.0 as delta since we don't have baseline score here
+	deltaScore := 0.0
+
 	result, err := r.db.Exec(`
 		INSERT INTO evaluations (sequence_hash, portfolio_hash, end_score, delta_score, metrics, completed, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, evaluation.SequenceHash, portfolioHash, evaluation.EndScore, evaluation.DeltaScore,
+	`, evaluation.SequenceHash, portfolioHash, evaluation.EndScore, deltaScore,
 		string(metricsData), true, time.Now())
 
 	if err != nil {
@@ -296,16 +300,15 @@ func (r *PlannerRepository) GetEvaluation(sequenceHash string) (*domain.Evaluati
 		return nil, fmt.Errorf("failed to get evaluation: %w", err)
 	}
 
-	var metrics map[string]interface{}
-	if err := json.Unmarshal([]byte(record.Metrics), &metrics); err != nil {
+	var scoreBreakdown map[string]float64
+	if err := json.Unmarshal([]byte(record.Metrics), &scoreBreakdown); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metrics: %w", err)
 	}
 
 	evaluation := &domain.EvaluationResult{
-		SequenceHash: record.SequenceHash,
-		EndScore:     record.EndScore,
-		DeltaScore:   record.DeltaScore,
-		Metrics:      metrics,
+		SequenceHash:   record.SequenceHash,
+		EndScore:       record.EndScore,
+		ScoreBreakdown: scoreBreakdown,
 	}
 
 	return evaluation, nil
