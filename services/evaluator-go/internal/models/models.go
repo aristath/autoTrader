@@ -125,3 +125,59 @@ type HealthResponse struct {
 	Status  string `json:"status"`  // "healthy" or "unhealthy"
 	Version string `json:"version"` // Service version
 }
+
+// MonteCarloRequest represents a Monte Carlo simulation request
+type MonteCarloRequest struct {
+	Sequence           []ActionCandidate  `json:"sequence"`            // Sequence to evaluate
+	EvaluationContext  EvaluationContext  `json:"evaluation_context"`  // Context for evaluation
+	Paths              int                `json:"paths"`               // Number of Monte Carlo paths (100-500)
+	SymbolVolatilities map[string]float64 `json:"symbol_volatilities"` // Annual volatility per symbol (e.g., 0.25 for 25%)
+}
+
+// MonteCarloResult represents the result of Monte Carlo simulation
+type MonteCarloResult struct {
+	PathsEvaluated int     `json:"paths_evaluated"` // Number of paths evaluated
+	AvgScore       float64 `json:"avg_score"`       // Average score across paths
+	WorstScore     float64 `json:"worst_score"`     // Minimum score (worst case)
+	BestScore      float64 `json:"best_score"`      // Maximum score (best case)
+	P10Score       float64 `json:"p10_score"`       // 10th percentile score
+	P90Score       float64 `json:"p90_score"`       // 90th percentile score
+	FinalScore     float64 `json:"final_score"`     // Conservative score: worst*0.4 + p10*0.3 + avg*0.3
+}
+
+// StochasticRequest represents a stochastic price scenario request
+type StochasticRequest struct {
+	Sequence          []ActionCandidate   `json:"sequence"`           // Sequence to evaluate
+	EvaluationContext EvaluationContext   `json:"evaluation_context"` // Context for evaluation
+	Shifts            []float64           `json:"shifts"`             // Price shift scenarios (e.g., [-0.10, -0.05, 0.0, 0.05, 0.10])
+	Weights           map[string]float64  `json:"weights"`            // Weights per scenario (e.g., {"0.0": 0.40, "-0.10": 0.15})
+}
+
+// StochasticResult represents the result of stochastic scenario evaluation
+type StochasticResult struct {
+	ScenariosEvaluated int                `json:"scenarios_evaluated"` // Number of scenarios evaluated
+	BaseScore          float64            `json:"base_score"`          // Score for 0% scenario
+	WorstCase          float64            `json:"worst_case"`          // Score for worst scenario (-10%)
+	BestCase           float64            `json:"best_case"`           // Score for best scenario (+10%)
+	WeightedScore      float64            `json:"weighted_score"`      // Weighted average of all scenarios
+	ScenarioScores     map[string]float64 `json:"scenario_scores"`     // Scores for each scenario (shift -> score)
+}
+
+// BatchSimulationRequest represents a request to simulate multiple sequences
+type BatchSimulationRequest struct {
+	Sequences         [][]ActionCandidate `json:"sequences"`          // List of sequences to simulate
+	EvaluationContext EvaluationContext   `json:"evaluation_context"` // Context for simulation
+}
+
+// SimulationResult represents the result of simulating a single sequence
+type SimulationResult struct {
+	Sequence     []ActionCandidate `json:"sequence"`      // The sequence that was simulated
+	EndPortfolio PortfolioContext  `json:"end_portfolio"` // Final portfolio state
+	EndCashEUR   float64           `json:"end_cash_eur"`  // Final cash after sequence
+	Feasible     bool              `json:"feasible"`      // Whether the sequence was feasible
+}
+
+// BatchSimulationResponse represents the response from batch simulation
+type BatchSimulationResponse struct {
+	Results []SimulationResult `json:"results"` // Results for each sequence
+}
