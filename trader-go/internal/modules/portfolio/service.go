@@ -21,11 +21,13 @@ type AllocationTargetProvider interface {
 // PortfolioService orchestrates portfolio operations
 // Faithful translation from Python: app/modules/portfolio/services/portfolio_service.py
 type PortfolioService struct {
-	portfolioRepo *PortfolioRepository
-	positionRepo  *PositionRepository
-	allocRepo     AllocationTargetProvider
-	configDB      *sql.DB // For querying securities
-	log           zerolog.Logger
+	portfolioRepo        *PortfolioRepository
+	positionRepo         *PositionRepository
+	allocRepo            AllocationTargetProvider
+	turnoverTracker      *TurnoverTracker
+	attributionCalc      *AttributionCalculator
+	configDB             *sql.DB // For querying securities
+	log                  zerolog.Logger
 }
 
 // NewPortfolioService creates a new portfolio service
@@ -33,15 +35,19 @@ func NewPortfolioService(
 	portfolioRepo *PortfolioRepository,
 	positionRepo *PositionRepository,
 	allocRepo AllocationTargetProvider,
+	turnoverTracker *TurnoverTracker,
+	attributionCalc *AttributionCalculator,
 	configDB *sql.DB,
 	log zerolog.Logger,
 ) *PortfolioService {
 	return &PortfolioService{
-		portfolioRepo: portfolioRepo,
-		positionRepo:  positionRepo,
-		allocRepo:     allocRepo,
-		configDB:      configDB,
-		log:           log.With().Str("service", "portfolio").Logger(),
+		portfolioRepo:        portfolioRepo,
+		positionRepo:         positionRepo,
+		allocRepo:            allocRepo,
+		turnoverTracker:      turnoverTracker,
+		attributionCalc:      attributionCalc,
+		configDB:             configDB,
+		log:                  log.With().Str("service", "portfolio").Logger(),
 	}
 }
 
@@ -333,20 +339,50 @@ func (s *PortfolioService) GetAnalytics(days int) (PortfolioAnalyticsResponse, e
 	// 5. Format returns data (daily, monthly, annual)
 	returnsData := s.formatReturnsData(returns, snapshots, annualReturn)
 
-	// 6. Build response (stub attribution/turnover for MVP)
+	// 6. Calculate turnover
+	var turnoverInfo *TurnoverInfo
+	if s.turnoverTracker != nil {
+		turnover, err := s.turnoverTracker.CalculateAnnualTurnover(endDateStr)
+		if err != nil {
+			s.log.Warn().Err(err).Msg("Failed to calculate turnover, continuing without it")
+		} else {
+			info := s.turnoverTracker.GetTurnoverStatus(turnover)
+			turnoverInfo = &info
+		}
+	}
+
+	// 7. Calculate performance attribution
+	var attribution AttributionData
+	if s.attributionCalc != nil {
+		dailyReturns := returnsData.Daily
+		attr, err := s.attributionCalc.CalculatePerformanceAttribution(dailyReturns, startDateStr, endDateStr)
+		if err != nil {
+			s.log.Warn().Err(err).Msg("Failed to calculate attribution, continuing with empty attribution")
+			attribution = AttributionData{
+				Country:  make(map[string]float64),
+				Industry: make(map[string]float64),
+			}
+		} else {
+			attribution = attr
+		}
+	} else {
+		attribution = AttributionData{
+			Country:  make(map[string]float64),
+			Industry: make(map[string]float64),
+		}
+	}
+
+	// 8. Build response
 	return PortfolioAnalyticsResponse{
 		Returns:     returnsData,
 		RiskMetrics: metrics,
-		Attribution: AttributionData{
-			Country:  make(map[string]float64),
-			Industry: make(map[string]float64),
-		},
+		Attribution: attribution,
 		Period: PeriodInfo{
 			StartDate: startDateStr,
 			EndDate:   endDateStr,
 			Days:      days,
 		},
-		Turnover: nil, // Stub for MVP
+		Turnover: turnoverInfo,
 	}, nil
 }
 
@@ -357,12 +393,18 @@ func (s *PortfolioService) calculateMetrics(returns []float64, annualReturn floa
 
 	// Volatility (annualized)
 	volatility := formulas.AnnualizedVolatility(returns)
+	if math.IsInf(volatility, 0) || math.IsNaN(volatility) {
+		volatility = 0.0
+	}
 
 	// Sharpe ratio
 	sharpe := formulas.CalculateSharpeRatio(returns, riskFreeRate, 252)
 	sharpeVal := 0.0
 	if sharpe != nil {
 		sharpeVal = *sharpe
+		if math.IsInf(sharpeVal, 0) || math.IsNaN(sharpeVal) {
+			sharpeVal = 0.0
+		}
 	}
 
 	// Sortino ratio
@@ -370,6 +412,9 @@ func (s *PortfolioService) calculateMetrics(returns []float64, annualReturn floa
 	sortinoVal := 0.0
 	if sortino != nil {
 		sortinoVal = *sortino
+		if math.IsInf(sortinoVal, 0) || math.IsNaN(sortinoVal) {
+			sortinoVal = 0.0
+		}
 	}
 
 	// Max drawdown (need to reconstruct prices from returns)
@@ -378,12 +423,23 @@ func (s *PortfolioService) calculateMetrics(returns []float64, annualReturn floa
 	maxDDVal := 0.0
 	if maxDD != nil {
 		maxDDVal = *maxDD
+		if math.IsInf(maxDDVal, 0) || math.IsNaN(maxDDVal) {
+			maxDDVal = 0.0
+		}
 	}
 
 	// Calmar ratio = annual_return / abs(max_drawdown)
 	calmarVal := 0.0
 	if maxDDVal != 0 {
 		calmarVal = annualReturn / math.Abs(maxDDVal)
+		if math.IsInf(calmarVal, 0) || math.IsNaN(calmarVal) {
+			calmarVal = 0.0
+		}
+	}
+
+	// Check annualReturn itself for infinite values
+	if math.IsInf(annualReturn, 0) || math.IsNaN(annualReturn) {
+		annualReturn = 0.0
 	}
 
 	return RiskMetrics{

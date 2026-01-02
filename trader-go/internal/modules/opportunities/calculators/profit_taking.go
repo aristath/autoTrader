@@ -99,14 +99,14 @@ func (c *ProfitTakingCalculator) Calculate(
 		// Calculate quantity to sell
 		quantity := position.Quantity
 		if sellPercentage < 1.0 {
-			quantity = int(float64(position.Quantity) * sellPercentage)
+			quantity = position.Quantity * sellPercentage
 			if quantity == 0 {
 				quantity = 1
 			}
 		}
 
 		// Calculate value
-		valueEUR := float64(quantity) * currentPrice
+		valueEUR := quantity * currentPrice
 
 		// Apply transaction costs
 		transactionCost := ctx.TransactionCostFixed + (valueEUR * ctx.TransactionCostPercent)
@@ -138,7 +138,7 @@ func (c *ProfitTakingCalculator) Calculate(
 			Side:     "SELL",
 			Symbol:   position.Symbol,
 			Name:     security.Name,
-			Quantity: quantity,
+			Quantity: int(quantity),
 			Price:    currentPrice,
 			ValueEUR: netValueEUR,
 			Currency: string(security.Currency),
