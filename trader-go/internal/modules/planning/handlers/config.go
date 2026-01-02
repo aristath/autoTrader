@@ -1,0 +1,383 @@
+package handlers
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/aristath/arduino-trader/internal/modules/planning/config"
+	"github.com/aristath/arduino-trader/internal/modules/planning/domain"
+	"github.com/aristath/arduino-trader/internal/modules/planning/repository"
+	"github.com/rs/zerolog"
+)
+
+// ConfigHandler handles CRUD operations for planner configurations.
+type ConfigHandler struct {
+	configRepo *repository.ConfigRepository
+	validator  *config.Validator
+	log        zerolog.Logger
+}
+
+// NewConfigHandler creates a new config handler.
+func NewConfigHandler(
+	configRepo *repository.ConfigRepository,
+	validator *config.Validator,
+	log zerolog.Logger,
+) *ConfigHandler {
+	return &ConfigHandler{
+		configRepo: configRepo,
+		validator:  validator,
+		log:        log.With().Str("handler", "config").Logger(),
+	}
+}
+
+// ConfigListResponse represents a list of configurations.
+type ConfigListResponse struct {
+	Configs []ConfigSummary `json:"configs"`
+	Total   int             `json:"total"`
+}
+
+// ConfigSummary provides a summary of a configuration.
+type ConfigSummary struct {
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+// ConfigResponse wraps a single configuration.
+type ConfigResponse struct {
+	Config *domain.PlannerConfiguration `json:"config"`
+}
+
+// ValidationResponse indicates validation result.
+type ValidationResponse struct {
+	Valid  bool     `json:"valid"`
+	Errors []string `json:"errors,omitempty"`
+}
+
+// HistoryResponse contains configuration version history.
+type HistoryResponse struct {
+	History []HistoryEntry `json:"history"`
+	Total   int            `json:"total"`
+}
+
+// HistoryEntry represents a single version in configuration history.
+type HistoryEntry struct {
+	Version   int    `json:"version"`
+	CreatedAt string `json:"created_at"`
+	Changes   string `json:"changes,omitempty"`
+}
+
+// ServeHTTP routes config requests to appropriate handlers.
+func (h *ConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Parse URL path to determine operation
+	pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+
+	// Expected paths:
+	// /api/planning/configs - GET (list), POST (create)
+	// /api/planning/configs/:id - GET (retrieve), PUT (update), DELETE (delete)
+	// /api/planning/configs/:id/validate - POST (validate)
+	// /api/planning/configs/:id/history - GET (version history)
+
+	if len(pathParts) == 3 {
+		// /api/planning/configs
+		switch r.Method {
+		case http.MethodGet:
+			h.handleList(w, r)
+		case http.MethodPost:
+			h.handleCreate(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+		return
+	}
+
+	if len(pathParts) == 4 {
+		// /api/planning/configs/:id
+		configID := pathParts[3]
+
+		switch r.Method {
+		case http.MethodGet:
+			h.handleGet(w, r, configID)
+		case http.MethodPut:
+			h.handleUpdate(w, r, configID)
+		case http.MethodDelete:
+			h.handleDelete(w, r, configID)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+		return
+	}
+
+	if len(pathParts) == 5 {
+		// /api/planning/configs/:id/validate or /api/planning/configs/:id/history
+		configID := pathParts[3]
+		action := pathParts[4]
+
+		switch action {
+		case "validate":
+			if r.Method == http.MethodPost {
+				h.handleValidate(w, r, configID)
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		case "history":
+			if r.Method == http.MethodGet {
+				h.handleHistory(w, r, configID)
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		default:
+			http.Error(w, "Unknown action", http.StatusNotFound)
+		}
+		return
+	}
+
+	http.Error(w, "Not found", http.StatusNotFound)
+}
+
+func (h *ConfigHandler) handleList(w http.ResponseWriter, r *http.Request) {
+	h.log.Debug().Msg("Listing configurations")
+
+	configs, err := h.configRepo.ListConfigs()
+	if err != nil {
+		h.log.Error().Err(err).Msg("Failed to list configurations")
+		http.Error(w, "Failed to retrieve configurations", http.StatusInternalServerError)
+		return
+	}
+
+	// Build summaries
+	summaries := make([]ConfigSummary, len(configs))
+	for i, cfg := range configs {
+		summaries[i] = ConfigSummary{
+			ID:        cfg.ID,
+			Name:      cfg.Name,
+			CreatedAt: cfg.CreatedAt.Format(time.RFC3339),
+			UpdatedAt: cfg.UpdatedAt.Format(time.RFC3339),
+		}
+	}
+
+	response := ConfigListResponse{
+		Configs: summaries,
+		Total:   len(summaries),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func (h *ConfigHandler) handleGet(w http.ResponseWriter, r *http.Request, configID string) {
+	h.log.Debug().Str("config_id", configID).Msg("Getting configuration")
+
+	id, err := strconv.Atoi(configID)
+	if err != nil {
+		http.Error(w, "Invalid config ID", http.StatusBadRequest)
+		return
+	}
+
+	config, err := h.configRepo.GetConfig(id)
+	if err != nil {
+		h.log.Error().Err(err).Int("config_id", id).Msg("Failed to retrieve configuration")
+		http.Error(w, "Configuration not found", http.StatusNotFound)
+		return
+	}
+
+	response := ConfigResponse{Config: config}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func (h *ConfigHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
+	h.log.Debug().Msg("Creating configuration")
+
+	var config domain.PlannerConfiguration
+	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate configuration before creating
+	if h.validator != nil {
+		if err := h.validator.Validate(&config); err != nil {
+			h.log.Warn().Err(err).Msg("Configuration validation failed")
+			http.Error(w, fmt.Sprintf("Invalid configuration: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Create configuration in database
+	createdConfig, err := h.configRepo.CreateConfig(&config)
+	if err != nil {
+		h.log.Error().Err(err).Msg("Failed to create configuration")
+		http.Error(w, "Failed to create configuration", http.StatusInternalServerError)
+		return
+	}
+
+	h.log.Info().Int("config_id", createdConfig.ID).Str("name", createdConfig.Name).Msg("Configuration created")
+
+	response := ConfigResponse{Config: createdConfig}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
+}
+
+func (h *ConfigHandler) handleUpdate(w http.ResponseWriter, r *http.Request, configID string) {
+	h.log.Debug().Str("config_id", configID).Msg("Updating configuration")
+
+	id, err := strconv.Atoi(configID)
+	if err != nil {
+		http.Error(w, "Invalid config ID", http.StatusBadRequest)
+		return
+	}
+
+	var config domain.PlannerConfiguration
+	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Ensure ID matches URL parameter
+	config.ID = id
+
+	// Validate configuration before updating
+	if h.validator != nil {
+		if err := h.validator.Validate(&config); err != nil {
+			h.log.Warn().Err(err).Int("config_id", id).Msg("Configuration validation failed")
+			http.Error(w, fmt.Sprintf("Invalid configuration: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Update configuration in database
+	updatedConfig, err := h.configRepo.UpdateConfig(&config)
+	if err != nil {
+		h.log.Error().Err(err).Int("config_id", id).Msg("Failed to update configuration")
+		http.Error(w, "Failed to update configuration", http.StatusInternalServerError)
+		return
+	}
+
+	h.log.Info().Int("config_id", id).Str("name", updatedConfig.Name).Msg("Configuration updated")
+
+	response := ConfigResponse{Config: updatedConfig}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func (h *ConfigHandler) handleDelete(w http.ResponseWriter, r *http.Request, configID string) {
+	h.log.Debug().Str("config_id", configID).Msg("Deleting configuration")
+
+	id, err := strconv.Atoi(configID)
+	if err != nil {
+		http.Error(w, "Invalid config ID", http.StatusBadRequest)
+		return
+	}
+
+	// Check if config is the default config
+	defaultConfig, err := h.configRepo.GetDefaultConfig()
+	if err == nil && defaultConfig != nil && defaultConfig.ID == id {
+		h.log.Warn().Int("config_id", id).Msg("Cannot delete default configuration")
+		http.Error(w, "Cannot delete the default configuration", http.StatusForbidden)
+		return
+	}
+
+	// Delete configuration from database
+	if err := h.configRepo.DeleteConfig(id); err != nil {
+		h.log.Error().Err(err).Int("config_id", id).Msg("Failed to delete configuration")
+		http.Error(w, "Failed to delete configuration", http.StatusInternalServerError)
+		return
+	}
+
+	h.log.Info().Int("config_id", id).Msg("Configuration deleted")
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ConfigHandler) handleValidate(w http.ResponseWriter, r *http.Request, configID string) {
+	h.log.Debug().Str("config_id", configID).Msg("Validating configuration")
+
+	id, err := strconv.Atoi(configID)
+	if err != nil {
+		http.Error(w, "Invalid config ID", http.StatusBadRequest)
+		return
+	}
+
+	// Retrieve configuration from database
+	config, err := h.configRepo.GetConfig(id)
+	if err != nil {
+		h.log.Error().Err(err).Int("config_id", id).Msg("Failed to retrieve configuration")
+		http.Error(w, "Configuration not found", http.StatusNotFound)
+		return
+	}
+
+	// Validate configuration
+	var validationErrors []string
+	if h.validator != nil {
+		if err := h.validator.Validate(config); err != nil {
+			// Collect validation errors
+			validationErrors = append(validationErrors, err.Error())
+			h.log.Warn().Err(err).Int("config_id", id).Msg("Configuration validation failed")
+		}
+	}
+
+	response := ValidationResponse{
+		Valid:  len(validationErrors) == 0,
+		Errors: validationErrors,
+	}
+
+	h.log.Info().
+		Int("config_id", id).
+		Bool("valid", response.Valid).
+		Int("error_count", len(validationErrors)).
+		Msg("Configuration validation complete")
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func (h *ConfigHandler) handleHistory(w http.ResponseWriter, r *http.Request, configID string) {
+	h.log.Debug().Str("config_id", configID).Msg("Getting configuration history")
+
+	id, err := strconv.Atoi(configID)
+	if err != nil {
+		http.Error(w, "Invalid config ID", http.StatusBadRequest)
+		return
+	}
+
+	// Retrieve configuration history from database
+	history, err := h.configRepo.GetConfigHistory(id)
+	if err != nil {
+		h.log.Error().Err(err).Int("config_id", id).Msg("Failed to retrieve configuration history")
+		http.Error(w, "Failed to retrieve configuration history", http.StatusInternalServerError)
+		return
+	}
+
+	// Build history entries
+	entries := make([]HistoryEntry, len(history))
+	for i, h := range history {
+		entries[i] = HistoryEntry{
+			Version:   h.Version,
+			CreatedAt: h.CreatedAt.Format(time.RFC3339),
+			Changes:   h.Changes,
+		}
+	}
+
+	response := HistoryResponse{
+		History: entries,
+		Total:   len(entries),
+	}
+
+	h.log.Info().
+		Int("config_id", id).
+		Int("history_count", len(entries)).
+		Msg("Configuration history retrieved")
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}

@@ -354,14 +354,95 @@ func TestValidator_ValidateQuick(t *testing.T) {
 func TestValidator_ValidateParams(t *testing.T) {
 	validator := NewValidator()
 
-	// Currently a placeholder - should always return nil
-	params := map[string]interface{}{
-		"key": "value",
-	}
+	t.Run("valid profit_taking params", func(t *testing.T) {
+		params := map[string]interface{}{
+			"gain_threshold": 0.15,
+			"windfall_score": 0.7,
+			"min_hold_days":  float64(90),
+			"sell_cooldown":  float64(180),
+		}
+		err := validator.ValidateParams("profit_taking", params)
+		assert.NoError(t, err)
+	})
 
-	err := validator.ValidateParams("some_module", params)
-	assert.NoError(t, err)
+	t.Run("missing required parameter", func(t *testing.T) {
+		params := map[string]interface{}{
+			"gain_threshold": 0.15,
+			// Missing windfall_score, min_hold_days, sell_cooldown
+		}
+		err := validator.ValidateParams("profit_taking", params)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "required parameter is missing")
+	})
 
-	err = validator.ValidateParams("", nil)
-	assert.NoError(t, err)
+	t.Run("invalid threshold range", func(t *testing.T) {
+		params := map[string]interface{}{
+			"gain_threshold": 1.5, // Invalid: > 1.0
+			"windfall_score": 0.7,
+			"min_hold_days":  float64(90),
+			"sell_cooldown":  float64(180),
+		}
+		err := validator.ValidateParams("profit_taking", params)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "must be between 0.0 and 1.0")
+	})
+
+	t.Run("invalid count parameter", func(t *testing.T) {
+		params := map[string]interface{}{
+			"gain_threshold": 0.15,
+			"windfall_score": 0.7,
+			"min_hold_days":  float64(-10), // Invalid: negative
+			"sell_cooldown":  float64(180),
+		}
+		err := validator.ValidateParams("profit_taking", params)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "must be > 0")
+	})
+
+	t.Run("cross-parameter constraint violation", func(t *testing.T) {
+		params := map[string]interface{}{
+			"gain_threshold": 0.15,
+			"windfall_score": 0.7,
+			"min_hold_days":  float64(200), // Invalid: >= sell_cooldown
+			"sell_cooldown":  float64(180),
+		}
+		err := validator.ValidateParams("profit_taking", params)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "min_hold_days must be less than sell_cooldown")
+	})
+
+	t.Run("unknown module accepts any params", func(t *testing.T) {
+		params := map[string]interface{}{
+			"arbitrary_key": "arbitrary_value",
+		}
+		err := validator.ValidateParams("unknown_module", params)
+		assert.NoError(t, err) // Unknown modules accept any params
+	})
+
+	t.Run("module with no required params", func(t *testing.T) {
+		params := map[string]interface{}{}
+		err := validator.ValidateParams("direct_buy", params)
+		assert.NoError(t, err) // direct_buy has no required params
+	})
+
+	t.Run("averaging_down cross-constraint", func(t *testing.T) {
+		params := map[string]interface{}{
+			"loss_threshold":    0.25, // Invalid: > max_loss_allowed
+			"max_loss_allowed":  0.20,
+			"buy_cooldown_days": float64(180),
+		}
+		err := validator.ValidateParams("averaging_down", params)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "loss_threshold cannot exceed max_loss_allowed")
+	})
+
+	t.Run("enhanced_combinatorial cross-constraint", func(t *testing.T) {
+		params := map[string]interface{}{
+			"max_combinations":  float64(2000), // High combinations
+			"pruning_threshold": 0.95,          // High pruning
+		}
+		err := validator.ValidateParams("enhanced_combinatorial", params)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "may filter too aggressively")
+	})
 }
