@@ -281,6 +281,13 @@ class SecurityRepository:
         if "product_type" in keys and row["product_type"]:
             product_type = ProductType.from_string(row["product_type"])
 
+        # Extract currency from database row
+        currency = None
+        if "currency" in keys and row["currency"]:
+            from app.shared.domain.value_objects.currency import Currency
+
+            currency = Currency.from_string(row["currency"])
+
         return Security(
             symbol=row["symbol"],
             yahoo_symbol=row["yahoo_symbol"],
@@ -299,7 +306,7 @@ class SecurityRepository:
             allow_sell=(
                 bool(row["allow_sell"]) if row["allow_sell"] is not None else False
             ),
-            currency=row["currency"],
+            currency=currency,
             last_synced=row["last_synced"] if "last_synced" in keys else None,
             min_portfolio_target=(
                 row["min_portfolio_target"]

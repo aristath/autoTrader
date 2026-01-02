@@ -223,8 +223,8 @@ class TradernetClient:
                     # Not in async context - use asyncio.run()
                     test_amount = asyncio.run(_get_test_amount())
 
-                if test_amount > 0:
-                    balances.append(CashBalance(currency="TEST", amount=test_amount))
+                # Always show TEST in research mode, even if 0 (so users can click to edit)
+                balances.append(CashBalance(currency="TEST", amount=test_amount))
 
             return balances
         except Exception as e:

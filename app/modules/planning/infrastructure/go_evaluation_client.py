@@ -560,7 +560,11 @@ class GoEvaluationClient:
                     "name": s.name,
                     "country": s.country,
                     "industry": s.industry,
-                    "currency": s.currency.value if s.currency else "EUR",
+                    "currency": (
+                        s.currency.value
+                        if s.currency and hasattr(s.currency, "value")
+                        else str(s.currency) if s.currency else "EUR"
+                    ),
                 }
                 for s in securities
             ],
