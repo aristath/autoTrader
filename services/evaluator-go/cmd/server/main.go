@@ -33,8 +33,9 @@ func main() {
 	// Create Gin router
 	router := gin.Default()
 
-	// Create batch evaluator
+	// Create evaluators
 	batchEvaluator := handlers.NewBatchEvaluator(numWorkers)
+	advancedEvaluator := handlers.NewAdvancedEvaluator()
 
 	// API routes
 	v1 := router.Group("/api/v1")
@@ -44,6 +45,13 @@ func main() {
 
 		// Batch evaluation
 		v1.POST("/evaluate/batch", batchEvaluator.EvaluateBatch)
+
+		// Advanced evaluation
+		v1.POST("/evaluate/monte-carlo", advancedEvaluator.EvaluateMonteCarlo)
+		v1.POST("/evaluate/stochastic", advancedEvaluator.EvaluateStochastic)
+
+		// Batch simulation (returns end states, no scoring)
+		v1.POST("/simulate/batch", batchEvaluator.SimulateBatch)
 	}
 
 	// Start server

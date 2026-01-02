@@ -54,3 +54,37 @@ func (be *BatchEvaluator) EvaluateBatch(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response)
 }
+
+// SimulateBatch handles POST /api/v1/simulate/batch
+func (be *BatchEvaluator) SimulateBatch(c *gin.Context) {
+	var request models.BatchSimulationRequest
+
+	// Parse request body
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	// Validate request
+	if len(request.Sequences) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "No sequences provided",
+		})
+		return
+	}
+
+	// Simulate sequences using worker pool (parallel)
+	results := be.workerPool.SimulateBatch(
+		request.Sequences,
+		request.EvaluationContext,
+	)
+
+	// Build response
+	response := models.BatchSimulationResponse{
+		Results: results,
+	}
+
+	c.JSON(http.StatusOK, response)
+}

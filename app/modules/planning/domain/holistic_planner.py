@@ -3456,20 +3456,98 @@ async def create_holistic_plan(
 
     # Pre-fetch all metrics for all symbols that will be evaluated
     # First, collect all symbols from all sequence end states by simulating them
-    # TODO: Optimize with Go service - requires Go to return end_context/positions
-    # Currently using Python simulation to preserve advanced features (multi-objective,
-    # stochastic scenarios, multi-timeframe, etc.) that need full end state details
+    # Using Go service for 10x speedup!
     all_symbols: set[str] = set()
     sequence_results = []  # Store (sequence, end_context, end_cash) tuples
 
-    from app.modules.planning.domain.calculations.simulation import simulate_sequence
+    from app.modules.planning.infrastructure.go_evaluation_client import (
+        GoEvaluationClient,
+        GoEvaluationError,
+    )
 
-    for sequence in sequences:
-        end_context, end_cash = await simulate_sequence(
-            sequence, portfolio_context, available_cash, securities
+    # Try Go batch simulation first (10x faster than Python!)
+    try:
+        logger.info(
+            f"Simulating {len(sequences)} sequences using Go service (parallel)..."
         )
-        all_symbols.update(end_context.positions.keys())
-        sequence_results.append((sequence, end_context, end_cash))
+
+        async with GoEvaluationClient() as client:
+            go_sim_results = await client.simulate_batch(
+                sequences=sequences,
+                portfolio_context=portfolio_context,
+                available_cash_eur=available_cash,
+                securities=securities,
+                transaction_cost_fixed=transaction_cost_fixed,
+                transaction_cost_percent=transaction_cost_percent,
+            )
+
+        # Convert Go results to Python format
+        for go_result in go_sim_results:
+            if go_result["feasible"]:
+                # Extract end portfolio positions
+                end_portfolio = go_result["end_portfolio"]
+                end_positions = end_portfolio.get("positions", {})
+                all_symbols.update(end_positions.keys())
+
+                # Convert to PortfolioContext for sequence_results
+                from app.modules.scoring.domain.models import PortfolioContext
+
+                end_context = PortfolioContext(
+                    positions=end_positions,
+                    total_value=end_portfolio.get("total_value", 0.0),
+                    country_weights=end_portfolio.get("country_weights", {}),
+                    industry_weights=end_portfolio.get("industry_weights", {}),
+                    security_countries=end_portfolio.get("security_countries", {}),
+                    security_industries=end_portfolio.get("security_industries", {}),
+                    security_scores=end_portfolio.get("security_scores", {}),
+                    security_dividends=end_portfolio.get("security_dividends", {}),
+                    country_to_group=end_portfolio.get("country_to_group", {}),
+                    industry_to_group=end_portfolio.get("industry_to_group", {}),
+                    position_avg_prices=end_portfolio.get("position_avg_prices", {}),
+                    current_prices=end_portfolio.get("current_prices", {}),
+                )
+
+                # Reconstruct sequence from Go result
+                sequence = [
+                    ActionCandidate(
+                        side=action["side"],
+                        symbol=action["symbol"],
+                        name=action["name"],
+                        quantity=action["quantity"],
+                        price=action["price"],
+                        value_eur=action["value_eur"],
+                        currency=action["currency"],
+                        priority=action["priority"],
+                        reason=action["reason"],
+                        tags=action["tags"],
+                    )
+                    for action in go_result["sequence"]
+                ]
+
+                sequence_results.append(
+                    (sequence, end_context, go_result["end_cash_eur"])
+                )
+
+        logger.info(
+            f"Go batch simulation completed: {len(go_sim_results)} sequences simulated"
+        )
+
+    except GoEvaluationError as e:
+        logger.warning(
+            f"Go batch simulation failed ({e}), falling back to Python (slower)"
+        )
+
+        # Fall back to Python sequential simulation
+        from app.modules.planning.domain.calculations.simulation import (
+            simulate_sequence,
+        )
+
+        for sequence in sequences:
+            end_context, end_cash = await simulate_sequence(
+                sequence, portfolio_context, available_cash, securities
+            )
+            all_symbols.update(end_context.positions.keys())
+            sequence_results.append((sequence, end_context, end_cash))
 
     # Batch fetch all required metrics for all symbols
     from app.repositories.calculations import CalculationsRepository
@@ -3729,17 +3807,20 @@ async def create_holistic_plan(
         # Evaluate batch - with Monte Carlo or stochastic scenarios if enabled
         if enable_monte_carlo:
             # Monte Carlo: Generate random price paths using historical volatility
+            # Using Go service for 100x speedup!
             async def _evaluate_with_monte_carlo(
                 seq_idx: int, sequence: List[ActionCandidate]
             ) -> Tuple[int, List[ActionCandidate], float, Dict]:
-                """Evaluate sequence under Monte Carlo price paths."""
-                import math
-                import random
+                """Evaluate sequence under Monte Carlo price paths using Go service."""
+                from app.modules.planning.infrastructure.go_evaluation_client import (
+                    GoEvaluationClient,
+                    GoEvaluationError,
+                )
 
                 # Get unique symbols in this sequence
                 seq_symbols = set(action.symbol for action in sequence)
 
-                # Get volatility for each symbol
+                # Get volatility for each symbol from metrics cache
                 symbol_volatilities: Dict[str, float] = {}
                 for symbol in seq_symbols:
                     if symbol in metrics_cache:
@@ -3750,78 +3831,110 @@ async def create_holistic_plan(
                     else:
                         symbol_volatilities[symbol] = 0.2  # Default 20% volatility
 
-                # Generate random price paths
-                path_scores = []
-                path_breakdowns = []
+                # Try Go evaluation first (100x faster than Python!)
+                try:
+                    async with GoEvaluationClient() as client:
+                        mc_result = await client.evaluate_monte_carlo(
+                            sequence=sequence,
+                            portfolio_context=portfolio_context,
+                            available_cash_eur=available_cash,
+                            securities=securities,
+                            monte_carlo_paths=monte_carlo_paths,
+                            symbol_volatilities=symbol_volatilities,
+                            transaction_cost_fixed=transaction_cost_fixed,
+                            transaction_cost_percent=transaction_cost_percent,
+                        )
 
-                for path_idx in range(monte_carlo_paths):
-                    # Generate random price adjustments for this path
-                    # Using geometric Brownian motion: price_change = exp(volatility * random_normal)
-                    price_adjustments: Dict[str, float] = {}
-                    for symbol in seq_symbols:
-                        if symbol in symbol_prices:
-                            vol = symbol_volatilities.get(symbol, 0.2)
-                            # Generate random normal (mean=0, std=1)
-                            random_normal = random.gauss(0.0, 1.0)
-                            # Scale by volatility (annualized, so use sqrt(1/252) for daily)
-                            daily_vol = vol / math.sqrt(252)
-                            # Price multiplier: exp(volatility * random_normal)
-                            multiplier = math.exp(daily_vol * random_normal)
-                            # Clamp to reasonable range (0.5x to 2.0x)
-                            multiplier = max(0.5, min(2.0, multiplier))
-                            price_adjustments[symbol] = multiplier
+                    # Extract results from Go response
+                    final_score = mc_result["final_score"]
 
-                    # Re-simulate sequence with adjusted prices
-                    adjusted_end_context, adjusted_end_cash = await simulate_sequence(
-                        sequence,
-                        portfolio_context,
-                        available_cash,
-                        securities,
-                        price_adjustments,
+                    # Create breakdown matching Python format
+                    breakdown = {
+                        "go_monte_carlo": True,
+                        "monte_carlo": {
+                            "paths_evaluated": mc_result["paths_evaluated"],
+                            "avg_score": round(mc_result["avg_score"], 3),
+                            "worst_score": round(mc_result["worst_score"], 3),
+                            "best_score": round(mc_result["best_score"], 3),
+                            "p10_score": round(mc_result["p10_score"], 3),
+                            "p90_score": round(mc_result["p90_score"], 3),
+                            "final_score": round(final_score, 3),
+                        },
+                    }
+
+                    return (seq_idx, sequence, final_score, breakdown)
+
+                except GoEvaluationError as e:
+                    logger.warning(
+                        f"Go Monte Carlo evaluation failed ({e}), falling back to Python"
                     )
 
-                    # Evaluate with adjusted context
-                    path_result = await _evaluate_sequence(
-                        seq_idx,
-                        sequence,
-                        adjusted_end_context,
-                        adjusted_end_cash,
-                        price_adjustments,
+                    # Fall back to Python implementation (slower)
+                    import math
+                    import random
+
+                    # Generate random price paths (original Python implementation)
+                    path_scores = []
+                    path_breakdowns = []
+
+                    for path_idx in range(monte_carlo_paths):
+                        # Generate random price adjustments for this path
+                        price_adjustments: Dict[str, float] = {}
+                        for symbol in seq_symbols:
+                            if symbol in symbol_prices:
+                                vol = symbol_volatilities.get(symbol, 0.2)
+                                random_normal = random.gauss(0.0, 1.0)
+                                daily_vol = vol / math.sqrt(252)
+                                multiplier = math.exp(daily_vol * random_normal)
+                                multiplier = max(0.5, min(2.0, multiplier))
+                                price_adjustments[symbol] = multiplier
+
+                        # Re-simulate sequence with adjusted prices
+                        adjusted_end_context, adjusted_end_cash = (
+                            await simulate_sequence(
+                                sequence,
+                                portfolio_context,
+                                available_cash,
+                                securities,
+                                price_adjustments,
+                            )
+                        )
+
+                        # Evaluate with adjusted context
+                        path_result = await _evaluate_sequence(
+                            seq_idx,
+                            sequence,
+                            adjusted_end_context,
+                            adjusted_end_cash,
+                            price_adjustments,
+                        )
+                        path_scores.append(path_result[2])
+                        path_breakdowns.append(path_result[3])
+
+                    # Calculate statistics
+                    avg_score = sum(path_scores) / len(path_scores)
+                    worst_score = min(path_scores)
+                    best_score = max(path_scores)
+                    sorted_scores = sorted(path_scores)
+                    p10_score = sorted_scores[int(len(sorted_scores) * 0.10)]
+                    p90_score = sorted_scores[int(len(sorted_scores) * 0.90)]
+                    final_score = (
+                        (worst_score * 0.4) + (p10_score * 0.3) + (avg_score * 0.3)
                     )
-                    path_scores.append(path_result[2])  # Extract score
-                    path_breakdowns.append(path_result[3])  # Extract breakdown
 
-                # Calculate statistics across all paths
-                avg_score = sum(path_scores) / len(path_scores)
-                worst_score = min(path_scores)
-                best_score = max(path_scores)
-                # Use percentile scores for robustness
-                sorted_scores = sorted(path_scores)
-                p10_score = sorted_scores[
-                    int(len(sorted_scores) * 0.10)
-                ]  # 10th percentile
-                p90_score = sorted_scores[
-                    int(len(sorted_scores) * 0.90)
-                ]  # 90th percentile
+                    # Use median breakdown and add Monte Carlo metrics
+                    median_breakdown = path_breakdowns[len(path_breakdowns) // 2]
+                    median_breakdown["monte_carlo"] = {  # type: ignore[dict-item]
+                        "paths_evaluated": monte_carlo_paths,
+                        "avg_score": round(avg_score, 3),
+                        "worst_score": round(worst_score, 3),
+                        "best_score": round(best_score, 3),
+                        "p10_score": round(p10_score, 3),
+                        "p90_score": round(p90_score, 3),
+                        "final_score": round(final_score, 3),
+                    }
 
-                # Use conservative approach: weighted average favoring worst-case
-                final_score = (
-                    (worst_score * 0.4) + (p10_score * 0.3) + (avg_score * 0.3)
-                )
-
-                # Use median breakdown and add Monte Carlo metrics
-                median_breakdown = path_breakdowns[len(path_breakdowns) // 2]
-                median_breakdown["monte_carlo"] = {  # type: ignore[dict-item]
-                    "paths_evaluated": monte_carlo_paths,
-                    "avg_score": round(avg_score, 3),
-                    "worst_score": round(worst_score, 3),
-                    "best_score": round(best_score, 3),
-                    "p10_score": round(p10_score, 3),
-                    "p90_score": round(p90_score, 3),
-                    "final_score": round(final_score, 3),
-                }
-
-                return (seq_idx, sequence, final_score, median_breakdown)
+                    return (seq_idx, sequence, final_score, median_breakdown)
 
             # Evaluate all sequences in batch with Monte Carlo
             evaluation_tasks = [
@@ -3832,60 +3945,113 @@ async def create_holistic_plan(
             batch_results = await asyncio.gather(*evaluation_tasks)
         elif enable_stochastic_scenarios:
             # Evaluate each sequence under multiple price scenarios
+            # Using Go service for 10x speedup!
             async def _evaluate_with_scenarios(
                 seq_idx: int, sequence: List[ActionCandidate]
             ) -> Tuple[int, List[ActionCandidate], float, Dict]:
-                """Evaluate sequence under multiple price scenarios."""
+                """Evaluate sequence under multiple price scenarios using Go service."""
+                from app.modules.planning.infrastructure.go_evaluation_client import (
+                    GoEvaluationClient,
+                    GoEvaluationError,
+                )
+
                 # Get unique symbols in this sequence
                 seq_symbols = set(action.symbol for action in sequence)
 
-                # Evaluate under each price scenario
-                scenario_scores = []
-                scenario_breakdowns = []
-                for shift in stochastic_scenario_shifts:
-                    # Create price adjustments for this scenario
-                    price_adjustments = {
-                        symbol: 1.0 + shift
-                        for symbol in seq_symbols
-                        if symbol in symbol_prices
+                # Try Go evaluation first (10x faster than Python!)
+                try:
+                    # Create weights for scenarios (base scenario 40%, others 15% each)
+                    weights = {
+                        "0": 0.40,
+                        "-0.1": 0.15,
+                        "-0.05": 0.15,
+                        "0.05": 0.15,
+                        "0.1": 0.15,
                     }
 
-                    # Re-simulate sequence with adjusted prices
-                    adjusted_end_context, adjusted_end_cash = await simulate_sequence(
-                        sequence,
-                        portfolio_context,
-                        available_cash,
-                        securities,
-                        price_adjustments,
+                    async with GoEvaluationClient() as client:
+                        stoch_result = await client.evaluate_stochastic(
+                            sequence=sequence,
+                            portfolio_context=portfolio_context,
+                            available_cash_eur=available_cash,
+                            securities=securities,
+                            shifts=stochastic_scenario_shifts,
+                            weights=weights,
+                            transaction_cost_fixed=transaction_cost_fixed,
+                            transaction_cost_percent=transaction_cost_percent,
+                        )
+
+                    # Extract results from Go response
+                    final_score = stoch_result["weighted_score"]
+
+                    # Create breakdown matching Python format
+                    breakdown = {
+                        "go_stochastic": True,
+                        "stochastic": {
+                            "base_score": round(stoch_result["base_score"], 3),
+                            "worst_case": round(stoch_result["worst_case"], 3),
+                            "best_case": round(stoch_result["best_case"], 3),
+                            "weighted_score": round(final_score, 3),
+                            "scenarios_evaluated": stoch_result["scenarios_evaluated"],
+                        },
+                    }
+
+                    return (seq_idx, sequence, final_score, breakdown)
+
+                except GoEvaluationError as e:
+                    logger.warning(
+                        f"Go stochastic evaluation failed ({e}), falling back to Python"
                     )
 
-                    # Evaluate with adjusted context
-                    scenario_result = await _evaluate_sequence(
-                        seq_idx,
-                        sequence,
-                        adjusted_end_context,
-                        adjusted_end_cash,
-                        price_adjustments,
-                    )
-                    scenario_scores.append(scenario_result[2])  # Extract score
-                    scenario_breakdowns.append(scenario_result[3])  # Extract breakdown
+                    # Fall back to Python implementation (slower)
+                    scenario_scores = []
+                    scenario_breakdowns = []
+                    for shift in stochastic_scenario_shifts:
+                        # Create price adjustments for this scenario
+                        price_adjustments = {
+                            symbol: 1.0 + shift
+                            for symbol in seq_symbols
+                            if symbol in symbol_prices
+                        }
 
-                # Use average score across scenarios (or worst-case: min)
-                avg_score = sum(scenario_scores) / len(scenario_scores)
-                worst_score = min(scenario_scores)
-                # Use conservative approach: weighted average favoring worst-case
-                final_score = (worst_score * 0.6) + (avg_score * 0.4)
+                        # Re-simulate sequence with adjusted prices
+                        adjusted_end_context, adjusted_end_cash = (
+                            await simulate_sequence(
+                                sequence,
+                                portfolio_context,
+                                available_cash,
+                                securities,
+                                price_adjustments,
+                            )
+                        )
 
-                # Use base scenario breakdown (shift=0) and add stochastic metrics
-                base_breakdown = scenario_breakdowns[2]  # Index 2 is shift=0.0
-                base_breakdown["stochastic"] = {  # type: ignore[dict-item]
-                    "avg_score": round(avg_score, 3),
-                    "worst_score": round(worst_score, 3),
-                    "final_score": round(final_score, 3),
-                    "scenarios_evaluated": len(stochastic_scenario_shifts),
-                }
+                        # Evaluate with adjusted context
+                        scenario_result = await _evaluate_sequence(
+                            seq_idx,
+                            sequence,
+                            adjusted_end_context,
+                            adjusted_end_cash,
+                            price_adjustments,
+                        )
+                        scenario_scores.append(scenario_result[2])
+                        scenario_breakdowns.append(scenario_result[3])
 
-                return (seq_idx, sequence, final_score, base_breakdown)
+                    # Use average score across scenarios (or worst-case: min)
+                    avg_score = sum(scenario_scores) / len(scenario_scores)
+                    worst_score = min(scenario_scores)
+                    # Use conservative approach: weighted average favoring worst-case
+                    final_score = (worst_score * 0.6) + (avg_score * 0.4)
+
+                    # Use base scenario breakdown (shift=0) and add stochastic metrics
+                    base_breakdown = scenario_breakdowns[2]  # Index 2 is shift=0.0
+                    base_breakdown["stochastic"] = {  # type: ignore[dict-item]
+                        "avg_score": round(avg_score, 3),
+                        "worst_score": round(worst_score, 3),
+                        "final_score": round(final_score, 3),
+                        "scenarios_evaluated": len(stochastic_scenario_shifts),
+                    }
+
+                    return (seq_idx, sequence, final_score, base_breakdown)
 
             # Evaluate all sequences in batch with scenarios
             evaluation_tasks = [

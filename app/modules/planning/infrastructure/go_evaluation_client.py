@@ -190,6 +190,290 @@ class GoEvaluationClient:
         except Exception as e:
             raise GoEvaluationError(f"Go service evaluation failed: {e}")
 
+    async def evaluate_monte_carlo(
+        self,
+        sequence: List[ActionCandidate],
+        portfolio_context: PortfolioContext,
+        available_cash_eur: float,
+        securities: List[Security],
+        monte_carlo_paths: int = 100,
+        symbol_volatilities: Optional[Dict[str, float]] = None,
+        transaction_cost_fixed: float = 2.0,
+        transaction_cost_percent: float = 0.002,
+    ) -> Dict[str, Any]:
+        """
+        Evaluate sequence using Monte Carlo simulation (100x faster in Go).
+
+        Generates random price paths using geometric Brownian motion and evaluates
+        the sequence under each path to produce a statistical distribution of outcomes.
+
+        Args:
+            sequence: Single action sequence to evaluate
+            portfolio_context: Current portfolio state
+            available_cash_eur: Available cash in EUR
+            securities: List of securities for metadata lookup
+            monte_carlo_paths: Number of random paths to simulate (100-500)
+            symbol_volatilities: Annual volatility per symbol (e.g., {"AAPL": 0.25})
+            transaction_cost_fixed: Fixed transaction cost (EUR)
+            transaction_cost_percent: Percentage transaction cost (fraction)
+
+        Returns:
+            Dict with Monte Carlo results:
+                - paths_evaluated: int
+                - avg_score: float
+                - worst_score: float
+                - best_score: float
+                - p10_score: float (10th percentile)
+                - p90_score: float (90th percentile)
+                - final_score: float (conservative: worst*0.4 + p10*0.3 + avg*0.3)
+
+        Raises:
+            GoEvaluationError: If evaluation fails
+        """
+        if not self._client:
+            raise GoEvaluationError(
+                "Client not initialized. Use async context manager."
+            )
+
+        if not sequence:
+            raise GoEvaluationError("Empty sequence provided")
+
+        # Build request payload
+        request_data = {
+            "sequence": self._serialize_sequence(sequence),
+            "evaluation_context": self._serialize_context(
+                portfolio_context,
+                securities,
+                available_cash_eur,
+                transaction_cost_fixed,
+                transaction_cost_percent,
+                None,  # No price adjustments for Monte Carlo
+            ),
+            "paths": monte_carlo_paths,
+            "symbol_volatilities": symbol_volatilities or {},
+        }
+
+        try:
+            response = await self._client.post(
+                f"{self.base_url}/api/v1/evaluate/monte-carlo",
+                json=request_data,
+            )
+            response.raise_for_status()
+            return response.json()
+
+        except httpx.TimeoutException:
+            raise GoEvaluationError(
+                f"Monte Carlo evaluation timed out after {self.timeout}s. "
+                f"Try reducing paths ({monte_carlo_paths}) or increasing timeout."
+            )
+        except httpx.ConnectError:
+            raise GoEvaluationError(
+                f"Cannot connect to Go service at {self.base_url}. "
+                "Make sure the service is running."
+            )
+        except httpx.HTTPStatusError as e:
+            error_detail = ""
+            try:
+                error_detail = e.response.json().get("error", "")
+            except Exception:
+                pass
+            raise GoEvaluationError(
+                f"Go service returned HTTP {e.response.status_code}: {error_detail}"
+            )
+        except Exception as e:
+            raise GoEvaluationError(f"Monte Carlo evaluation failed: {e}")
+
+    async def evaluate_stochastic(
+        self,
+        sequence: List[ActionCandidate],
+        portfolio_context: PortfolioContext,
+        available_cash_eur: float,
+        securities: List[Security],
+        shifts: Optional[List[float]] = None,
+        weights: Optional[Dict[str, float]] = None,
+        transaction_cost_fixed: float = 2.0,
+        transaction_cost_percent: float = 0.002,
+    ) -> Dict[str, Any]:
+        """
+        Evaluate sequence under stochastic price scenarios (10x faster in Go).
+
+        Evaluates the sequence under multiple fixed price shift scenarios
+        (e.g., -10%, -5%, 0%, +5%, +10%) and returns weighted average.
+
+        Args:
+            sequence: Single action sequence to evaluate
+            portfolio_context: Current portfolio state
+            available_cash_eur: Available cash in EUR
+            securities: List of securities for metadata lookup
+            shifts: List of price shifts (default: [-0.10, -0.05, 0.0, 0.05, 0.10])
+            weights: Weight per scenario (default: base 40%, others 15% each)
+            transaction_cost_fixed: Fixed transaction cost (EUR)
+            transaction_cost_percent: Percentage transaction cost (fraction)
+
+        Returns:
+            Dict with stochastic results:
+                - scenarios_evaluated: int
+                - base_score: float (0% scenario)
+                - worst_case: float (-10% scenario)
+                - best_case: float (+10% scenario)
+                - weighted_score: float (weighted average)
+                - scenario_scores: dict (shift -> score mapping)
+
+        Raises:
+            GoEvaluationError: If evaluation fails
+        """
+        if not self._client:
+            raise GoEvaluationError(
+                "Client not initialized. Use async context manager."
+            )
+
+        if not sequence:
+            raise GoEvaluationError("Empty sequence provided")
+
+        # Default shifts and weights matching Python implementation
+        if shifts is None:
+            shifts = [-0.10, -0.05, 0.0, 0.05, 0.10]
+
+        if weights is None:
+            weights = {
+                "0": 0.40,
+                "-0.1": 0.15,
+                "-0.05": 0.15,
+                "0.05": 0.15,
+                "0.1": 0.15,
+            }
+
+        # Build request payload
+        request_data = {
+            "sequence": self._serialize_sequence(sequence),
+            "evaluation_context": self._serialize_context(
+                portfolio_context,
+                securities,
+                available_cash_eur,
+                transaction_cost_fixed,
+                transaction_cost_percent,
+                None,  # No price adjustments for stochastic (generated per scenario)
+            ),
+            "shifts": shifts,
+            "weights": weights,
+        }
+
+        try:
+            response = await self._client.post(
+                f"{self.base_url}/api/v1/evaluate/stochastic",
+                json=request_data,
+            )
+            response.raise_for_status()
+            return response.json()
+
+        except httpx.TimeoutException:
+            raise GoEvaluationError(
+                f"Stochastic evaluation timed out after {self.timeout}s"
+            )
+        except httpx.ConnectError:
+            raise GoEvaluationError(
+                f"Cannot connect to Go service at {self.base_url}. "
+                "Make sure the service is running."
+            )
+        except httpx.HTTPStatusError as e:
+            error_detail = ""
+            try:
+                error_detail = e.response.json().get("error", "")
+            except Exception:
+                pass
+            raise GoEvaluationError(
+                f"Go service returned HTTP {e.response.status_code}: {error_detail}"
+            )
+        except Exception as e:
+            raise GoEvaluationError(f"Stochastic evaluation failed: {e}")
+
+    async def simulate_batch(
+        self,
+        sequences: List[List[ActionCandidate]],
+        portfolio_context: PortfolioContext,
+        available_cash_eur: float,
+        securities: List[Security],
+        transaction_cost_fixed: float = 2.0,
+        transaction_cost_percent: float = 0.002,
+    ) -> List[Dict[str, Any]]:
+        """
+        Simulate multiple sequences in parallel using Go service (10x faster).
+
+        Returns end portfolio states without scoring - used for pre-evaluation
+        simulation to collect symbols for metrics pre-fetching.
+
+        Args:
+            sequences: List of action sequences to simulate
+            portfolio_context: Current portfolio state
+            available_cash_eur: Available cash in EUR
+            securities: List of securities for metadata lookup
+            transaction_cost_fixed: Fixed transaction cost (EUR)
+            transaction_cost_percent: Percentage transaction cost (fraction)
+
+        Returns:
+            List of simulation results:
+                - sequence: List[ActionCandidate]
+                - end_portfolio: PortfolioContext (final state)
+                - end_cash_eur: float
+                - feasible: bool
+
+        Raises:
+            GoEvaluationError: If simulation fails
+        """
+        if not self._client:
+            raise GoEvaluationError(
+                "Client not initialized. Use async context manager."
+            )
+
+        if not sequences:
+            return []
+
+        # Build request payload
+        request_data = {
+            "sequences": [self._serialize_sequence(seq) for seq in sequences],
+            "evaluation_context": self._serialize_context(
+                portfolio_context,
+                securities,
+                available_cash_eur,
+                transaction_cost_fixed,
+                transaction_cost_percent,
+                None,
+            ),
+        }
+
+        try:
+            response = await self._client.post(
+                f"{self.base_url}/api/v1/simulate/batch",
+                json=request_data,
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            # Extract results
+            return result.get("results", [])
+
+        except httpx.TimeoutException:
+            raise GoEvaluationError(
+                f"Go batch simulation timed out after {self.timeout}s. "
+                f"Try reducing batch size or increasing timeout."
+            )
+        except httpx.ConnectError:
+            raise GoEvaluationError(
+                f"Cannot connect to Go service at {self.base_url}. "
+                "Make sure the service is running."
+            )
+        except httpx.HTTPStatusError as e:
+            error_detail = ""
+            try:
+                error_detail = e.response.json().get("error", "")
+            except Exception:
+                pass
+            raise GoEvaluationError(
+                f"Go service returned HTTP {e.response.status_code}: {error_detail}"
+            )
+        except Exception as e:
+            raise GoEvaluationError(f"Go batch simulation failed: {e}")
+
     def _serialize_sequence(
         self, sequence: List[ActionCandidate]
     ) -> List[Dict[str, Any]]:
