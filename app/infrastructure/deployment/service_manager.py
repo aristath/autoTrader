@@ -51,7 +51,7 @@ class ServiceManager:
                 # Use Popen (non-blocking) to initiate restart without waiting for completion.
                 try:
                     process = subprocess.Popen(
-                        ["sudo", "systemctl", "restart", self.service_name],
+                        ["systemctl", "--user", "restart", self.service_name],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                     )
@@ -171,7 +171,7 @@ class ServiceManager:
         """
         try:
             result = subprocess.run(
-                ["sudo", "systemctl", "is-active", self.service_name],
+                ["systemctl", "--user", "is-active", self.service_name],
                 capture_output=True,
                 text=True,
                 timeout=5,
