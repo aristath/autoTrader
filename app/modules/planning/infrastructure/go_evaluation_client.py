@@ -36,14 +36,14 @@ class GoEvaluationClient:
 
     def __init__(
         self,
-        base_url: str = "http://localhost:9000",
+        base_url: str = "http://localhost:8001",
         timeout: float = 120.0,
     ):
         """
         Initialize Go evaluation client.
 
         Args:
-            base_url: Base URL of Go service (default: http://localhost:9000)
+            base_url: Base URL of Go service (default: http://localhost:8001)
             timeout: Request timeout in seconds (default: 120.0)
         """
         self.base_url = base_url.rstrip("/")

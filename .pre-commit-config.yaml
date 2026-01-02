@@ -51,3 +51,30 @@ repos:
         args: ['-ll', '--skip', 'B101,B108,B324,B601,B608']
         files: ^(app|tests)/
         exclude: ^(venv|\.venv|node_modules|build|dist)/
+
+  # Go hooks - using TekWizely's pre-commit-golang which is actively maintained
+  - repo: https://github.com/TekWizely/pre-commit-golang
+    rev: v1.0.0-rc.1
+    hooks:
+      # Format Go code
+      - id: go-fmt
+        args: [-w]
+      # Fix imports
+      - id: go-imports
+        args: [-w]
+      # Run go vet
+      - id: go-vet-mod
+      # Build project
+      - id: go-build-mod
+      # Run tests
+      - id: go-test-mod
+        args: [-timeout=60s]
+      # Check go.mod is tidy
+      - id: go-mod-tidy
+
+  # golangci-lint - comprehensive linter
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.62.2
+    hooks:
+      - id: golangci-lint
+        args: [--timeout=5m]
