@@ -288,27 +288,89 @@ ssh arduino@192.168.1.11  # Password: aristath
 
 # Clone repository
 cd /home/arduino
-mkdir -p repos && cd repos
-git clone https://github.com/aristath/autoTrader.git
-cd autoTrader
+git clone https://github.com/aristath/autoTrader.git arduino-trader
+cd arduino-trader
 
-# Run setup script (installs main app and LED display)
-sudo deploy/setup.sh
+# Install Go (for evaluator service)
+wget https://go.dev/dl/go1.25.0.linux-arm64.tar.gz
+sudo tar -C /usr/local -xzf go1.25.0.linux-arm64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+source ~/.bashrc
 
-# Edit configuration
-nano /home/arduino/arduino-trader/.env
+# Set up Python virtual environment
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
 
-# Restart service
-sudo systemctl restart arduino-trader
+# Build Go evaluator service
+cd services/evaluator-go
+go build -o evaluator-go ./cmd/server
+cd ../..
+
+# Configure environment
+cp .env.example .env
+nano .env  # Edit with your Tradernet API credentials
+
+# Create user systemd services
+mkdir -p ~/.config/systemd/user
+
+# Create Go evaluator service
+cat > ~/.config/systemd/user/evaluator-go.service << 'EOF'
+[Unit]
+Description=Go Planner Evaluation Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/arduino/arduino-trader/services/evaluator-go
+ExecStart=/home/arduino/arduino-trader/services/evaluator-go/evaluator-go
+Restart=always
+RestartSec=5s
+Environment=PORT=9000
+Environment=GIN_MODE=release
+
+[Install]
+WantedBy=default.target
+EOF
+
+# Create Python app service
+cat > ~/.config/systemd/user/arduino-trader.service << 'EOF'
+[Unit]
+Description=Arduino Trader Portfolio Management System
+After=network.target evaluator-go.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/arduino/arduino-trader
+ExecStart=/home/arduino/arduino-trader/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10s
+EnvironmentFile=/home/arduino/arduino-trader/.env
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+EOF
+
+# Enable lingering (allows services to start without login)
+loginctl enable-linger $USER
+
+# Enable and start services
+systemctl --user daemon-reload
+systemctl --user enable evaluator-go.service arduino-trader.service
+systemctl --user start evaluator-go.service arduino-trader.service
+
+# Verify services are running
+systemctl --user status evaluator-go.service arduino-trader.service
 ```
 
-The setup script automatically:
-- Creates Python virtual environment
-- Installs dependencies
-- Sets up systemd service
-- Deploys LED display Docker app
-- Compiles and uploads Arduino sketch
-- Configures auto-deployment
+After installation:
+- Python app runs on port 8000
+- Go evaluator runs on port 9000
+- Both services auto-start on boot
+- Auto-deploy monitors for GitHub updates
 
 ## Configuration
 
@@ -676,21 +738,24 @@ ssh arduino@192.168.1.11  # Password: aristath
 
 # Clone repository
 cd /home/arduino
-mkdir -p repos && cd repos
-git clone https://github.com/aristath/autoTrader.git
-cd autoTrader
+git clone https://github.com/aristath/autoTrader.git arduino-trader
+cd arduino-trader
 
-# Run setup script
-sudo deploy/setup.sh
+# Follow installation steps from Quick Start section above
+# This includes:
+# - Installing Go
+# - Setting up Python venv
+# - Building Go evaluator
+# - Creating user systemd services
+# - Enabling services
 ```
 
-The setup script:
-- Creates Python virtual environment
-- Installs dependencies
-- Sets up systemd service (`arduino-trader`)
-- Deploys LED display Docker app
-- Compiles and uploads Arduino sketch
-- Configures auto-deployment
+Installation creates:
+- Python virtual environment with all dependencies
+- Go evaluator service (port 9000)
+- User systemd services (no root required)
+- Auto-deploy via scheduler
+- LED display via Docker
 
 ### Directory Structure
 
@@ -715,16 +780,20 @@ After setup:
 
 ```bash
 # View status
-sudo systemctl status arduino-trader
+systemctl --user status arduino-trader.service
+systemctl --user status evaluator-go.service
 
 # View logs
-sudo journalctl -u arduino-trader -f
+journalctl --user -u arduino-trader.service -f
+journalctl --user -u evaluator-go.service -f
 
 # Restart
-sudo systemctl restart arduino-trader
+systemctl --user restart arduino-trader.service
+systemctl --user restart evaluator-go.service
 
 # Stop
-sudo systemctl stop arduino-trader
+systemctl --user stop arduino-trader.service
+systemctl --user stop evaluator-go.service
 ```
 
 ### Auto-Deployment
@@ -922,10 +991,10 @@ Tests cover:
 
 ```bash
 # Check service status
-sudo systemctl status arduino-trader
+systemctl --user status arduino-trader.service
 
 # View logs
-sudo journalctl -u arduino-trader -n 50
+journalctl --user -u arduino-trader.service -n 50
 
 # Check configuration
 cat /home/arduino/arduino-trader/.env
@@ -995,17 +1064,22 @@ curl -X POST http://localhost:8000/api/status/locks/clear
 ### Reset Everything
 
 ```bash
-# Stop service
-sudo systemctl stop arduino-trader
+# Stop services
+systemctl --user stop arduino-trader.service evaluator-go.service
 
-# Backup data (optional)
-cp -r /home/arduino/arduino-trader/data /home/arduino/arduino-trader/data.backup
+# Backup data
+tar -czf ~/arduino-trader-backup-$(date +%Y%m%d_%H%M%S).tar.gz \
+    -C ~/arduino-trader/data .
 
-# Remove application
-rm -rf /home/arduino/arduino-trader
+# Pull latest changes
+cd ~/arduino-trader
+git fetch origin
+git reset --hard origin/main
 
-# Run setup again
-sudo /home/arduino/repos/autoTrader/deploy/setup.sh
+# Rebuild and restart
+cd services/evaluator-go && go build -o evaluator-go ./cmd/server && cd ../..
+source venv/bin/activate && pip install -r requirements.txt
+systemctl --user restart arduino-trader.service evaluator-go.service
 ```
 
 ## Multi-Bucket Portfolio System
