@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/aristath/arduino-trader/services/evaluator-go/internal/evaluation"
 	"github.com/aristath/arduino-trader/services/evaluator-go/internal/models"
@@ -50,8 +52,33 @@ func (ae *AdvancedEvaluator) EvaluateMonteCarlo(c *gin.Context) {
 		return
 	}
 
+	// Validate transaction costs are non-negative
+	if request.EvaluationContext.TransactionCostFixed < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Transaction cost fixed cannot be negative",
+		})
+		return
+	}
+
+	if request.EvaluationContext.TransactionCostPercent < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Transaction cost percent cannot be negative",
+		})
+		return
+	}
+
 	// Evaluate using Monte Carlo simulation
+	startTime := time.Now()
 	result := evaluation.EvaluateMonteCarlo(request)
+	elapsed := time.Since(startTime)
+
+	// Log performance metrics
+	log.Printf(
+		"Monte Carlo evaluation completed: %d paths in %v (%.2f ms/path)",
+		request.Paths,
+		elapsed,
+		float64(elapsed.Milliseconds())/float64(request.Paths),
+	)
 
 	c.JSON(http.StatusOK, result)
 }
@@ -83,8 +110,33 @@ func (ae *AdvancedEvaluator) EvaluateStochastic(c *gin.Context) {
 		return
 	}
 
+	// Validate transaction costs are non-negative
+	if request.EvaluationContext.TransactionCostFixed < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Transaction cost fixed cannot be negative",
+		})
+		return
+	}
+
+	if request.EvaluationContext.TransactionCostPercent < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Transaction cost percent cannot be negative",
+		})
+		return
+	}
+
 	// Evaluate using stochastic scenarios
+	startTime := time.Now()
 	result := evaluation.EvaluateStochastic(request)
+	elapsed := time.Since(startTime)
+
+	// Log performance metrics
+	log.Printf(
+		"Stochastic evaluation completed: %d scenarios in %v (%.2f ms/scenario)",
+		len(request.Shifts),
+		elapsed,
+		float64(elapsed.Milliseconds())/float64(len(request.Shifts)),
+	)
 
 	c.JSON(http.StatusOK, result)
 }

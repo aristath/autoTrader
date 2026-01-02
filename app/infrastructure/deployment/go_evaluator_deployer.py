@@ -4,6 +4,7 @@ Downloads ARM64 binary from GitHub Actions and deploys to production.
 """
 
 import asyncio
+import hashlib
 import logging
 import subprocess
 from pathlib import Path
@@ -30,7 +31,17 @@ class GoEvaluatorDeployer:
             repo_dir: Path to Git repository
             binary_path: Path where binary should be deployed
             service_name: Systemd service name
+
+        Raises:
+            ValueError: If binary_path is invalid or contains path traversal
         """
+        # Validate binary_path to prevent command injection
+        if not binary_path.is_absolute():
+            raise ValueError(f"Binary path must be absolute: {binary_path}")
+
+        if ".." in str(binary_path):
+            raise ValueError(f"Binary path cannot contain '..': {binary_path}")
+
         self.repo_dir = repo_dir
         self.binary_path = binary_path
         self.service_name = service_name
@@ -67,14 +78,27 @@ class GoEvaluatorDeployer:
             # Step 2: Stop service if running
             await self._stop_service()
 
-            # Step 3: Deploy binary
+            # Step 3: Deploy binary with verification
             logger.info(f"Copying binary to {self.binary_path}")
+
+            # Calculate checksum of source binary
+            source_checksum = self._calculate_checksum(binary_source)
+            logger.debug(f"Source binary checksum: {source_checksum}")
+
             subprocess.run(
                 ["cp", str(binary_source), str(self.binary_path)],
                 check=True,
                 capture_output=True,
                 timeout=10,
             )
+
+            # Verify checksum after copy
+            dest_checksum = self._calculate_checksum(self.binary_path)
+            if source_checksum != dest_checksum:
+                raise GoDeploymentError(
+                    f"Binary checksum mismatch! Source: {source_checksum}, Dest: {dest_checksum}"
+                )
+            logger.info("Binary checksum verified successfully")
 
             # Make executable
             subprocess.run(
@@ -90,21 +114,36 @@ class GoEvaluatorDeployer:
             # Step 5: Start service
             await self._start_service()
 
-            # Step 6: Check health
-            await asyncio.sleep(2)  # Give service time to start
-            healthy = await self._check_health()
+            # Step 6: Check health with retry loop
+            healthy = False
+            for attempt in range(10):  # Up to 10 seconds
+                await asyncio.sleep(1)
+                if await self._check_health():
+                    healthy = True
+                    break
+                if attempt < 9:  # Don't log on last attempt
+                    logger.debug(
+                        f"Health check attempt {attempt + 1}/10 failed, retrying..."
+                    )
 
             if not healthy:
-                raise GoDeploymentError("Service started but health check failed")
+                # Rollback: stop the failed service
+                logger.error(
+                    "Service started but health check failed after 10 attempts"
+                )
+                await self._stop_service()
+                raise GoDeploymentError(
+                    "Service started but health check failed after 10 attempts"
+                )
 
             logger.info("Go evaluator deployed successfully")
             return True
 
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr.decode() if e.stderr else str(e)
-            raise GoDeploymentError(f"Command failed: {error_msg}")
+            raise GoDeploymentError(f"Command failed: {error_msg}") from e
         except Exception as e:
-            raise GoDeploymentError(f"Deployment failed: {e}")
+            raise GoDeploymentError(f"Deployment failed: {e}") from e
 
     async def _build_binary(self) -> None:
         """Build Go binary locally (fallback if artifact not available)."""
@@ -193,6 +232,13 @@ RestartSec=5s
 Environment=PORT=9000
 Environment=GIN_MODE=release
 
+# Security hardening
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+ReadWritePaths={self.binary_path.parent}
+
 [Install]
 WantedBy=default.target
 """
@@ -231,3 +277,19 @@ WantedBy=default.target
         except Exception as e:
             logger.warning(f"Health check failed: {e}")
             return False
+
+    def _calculate_checksum(self, file_path: Path) -> str:
+        """Calculate SHA256 checksum of a file.
+
+        Args:
+            file_path: Path to file
+
+        Returns:
+            Hex digest of SHA256 checksum
+        """
+        sha256_hash = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            # Read in chunks to handle large files
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()

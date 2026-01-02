@@ -2918,7 +2918,7 @@ async def process_planner_incremental(
             )
 
         except GoEvaluationError as e:
-            logger.warning(
+            logger.info(
                 f"Go evaluation failed ({e}), falling back to Python evaluation (slower)"
             )
             use_go_evaluation = False
@@ -3533,7 +3533,7 @@ async def create_holistic_plan(
         )
 
     except GoEvaluationError as e:
-        logger.warning(
+        logger.info(
             f"Go batch simulation failed ({e}), falling back to Python (slower)"
         )
 
@@ -3865,7 +3865,7 @@ async def create_holistic_plan(
                     return (seq_idx, sequence, final_score, breakdown)
 
                 except GoEvaluationError as e:
-                    logger.warning(
+                    logger.info(
                         f"Go Monte Carlo evaluation failed ({e}), falling back to Python"
                     )
 
@@ -3999,7 +3999,7 @@ async def create_holistic_plan(
                     return (seq_idx, sequence, final_score, breakdown)
 
                 except GoEvaluationError as e:
-                    logger.warning(
+                    logger.info(
                         f"Go stochastic evaluation failed ({e}), falling back to Python"
                     )
 

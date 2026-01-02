@@ -93,6 +93,7 @@ type EvaluationContext struct {
 	// Configuration
 	TransactionCostFixed   float64 `json:"transaction_cost_fixed"`   // Fixed transaction cost (EUR)
 	TransactionCostPercent float64 `json:"transaction_cost_percent"` // Percentage transaction cost (0.002 = 0.2%)
+	CostPenaltyFactor      float64 `json:"cost_penalty_factor"`      // Penalty factor for transaction costs (0.0 = no penalty, 0.1 = default)
 
 	// Optional: Price adjustment scenarios for stochastic evaluation
 	PriceAdjustments map[string]float64 `json:"price_adjustments,omitempty"` // symbol -> multiplier (e.g., 1.05 for +5%)

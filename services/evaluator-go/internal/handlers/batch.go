@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/aristath/arduino-trader/services/evaluator-go/internal/models"
 	"github.com/aristath/arduino-trader/services/evaluator-go/internal/workers"
@@ -40,10 +42,43 @@ func (be *BatchEvaluator) EvaluateBatch(c *gin.Context) {
 		return
 	}
 
+	// Validate reasonable batch size to prevent resource exhaustion
+	if len(request.Sequences) > 10000 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Too many sequences (max 10000)",
+		})
+		return
+	}
+
+	// Validate transaction costs are non-negative
+	if request.EvaluationContext.TransactionCostFixed < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Transaction cost fixed cannot be negative",
+		})
+		return
+	}
+
+	if request.EvaluationContext.TransactionCostPercent < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Transaction cost percent cannot be negative",
+		})
+		return
+	}
+
 	// Evaluate sequences using worker pool
+	startTime := time.Now()
 	results := be.workerPool.EvaluateBatch(
 		request.Sequences,
 		request.EvaluationContext,
+	)
+	elapsed := time.Since(startTime)
+
+	// Log performance metrics
+	log.Printf(
+		"Batch evaluation completed: %d sequences in %v (%.2f ms/sequence)",
+		len(request.Sequences),
+		elapsed,
+		float64(elapsed.Milliseconds())/float64(len(request.Sequences)),
 	)
 
 	// Build response
@@ -75,10 +110,28 @@ func (be *BatchEvaluator) SimulateBatch(c *gin.Context) {
 		return
 	}
 
+	// Validate reasonable batch size to prevent resource exhaustion
+	if len(request.Sequences) > 10000 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Too many sequences (max 10000)",
+		})
+		return
+	}
+
 	// Simulate sequences using worker pool (parallel)
+	startTime := time.Now()
 	results := be.workerPool.SimulateBatch(
 		request.Sequences,
 		request.EvaluationContext,
+	)
+	elapsed := time.Since(startTime)
+
+	// Log performance metrics
+	log.Printf(
+		"Batch simulation completed: %d sequences in %v (%.2f ms/sequence)",
+		len(request.Sequences),
+		elapsed,
+		float64(elapsed.Milliseconds())/float64(len(request.Sequences)),
 	)
 
 	// Build response

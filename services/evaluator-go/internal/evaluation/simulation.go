@@ -105,23 +105,23 @@ func SimulateSequence(
 			// Copy-on-write: Create copies only for maps we're about to modify.
 			// This avoids unnecessary copies when only one type of metadata exists.
 			if country != nil {
-				if newGeographies == nil {
-					newGeographies = make(map[string]string)
-					geographiesCopied = true
-				} else if !geographiesCopied {
-					// First modification - need to copy
-					newGeographies = copyStringMap(newGeographies)
+				if !geographiesCopied {
+					if newGeographies == nil {
+						newGeographies = make(map[string]string, 1)
+					} else {
+						newGeographies = copyStringMap(newGeographies)
+					}
 					geographiesCopied = true
 				}
 				newGeographies[action.Symbol] = *country
 			}
 			if industry != nil {
-				if newIndustries == nil {
-					newIndustries = make(map[string]string)
-					industriesCopied = true
-				} else if !industriesCopied {
-					// First modification - need to copy
-					newIndustries = copyStringMap(newIndustries)
+				if !industriesCopied {
+					if newIndustries == nil {
+						newIndustries = make(map[string]string, 1)
+					} else {
+						newIndustries = copyStringMap(newIndustries)
+					}
 					industriesCopied = true
 				}
 				newIndustries[action.Symbol] = *industry
