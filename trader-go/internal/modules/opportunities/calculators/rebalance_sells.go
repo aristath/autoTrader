@@ -36,7 +36,6 @@ func (c *RebalanceSellsCalculator) Calculate(
 ) ([]domain.ActionCandidate, error) {
 	// Parameters with defaults
 	minOverweightThreshold := GetFloatParam(params, "min_overweight_threshold", 0.05) // 5% overweight
-	targetField := "country"                                                           // Could be made configurable
 	maxPositions := GetIntParam(params, "max_positions", 0)                            // 0 = unlimited
 
 	if !ctx.AllowSell {
@@ -103,13 +102,8 @@ func (c *RebalanceSellsCalculator) Calculate(
 			continue
 		}
 
-		// Get country
-		country := security.Country
-		if ctx.CountryToGroup != nil {
-			if group, ok := ctx.CountryToGroup[country]; ok {
-				country = group
-			}
-		}
+		// Get country (placeholder - would extract from security metadata)
+		country := "DEFAULT"
 
 		// Check if this security is in an overweight country
 		overweight, ok := overweightCountries[country]

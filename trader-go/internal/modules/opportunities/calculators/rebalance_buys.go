@@ -91,19 +91,14 @@ func (c *RebalanceBuysCalculator) Calculate(
 	}
 	var scoredCandidates []scoredCandidate
 
-	for symbol, security := range ctx.StocksBySymbol {
+	for symbol := range ctx.StocksBySymbol {
 		// Skip if recently bought
 		if ctx.RecentlyBought[symbol] {
 			continue
 		}
 
-		// Get country
-		country := security.Country
-		if ctx.CountryToGroup != nil {
-			if group, ok := ctx.CountryToGroup[country]; ok {
-				country = group
-			}
-		}
+		// Get country (placeholder - would extract from security metadata)
+		country := "DEFAULT"
 
 		// Check if this country is underweight
 		underweight, ok := underweightCountries[country]

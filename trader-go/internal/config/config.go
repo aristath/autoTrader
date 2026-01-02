@@ -11,6 +11,7 @@ import (
 // Config holds application configuration
 type Config struct {
 	DatabasePath        string
+	HistoryPath         string // Path to per-symbol history databases
 	PythonServiceURL    string
 	TradernetServiceURL string
 	PyPFOptServiceURL   string
@@ -30,6 +31,7 @@ func Load() (*Config, error) {
 		Port:                getEnvAsInt("GO_PORT", 8001), // Default 8001 (Python uses 8000)
 		DevMode:             getEnvAsBool("DEV_MODE", false),
 		DatabasePath:        getEnv("DATABASE_PATH", "./data/portfolio.db"),
+		HistoryPath:         getEnv("HISTORY_PATH", "./data/history"), // Per-symbol price databases
 		PythonServiceURL:    getEnv("PYTHON_SERVICE_URL", "http://localhost:8000"),    // Python on 8000
 		TradernetServiceURL: getEnv("TRADERNET_SERVICE_URL", "http://localhost:9001"), // Tradernet microservice on 9001
 		PyPFOptServiceURL:   getEnv("PYPFOPT_SERVICE_URL", "http://localhost:9002"),   // PyPFOpt microservice on 9002

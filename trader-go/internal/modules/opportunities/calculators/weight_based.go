@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/aristath/arduino-trader/internal/modules/planning/domain"
+	"github.com/aristath/arduino-trader/internal/domain"
+	planningdomain "github.com/aristath/arduino-trader/internal/modules/planning/domain"
 	"github.com/rs/zerolog"
 )
 
@@ -26,15 +27,15 @@ func (c *WeightBasedCalculator) Name() string {
 }
 
 // Category returns the opportunity category.
-func (c *WeightBasedCalculator) Category() domain.OpportunityCategory {
-	return domain.OpportunityCategoryWeightBased
+func (c *WeightBasedCalculator) Category() planningdomain.OpportunityCategory {
+	return planningdomain.OpportunityCategoryWeightBased
 }
 
 // Calculate identifies weight-based opportunities (both buys and sells).
 func (c *WeightBasedCalculator) Calculate(
-	ctx *domain.OpportunityContext,
+	ctx *planningdomain.OpportunityContext,
 	params map[string]interface{},
-) ([]domain.ActionCandidate, error) {
+) ([]planningdomain.ActionCandidate, error) {
 	// Parameters with defaults
 	minWeightDiff := GetFloatParam(params, "min_weight_diff", 0.02)       // 2% minimum difference
 	maxValuePerTrade := GetFloatParam(params, "max_value_per_trade", 500.0)
@@ -105,7 +106,7 @@ func (c *WeightBasedCalculator) Calculate(
 		return abs(diffs[i].diff) > abs(diffs[j].diff)
 	})
 
-	var candidates []domain.ActionCandidate
+	var candidates []planningdomain.ActionCandidate
 	buyCount := 0
 	sellCount := 0
 
@@ -172,7 +173,7 @@ func (c *WeightBasedCalculator) Calculate(
 
 			tags := []string{"weight_based", "buy", "underweight"}
 
-			candidate := domain.ActionCandidate{
+			candidate := planningdomain.ActionCandidate{
 				Side:     "BUY",
 				Symbol:   symbol,
 				Name:     security.Name,
@@ -198,14 +199,15 @@ func (c *WeightBasedCalculator) Calculate(
 			}
 
 			// Find position
-			var position *domain.Position
+			var foundPosition *domain.Position
 			for i := range ctx.Positions {
 				if ctx.Positions[i].Symbol == symbol {
-					position = &ctx.Positions[i]
+					pos := ctx.Positions[i]
+					foundPosition = &pos
 					break
 				}
 			}
-			if position == nil {
+			if foundPosition == nil {
 				continue
 			}
 
@@ -219,8 +221,8 @@ func (c *WeightBasedCalculator) Calculate(
 			if quantity == 0 {
 				quantity = 1
 			}
-			if quantity > position.Quantity {
-				quantity = position.Quantity
+			if float64(quantity) > foundPosition.Quantity {
+				quantity = int(foundPosition.Quantity)
 			}
 
 			valueEUR := float64(quantity) * currentPrice
@@ -234,7 +236,7 @@ func (c *WeightBasedCalculator) Calculate(
 
 			tags := []string{"weight_based", "sell", "overweight"}
 
-			candidate := domain.ActionCandidate{
+			candidate := planningdomain.ActionCandidate{
 				Side:     "SELL",
 				Symbol:   symbol,
 				Name:     security.Name,

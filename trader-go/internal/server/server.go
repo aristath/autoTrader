@@ -176,10 +176,15 @@ func (s *Server) setupAllocationRoutes(r chi.Router) {
 	// Portfolio service (needed for allocation calculations)
 	positionRepo := portfolio.NewPositionRepository(s.stateDB.Conn(), s.configDB.Conn(), s.log)
 	portfolioRepo := portfolio.NewPortfolioRepository(s.snapshotsDB.Conn(), s.log)
+	turnoverTracker := portfolio.NewTurnoverTracker(s.ledgerDB.Conn(), s.snapshotsDB.Conn(), s.log)
+	tradeRepo := portfolio.NewTradeRepository(s.ledgerDB.Conn(), s.log)
+	attributionCalc := portfolio.NewAttributionCalculator(tradeRepo, s.configDB.Conn(), s.cfg.HistoryPath, s.log)
 	portfolioService := portfolio.NewPortfolioService(
 		portfolioRepo,
 		positionRepo,
 		allocRepo,
+		turnoverTracker,
+		attributionCalc,
 		s.configDB.Conn(),
 		s.log,
 	)
@@ -217,10 +222,15 @@ func (s *Server) setupPortfolioRoutes(r chi.Router) {
 	positionRepo := portfolio.NewPositionRepository(s.stateDB.Conn(), s.configDB.Conn(), s.log)
 	portfolioRepo := portfolio.NewPortfolioRepository(s.snapshotsDB.Conn(), s.log)
 	allocRepo := allocation.NewRepository(s.configDB.Conn(), s.log)
+	turnoverTracker := portfolio.NewTurnoverTracker(s.ledgerDB.Conn(), s.snapshotsDB.Conn(), s.log)
+	tradeRepo := portfolio.NewTradeRepository(s.ledgerDB.Conn(), s.log)
+	attributionCalc := portfolio.NewAttributionCalculator(tradeRepo, s.configDB.Conn(), s.cfg.HistoryPath, s.log)
 	portfolioService := portfolio.NewPortfolioService(
 		portfolioRepo,
 		positionRepo,
 		allocRepo,
+		turnoverTracker,
+		attributionCalc,
 		s.configDB.Conn(),
 		s.log,
 	)
@@ -327,10 +337,15 @@ func (s *Server) setupTradingRoutes(r chi.Router) {
 	allocRepo := allocation.NewRepository(s.configDB.Conn(), s.log)
 	positionRepo := portfolio.NewPositionRepository(s.stateDB.Conn(), s.configDB.Conn(), s.log)
 	portfolioRepo := portfolio.NewPortfolioRepository(s.snapshotsDB.Conn(), s.log)
+	turnoverTracker := portfolio.NewTurnoverTracker(s.ledgerDB.Conn(), s.snapshotsDB.Conn(), s.log)
+	portfolioTradeRepo := portfolio.NewTradeRepository(s.ledgerDB.Conn(), s.log)
+	attributionCalc := portfolio.NewAttributionCalculator(portfolioTradeRepo, s.configDB.Conn(), s.cfg.HistoryPath, s.log)
 	portfolioService := portfolio.NewPortfolioService(
 		portfolioRepo,
 		positionRepo,
 		allocRepo,
+		turnoverTracker,
+		attributionCalc,
 		s.configDB.Conn(),
 		s.log,
 	)
