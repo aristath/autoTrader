@@ -98,7 +98,8 @@ func main() {
 	defer sched.Stop()
 
 	// Register background jobs
-	if err := registerJobs(sched, configDB, stateDB, snapshotsDB, ledgerDB, dividendsDB, satellitesDB, cfg, log); err != nil {
+	jobs, err := registerJobs(sched, configDB, stateDB, snapshotsDB, ledgerDB, dividendsDB, satellitesDB, cfg, log)
+	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to register jobs")
 	}
 
@@ -114,7 +115,18 @@ func main() {
 		SatellitesDB: satellitesDB,
 		Config:       cfg,
 		DevMode:      cfg.DevMode,
+		Scheduler:    sched,
 	})
+
+	// Wire up jobs for manual triggering via API
+	srv.SetJobs(
+		jobs.HealthCheck,
+		jobs.SyncCycle,
+		jobs.DividendReinvest,
+		jobs.SatelliteMaintenance,
+		jobs.SatelliteReconciliation,
+		jobs.SatelliteEvaluation,
+	)
 
 	// Start server in goroutine
 	go func() {
@@ -143,7 +155,17 @@ func main() {
 	log.Info().Msg("Server stopped")
 }
 
-func registerJobs(sched *scheduler.Scheduler, configDB, stateDB, snapshotsDB, ledgerDB, dividendsDB, satellitesDB *database.DB, cfg *config.Config, log zerolog.Logger) error {
+// JobInstances holds references to all registered jobs for manual triggering
+type JobInstances struct {
+	HealthCheck             scheduler.Job
+	SyncCycle               scheduler.Job
+	DividendReinvest        scheduler.Job
+	SatelliteMaintenance    scheduler.Job
+	SatelliteReconciliation scheduler.Job
+	SatelliteEvaluation     scheduler.Job
+}
+
+func registerJobs(sched *scheduler.Scheduler, configDB, stateDB, snapshotsDB, ledgerDB, dividendsDB, satellitesDB *database.DB, cfg *config.Config, log zerolog.Logger) (*JobInstances, error) {
 	// Initialize required repositories and services for jobs
 
 	// Repositories
@@ -201,7 +223,7 @@ func registerJobs(sched *scheduler.Scheduler, configDB, stateDB, snapshotsDB, le
 		HistoryPath: cfg.HistoryPath,
 	})
 	if err := sched.AddJob("0 0 4 * * *", healthCheck); err != nil {
-		return fmt.Errorf("failed to register health_check job: %w", err)
+		return nil, fmt.Errorf("failed to register health_check job: %w", err)
 	}
 
 	// Register Job 2: Sync Cycle (every 5 minutes)
@@ -217,7 +239,7 @@ func registerJobs(sched *scheduler.Scheduler, configDB, stateDB, snapshotsDB, le
 		UpdateDisplayTicker: nil, // TODO: Wire up display ticker callback
 	})
 	if err := sched.AddJob("0 */5 * * * *", syncCycle); err != nil {
-		return fmt.Errorf("failed to register sync_cycle job: %w", err)
+		return nil, fmt.Errorf("failed to register sync_cycle job: %w", err)
 	}
 
 	// Register Job 3: Dividend Reinvestment (daily at 10:00 AM)
@@ -232,28 +254,35 @@ func registerJobs(sched *scheduler.Scheduler, configDB, stateDB, snapshotsDB, le
 		YahooClient:      yahooClient,
 	})
 	if err := sched.AddJob("0 0 10 * * *", dividendReinvest); err != nil {
-		return fmt.Errorf("failed to register dividend_reinvestment job: %w", err)
+		return nil, fmt.Errorf("failed to register dividend_reinvestment job: %w", err)
 	}
 
 	// Register Job 4: Satellite Maintenance (daily at 11:00 AM)
 	satelliteMaintenance := scheduler.NewSatelliteMaintenanceJob(log, bucketService, positionRepo)
 	if err := sched.AddJob("0 0 11 * * *", satelliteMaintenance); err != nil {
-		return fmt.Errorf("failed to register satellite_maintenance job: %w", err)
+		return nil, fmt.Errorf("failed to register satellite_maintenance job: %w", err)
 	}
 
 	// Register Job 5: Satellite Reconciliation (daily at 11:30 PM)
 	satelliteReconciliation := scheduler.NewSatelliteReconciliationJob(log, tradernetClient, reconciliationService)
 	if err := sched.AddJob("0 30 23 * * *", satelliteReconciliation); err != nil {
-		return fmt.Errorf("failed to register satellite_reconciliation job: %w", err)
+		return nil, fmt.Errorf("failed to register satellite_reconciliation job: %w", err)
 	}
 
 	// Register Job 6: Satellite Evaluation (weekly on Sunday at 3:00 AM)
 	satelliteEvaluation := scheduler.NewSatelliteEvaluationJob(log, metaAllocator)
 	if err := sched.AddJob("0 0 3 * * 0", satelliteEvaluation); err != nil {
-		return fmt.Errorf("failed to register satellite_evaluation job: %w", err)
+		return nil, fmt.Errorf("failed to register satellite_evaluation job: %w", err)
 	}
 
 	log.Info().Int("jobs", 6).Msg("Background jobs registered successfully")
 
-	return nil
+	return &JobInstances{
+		HealthCheck:             healthCheck,
+		SyncCycle:               syncCycle,
+		DividendReinvest:        dividendReinvest,
+		SatelliteMaintenance:    satelliteMaintenance,
+		SatelliteReconciliation: satelliteReconciliation,
+		SatelliteEvaluation:     satelliteEvaluation,
+	}, nil
 }

@@ -51,34 +51,51 @@ type Config struct {
 	Config       *config.Config
 	Port         int
 	DevMode      bool
+	Scheduler    *scheduler.Scheduler
 }
 
 // Server represents the HTTP server
 type Server struct {
-	router       *chi.Mux
-	server       *http.Server
-	log          zerolog.Logger
-	configDB     *database.DB
-	stateDB      *database.DB
-	snapshotsDB  *database.DB
-	ledgerDB     *database.DB
-	dividendsDB  *database.DB
-	satellitesDB *database.DB
-	cfg          *config.Config
+	router         *chi.Mux
+	server         *http.Server
+	log            zerolog.Logger
+	configDB       *database.DB
+	stateDB        *database.DB
+	snapshotsDB    *database.DB
+	ledgerDB       *database.DB
+	dividendsDB    *database.DB
+	satellitesDB   *database.DB
+	cfg            *config.Config
+	systemHandlers *SystemHandlers
+	scheduler      *scheduler.Scheduler
 }
 
 // New creates a new HTTP server
 func New(cfg Config) *Server {
+	// Initialize system handlers early
+	dataDir := filepath.Dir(cfg.Config.DatabasePath)
+	systemHandlers := NewSystemHandlers(
+		cfg.Log,
+		dataDir,
+		cfg.StateDB,
+		cfg.StateDB, // settingsDB (using stateDB for now)
+		cfg.SnapshotsDB,
+		cfg.ConfigDB,
+		cfg.Scheduler,
+	)
+
 	s := &Server{
-		router:       chi.NewRouter(),
-		log:          cfg.Log.With().Str("component", "server").Logger(),
-		configDB:     cfg.ConfigDB,
-		stateDB:      cfg.StateDB,
-		snapshotsDB:  cfg.SnapshotsDB,
-		ledgerDB:     cfg.LedgerDB,
-		dividendsDB:  cfg.DividendsDB,
-		satellitesDB: cfg.SatellitesDB,
-		cfg:          cfg.Config,
+		router:         chi.NewRouter(),
+		log:            cfg.Log.With().Str("component", "server").Logger(),
+		configDB:       cfg.ConfigDB,
+		stateDB:        cfg.StateDB,
+		snapshotsDB:    cfg.SnapshotsDB,
+		ledgerDB:       cfg.LedgerDB,
+		dividendsDB:    cfg.DividendsDB,
+		satellitesDB:   cfg.SatellitesDB,
+		cfg:            cfg.Config,
+		systemHandlers: systemHandlers,
+		scheduler:      cfg.Scheduler,
 	}
 
 	s.setupMiddleware(cfg.DevMode)
@@ -93,6 +110,25 @@ func New(cfg Config) *Server {
 	}
 
 	return s
+}
+
+// SetJobs registers job instances for manual triggering via API
+func (s *Server) SetJobs(
+	healthCheck scheduler.Job,
+	syncCycle scheduler.Job,
+	dividendReinvest scheduler.Job,
+	satelliteMaintenance scheduler.Job,
+	satelliteReconciliation scheduler.Job,
+	satelliteEvaluation scheduler.Job,
+) {
+	s.systemHandlers.SetJobs(
+		healthCheck,
+		syncCycle,
+		dividendReinvest,
+		satelliteMaintenance,
+		satelliteReconciliation,
+		satelliteEvaluation,
+	)
 }
 
 // setupMiddleware configures middleware
@@ -195,18 +231,11 @@ func (s *Server) setupRoutes() {
 
 // setupSystemRoutes configures system monitoring and operations routes
 func (s *Server) setupSystemRoutes(r chi.Router) {
-	// Initialize system handlers
-	// Data directory is the parent of DatabasePath (e.g., "./data" from "./data/portfolio.db")
+	// Use server's system handlers instance
+	systemHandlers := s.systemHandlers
+
+	// Initialize log handlers
 	dataDir := filepath.Dir(s.cfg.DatabasePath)
-	systemHandlers := NewSystemHandlers(
-		s.log,
-		dataDir,
-		s.stateDB,
-		s.configDB, // Settings are stored in config.db
-		s.snapshotsDB,
-		s.configDB, // Config DB also used for securities data
-		nil,        // TODO: Pass scheduler when available
-	)
 	logHandlers := NewLogHandlers(s.log, dataDir)
 
 	// Initialize universe handlers for sync operations
@@ -295,15 +324,12 @@ func (s *Server) setupSystemRoutes(r chi.Router) {
 
 		// Job triggers (manual operation triggers)
 		r.Route("/jobs", func(r chi.Router) {
+			r.Post("/health-check", systemHandlers.HandleTriggerHealthCheck)
 			r.Post("/sync-cycle", systemHandlers.HandleTriggerSyncCycle)
-			r.Post("/weekly-maintenance", systemHandlers.HandleTriggerWeeklyMaintenance)
 			r.Post("/dividend-reinvestment", systemHandlers.HandleTriggerDividendReinvestment)
-			r.Post("/planner-batch", systemHandlers.HandleTriggerPlannerBatch)
-		})
-
-		// Maintenance triggers
-		r.Route("/maintenance", func(r chi.Router) {
-			r.Post("/daily", systemHandlers.HandleTriggerDailyMaintenance)
+			r.Post("/satellite-maintenance", systemHandlers.HandleTriggerSatelliteMaintenance)
+			r.Post("/satellite-reconciliation", systemHandlers.HandleTriggerSatelliteReconciliation)
+			r.Post("/satellite-evaluation", systemHandlers.HandleTriggerSatelliteEvaluation)
 		})
 	})
 }
