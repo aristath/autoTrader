@@ -278,22 +278,35 @@
 - **Completed:** All 11 planning endpoints + 3 trade recommendation aliases
 - **Impact:** Autonomous trading planning now fully functional
 
-**2. Emergency Rebalancing Migration from Python** ⚠️ **REMAINING P0 BLOCKER**
-- **Impact:** Emergency handler works in Python, needs Go migration
-- **Estimated Work:** 1 week
-- **Status:** Stub exists in Go, needs full implementation
-- **Components to migrate:**
-  - Negative balance detection and currency minimum checks
-  - Currency exchange orchestration via CurrencyExchangeService
-  - Emergency position sales with trade execution
-  - Recommendation creation/dismissal
-  - Sync cycle integration
-- **Dependencies:**
-  - TradeExecutionService (needs 7-layer validation)
-  - CurrencyExchangeService
-  - ExchangeRateService
-  - Position selection logic
-- **File:** trader-go/internal/modules/rebalancing/negative_balance_rebalancer.go (95 lines stub)
+**2. Emergency Rebalancing Migration from Python** ⚠️ **60% COMPLETE**
+- **Impact:** Emergency detection operational, execution pending
+- **Estimated Remaining Work:** 3-5 days
+- **Status:** Core detection implemented, execution requires service dependencies
+
+**Completed** (commit 49786ca):
+- ✅ Negative balance detection across all currencies
+- ✅ Currency minimum reserve checking (€5 minimum)
+- ✅ Trading currency identification from active securities
+- ✅ Integration with Tradernet client for balance fetching
+- ✅ Shortfall calculation and EUR conversion
+- ✅ Support for research vs live mode
+- ✅ HTTP API endpoint for negative balance checks
+- ✅ Unit tests passing
+
+**Remaining for full autonomous execution:**
+- ❌ CurrencyExchangeService for FX operations via Tradernet
+- ❌ TradeExecutionService with 7-layer validation for emergency sales
+- ❌ RecommendationRepository for emergency recommendation storage
+- ❌ Position selection algorithm (largest positions first)
+- ❌ Multi-step rebalancing: currency exchange → position sales → final exchange
+
+**Current Capability:**
+- System can detect negative balances and log warnings
+- API can report currencies below minimum and calculate shortfalls
+- Monitoring infrastructure in place
+- Missing: automatic execution of fixes
+
+**File:** trader-go/internal/modules/rebalancing/negative_balance_rebalancer.go (329 lines)
 
 ---
 
