@@ -3,6 +3,7 @@ package scheduler
 import (
 	"time"
 
+	"github.com/aristath/arduino-trader/internal/clients/tradernet"
 	"github.com/aristath/arduino-trader/internal/locking"
 	"github.com/aristath/arduino-trader/internal/modules/satellites"
 	"github.com/rs/zerolog"
@@ -12,16 +13,18 @@ import (
 // Faithful translation from Python: app/modules/satellites/jobs/bucket_reconciliation.py
 //
 // Ensures virtual bucket balances match actual brokerage balances by:
-// 1. Running reconciliation for each currency (EUR, USD)
-// 2. Logging discrepancies
-// 3. Alerting if significant drift detected
-// 4. Auto-correcting minor discrepancies within tolerance
+// 1. Fetching actual brokerage balances from Tradernet
+// 2. Running reconciliation for each currency (EUR, USD, GBP, HKD)
+// 3. Logging discrepancies
+// 4. Alerting if significant drift detected
+// 5. Auto-correcting minor discrepancies within tolerance
 //
 // This job is CRITICAL for maintaining the fundamental invariant:
 // SUM(bucket_balances for currency X) == Actual brokerage balance for currency X
 type SatelliteReconciliationJob struct {
 	log                   zerolog.Logger
 	lockManager           *locking.Manager
+	tradernetClient       *tradernet.Client
 	reconciliationService *satellites.ReconciliationService
 }
 
@@ -29,11 +32,13 @@ type SatelliteReconciliationJob struct {
 func NewSatelliteReconciliationJob(
 	log zerolog.Logger,
 	lockManager *locking.Manager,
+	tradernetClient *tradernet.Client,
 	reconciliationService *satellites.ReconciliationService,
 ) *SatelliteReconciliationJob {
 	return &SatelliteReconciliationJob{
 		log:                   log.With().Str("job", "satellite_reconciliation").Logger(),
 		lockManager:           lockManager,
+		tradernetClient:       tradernetClient,
 		reconciliationService: reconciliationService,
 	}
 }
@@ -55,24 +60,59 @@ func (j *SatelliteReconciliationJob) Run() error {
 	j.log.Info().Msg("Starting daily bucket reconciliation")
 	startTime := time.Now()
 
-	// TODO: Get actual brokerage balances from position tracking
-	// For now, log that reconciliation would run here
-	// Full implementation requires integration with:
-	// 1. Position repository to get actual brokerage balances
-	// 2. Cash balance tracking per currency
-	//
-	// This will be completed when position tracking is fully migrated
+	// Fetch actual brokerage balances from Tradernet
+	if !j.tradernetClient.IsConnected() {
+		j.log.Warn().Msg("Tradernet client not connected, skipping reconciliation")
+		return nil
+	}
 
-	currencies := []string{"EUR", "USD"}
-	j.log.Info().
-		Strs("currencies", currencies).
-		Msg("Satellite reconciliation check (pending position integration)")
+	cashBalances, err := j.tradernetClient.GetCashBalances()
+	if err != nil {
+		j.log.Error().Err(err).Msg("Failed to fetch brokerage cash balances")
+		return err
+	}
+
+	// Convert to map for reconciliation
+	actualBalances := make(map[string]float64)
+	for _, balance := range cashBalances {
+		actualBalances[balance.Currency] = balance.Amount
+		j.log.Debug().
+			Str("currency", balance.Currency).
+			Float64("balance", balance.Amount).
+			Msg("Fetched brokerage balance")
+	}
+
+	// Run reconciliation for all currencies
+	results, err := j.reconciliationService.ReconcileAll(actualBalances, nil)
+	if err != nil {
+		j.log.Error().Err(err).Msg("Failed to reconcile balances")
+		return err
+	}
+
+	// Log results
+	for _, result := range results {
+		logEvent := j.log.Info()
+		if !result.IsReconciled {
+			logEvent = j.log.Warn()
+		}
+
+		logEvent.
+			Str("currency", result.Currency).
+			Float64("virtual_total", result.VirtualTotal).
+			Float64("actual_total", result.ActualTotal).
+			Float64("difference", result.Difference).
+			Float64("difference_pct", result.DifferencePct()*100).
+			Bool("reconciled", result.IsReconciled).
+			Interface("adjustments", result.AdjustmentsMade).
+			Msg("Reconciliation result")
+	}
 
 	elapsed := time.Since(startTime)
 
 	j.log.Info().
 		Float64("elapsed_seconds", elapsed.Seconds()).
-		Msg("Bucket reconciliation check complete (simplified until position integration)")
+		Int("currencies_checked", len(results)).
+		Msg("Bucket reconciliation complete")
 
 	return nil
 }
