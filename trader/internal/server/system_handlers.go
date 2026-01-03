@@ -26,11 +26,12 @@ type SystemHandlers struct {
 	scheduler            *scheduler.Scheduler
 	portfolioDisplayCalc *display.PortfolioDisplayCalculator
 	// Jobs (will be set after job registration in main.go)
-	syncCycleJob         scheduler.Job
-	weeklyMaintenanceJob scheduler.Job
-	dividendReinvestJob  scheduler.Job
-	plannerBatchJob      scheduler.Job
-	dailyMaintenanceJob  scheduler.Job
+	healthCheckJob             scheduler.Job
+	syncCycleJob               scheduler.Job
+	dividendReinvestJob        scheduler.Job
+	satelliteMaintenanceJob    scheduler.Job
+	satelliteReconciliationJob scheduler.Job
+	satelliteEvaluationJob     scheduler.Job
 }
 
 // NewSystemHandlers creates a new system handlers instance
@@ -74,17 +75,19 @@ func NewSystemHandlers(
 // SetJobs registers job references for manual triggering
 // Called after jobs are registered in main.go
 func (h *SystemHandlers) SetJobs(
+	healthCheck scheduler.Job,
 	syncCycle scheduler.Job,
-	weeklyMaintenance scheduler.Job,
 	dividendReinvest scheduler.Job,
-	plannerBatch scheduler.Job,
-	dailyMaintenance scheduler.Job,
+	satelliteMaintenance scheduler.Job,
+	satelliteReconciliation scheduler.Job,
+	satelliteEvaluation scheduler.Job,
 ) {
+	h.healthCheckJob = healthCheck
 	h.syncCycleJob = syncCycle
-	h.weeklyMaintenanceJob = weeklyMaintenance
 	h.dividendReinvestJob = dividendReinvest
-	h.plannerBatchJob = plannerBatch
-	h.dailyMaintenanceJob = dailyMaintenance
+	h.satelliteMaintenanceJob = satelliteMaintenance
+	h.satelliteReconciliationJob = satelliteReconciliation
+	h.satelliteEvaluationJob = satelliteEvaluation
 }
 
 // SystemStatusResponse represents the system status response
@@ -475,34 +478,34 @@ func (h *SystemHandlers) HandleTriggerSyncCycle(w http.ResponseWriter, r *http.R
 	})
 }
 
-// HandleTriggerWeeklyMaintenance triggers the weekly maintenance job immediately
-// POST /api/jobs/weekly-maintenance
-func (h *SystemHandlers) HandleTriggerWeeklyMaintenance(w http.ResponseWriter, r *http.Request) {
+// HandleTriggerHealthCheck triggers the health check job immediately
+// POST /api/jobs/health-check
+func (h *SystemHandlers) HandleTriggerHealthCheck(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	if h.weeklyMaintenanceJob == nil {
-		h.log.Warn().Msg("Weekly maintenance job not registered yet")
+	if h.healthCheckJob == nil {
+		h.log.Warn().Msg("Health check job not registered yet")
 		h.writeJSON(w, map[string]string{
 			"status":  "error",
-			"message": "Weekly maintenance job not registered",
+			"message": "Health check job not registered",
 		})
 		return
 	}
 
-	h.log.Info().Msg("Manual weekly maintenance triggered")
+	h.log.Info().Msg("Manual health check triggered")
 
-	if err := h.scheduler.RunNow(h.weeklyMaintenanceJob); err != nil {
-		h.log.Error().Err(err).Msg("Failed to trigger weekly maintenance")
+	if err := h.scheduler.RunNow(h.healthCheckJob); err != nil {
+		h.log.Error().Err(err).Msg("Failed to trigger health check")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	h.writeJSON(w, map[string]string{
 		"status":  "success",
-		"message": "Weekly maintenance triggered successfully",
+		"message": "Health check triggered successfully",
 	})
 }
 
@@ -537,65 +540,96 @@ func (h *SystemHandlers) HandleTriggerDividendReinvestment(w http.ResponseWriter
 	})
 }
 
-// HandleTriggerPlannerBatch triggers the planner batch generation job immediately
-// POST /api/jobs/planner-batch
-func (h *SystemHandlers) HandleTriggerPlannerBatch(w http.ResponseWriter, r *http.Request) {
+// HandleTriggerSatelliteMaintenance triggers the satellite maintenance job immediately
+// POST /api/jobs/satellite-maintenance
+func (h *SystemHandlers) HandleTriggerSatelliteMaintenance(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	if h.plannerBatchJob == nil {
-		h.log.Warn().Msg("Planner batch job not registered yet")
+	if h.satelliteMaintenanceJob == nil {
+		h.log.Warn().Msg("Satellite maintenance job not registered yet")
 		h.writeJSON(w, map[string]string{
 			"status":  "error",
-			"message": "Planner batch job not registered",
+			"message": "Satellite maintenance job not registered",
 		})
 		return
 	}
 
-	h.log.Info().Msg("Manual planner batch generation triggered")
+	h.log.Info().Msg("Manual satellite maintenance triggered")
 
-	if err := h.scheduler.RunNow(h.plannerBatchJob); err != nil {
-		h.log.Error().Err(err).Msg("Failed to trigger planner batch")
+	if err := h.scheduler.RunNow(h.satelliteMaintenanceJob); err != nil {
+		h.log.Error().Err(err).Msg("Failed to trigger satellite maintenance")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	h.writeJSON(w, map[string]string{
 		"status":  "success",
-		"message": "Planner batch generation triggered successfully",
+		"message": "Satellite maintenance triggered successfully",
 	})
 }
 
-// HandleTriggerDailyMaintenance triggers the daily maintenance job immediately
-// POST /api/maintenance/daily
-func (h *SystemHandlers) HandleTriggerDailyMaintenance(w http.ResponseWriter, r *http.Request) {
+// HandleTriggerSatelliteReconciliation triggers the satellite reconciliation job immediately
+// POST /api/jobs/satellite-reconciliation
+func (h *SystemHandlers) HandleTriggerSatelliteReconciliation(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	if h.dailyMaintenanceJob == nil {
-		h.log.Warn().Msg("Daily maintenance job not registered yet")
+	if h.satelliteReconciliationJob == nil {
+		h.log.Warn().Msg("Satellite reconciliation job not registered yet")
 		h.writeJSON(w, map[string]string{
 			"status":  "error",
-			"message": "Daily maintenance job not registered",
+			"message": "Satellite reconciliation job not registered",
 		})
 		return
 	}
 
-	h.log.Info().Msg("Manual daily maintenance triggered")
+	h.log.Info().Msg("Manual satellite reconciliation triggered")
 
-	if err := h.scheduler.RunNow(h.dailyMaintenanceJob); err != nil {
-		h.log.Error().Err(err).Msg("Failed to trigger daily maintenance")
+	if err := h.scheduler.RunNow(h.satelliteReconciliationJob); err != nil {
+		h.log.Error().Err(err).Msg("Failed to trigger satellite reconciliation")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	h.writeJSON(w, map[string]string{
 		"status":  "success",
-		"message": "Daily maintenance triggered successfully",
+		"message": "Satellite reconciliation triggered successfully",
+	})
+}
+
+// HandleTriggerSatelliteEvaluation triggers the satellite evaluation job immediately
+// POST /api/jobs/satellite-evaluation
+func (h *SystemHandlers) HandleTriggerSatelliteEvaluation(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if h.satelliteEvaluationJob == nil {
+		h.log.Warn().Msg("Satellite evaluation job not registered yet")
+		h.writeJSON(w, map[string]string{
+			"status":  "error",
+			"message": "Satellite evaluation job not registered",
+		})
+		return
+	}
+
+	h.log.Info().Msg("Manual satellite evaluation triggered")
+
+	if err := h.scheduler.RunNow(h.satelliteEvaluationJob); err != nil {
+		h.log.Error().Err(err).Msg("Failed to trigger satellite evaluation")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.writeJSON(w, map[string]string{
+		"status":  "success",
+		"message": "Satellite evaluation triggered successfully",
 	})
 }
 
