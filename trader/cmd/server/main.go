@@ -670,7 +670,7 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 		return nil, fmt.Errorf("failed to register weekly_backup job: %w", err)
 	}
 
-	// Register Job 14: Weekly Maintenance (Sunday at 3:30 AM, after satellite evaluation)
+	// Register Job 14: Weekly Maintenance (Sunday at 3:30 AM)
 	weeklyMaintenance := reliability.NewWeeklyMaintenanceJob(databases, historyDB, log)
 	if err := sched.AddJob("0 30 3 * * 0", weeklyMaintenance); err != nil {
 		return nil, fmt.Errorf("failed to register weekly_maintenance job: %w", err)
