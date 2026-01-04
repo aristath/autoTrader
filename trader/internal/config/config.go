@@ -110,8 +110,8 @@ func Load() (*Config, error) {
 		DatabasePath:        databasePath,
 		HistoryPath:         getEnv("HISTORY_PATH", dataDir+"/history"),               // Per-symbol price databases
 		PythonServiceURL:    getEnv("PYTHON_SERVICE_URL", "http://localhost:8000"),    // Python on 8000
-		TradernetServiceURL: getEnv("TRADERNET_SERVICE_URL", "http://localhost:9001"), // Tradernet microservice on 9001
-		PyPFOptServiceURL:   getEnv("PYPFOPT_SERVICE_URL", "http://localhost:9002"),   // PyPFOpt microservice on 9002
+		TradernetServiceURL: getEnv("TRADERNET_SERVICE_URL", "http://localhost:9002"), // Tradernet microservice on 9002
+		PyPFOptServiceURL:   getEnv("PYPFOPT_SERVICE_URL", "http://localhost:9001"),   // PyPFOpt microservice on 9001
 		EvaluatorServiceURL: getEnv("EVALUATOR_SERVICE_URL", "http://localhost:9000"), // Evaluator-go microservice on 9000
 		TradernetAPIKey:     getEnv("TRADERNET_API_KEY", ""),
 		TradernetAPISecret:  getEnv("TRADERNET_API_SECRET", ""),
