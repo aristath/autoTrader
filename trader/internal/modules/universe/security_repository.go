@@ -175,38 +175,6 @@ func (r *SecurityRepository) GetAll() ([]Security, error) {
 	return securities, nil
 }
 
-// GetByBucket returns all securities assigned to a specific bucket
-// Faithful translation of Python: async def get_by_bucket(self, bucket_id: str, active_only: bool = True)
-func (r *SecurityRepository) GetByBucket(bucketID string, activeOnly bool) ([]Security, error) {
-	var query string
-	if activeOnly {
-		query = "SELECT * FROM securities WHERE bucket_id = ? AND active = 1"
-	} else {
-		query = "SELECT * FROM securities WHERE bucket_id = ?"
-	}
-
-	rows, err := r.universeDB.Query(query, bucketID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query securities by bucket: %w", err)
-	}
-	defer rows.Close()
-
-	var securities []Security
-	for rows.Next() {
-		security, err := r.scanSecurity(rows)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan security: %w", err)
-		}
-		securities = append(securities, security)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating securities: %w", err)
-	}
-
-	return securities, nil
-}
-
 // Create creates a new security
 // Faithful translation of Python: async def create(self, security: Security) -> None
 func (r *SecurityRepository) Create(security Security) error {
@@ -226,9 +194,9 @@ func (r *SecurityRepository) Create(security Security) error {
 		INSERT INTO securities
 		(symbol, yahoo_symbol, isin, name, product_type, industry, country, fullExchangeName,
 		 priority_multiplier, min_lot, active, allow_buy, allow_sell,
-		 currency, min_portfolio_target, max_portfolio_target, bucket_id,
+		 currency, min_portfolio_target, max_portfolio_target,
 		 created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err = tx.Exec(query,
@@ -248,7 +216,6 @@ func (r *SecurityRepository) Create(security Security) error {
 		nullString(security.Currency),
 		nullFloat64(security.MinPortfolioTarget),
 		nullFloat64(security.MaxPortfolioTarget),
-		security.BucketID,
 		now,
 		now,
 	)
@@ -280,7 +247,7 @@ func (r *SecurityRepository) Update(symbol string, updates map[string]interface{
 		"dividend_yield": true, "beta": true, "52w_high": true, "52w_low": true,
 		"min_portfolio_target": true, "max_portfolio_target": true,
 		"isin": true, "min_lot": true, "priority_multiplier": true,
-		"yahoo_symbol": true, "bucket_id": true, "symbol": true,
+		"yahoo_symbol": true, "symbol": true,
 	}
 
 	// Validate all keys are in whitelist
@@ -379,7 +346,6 @@ func (r *SecurityRepository) GetWithScores(portfolioDB *sql.DB) ([]SecurityWithS
 			LastSynced:         security.LastSynced,
 			MinPortfolioTarget: security.MinPortfolioTarget,
 			MaxPortfolioTarget: security.MaxPortfolioTarget,
-			BucketID:           security.BucketID,
 		}
 		securitiesMap[security.Symbol] = sws
 	}
@@ -490,7 +456,7 @@ func (r *SecurityRepository) GetWithScores(portfolioDB *sql.DB) ([]SecurityWithS
 func (r *SecurityRepository) scanSecurity(rows *sql.Rows) (Security, error) {
 	var security Security
 	var yahooSymbol, isin, productType, country, fullExchangeName sql.NullString
-	var industry, currency, lastSynced, bucketID sql.NullString
+	var industry, currency, lastSynced sql.NullString
 	var minPortfolioTarget, maxPortfolioTarget sql.NullFloat64
 	var active, allowBuy, allowSell sql.NullInt64
 	var createdAt, updatedAt sql.NullString
@@ -515,7 +481,6 @@ func (r *SecurityRepository) scanSecurity(rows *sql.Rows) (Security, error) {
 		&maxPortfolioTarget,
 		&createdAt,
 		&updatedAt,
-		&bucketID,
 	)
 	if err != nil {
 		return security, err
@@ -552,11 +517,6 @@ func (r *SecurityRepository) scanSecurity(rows *sql.Rows) (Security, error) {
 	if maxPortfolioTarget.Valid {
 		security.MaxPortfolioTarget = maxPortfolioTarget.Float64
 	}
-	if bucketID.Valid {
-		security.BucketID = bucketID.String
-	} else {
-		security.BucketID = "core"
-	}
 
 	// Handle boolean fields (stored as integers in SQLite)
 	if active.Valid {
@@ -580,9 +540,6 @@ func (r *SecurityRepository) scanSecurity(rows *sql.Rows) (Security, error) {
 	}
 	if security.MinLot == 0 {
 		security.MinLot = 1
-	}
-	if security.BucketID == "" {
-		security.BucketID = "core"
 	}
 
 	return security, nil

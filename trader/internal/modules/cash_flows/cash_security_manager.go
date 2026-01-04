@@ -87,7 +87,6 @@ func (m *CashSecurityManager) EnsureCashSecurity(currency string, bucketID strin
 		Active:             true,
 		AllowBuy:           false, // Can't buy cash as a security
 		AllowSell:          false, // Can't sell cash as a security
-		BucketID:           bucketID,
 		PriorityMultiplier: 1.0,
 		MinLot:             1,
 		LastSynced:         time.Now().Format(time.RFC3339),
@@ -138,7 +137,7 @@ func (m *CashSecurityManager) UpdateCashPosition(bucketID string, currency strin
 		Currency:       currency,
 		CurrencyRate:   1.0,     // TODO: Handle currency conversion rates properly
 		MarketValueEUR: balance, // Simplified - assumes EUR or 1:1 rate
-		BucketID:       bucketID,
+       bucketID,
 		LastUpdated:    now,
 	}
 
@@ -202,7 +201,6 @@ func (m *CashSecurityManager) ensureCashSecurityLocked(currency string, bucketID
 		Active:             true,
 		AllowBuy:           false,
 		AllowSell:          false,
-		BucketID:           bucketID,
 		PriorityMultiplier: 1.0,
 		MinLot:             1,
 		LastSynced:         time.Now().Format(time.RFC3339),
@@ -461,7 +459,7 @@ func (m *CashSecurityManager) updateCashPositionLocked(bucketID string, currency
 		Currency:       currency,
 		CurrencyRate:   1.0,
 		MarketValueEUR: balance,
-		BucketID:       bucketID,
+       bucketID,
 		LastUpdated:    now,
 	}
 

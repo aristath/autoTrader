@@ -231,7 +231,6 @@ func (h *UniverseHandlers) HandleGetStocks(w http.ResponseWriter, r *http.Reques
 			"last_synced":          sec.LastSynced,
 			"min_portfolio_target": sec.MinPortfolioTarget,
 			"max_portfolio_target": sec.MaxPortfolioTarget,
-			"bucket_id":            sec.BucketID,
 		}
 
 		// Add score fields (only if not nil)

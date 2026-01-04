@@ -14,7 +14,6 @@ type Security struct {
 	ISIN               string  `json:"isin,omitempty"`
 	Industry           string  `json:"industry,omitempty"`
 	Symbol             string  `json:"symbol"`
-	BucketID           string  `json:"bucket_id"`
 	LastSynced         string  `json:"last_synced,omitempty"`
 	PriorityMultiplier float64 `json:"priority_multiplier"`
 	MinPortfolioTarget float64 `json:"min_portfolio_target,omitempty"`
@@ -72,7 +71,6 @@ type SecurityWithScore struct {
 	Name               string   `json:"name"`
 	Symbol             string   `json:"symbol"`
 	Industry           string   `json:"industry,omitempty"`
-	BucketID           string   `json:"bucket_id"`
 	FullExchangeName   string   `json:"fullExchangeName,omitempty"`
 	LastSynced         string   `json:"last_synced,omitempty"`
 	Country            string   `json:"country,omitempty"`
