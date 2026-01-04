@@ -25,11 +25,13 @@ CREATE TABLE IF NOT EXISTS buckets (
     loss_streak_paused_at TEXT,
     status TEXT DEFAULT 'active',          -- 'research', 'accumulating', 'active', 'hibernating', 'paused', 'retired'
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    agent_id TEXT                          -- References agent_configs.id in agents.db (added in migration 007)
 );
 
 CREATE INDEX IF NOT EXISTS idx_buckets_type ON buckets(type);
 CREATE INDEX IF NOT EXISTS idx_buckets_status ON buckets(status);
+CREATE INDEX IF NOT EXISTS idx_buckets_agent ON buckets(agent_id);
 
 -- Satellite-specific settings (slider values and toggles)
 CREATE TABLE IF NOT EXISTS satellite_settings (
