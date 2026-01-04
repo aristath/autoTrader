@@ -19,8 +19,8 @@ type DeploymentConfig struct {
 	APIPort                int
 	APIHost                string
 	Enabled                bool
-	TraderConfig        GoServiceConfig
-	DockerComposePath   string
+	TraderConfig           GoServiceConfig
+	DockerComposePath      string
 	MicroservicesEnabled   bool
 	LockTimeout            time.Duration
 	HealthCheckTimeout     time.Duration
@@ -39,17 +39,17 @@ type Manager struct {
 	gitBranch  string
 
 	// Components
-	lock                *DeploymentLock
-	gitChecker          *GitChecker
-	goBuilder           *GoServiceBuilder
-	binaryDeployer      *BinaryDeployer
-	staticDeployer      *StaticDeployer
-	frontendDeployer    *FrontendDeployer
-	displayAppDeployer  *DisplayAppDeployer
-	serviceManager      *ServiceManager
-	dockerManager       *DockerManager
-	microDeployer       *MicroserviceDeployer
-	sketchDeployer      *SketchDeployer
+	lock               *DeploymentLock
+	gitChecker         *GitChecker
+	goBuilder          *GoServiceBuilder
+	binaryDeployer     *BinaryDeployer
+	staticDeployer     *StaticDeployer
+	frontendDeployer   *FrontendDeployer
+	displayAppDeployer *DisplayAppDeployer
+	serviceManager     *ServiceManager
+	dockerManager      *DockerManager
+	microDeployer      *MicroserviceDeployer
+	sketchDeployer     *SketchDeployer
 }
 
 // NewManager creates a new deployment manager
@@ -106,19 +106,19 @@ func NewManager(config *DeploymentConfig, version string, log zerolog.Logger) *M
 		version:          version,
 		gitCommit:        getEnv("GIT_COMMIT", "unknown"),
 		gitBranch:        config.GitBranch,
-		lock:               lock,
-		gitChecker:         gitChecker,
-		goBuilder:          goBuilder,
-		binaryDeployer:     binaryDeployer,
-		staticDeployer:     staticDeployer,
-		frontendDeployer:   frontendDeployer,
+		lock:             lock,
+		gitChecker:       gitChecker,
+		goBuilder:        goBuilder,
+		binaryDeployer:   binaryDeployer,
+		staticDeployer:   staticDeployer,
+		frontendDeployer: frontendDeployer,
 		displayAppDeployer: NewDisplayAppDeployer(
 			&logAdapter{log: log.With().Str("component", "display-app").Logger()},
 		),
-		serviceManager:     serviceManager,
-		dockerManager:      dockerManager,
-		microDeployer:      microDeployer,
-		sketchDeployer:     sketchDeployer,
+		serviceManager: serviceManager,
+		dockerManager:  dockerManager,
+		microDeployer:  microDeployer,
+		sketchDeployer: sketchDeployer,
 	}
 }
 
@@ -440,7 +440,6 @@ func (m *Manager) HardUpdate() (*DeploymentResult, error) {
 	}
 
 	// Restart all services
-	// Note: display-bridge.service is deprecated (replaced by Python app managed by Arduino App Framework)
 	servicesToRestart := []string{
 		m.config.TraderConfig.ServiceName,
 	}

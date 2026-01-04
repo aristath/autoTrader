@@ -61,4 +61,3 @@ func DefaultTraderConfig() GoServiceConfig {
 		ServiceName: "trader",
 	}
 }
-

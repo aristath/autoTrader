@@ -105,4 +105,3 @@ func (d *DisplayAppDeployer) copyFile(sourcePath string, targetPath string, mode
 
 	return nil
 }
-
