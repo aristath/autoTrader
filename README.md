@@ -2,7 +2,7 @@
 
 **Autonomous portfolio management system for retirement fund management**
 
-Arduino Trader is a production-ready autonomous trading system that manages a real retirement fund. It runs on an Arduino Uno Q, handling monthly deposits, automatic trading, dividend reinvestment, and multi-bucket portfolio strategies with zero human intervention.
+Arduino Trader is a production-ready autonomous trading system that manages a real retirement fund. It runs on an Arduino Uno Q, handling monthly deposits, automatic trading, dividend reinvestment, and portfolio management with zero human intervention.
 
 **This manages real money. Every line of code matters. Every decision has consequences.**
 
@@ -12,7 +12,6 @@ Arduino Trader is a production-ready autonomous trading system that manages a re
 - [Technology Stack](#technology-stack)
 - [Getting Started](#getting-started)
 - [Microservices](#microservices)
-- [Multi-Bucket Portfolio System](#multi-bucket-portfolio-system)
 - [API Reference](#api-reference)
 - [Background Jobs](#background-jobs)
 - [Development](#development)
@@ -35,7 +34,6 @@ Arduino Trader is a production-ready autonomous trading system that manages a re
 │  │                                                         │   │
 │  │  • Portfolio Management                                 │   │
 │  │  • Autonomous Trading                                   │   │
-│  │  • Multi-Bucket Strategies                             │   │
 │  │  • Risk Management                                      │   │
 │  │  • Dividend Reinvestment (DRIP)                        │   │
 │  │  • Emergency Rebalancing                               │   │
@@ -664,9 +662,6 @@ POST /api/satellites/{id}/settings
 - `POST /api/settings/trading-mode` - Switch trading mode (live/research)
 - `GET /api/settings/cache/clear` - Clear caches
 
-### Satellites
-
-See [Multi-Bucket Portfolio System](#multi-bucket-portfolio-system) section above for complete satellite endpoints.
 
 ---
 
@@ -708,20 +703,6 @@ The system runs scheduled background jobs for autonomous operation:
 - Score opportunities
 - Create optimal trade plans
 
-### Weekly Jobs
-
-**satellite_evaluation** (Weekly Sunday at 3:00 AM)
-- Calculate performance metrics
-- Update bucket scores
-- Check for rebalancing triggers
-
-### Quarterly Jobs
-
-**satellite_reallocation** (Quarterly: Jan 1, Apr 1, Jul 1, Oct 1 at 4:00 AM)
-- Rank satellites by composite score
-- Adjust target allocations
-- Apply performance-based rebalancing
-- Update bucket targets
 
 ### On-Demand Jobs
 
@@ -882,19 +863,8 @@ if err != nil {
 Example test:
 
 ```go
-func TestCalculateAggression(t *testing.T) {
-    bucket := &Bucket{
-        TargetPct: 0.20,
-        HighWaterMark: 10000.0,
-    }
-
-    currentValue := 8000.0
-    currentAllocation := 0.18
-
-    aggression := bucket.CalculateAggression(currentValue, currentAllocation)
-
-    // Allocation factor: 0.18/0.20 = 0.9 (90% of target)
-    // Drawdown factor: (10000-8000)/10000 = 0.2 (20% drawdown) → 0.7
+func TestExample(t *testing.T) {
+    // Example test
     // MIN(0.9, 0.7) = 0.7
     assert.Equal(t, 0.7, aggression)
 }
