@@ -56,6 +56,9 @@ CREATE TABLE IF NOT EXISTS satellite_settings (
 );
 
 -- Virtual cash balances per bucket per currency
+-- DEPRECATED: Cash balances are now stored as positions in portfolio.db (CASH:EUR:core, etc.)
+-- This table is kept for backward compatibility and migration purposes only.
+-- Use BalanceService methods which query cash positions via CashManager.
 CREATE TABLE IF NOT EXISTS bucket_balances (
     bucket_id TEXT NOT NULL,
     currency TEXT NOT NULL,

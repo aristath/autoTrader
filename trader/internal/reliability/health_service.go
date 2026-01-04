@@ -231,13 +231,7 @@ type DatabaseMetrics struct {
 }
 
 // Helper functions
-
-func boolToInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}
+// (boolToInt removed - unused)
 
 // CopyFile copies a file from src to dst (exported for use by other reliability services)
 func CopyFile(src, dst string) error {

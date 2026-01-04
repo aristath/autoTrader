@@ -25,8 +25,16 @@ func NewBalanceRepository(satellitesDB *sql.DB, log zerolog.Logger) *BalanceRepo
 }
 
 // --- Balance Operations ---
+//
+// DEPRECATED: These methods query the bucket_balances table, which is no longer used.
+// Cash balances are now stored as positions in portfolio.db (e.g., CASH:EUR:core).
+// Use BalanceService methods instead, which query cash positions via CashManager.
+//
+// These methods are kept for backward compatibility and transaction recording only.
 
 // GetBalance gets balance for a specific bucket and currency
+//
+// Deprecated: Use BalanceService.GetBalance() instead, which queries cash positions.
 func (r *BalanceRepository) GetBalance(bucketID string, currency string) (*BucketBalance, error) {
 	currency = strings.ToUpper(currency)
 
@@ -47,6 +55,8 @@ func (r *BalanceRepository) GetBalance(bucketID string, currency string) (*Bucke
 }
 
 // GetAllBalances gets all currency balances for a bucket
+//
+// Deprecated: Use BalanceService.GetAllBalances() instead, which queries cash positions.
 func (r *BalanceRepository) GetAllBalances(bucketID string) ([]*BucketBalance, error) {
 	query := "SELECT * FROM bucket_balances WHERE bucket_id = ? ORDER BY currency"
 
@@ -60,6 +70,8 @@ func (r *BalanceRepository) GetAllBalances(bucketID string) ([]*BucketBalance, e
 }
 
 // GetAllBalancesByCurrency gets balances for all buckets in a specific currency
+//
+// Deprecated: Use BalanceService methods instead, which query cash positions.
 func (r *BalanceRepository) GetAllBalancesByCurrency(currency string) ([]*BucketBalance, error) {
 	currency = strings.ToUpper(currency)
 
@@ -76,6 +88,8 @@ func (r *BalanceRepository) GetAllBalancesByCurrency(currency string) ([]*Bucket
 
 // GetTotalByCurrency gets sum of all bucket balances for a currency
 // This should equal the actual brokerage balance for that currency
+//
+// Deprecated: Use BalanceService.GetTotalByCurrency() instead, which queries cash positions.
 func (r *BalanceRepository) GetTotalByCurrency(currency string) (float64, error) {
 	currency = strings.ToUpper(currency)
 
@@ -93,6 +107,8 @@ func (r *BalanceRepository) GetTotalByCurrency(currency string) (float64, error)
 }
 
 // GetAllCurrencies gets all distinct currencies that have balances
+//
+// Deprecated: Use BalanceService.GetAllCurrencies() instead, which queries cash positions.
 func (r *BalanceRepository) GetAllCurrencies() ([]string, error) {
 	query := `SELECT DISTINCT currency
 	          FROM bucket_balances
@@ -121,6 +137,8 @@ func (r *BalanceRepository) GetAllCurrencies() ([]string, error) {
 }
 
 // GetBalanceAmount gets balance amount, returning 0 if not found
+//
+// Deprecated: Use BalanceService.GetBalanceAmount() instead, which queries cash positions.
 func (r *BalanceRepository) GetBalanceAmount(bucketID string, currency string) (float64, error) {
 	balance, err := r.GetBalance(bucketID, currency)
 	if err != nil {
@@ -133,6 +151,8 @@ func (r *BalanceRepository) GetBalanceAmount(bucketID string, currency string) (
 }
 
 // SetBalance sets balance to a specific amount (upsert)
+//
+// Deprecated: Use BalanceService.SetBalance() instead, which updates cash positions.
 func (r *BalanceRepository) SetBalance(bucketID string, currency string, amount float64) (*BucketBalance, error) {
 	now := time.Now().Format(time.RFC3339)
 	currency = strings.ToUpper(currency)
@@ -162,6 +182,8 @@ func (r *BalanceRepository) SetBalance(bucketID string, currency string, amount 
 
 // AdjustBalance adjusts balance by a delta amount
 // Creates the balance record if it doesn't exist
+//
+// Deprecated: Use BalanceService.AdjustBalance() instead, which updates cash positions.
 func (r *BalanceRepository) AdjustBalance(bucketID string, currency string, delta float64) (*BucketBalance, error) {
 	now := time.Now().Format(time.RFC3339)
 	currency = strings.ToUpper(currency)

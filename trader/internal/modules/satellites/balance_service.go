@@ -3,6 +3,7 @@ package satellites
 import (
 	"database/sql"
 	"fmt"
+	"math"
 
 	"github.com/aristath/arduino-trader/internal/modules/cash_utils"
 	"github.com/rs/zerolog"
@@ -511,6 +512,11 @@ func (s *BalanceService) AllocateDeposit(
 
 	satelliteBudgetPct := settings["satellite_budget_pct"]
 
+	// Validate satellite budget percentage
+	if satelliteBudgetPct < 0 || satelliteBudgetPct > MaxSatelliteBudgetPct {
+		return nil, fmt.Errorf("invalid satellite_budget_pct: %.2f (must be between 0 and %.0f%%)", satelliteBudgetPct*100, MaxSatelliteBudgetPct*100)
+	}
+
 	// Calculate allocation
 	coreAmount := amount
 	satelliteAmount := 0.0
@@ -674,6 +680,11 @@ func (s *BalanceService) Reallocate(currency string) (map[string]float64, error)
 
 	satelliteBudgetPct := settings["satellite_budget_pct"]
 
+	// Validate satellite budget percentage
+	if satelliteBudgetPct < 0 || satelliteBudgetPct > MaxSatelliteBudgetPct {
+		return nil, fmt.Errorf("invalid satellite_budget_pct: %.2f (must be between 0 and %.0f%%)", satelliteBudgetPct*100, MaxSatelliteBudgetPct*100)
+	}
+
 	// Calculate target allocations
 	targetCore := totalBalance * (1 - satelliteBudgetPct)
 
@@ -725,7 +736,7 @@ func (s *BalanceService) Reallocate(currency string) (map[string]float64, error)
 	coreTx := &BucketTransaction{
 		BucketID:    "core",
 		Type:        coreTxType,
-		Amount:      coreAdjustment,
+		Amount:      math.Abs(coreAdjustment), // Store as positive, direction indicated by transaction type
 		Currency:    currency,
 		Description: &coreDesc,
 	}
@@ -762,7 +773,7 @@ func (s *BalanceService) Reallocate(currency string) (map[string]float64, error)
 			satTx := &BucketTransaction{
 				BucketID:    sat.ID,
 				Type:        TransactionTypeReallocation,
-				Amount:      perSatellite,
+				Amount:      math.Abs(perSatellite), // Store as positive, direction indicated by transaction type
 				Currency:    currency,
 				Description: &satDesc,
 			}
@@ -771,6 +782,52 @@ func (s *BalanceService) Reallocate(currency string) (map[string]float64, error)
 			if err != nil {
 				return nil, fmt.Errorf("failed to record satellite reallocation: %w", err)
 			}
+		}
+	} else if satelliteAdjustment < 0 {
+		// If core needs cash from satellites but no active satellites exist,
+		// get all satellites (including inactive) to recover cash
+		allSatellites := make([]*Bucket, 0)
+		for _, sat := range satellites {
+			if sat.Status != BucketStatusRetired {
+				allSatellites = append(allSatellites, sat)
+			}
+		}
+
+		if len(allSatellites) > 0 {
+			perSatellite := satelliteAdjustment / float64(len(allSatellites))
+			s.log.Info().
+				Str("currency", currency).
+				Int("satellites", len(allSatellites)).
+				Float64("adjustment_per_satellite", perSatellite).
+				Msg("No active satellites, adjusting all non-retired satellites for reallocation")
+
+			for _, sat := range allSatellites {
+				newSatBalance, err := s.cashManager.AdjustCashBalance(sat.ID, currency, perSatellite)
+				if err != nil {
+					return nil, fmt.Errorf("failed to adjust satellite %s: %w", sat.ID, err)
+				}
+				newBalances[sat.ID] = newSatBalance
+
+				satDesc := fmt.Sprintf("Reallocation adjustment (no active satellites)")
+				satTx := &BucketTransaction{
+					BucketID:    sat.ID,
+					Type:        TransactionTypeReallocation,
+					Amount:      math.Abs(perSatellite), // Store as positive, direction indicated by transaction type
+					Currency:    currency,
+					Description: &satDesc,
+				}
+
+				err = s.balanceRepo.RecordTransaction(satTx, tx)
+				if err != nil {
+					return nil, fmt.Errorf("failed to record satellite reallocation: %w", err)
+				}
+			}
+		} else {
+			// No satellites at all - log warning but continue
+			s.log.Warn().
+				Str("currency", currency).
+				Float64("satellite_adjustment", satelliteAdjustment).
+				Msg("No satellites available for negative adjustment - core adjustment completed but satellite adjustment skipped")
 		}
 	}
 
@@ -819,4 +876,34 @@ func (s *BalanceService) UpdateSatelliteBudget(budgetPct float64) error {
 // BeginTx begins a transaction on the satellites database
 func (s *BalanceService) BeginTx() (*sql.Tx, error) {
 	return s.balanceRepo.satellitesDB.Begin()
+}
+
+// AdjustBalance adjusts balance by a delta amount (for reconciliation)
+// This is a convenience method that wraps cashManager.AdjustCashBalance
+func (s *BalanceService) AdjustBalance(bucketID string, currency string, delta float64) (*BucketBalance, error) {
+	newBalance, err := s.cashManager.AdjustCashBalance(bucketID, currency, delta)
+	if err != nil {
+		return nil, fmt.Errorf("failed to adjust balance: %w", err)
+	}
+
+	return &BucketBalance{
+		BucketID: bucketID,
+		Currency: currency,
+		Balance:  newBalance,
+	}, nil
+}
+
+// SetBalance sets balance to a specific amount (for reconciliation)
+// This is a convenience method that wraps cashManager.UpdateCashPosition
+func (s *BalanceService) SetBalance(bucketID string, currency string, amount float64) (*BucketBalance, error) {
+	err := s.cashManager.UpdateCashPosition(bucketID, currency, amount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set balance: %w", err)
+	}
+
+	return &BucketBalance{
+		BucketID: bucketID,
+		Currency: currency,
+		Balance:  amount,
+	}, nil
 }

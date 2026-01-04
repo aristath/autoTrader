@@ -33,18 +33,22 @@ func (r *ReconciliationResult) DifferencePct() float64 {
 // ReconciliationService ensures virtual balances match brokerage reality.
 //
 // The critical invariant this service maintains:
-// SUM(bucket_balances for currency X) == Actual brokerage balance for currency X
+// SUM(cash positions across all buckets for currency X) == Actual brokerage balance for currency X
 //
 // Reconciliation can happen:
 // 1. On startup - verify state
 // 2. Periodically - catch drift
 // 3. After significant operations - immediate verification
 //
+// Note: Cash balances are stored as positions in portfolio.db (e.g., CASH:EUR:core),
+// not in bucket_balances table. This service uses BalanceService which queries positions.
+//
 // Faithful translation from Python: app/modules/satellites/services/reconciliation_service.py
 type ReconciliationService struct {
-	balanceRepo *BalanceRepository
-	bucketRepo  *BucketRepository
-	log         zerolog.Logger
+	balanceService *BalanceService
+	balanceRepo    *BalanceRepository // Still used for transaction recording
+	bucketRepo     *BucketRepository
+	log            zerolog.Logger
 }
 
 // Threshold below which differences are auto-corrected (rounding errors)
@@ -53,14 +57,16 @@ const AutoCorrectThreshold = 5.0 // 5 EUR/USD
 
 // NewReconciliationService creates a new reconciliation service
 func NewReconciliationService(
-	balanceRepo *BalanceRepository,
+	balanceService *BalanceService,
+	balanceRepo *BalanceRepository, // Still needed for transaction recording
 	bucketRepo *BucketRepository,
 	log zerolog.Logger,
 ) *ReconciliationService {
 	return &ReconciliationService{
-		balanceRepo: balanceRepo,
-		bucketRepo:  bucketRepo,
-		log:         log,
+		balanceService: balanceService,
+		balanceRepo:    balanceRepo,
+		bucketRepo:     bucketRepo,
+		log:            log,
 	}
 }
 
@@ -78,7 +84,7 @@ func (s *ReconciliationService) CheckInvariant(
 	currency string,
 	actualBalance float64,
 ) (*ReconciliationResult, error) {
-	virtualTotal, err := s.balanceRepo.GetTotalByCurrency(currency)
+	virtualTotal, err := s.balanceService.GetTotalByCurrency(currency)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get virtual total: %w", err)
 	}
@@ -141,7 +147,7 @@ func (s *ReconciliationService) Reconcile(
 		// Auto-correct small differences by adjusting core
 		adjustment := -difference // If virtual > actual, reduce core
 
-		_, err := s.balanceRepo.AdjustBalance("core", currency, adjustment)
+		_, err := s.balanceService.AdjustBalance("core", currency, adjustment)
 		if err != nil {
 			return nil, fmt.Errorf("failed to adjust core balance: %w", err)
 		}
@@ -151,7 +157,7 @@ func (s *ReconciliationService) Reconcile(
 		tx := &BucketTransaction{
 			BucketID:    "core",
 			Type:        TransactionTypeReallocation,
-			Amount:      adjustment,
+			Amount:      math.Abs(adjustment), // Store as positive, direction indicated by transaction type
 			Currency:    currency,
 			Description: &desc,
 		}
@@ -229,7 +235,7 @@ func (s *ReconciliationService) GetBalanceBreakdown(currency string) (map[string
 	breakdown := make(map[string]float64)
 
 	for _, bucket := range buckets {
-		balance, err := s.balanceRepo.GetBalanceAmount(bucket.ID, currency)
+		balance, err := s.balanceService.GetBalanceAmount(bucket.ID, currency)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get balance for %s: %w", bucket.ID, err)
 		}
@@ -260,14 +266,14 @@ func (s *ReconciliationService) InitializeFromBrokerage(
 
 	for currency, actualBalance := range actualBalances {
 		// Check if we have any virtual balances
-		virtualTotal, err := s.balanceRepo.GetTotalByCurrency(currency)
+		virtualTotal, err := s.balanceService.GetTotalByCurrency(currency)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get virtual total for %s: %w", currency, err)
 		}
 
 		if virtualTotal == 0 && actualBalance > 0 {
 			// Initialize core with full balance
-			_, err := s.balanceRepo.SetBalance("core", currency, actualBalance)
+			_, err := s.balanceService.SetBalance("core", currency, actualBalance)
 			if err != nil {
 				return nil, fmt.Errorf("failed to set core balance for %s: %w", currency, err)
 			}
@@ -331,7 +337,7 @@ func (s *ReconciliationService) ForceReconcileToCore(
 
 	for _, bucket := range buckets {
 		if bucket.ID != "core" {
-			balance, err := s.balanceRepo.GetBalanceAmount(bucket.ID, currency)
+			balance, err := s.balanceService.GetBalanceAmount(bucket.ID, currency)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get balance for %s: %w", bucket.ID, err)
 			}
@@ -343,7 +349,7 @@ func (s *ReconciliationService) ForceReconcileToCore(
 	coreShouldBe := actualBalance - nonCoreTotal
 
 	// Get current core balance
-	currentCore, err := s.balanceRepo.GetBalanceAmount("core", currency)
+	currentCore, err := s.balanceService.GetBalanceAmount("core", currency)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get core balance: %w", err)
 	}
@@ -353,7 +359,7 @@ func (s *ReconciliationService) ForceReconcileToCore(
 	adjustments := make(map[string]float64)
 
 	if math.Abs(adjustment) > 0.01 {
-		_, err := s.balanceRepo.SetBalance("core", currency, coreShouldBe)
+		_, err := s.balanceService.SetBalance("core", currency, coreShouldBe)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set core balance: %w", err)
 		}
@@ -362,7 +368,7 @@ func (s *ReconciliationService) ForceReconcileToCore(
 		tx := &BucketTransaction{
 			BucketID:    "core",
 			Type:        TransactionTypeReallocation,
-			Amount:      adjustment,
+			Amount:      math.Abs(adjustment), // Store as positive, direction indicated by transaction type
 			Currency:    currency,
 			Description: &desc,
 		}

@@ -19,7 +19,7 @@ import (
 // 5. Auto-correcting minor discrepancies within tolerance
 //
 // This job is CRITICAL for maintaining the fundamental invariant:
-// SUM(bucket_balances for currency X) == Actual brokerage balance for currency X
+// SUM(cash positions across all buckets for currency X) == Actual brokerage balance for currency X
 type SatelliteReconciliationJob struct {
 	log                   zerolog.Logger
 	tradernetClient       *tradernet.Client

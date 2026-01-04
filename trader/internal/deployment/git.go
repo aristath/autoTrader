@@ -114,8 +114,8 @@ func (g *GitChecker) CategorizeChanges(files []string) *ChangeCategories {
 		// Normalize path separators
 		file = filepath.ToSlash(file)
 
-		// Trader service changes
-		if strings.HasPrefix(file, "trader/") && !strings.HasPrefix(file, "trader/static/") {
+		// Trader service changes (exclude static and frontend)
+		if strings.HasPrefix(file, "trader/") && !strings.HasPrefix(file, "trader/static/") && !strings.HasPrefix(file, "trader/frontend/") {
 			categories.MainApp = true
 		}
 		if file == "trader/go.mod" || file == "trader/go.sum" {
@@ -127,9 +127,14 @@ func (g *GitChecker) CategorizeChanges(files []string) *ChangeCategories {
 			categories.DisplayBridge = true
 		}
 
-		// Static assets
+		// Static assets (old, deprecated)
 		if strings.HasPrefix(file, "trader/static/") {
 			categories.Static = true
+		}
+
+		// Frontend (React) changes
+		if strings.HasPrefix(file, "trader/frontend/") {
+			categories.Frontend = true
 		}
 
 		// Sketch changes

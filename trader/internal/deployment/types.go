@@ -29,6 +29,7 @@ type ChangeCategories struct {
 	MainApp       bool
 	DisplayBridge bool
 	Static        bool
+	Frontend      bool
 	Sketch        bool
 	PyPFOpt       bool
 	PyPFOptDeps   bool
@@ -39,7 +40,7 @@ type ChangeCategories struct {
 
 // HasAnyChanges returns true if any category has changes
 func (c *ChangeCategories) HasAnyChanges() bool {
-	return c.MainApp || c.DisplayBridge || c.Static || c.Sketch ||
+	return c.MainApp || c.DisplayBridge || c.Static || c.Frontend || c.Sketch ||
 		c.PyPFOpt || c.PyPFOptDeps || c.Tradernet || c.TradernetDeps || c.Config
 }
 

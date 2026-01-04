@@ -358,9 +358,9 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 	// Satellite services
 	tradeRepo := trading.NewTradeRepository(ledgerDB.Conn(), log)
 	balanceService := satellites.NewBalanceService(cashManager, balanceRepo, bucketRepo, log)
-	bucketService := satellites.NewBucketService(bucketRepo, balanceRepo, currencyExchangeService, log)
+	bucketService := satellites.NewBucketService(bucketRepo, balanceService, balanceRepo, currencyExchangeService, log)
 	metaAllocator := satellites.NewMetaAllocator(bucketService, balanceService, balanceRepo, tradeRepo, log)
-	reconciliationService := satellites.NewReconciliationService(balanceRepo, bucketRepo, log)
+	reconciliationService := satellites.NewReconciliationService(balanceService, balanceRepo, bucketRepo, log)
 
 	// Trading and portfolio services
 	// Trade safety service with all validation layers

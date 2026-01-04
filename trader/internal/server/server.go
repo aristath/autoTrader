@@ -254,29 +254,25 @@ func (s *Server) setupRoutes() {
 	s.setupEvaluationRoutes(s.router)
 
 	// Serve built frontend files (from frontend/dist)
-	// First try to serve from frontend/dist (built React app)
-	// Fall back to static/ for backwards compatibility during migration
 	frontendDir := "./frontend/dist"
-	if _, err := os.Stat(frontendDir); err == nil {
-		// Serve built frontend assets (Vite outputs to /assets/)
-		fileServer := http.FileServer(http.Dir(frontendDir))
-		s.router.Handle("/assets/*", http.StripPrefix("/assets/", fileServer))
-
-		// Serve index.html for root and all non-API routes (SPA routing)
-		s.router.Get("/", s.handleDashboard)
-		s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {
-			if !strings.HasPrefix(r.URL.Path, "/api") && !strings.HasPrefix(r.URL.Path, "/health") {
-				http.ServeFile(w, r, filepath.Join(frontendDir, "index.html"))
-			} else {
-				http.NotFound(w, r)
-			}
-		})
-	} else {
-		// Fallback to old static directory during migration
-		s.router.Get("/", s.handleDashboard)
-		fileServer := http.FileServer(http.Dir("./static"))
-		s.router.Handle("/static/*", http.StripPrefix("/static/", fileServer))
+	if _, err := os.Stat(frontendDir); err != nil {
+		s.log.Warn().Err(err).Msg("Frontend directory not found, frontend may not be built yet")
 	}
+	// Serve built frontend assets (Vite outputs to /assets/)
+	// Files are at frontend/dist/assets/, so serve from frontendDir/assets and strip /assets/ prefix
+	assetsDir := filepath.Join(frontendDir, "assets")
+	fileServer := http.FileServer(http.Dir(assetsDir))
+	s.router.Handle("/assets/*", http.StripPrefix("/assets/", fileServer))
+
+	// Serve index.html for root and all non-API routes (SPA routing)
+	s.router.Get("/", s.handleDashboard)
+	s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api") && !strings.HasPrefix(r.URL.Path, "/health") {
+			http.ServeFile(w, r, filepath.Join(frontendDir, "index.html"))
+		} else {
+			http.NotFound(w, r)
+		}
+	})
 }
 
 // setupSystemRoutes configures system monitoring and operations routes
@@ -897,9 +893,9 @@ func (s *Server) setupSatellitesRoutes(r chi.Router) {
 	cashManager := cash_flows.NewCashSecurityManager(securityRepo, positionRepo, bucketRepo, s.universeDB.Conn(), s.portfolioDB.Conn(), s.log)
 
 	// Initialize services
-	bucketService := satellites.NewBucketService(bucketRepo, balanceRepo, currencyExchangeService, s.log)
 	balanceService := satellites.NewBalanceService(cashManager, balanceRepo, bucketRepo, s.log)
-	reconciliationService := satellites.NewReconciliationService(balanceRepo, bucketRepo, s.log)
+	bucketService := satellites.NewBucketService(bucketRepo, balanceService, balanceRepo, currencyExchangeService, s.log)
+	reconciliationService := satellites.NewReconciliationService(balanceService, balanceRepo, bucketRepo, s.log)
 
 	// Initialize handlers
 	handlers := satellites.NewHandlers(
@@ -1055,14 +1051,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 // handleDashboard serves the main dashboard HTML
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
-	// Try to serve from frontend/dist first (built React app)
 	frontendIndex := "./frontend/dist/index.html"
-	if _, err := os.Stat(frontendIndex); err == nil {
-		http.ServeFile(w, r, frontendIndex)
-		return
-	}
-	// Fallback to old static directory during migration
-	http.ServeFile(w, r, "./static/index.html")
+	http.ServeFile(w, r, frontendIndex)
 }
 
 // loggingMiddleware logs HTTP requests

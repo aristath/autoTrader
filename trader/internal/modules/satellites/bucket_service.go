@@ -16,7 +16,8 @@ import (
 // of both core and satellite buckets.
 type BucketService struct {
 	bucketRepo      *BucketRepository
-	balanceRepo     *BalanceRepository
+	balanceService  *BalanceService    // Use BalanceService for balance queries (queries positions, not bucket_balances table)
+	balanceRepo     *BalanceRepository // Still needed for transaction recording
 	exchangeService *services.CurrencyExchangeService
 	log             zerolog.Logger
 }
@@ -24,12 +25,14 @@ type BucketService struct {
 // NewBucketService creates a new bucket service
 func NewBucketService(
 	bucketRepo *BucketRepository,
-	balanceRepo *BalanceRepository,
+	balanceService *BalanceService,
+	balanceRepo *BalanceRepository, // Still needed for transaction recording
 	exchangeService *services.CurrencyExchangeService,
 	log zerolog.Logger,
 ) *BucketService {
 	return &BucketService{
 		bucketRepo:      bucketRepo,
+		balanceService:  balanceService,
 		balanceRepo:     balanceRepo,
 		exchangeService: exchangeService,
 		log:             log.With().Str("service", "bucket").Logger(),
@@ -330,8 +333,8 @@ func (s *BucketService) RetireSatellite(satelliteID string) (*Bucket, error) {
 		return nil, fmt.Errorf("satellite must be paused before retirement. Please pause first and ensure all positions are handled")
 	}
 
-	// Check if satellite still has cash balances
-	balances, err := s.balanceRepo.GetAllBalances(satelliteID)
+	// Check if satellite still has cash balances (query positions, not bucket_balances table)
+	balances, err := s.balanceService.GetAllBalances(satelliteID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check balances: %w", err)
 	}
@@ -552,8 +555,8 @@ func (s *BucketService) CalculateBucketValue(
 		}
 	}
 
-	// Get cash balances for bucket
-	balances, err := s.balanceRepo.GetAllBalances(bucketID)
+	// Get cash balances for bucket (query positions, not bucket_balances table)
+	balances, err := s.balanceService.GetAllBalances(bucketID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get balances: %w", err)
 	}

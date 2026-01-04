@@ -365,18 +365,19 @@ Each bucket operates autonomously with its own:
 
 ### Database Schema
 
-The satellites module uses **8 tables** in `satellites.db`:
+The satellites module uses **7 active tables** in `satellites.db`:
 
 1. **buckets** - Bucket definitions (id, name, type, status, target_pct, high_water_mark)
-2. **bucket_balances** - Per-bucket cash balances (bucket_id, currency, balance)
-3. **bucket_transactions** - Audit trail (deposit/withdrawal/transfer/trade/dividend)
-4. **satellite_settings** - Strategy configuration (preset, sliders, toggles, dividend_handling)
-5. **bucket_performance** - Performance metrics tracking
-6. **bucket_rebalance_history** - Rebalancing event history
-7. **bucket_trade_history** - Trade attribution
-8. **bucket_dividend_routing** - Dividend routing rules
+2. **bucket_transactions** - Audit trail (deposit/withdrawal/transfer/trade/dividend)
+3. **satellite_settings** - Strategy configuration (preset, sliders, toggles, dividend_handling)
+4. **bucket_performance** - Performance metrics tracking
+5. **bucket_rebalance_history** - Rebalancing event history
+6. **bucket_trade_history** - Trade attribution
+7. **bucket_dividend_routing** - Dividend routing rules
 
-**Critical invariant maintained:** `SUM(bucket_balances[EUR]) == actual_broker_balance[EUR]`
+**Note:** Cash balances are stored as positions in `portfolio.db` (synthetic securities with symbols like `CASH:EUR:core`), not in `satellites.db`. The `bucket_balances` table exists for backward compatibility only.
+
+**Critical invariant maintained:** `SUM(cash positions across all buckets for currency X) == actual_broker_balance[currency X]`
 
 Daily reconciliation ensures virtual balances match reality.
 

@@ -40,15 +40,16 @@ type Manager struct {
 	gitBranch  string
 
 	// Components
-	lock           *DeploymentLock
-	gitChecker     *GitChecker
-	goBuilder      *GoServiceBuilder
-	binaryDeployer *BinaryDeployer
-	staticDeployer *StaticDeployer
-	serviceManager *ServiceManager
-	dockerManager  *DockerManager
-	microDeployer  *MicroserviceDeployer
-	sketchDeployer *SketchDeployer
+	lock            *DeploymentLock
+	gitChecker      *GitChecker
+	goBuilder       *GoServiceBuilder
+	binaryDeployer  *BinaryDeployer
+	staticDeployer  *StaticDeployer
+	frontendBuilder *FrontendBuilder
+	serviceManager  *ServiceManager
+	dockerManager   *DockerManager
+	microDeployer   *MicroserviceDeployer
+	sketchDeployer  *SketchDeployer
 }
 
 // NewManager creates a new deployment manager
@@ -76,6 +77,10 @@ func NewManager(config *DeploymentConfig, version string, log zerolog.Logger) *M
 		&logAdapter{log: log.With().Str("component", "static").Logger()},
 	)
 
+	frontendBuilder := NewFrontendBuilder(
+		&logAdapter{log: log.With().Str("component", "frontend").Logger()},
+	)
+
 	serviceManager := NewServiceManager(
 		&logAdapter{log: log.With().Str("component", "service").Logger()},
 	)
@@ -95,21 +100,22 @@ func NewManager(config *DeploymentConfig, version string, log zerolog.Logger) *M
 	)
 
 	return &Manager{
-		config:         config,
-		log:            log.With().Str("component", "deployment").Logger(),
-		statusFile:     filepath.Join(config.DeployDir, "deployment_status.json"),
-		version:        version,
-		gitCommit:      getEnv("GIT_COMMIT", "unknown"),
-		gitBranch:      config.GitBranch,
-		lock:           lock,
-		gitChecker:     gitChecker,
-		goBuilder:      goBuilder,
-		binaryDeployer: binaryDeployer,
-		staticDeployer: staticDeployer,
-		serviceManager: serviceManager,
-		dockerManager:  dockerManager,
-		microDeployer:  microDeployer,
-		sketchDeployer: sketchDeployer,
+		config:          config,
+		log:             log.With().Str("component", "deployment").Logger(),
+		statusFile:      filepath.Join(config.DeployDir, "deployment_status.json"),
+		version:         version,
+		gitCommit:       getEnv("GIT_COMMIT", "unknown"),
+		gitBranch:       config.GitBranch,
+		lock:            lock,
+		gitChecker:      gitChecker,
+		goBuilder:       goBuilder,
+		binaryDeployer:  binaryDeployer,
+		staticDeployer:  staticDeployer,
+		frontendBuilder: frontendBuilder,
+		serviceManager:  serviceManager,
+		dockerManager:   dockerManager,
+		microDeployer:   microDeployer,
+		sketchDeployer:  sketchDeployer,
 	}
 }
 
@@ -210,10 +216,17 @@ func (m *Manager) Deploy() (*DeploymentResult, error) {
 	// Deploy based on categories
 	deploymentErrors := m.deployServices(categories, result)
 
-	// Deploy static assets
+	// Deploy static assets (old, deprecated - kept for backwards compatibility)
 	if categories.Static {
 		if err := m.staticDeployer.DeployStatic(m.config.RepoDir, m.config.StaticDir); err != nil {
 			m.log.Error().Err(err).Msg("Failed to deploy static assets")
+		}
+	}
+
+	// Build and deploy frontend
+	if categories.Frontend {
+		if err := m.frontendBuilder.BuildFrontend(m.config.RepoDir, m.config.DeployDir); err != nil {
+			m.log.Error().Err(err).Msg("Failed to build frontend")
 		}
 	}
 
@@ -238,7 +251,7 @@ func (m *Manager) Deploy() (*DeploymentResult, error) {
 		}
 	}
 
-	if successCount > 0 || categories.Static {
+	if successCount > 0 || categories.Static || categories.Frontend {
 		result.Deployed = true
 		if err := m.MarkDeployed(); err != nil {
 			m.log.Warn().Err(err).Msg("Failed to mark deployment")
