@@ -122,9 +122,9 @@ func (g *GitChecker) CategorizeChanges(files []string) *ChangeCategories {
 			categories.MainApp = true
 		}
 
-		// Display bridge changes
-		if strings.HasPrefix(file, "display/bridge/") {
-			categories.DisplayBridge = true
+		// Display app changes (Python app files)
+		if strings.HasPrefix(file, "display/app/") {
+			categories.DisplayApp = true
 		}
 
 		// Static assets (old, deprecated)

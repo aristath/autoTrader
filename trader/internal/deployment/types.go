@@ -18,7 +18,7 @@ type DeploymentResult struct {
 
 // ServiceDeployment represents the deployment status of a single service
 type ServiceDeployment struct {
-	ServiceName string // "trader", "display-bridge", "pypfopt", "tradernet"
+	ServiceName string // "trader", "pypfopt", "tradernet"
 	ServiceType string // "go", "docker"
 	Success     bool
 	Error       string
@@ -27,7 +27,7 @@ type ServiceDeployment struct {
 // ChangeCategories categorizes what types of changes were detected
 type ChangeCategories struct {
 	MainApp       bool
-	DisplayBridge bool
+	DisplayApp    bool // Python display app (display/app/)
 	Static        bool
 	Frontend      bool
 	Sketch        bool
@@ -40,7 +40,7 @@ type ChangeCategories struct {
 
 // HasAnyChanges returns true if any category has changes
 func (c *ChangeCategories) HasAnyChanges() bool {
-	return c.MainApp || c.DisplayBridge || c.Static || c.Frontend || c.Sketch ||
+	return c.MainApp || c.DisplayApp || c.Static || c.Frontend || c.Sketch ||
 		c.PyPFOpt || c.PyPFOptDeps || c.Tradernet || c.TradernetDeps || c.Config
 }
 
@@ -62,12 +62,3 @@ func DefaultTraderConfig() GoServiceConfig {
 	}
 }
 
-// DefaultBridgeConfig returns default configuration for display-bridge service
-func DefaultBridgeConfig() GoServiceConfig {
-	return GoServiceConfig{
-		Name:        "display-bridge",
-		BuildPath:   "display/bridge",
-		BinaryName:  "display-bridge",
-		ServiceName: "display-bridge",
-	}
-}

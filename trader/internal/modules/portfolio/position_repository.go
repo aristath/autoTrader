@@ -409,6 +409,7 @@ func (r *PositionRepository) scanPosition(rows *sql.Rows) (Position, error) {
 	var unrealizedPnL, unrealizedPnLPct sql.NullFloat64
 	var lastUpdated, firstBoughtAt, lastSoldAt sql.NullString
 	var isin sql.NullString
+	var bucketID sql.NullString
 
 	err := rows.Scan(
 		&pos.Symbol,       // 1
@@ -425,6 +426,7 @@ func (r *PositionRepository) scanPosition(rows *sql.Rows) (Position, error) {
 		&firstBoughtAt,    // 12
 		&lastSoldAt,       // 13
 		&isin,             // 14
+		&bucketID,         // 15
 	)
 	if err != nil {
 		return pos, err
@@ -457,6 +459,9 @@ func (r *PositionRepository) scanPosition(rows *sql.Rows) (Position, error) {
 	}
 	if isin.Valid {
 		pos.ISIN = isin.String
+	}
+	if bucketID.Valid {
+		pos.BucketID = bucketID.String
 	}
 
 	// Normalize symbol
@@ -496,13 +501,19 @@ func (r *PositionRepository) Upsert(position Position) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// Set bucket_id default to 'core' if not provided
+	bucketID := position.BucketID
+	if bucketID == "" {
+		bucketID = "core"
+	}
+
 	query := `
 		INSERT OR REPLACE INTO positions
 		(symbol, quantity, avg_price, current_price, currency,
 		 currency_rate, market_value_eur, cost_basis_eur,
 		 unrealized_pnl, unrealized_pnl_pct, last_updated,
-		 first_bought_at, last_sold_at, isin)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 first_bought_at, last_sold_at, isin, bucket_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err = tx.Exec(query,
@@ -520,6 +531,7 @@ func (r *PositionRepository) Upsert(position Position) error {
 		nullString(position.FirstBoughtAt),
 		nullString(position.LastSoldAt),
 		nullString(position.ISIN),
+		bucketID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to upsert position: %w", err)

@@ -19,9 +19,8 @@ type DeploymentConfig struct {
 	APIPort                int
 	APIHost                string
 	Enabled                bool
-	TraderConfig           GoServiceConfig
-	DisplayBridgeConfig    GoServiceConfig
-	DockerComposePath      string
+	TraderConfig        GoServiceConfig
+	DockerComposePath   string
 	MicroservicesEnabled   bool
 	LockTimeout            time.Duration
 	HealthCheckTimeout     time.Duration
@@ -40,16 +39,17 @@ type Manager struct {
 	gitBranch  string
 
 	// Components
-	lock             *DeploymentLock
-	gitChecker       *GitChecker
-	goBuilder        *GoServiceBuilder
-	binaryDeployer   *BinaryDeployer
-	staticDeployer   *StaticDeployer
-	frontendDeployer *FrontendDeployer
-	serviceManager   *ServiceManager
-	dockerManager    *DockerManager
-	microDeployer    *MicroserviceDeployer
-	sketchDeployer   *SketchDeployer
+	lock                *DeploymentLock
+	gitChecker          *GitChecker
+	goBuilder           *GoServiceBuilder
+	binaryDeployer      *BinaryDeployer
+	staticDeployer      *StaticDeployer
+	frontendDeployer    *FrontendDeployer
+	displayAppDeployer  *DisplayAppDeployer
+	serviceManager      *ServiceManager
+	dockerManager       *DockerManager
+	microDeployer       *MicroserviceDeployer
+	sketchDeployer      *SketchDeployer
 }
 
 // NewManager creates a new deployment manager
@@ -106,16 +106,19 @@ func NewManager(config *DeploymentConfig, version string, log zerolog.Logger) *M
 		version:          version,
 		gitCommit:        getEnv("GIT_COMMIT", "unknown"),
 		gitBranch:        config.GitBranch,
-		lock:             lock,
-		gitChecker:       gitChecker,
-		goBuilder:        goBuilder,
-		binaryDeployer:   binaryDeployer,
-		staticDeployer:   staticDeployer,
-		frontendDeployer: frontendDeployer,
-		serviceManager:   serviceManager,
-		dockerManager:    dockerManager,
-		microDeployer:    microDeployer,
-		sketchDeployer:   sketchDeployer,
+		lock:               lock,
+		gitChecker:         gitChecker,
+		goBuilder:          goBuilder,
+		binaryDeployer:     binaryDeployer,
+		staticDeployer:     staticDeployer,
+		frontendDeployer:   frontendDeployer,
+		displayAppDeployer: NewDisplayAppDeployer(
+			&logAdapter{log: log.With().Str("component", "display-app").Logger()},
+		),
+		serviceManager:     serviceManager,
+		dockerManager:      dockerManager,
+		microDeployer:      microDeployer,
+		sketchDeployer:     sketchDeployer,
 	}
 }
 
@@ -227,6 +230,13 @@ func (m *Manager) Deploy() (*DeploymentResult, error) {
 	if categories.Frontend {
 		if err := m.frontendDeployer.DeployFrontend(m.config.RepoDir, m.config.DeployDir); err != nil {
 			m.log.Error().Err(err).Msg("Failed to deploy frontend")
+		}
+	}
+
+	// Deploy display app (Python files for Arduino App Framework)
+	if categories.DisplayApp {
+		if err := m.displayAppDeployer.DeployDisplayApp(m.config.RepoDir); err != nil {
+			m.log.Error().Err(err).Msg("Failed to deploy display app")
 		}
 	}
 
@@ -370,18 +380,8 @@ func (m *Manager) HardUpdate() (*DeploymentResult, error) {
 		mu.Unlock()
 	}()
 
-	// Deploy display-bridge service (always)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		deployment := m.deployGoService(m.config.DisplayBridgeConfig, "display-bridge")
-		mu.Lock()
-		result.ServicesDeployed = append(result.ServicesDeployed, deployment)
-		if !deployment.Success {
-			deploymentErrors[deployment.ServiceName] = fmt.Errorf(deployment.Error)
-		}
-		mu.Unlock()
-	}()
+	// Display bridge service is deprecated (replaced by Python app managed by Arduino App Framework)
+	// No longer deploying Go display-bridge binary
 
 	wg.Wait()
 
@@ -422,6 +422,12 @@ func (m *Manager) HardUpdate() (*DeploymentResult, error) {
 		deploymentErrors["frontend"] = err
 	}
 
+	// Deploy display app (always, Python files for Arduino App Framework)
+	if err := m.displayAppDeployer.DeployDisplayApp(m.config.RepoDir); err != nil {
+		m.log.Error().Err(err).Msg("Failed to deploy display app")
+		deploymentErrors["display-app"] = err
+	}
+
 	// Deploy sketch (always, non-fatal)
 	sketchPaths := []string{"display/sketch/sketch.ino", "arduino-app/sketch/sketch.ino"}
 	for _, sketchPath := range sketchPaths {
@@ -434,9 +440,9 @@ func (m *Manager) HardUpdate() (*DeploymentResult, error) {
 	}
 
 	// Restart all services
+	// Note: display-bridge.service is deprecated (replaced by Python app managed by Arduino App Framework)
 	servicesToRestart := []string{
 		m.config.TraderConfig.ServiceName,
-		m.config.DisplayBridgeConfig.ServiceName,
 	}
 
 	// Restart Go services via systemd
@@ -506,20 +512,8 @@ func (m *Manager) deployServices(categories *ChangeCategories, result *Deploymen
 		}()
 	}
 
-	// Deploy display-bridge service
-	if categories.DisplayBridge {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			deployment := m.deployGoService(m.config.DisplayBridgeConfig, "display-bridge")
-			mu.Lock()
-			result.ServicesDeployed = append(result.ServicesDeployed, deployment)
-			if !deployment.Success {
-				errors[deployment.ServiceName] = fmt.Errorf(deployment.Error)
-			}
-			mu.Unlock()
-		}()
-	}
+	// Display bridge service is deprecated (replaced by Python app managed by Arduino App Framework)
+	// No longer deploying Go display-bridge binary
 
 	wg.Wait()
 

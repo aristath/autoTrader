@@ -12,14 +12,17 @@ All missing functionality from the old Alpine.js UI has been successfully implem
    - System tab: Job scheduling, system actions (cache reset, historical sync, restart), **Custom Grouping**
 
 2. **PlannerManagementModal** - Fully implemented:
-   - Planner selector dropdown
-   - Create/Edit/Delete functionality
-   - TOML editor with syntax highlighting support
-   - Template loading (Conservative, Balanced, Aggressive)
-   - Version history viewing
-   - Bucket assignment
-   - Apply planner functionality
-   - TOML validation
+   - Single planner configuration (no multi-planner management)
+   - Direct database settings (no TOML)
+   - Tabbed UI with 7 categories:
+     - General: Name, Description, Batch Generation, Trade Permissions
+     - Planner: Max Depth, Opportunities, Priority, Beam Width, Diversity
+     - Costs: Transaction costs (fixed and variable)
+     - Calculators: Enable/disable opportunity calculators (6 switches)
+     - Patterns: Enable/disable pattern generators (13 switches)
+     - Generators: Enable/disable sequence generators (4 switches)
+     - Filters: Enable/disable filters (4 switches)
+   - Uses UI-friendly controls (Switches, NumberInputs, Sliders)
 
 3. **UniverseManagementModal** - Fully implemented:
    - Create new universe/bucket
@@ -79,11 +82,9 @@ All missing functionality from the old Alpine.js UI has been successfully implem
 
 ### API Endpoints Used
 - `/api/settings` - Get/update settings
-- `/api/planners/` - Planner CRUD operations
-- `/api/planners/{id}/history` - Version history
-- `/api/planners/{id}/apply` - Apply planner config
-- `/api/satellites/buckets` - Bucket management
-- `/api/satellites/balances/transfer` - Cash transfers
+- `/api/planning/configs` - Get planner configuration (single config)
+- `/api/planning/configs/{id}` - Update/Delete planner config
+- `/api/planning/configs/{id}/validate` - Validate planner config
 - `/api/allocation/groups/targets/country` - Country targets
 - `/api/allocation/groups/targets/industry` - Industry targets
 - `/api/allocation/groups/available/countries` - Available countries

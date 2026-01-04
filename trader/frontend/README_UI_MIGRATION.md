@@ -100,13 +100,16 @@ State is managed using Zustand stores:
 
 ### Planner Management
 
-- Create/Edit/Delete planners
-- TOML editor with syntax highlighting
-- Template loading (Conservative, Balanced, Aggressive)
-- Version history viewing
-- **Diff viewer** - Line-by-line TOML comparison
-- Bucket assignment
-- Apply planner to bucket
+- Direct database settings configuration (no TOML)
+- Tabbed UI with 7 categories:
+  - General: Name, Description, Batch Generation, Trade Permissions
+  - Planner: Max Depth, Opportunities, Priority, Beam Width, Diversity
+  - Costs: Transaction costs (fixed and variable)
+  - Calculators: Enable/disable opportunity calculators
+  - Patterns: Enable/disable pattern generators
+  - Generators: Enable/disable sequence generators
+  - Filters: Enable/disable filters
+- Uses UI-friendly controls (Switches, NumberInputs, Sliders)
 
 ### Universe Management
 
@@ -162,7 +165,7 @@ import { api } from '../api/client';
 await api.fetchSettings();
 await api.updateSetting('key', value);
 await api.saveCountryTargets(targets);
-await api.createPlanner(data);
+await api.updatePlannerConfig(configId, config, 'ui', 'Updated via UI');
 await api.transferCash(data);
 ```
 

@@ -25,7 +25,7 @@ export function SecurityTable() {
     removeSecurity,
     updateMultiplier,
   } = useSecuritiesStore();
-  const { openEditSecurityModal, openUniverseManagementModal, openAddSecurityModal } = useAppStore();
+  const { openEditSecurityModal, openAddSecurityModal } = useAppStore();
   const { alerts } = usePortfolioStore();
 
   const filteredSecurities = getFilteredSecurities();

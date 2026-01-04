@@ -128,11 +128,9 @@ All functionality from the old Alpine.js UI has been successfully migrated to Re
 
 All API endpoints properly integrated:
 - ✅ `/api/settings` - Settings management
-- ✅ `/api/planners/` - Planner CRUD
-- ✅ `/api/planners/{id}/history` - Version history
-- ✅ `/api/planners/{id}/apply` - Apply planner
-- ✅ `/api/satellites/buckets` - Bucket management
-- ✅ `/api/satellites/balances/transfer` - Cash transfers
+- ✅ `/api/planning/configs` - Planner configuration (single config)
+- ✅ `/api/planning/configs/{id}` - Get/Update/Delete planner config
+- ✅ `/api/planning/configs/{id}/validate` - Validate planner config
 - ✅ `/api/allocation/groups/targets/country` - Country targets
 - ✅ `/api/allocation/groups/targets/industry` - Industry targets
 - ✅ `/api/allocation/groups/*` - Grouping endpoints

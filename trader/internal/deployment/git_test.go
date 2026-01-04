@@ -73,15 +73,6 @@ func TestGitChecker_CategorizeChanges(t *testing.T) {
 			description: "Both MainApp and Static should be set when both change",
 		},
 		{
-			name: "display bridge changes",
-			files: []string{
-				"display/bridge/main.go",
-				"display/bridge/handlers.go",
-			},
-			want:        ChangeCategories{DisplayBridge: true},
-			description: "Display bridge code changes should be detected",
-		},
-		{
 			name:        "sketch changes in arduino-app",
 			files:       []string{"arduino-app/sketch/trader.ino"},
 			want:        ChangeCategories{Sketch: true},
@@ -188,7 +179,7 @@ func TestGitChecker_CategorizeChanges(t *testing.T) {
 			got := checker.CategorizeChanges(tt.files)
 
 			assert.Equal(t, tt.want.MainApp, got.MainApp, "MainApp category mismatch: %s", tt.description)
-			assert.Equal(t, tt.want.DisplayBridge, got.DisplayBridge, "DisplayBridge category mismatch: %s", tt.description)
+			assert.Equal(t, tt.want.DisplayApp, got.DisplayApp, "DisplayApp category mismatch: %s", tt.description)
 			assert.Equal(t, tt.want.Static, got.Static, "Static category mismatch: %s", tt.description)
 			assert.Equal(t, tt.want.Sketch, got.Sketch, "Sketch category mismatch: %s", tt.description)
 			assert.Equal(t, tt.want.PyPFOpt, got.PyPFOpt, "PyPFOpt category mismatch: %s", tt.description)
@@ -217,8 +208,8 @@ func TestChangeCategories_HasAnyChanges(t *testing.T) {
 			want:     true,
 		},
 		{
-			name:     "DisplayBridge true",
-			category: ChangeCategories{DisplayBridge: true},
+			name:     "DisplayApp true",
+			category: ChangeCategories{DisplayApp: true},
 			want:     true,
 		},
 		{
@@ -259,9 +250,9 @@ func TestChangeCategories_HasAnyChanges(t *testing.T) {
 		{
 			name: "multiple true",
 			category: ChangeCategories{
-				MainApp:       true,
-				DisplayBridge: true,
-				Config:        true,
+				MainApp:    true,
+				DisplayApp: true,
+				Config:     true,
 			},
 			want: true,
 		},

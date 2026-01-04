@@ -67,12 +67,6 @@ func (c *DeploymentConfig) ToDeploymentConfig() *deployment.DeploymentConfig {
 			BinaryName:  c.TraderBinaryName,
 			ServiceName: c.TraderServiceName,
 		},
-		DisplayBridgeConfig: deployment.GoServiceConfig{
-			Name:        "display-bridge",
-			BuildPath:   "display/bridge",
-			BinaryName:  c.BridgeBinaryName,
-			ServiceName: c.BridgeServiceName,
-		},
 		DockerComposePath:    c.DockerComposePath,
 		MicroservicesEnabled: c.MicroservicesEnabled,
 	}
@@ -205,8 +199,6 @@ func loadDeploymentConfig() *DeploymentConfig {
 		GitBranch:              "", // Empty = auto-detect at runtime (deployment manager has fallback logic)
 		TraderBinaryName:       "trader",
 		TraderServiceName:      "trader",
-		BridgeBinaryName:       "display-bridge",
-		BridgeServiceName:      "display-bridge",
 		DockerComposePath:      "",
 		MicroservicesEnabled:   true,
 	}
