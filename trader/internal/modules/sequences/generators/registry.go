@@ -73,7 +73,6 @@ func NewPopulatedGeneratorRegistry(log zerolog.Logger) *GeneratorRegistry {
 	// Register all sequence generators
 	registry.Register(NewCombinatorialGenerator(log))
 	registry.Register(NewEnhancedCombinatorialGenerator(log))
-	registry.Register(NewPartialExecutionGenerator(log))
 	registry.Register(NewConstraintRelaxationGenerator(log))
 
 	log.Info().

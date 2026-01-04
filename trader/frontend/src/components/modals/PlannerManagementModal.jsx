@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Modal, Tabs, Text, Button, TextInput, Textarea, Switch, NumberInput, Slider, Group, Stack, Paper, Alert, Loader, Divider } from '@mantine/core';
+import { Modal, Tabs, Text, Button, TextInput, Textarea, Switch, NumberInput, Slider, Group, Stack, Paper, Alert, Loader, Divider, Tooltip, ActionIcon } from '@mantine/core';
+import { IconInfoCircle } from '@tabler/icons-react';
 import { useAppStore } from '../../stores/appStore';
 import { api } from '../../api/client';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -10,8 +11,6 @@ const DEFAULT_CONFIG = {
   enable_batch_generation: true,
   max_depth: 5,
   max_opportunities_per_category: 5,
-  priority_threshold: 0.3,
-  beam_width: 10,
   enable_diverse_selection: true,
   diversity_weight: 0.3,
   transaction_cost_fixed: 5.0,
@@ -42,7 +41,6 @@ const DEFAULT_CONFIG = {
   // Sequence Generators
   enable_combinatorial_generator: true,
   enable_enhanced_combinatorial_generator: true,
-  enable_partial_execution_generator: true,
   enable_constraint_relaxation_generator: true,
   // Filters
   enable_correlation_aware_filter: true,
@@ -220,46 +218,25 @@ export function PlannerManagementModal() {
                     </Group>
 
                     <Group justify="space-between">
-                      <div>
-                        <Text size="sm">Max Opportunities Per Category</Text>
+                      <div style={{ flex: 1 }}>
+                        <Group gap="xs" mb={4}>
+                          <Text size="sm">Max Opportunities Per Category</Text>
+                          <Tooltip
+                            label="Categories: profit_taking (sell winners), averaging_down (buy more of losers), opportunity_buys (general buys), rebalance_sells (sell overweight), rebalance_buys (buy underweight), weight_based (optimizer targets). This setting limits how many opportunities are kept per category (e.g., max 5 profit-taking, max 5 averaging-down, etc.)"
+                            multiline
+                            w={300}
+                            withArrow
+                          >
+                            <ActionIcon size="xs" variant="subtle" color="gray">
+                              <IconInfoCircle size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
                         <Text size="xs" c="dimmed">Maximum opportunities per category</Text>
                       </div>
                       <NumberInput
                         value={getConfigValue('max_opportunities_per_category', 5)}
                         onChange={(val) => updateConfig('max_opportunities_per_category', val)}
-                        min={1}
-                        step={1}
-                        w={80}
-                        size="sm"
-                      />
-                    </Group>
-
-                    <div>
-                      <Group justify="space-between" mb="xs">
-                        <Text size="sm">Priority Threshold</Text>
-                        <Text size="sm" fw={500}>
-                          {getConfigValue('priority_threshold', 0.3).toFixed(2)}
-                        </Text>
-                      </Group>
-                      <Slider
-                        value={getConfigValue('priority_threshold', 0.3)}
-                        onChange={(val) => updateConfig('priority_threshold', val)}
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        mb="xs"
-                      />
-                      <Text size="xs" c="dimmed">Minimum priority for opportunities (0.0 - 1.0)</Text>
-                    </div>
-
-                    <Group justify="space-between">
-                      <div>
-                        <Text size="sm">Beam Width</Text>
-                        <Text size="xs" c="dimmed">Number of sequences to keep at each depth</Text>
-                      </div>
-                      <NumberInput
-                        value={getConfigValue('beam_width', 10)}
-                        onChange={(val) => updateConfig('beam_width', val)}
                         min={1}
                         step={1}
                         w={80}
@@ -487,11 +464,6 @@ export function PlannerManagementModal() {
                       label="Enhanced Combinatorial Generator"
                       checked={getConfigValue('enable_enhanced_combinatorial_generator', true)}
                       onChange={(e) => updateConfig('enable_enhanced_combinatorial_generator', e.currentTarget.checked)}
-                    />
-                    <Switch
-                      label="Partial Execution Generator"
-                      checked={getConfigValue('enable_partial_execution_generator', true)}
-                      onChange={(e) => updateConfig('enable_partial_execution_generator', e.currentTarget.checked)}
                     />
                     <Switch
                       label="Constraint Relaxation Generator"

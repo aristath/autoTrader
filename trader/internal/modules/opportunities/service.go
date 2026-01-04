@@ -49,11 +49,6 @@ func (s *Service) IdentifyOpportunities(
 		opportunities = s.limitOpportunitiesPerCategory(opportunities, config.MaxOpportunitiesPerCategory)
 	}
 
-	// Apply priority threshold filtering
-	if config.PriorityThreshold > 0 {
-		opportunities = s.filterByPriority(opportunities, config.PriorityThreshold)
-	}
-
 	return opportunities, nil
 }
 
@@ -87,38 +82,6 @@ func (s *Service) limitOpportunitiesPerCategory(
 	}
 
 	return limited
-}
-
-// filterByPriority filters out candidates below the priority threshold.
-func (s *Service) filterByPriority(
-	opportunities domain.OpportunitiesByCategory,
-	threshold float64,
-) domain.OpportunitiesByCategory {
-	filtered := make(domain.OpportunitiesByCategory)
-
-	for category, candidates := range opportunities {
-		var kept []domain.ActionCandidate
-		for _, candidate := range candidates {
-			if candidate.Priority >= threshold {
-				kept = append(kept, candidate)
-			}
-		}
-
-		if len(kept) > 0 {
-			filtered[category] = kept
-		}
-
-		if len(kept) < len(candidates) {
-			s.log.Debug().
-				Str("category", string(category)).
-				Int("original", len(candidates)).
-				Int("filtered", len(kept)).
-				Float64("threshold", threshold).
-				Msg("Filtered opportunities by priority")
-		}
-	}
-
-	return filtered
 }
 
 // sortByPriority sorts action candidates by priority in descending order.

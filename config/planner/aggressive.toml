@@ -64,7 +64,6 @@ max_opportunities_per_category = 10
 # Aggressive approach acts on weaker signals
 # [MIN: 0.0, MAX: 1.0, DEFAULT: 0.2]
 # At 0.2, opportunities with 20%+ priority are considered
-priority_threshold = 0.2
 
 # -----------------------------------------------------------------------------
 # DIVERSITY VS PRIORITY - Aggressive = Diversity-Focused
@@ -119,12 +118,6 @@ max_loss_threshold = -0.25
 # -----------------------------------------------------------------------------
 # SEARCH ALGORITHM PARAMETERS - Aggressive = Exhaustive Search
 # -----------------------------------------------------------------------------
-
-# Wider beam search (vs 10 in default)
-# Explores many more possibilities
-# Higher memory usage and computation time
-# [MIN: 1, MAX: 50, DEFAULT: 20]
-beam_width = 20
 
 # Lower cost penalty (vs 0.1 in default)
 # Aggressive traders focus on returns over costs
@@ -313,7 +306,6 @@ enabled = false
 [sequence_generators.combinatorial.params]
 max_sells = 5
 max_buys = 5
-priority_threshold = 0.2
 max_steps = 7
 max_combinations = 100
 max_candidates = 20
@@ -323,15 +315,10 @@ enabled = true                         # Enabled for aggressive
 [sequence_generators.enhanced_combinatorial.params]
 max_sells = 5                          # More than default (4)
 max_buys = 5                           # More than default (4)
-priority_threshold = 0.2               # Lower than default (0.3)
 max_steps = 7                          # More than default (5)
 max_combinations = 100                 # More than default (50)
 max_candidates = 20                    # More than default (12)
 
-[sequence_generators.partial_execution]
-enabled = true                         # Enabled for aggressive
-[sequence_generators.partial_execution.params]
-fill_percentages = [0.5, 0.75, 1.0]   # Test partial fills
 
 [sequence_generators.constraint_relaxation]
 enabled = true                         # Enabled for aggressive

@@ -12,8 +12,6 @@ type PlannerConfiguration struct {
 	// Global planner settings
 	MaxDepth                    int     `json:"max_depth"`
 	MaxOpportunitiesPerCategory int     `json:"max_opportunities_per_category"`
-	PriorityThreshold           float64 `json:"priority_threshold"`
-	BeamWidth                   int     `json:"beam_width"`
 	EnableDiverseSelection      bool    `json:"enable_diverse_selection"`
 	DiversityWeight             float64 `json:"diversity_weight"`
 
@@ -51,7 +49,6 @@ type PlannerConfiguration struct {
 	// Sequence Generator enabled flags
 	EnableCombinatorialGenerator         bool `json:"enable_combinatorial_generator"`
 	EnableEnhancedCombinatorialGenerator bool `json:"enable_enhanced_combinatorial_generator"`
-	EnablePartialExecutionGenerator      bool `json:"enable_partial_execution_generator"`
 	EnableConstraintRelaxationGenerator  bool `json:"enable_constraint_relaxation_generator"`
 
 	// Filter enabled flags
@@ -69,8 +66,6 @@ func NewDefaultConfiguration() *PlannerConfiguration {
 		EnableBatchGeneration:       true,
 		MaxDepth:                    5,
 		MaxOpportunitiesPerCategory: 5,
-		PriorityThreshold:           0.3,
-		BeamWidth:                   10,
 		EnableDiverseSelection:      true,
 		DiversityWeight:             0.3,
 		TransactionCostFixed:        5.0,
@@ -99,7 +94,6 @@ func NewDefaultConfiguration() *PlannerConfiguration {
 		EnableMarketRegimePattern:            true,
 		EnableCombinatorialGenerator:         true,
 		EnableEnhancedCombinatorialGenerator: true,
-		EnablePartialExecutionGenerator:      true,
 		EnableConstraintRelaxationGenerator:  true,
 		EnableCorrelationAwareFilter:         true,
 		EnableDiversityFilter:                true,
@@ -185,9 +179,6 @@ func (c *PlannerConfiguration) GetEnabledGenerators() []string {
 	}
 	if c.EnableEnhancedCombinatorialGenerator {
 		enabled = append(enabled, "enhanced_combinatorial")
-	}
-	if c.EnablePartialExecutionGenerator {
-		enabled = append(enabled, "partial_execution")
 	}
 	if c.EnableConstraintRelaxationGenerator {
 		enabled = append(enabled, "constraint_relaxation")

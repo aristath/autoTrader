@@ -114,10 +114,8 @@ func TestNewPlanningContext(t *testing.T) {
 	// Check default values
 	assert.Equal(t, 5, ctx.MaxDepth)
 	assert.Equal(t, 5, ctx.MaxOpportunitiesPerCategory)
-	assert.Equal(t, 0.3, ctx.PriorityThreshold)
 	assert.True(t, ctx.EnableDiverseSelection)
 	assert.Equal(t, 0.3, ctx.DiversityWeight)
-	assert.Equal(t, 10, ctx.BeamWidth)
 	assert.Equal(t, "single_objective", ctx.EvaluationMode)
 	assert.Equal(t, 100, ctx.MonteCarloPathCount)
 	assert.True(t, ctx.EnableCombinatorial)
@@ -169,5 +167,4 @@ func TestFromOpportunityContext(t *testing.T) {
 	// Check default planning settings
 	assert.Equal(t, 5, planningCtx.MaxDepth)
 	assert.Equal(t, 5, planningCtx.MaxOpportunitiesPerCategory)
-	assert.Equal(t, 0.3, planningCtx.PriorityThreshold)
 }

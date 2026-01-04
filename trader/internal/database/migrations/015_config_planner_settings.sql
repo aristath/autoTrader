@@ -21,8 +21,6 @@ CREATE TABLE IF NOT EXISTS planner_settings (
     enable_batch_generation INTEGER DEFAULT 1,  -- Boolean
     max_depth INTEGER DEFAULT 5,
     max_opportunities_per_category INTEGER DEFAULT 5,
-    priority_threshold REAL DEFAULT 0.3,
-    beam_width INTEGER DEFAULT 10,
     enable_diverse_selection INTEGER DEFAULT 1,  -- Boolean
     diversity_weight REAL DEFAULT 0.3,
 
@@ -60,7 +58,6 @@ CREATE TABLE IF NOT EXISTS planner_settings (
     -- Sequence Generator enabled flags
     enable_combinatorial_generator INTEGER DEFAULT 1,
     enable_enhanced_combinatorial_generator INTEGER DEFAULT 1,
-    enable_partial_execution_generator INTEGER DEFAULT 1,
     enable_constraint_relaxation_generator INTEGER DEFAULT 1,
 
     -- Filter enabled flags

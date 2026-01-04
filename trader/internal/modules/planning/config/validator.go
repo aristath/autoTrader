@@ -71,20 +71,6 @@ func (v *Validator) Validate(config *domain.PlannerConfiguration) error {
 		})
 	}
 
-	if config.PriorityThreshold < 0.0 || config.PriorityThreshold > 1.0 {
-		errors = append(errors, ValidationError{
-			Field:   "priority_threshold",
-			Message: "must be between 0.0 and 1.0",
-		})
-	}
-
-	if config.BeamWidth <= 0 {
-		errors = append(errors, ValidationError{
-			Field:   "beam_width",
-			Message: "must be greater than 0",
-		})
-	}
-
 	if config.DiversityWeight < 0.0 || config.DiversityWeight > 1.0 {
 		errors = append(errors, ValidationError{
 			Field:   "diversity_weight",
@@ -351,9 +337,6 @@ func getRequiredParams(moduleName string) map[string]string {
 		"enhanced_combinatorial": {
 			"max_combinations":  "count",
 			"pruning_threshold": "threshold",
-		},
-		"partial_execution": {
-			"min_completion_ratio": "threshold",
 		},
 		"constraint_relaxation": {
 			"relaxation_factor": "factor",

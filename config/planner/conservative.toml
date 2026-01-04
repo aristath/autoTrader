@@ -52,12 +52,6 @@ max_depth = 2
 # [MIN: 1, MAX: 20, DEFAULT: 3]
 max_opportunities_per_category = 3
 
-# Higher threshold = only the best opportunities (vs 0.3 in default)
-# Conservative approach waits for clear, high-conviction signals
-# [MIN: 0.0, MAX: 1.0, DEFAULT: 0.5]
-# At 0.5, only opportunities with 50%+ priority are considered
-priority_threshold = 0.5
-
 # -----------------------------------------------------------------------------
 # DIVERSITY VS PRIORITY - Conservative = Priority-Focused
 # -----------------------------------------------------------------------------
@@ -109,12 +103,6 @@ max_loss_threshold = -0.15
 # -----------------------------------------------------------------------------
 # SEARCH ALGORITHM PARAMETERS - Conservative = Focused Search
 # -----------------------------------------------------------------------------
-
-# Narrower beam search (vs 10 in default)
-# Focuses on fewer, higher-quality sequences
-# Faster execution, less memory usage
-# [MIN: 1, MAX: 50, DEFAULT: 5]
-beam_width = 5
 
 # Higher cost penalty (vs 0.1 in default)
 # Conservative investors are more cost-conscious
@@ -286,7 +274,6 @@ enabled = false
 [sequence_generators.combinatorial.params]
 max_sells = 2
 max_buys = 2
-priority_threshold = 0.5
 max_steps = 2
 max_combinations = 20
 max_candidates = 6
@@ -296,15 +283,10 @@ enabled = false                        # Disabled for conservative
 [sequence_generators.enhanced_combinatorial.params]
 max_sells = 2
 max_buys = 2
-priority_threshold = 0.5
 max_steps = 2
 max_combinations = 20
 max_candidates = 6
 
-[sequence_generators.partial_execution]
-enabled = false
-[sequence_generators.partial_execution.params]
-fill_percentages = [1.0]               # Only full fills if enabled
 
 [sequence_generators.constraint_relaxation]
 enabled = false

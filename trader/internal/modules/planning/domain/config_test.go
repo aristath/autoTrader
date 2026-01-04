@@ -14,8 +14,6 @@ func TestNewDefaultConfiguration(t *testing.T) {
 	assert.True(t, config.EnableBatchGeneration)
 	assert.Equal(t, 5, config.MaxDepth)
 	assert.Equal(t, 5, config.MaxOpportunitiesPerCategory)
-	assert.Equal(t, 0.3, config.PriorityThreshold)
-	assert.Equal(t, 10, config.BeamWidth)
 	assert.True(t, config.EnableDiverseSelection)
 	assert.Equal(t, 0.3, config.DiversityWeight)
 	assert.Equal(t, 5.0, config.TransactionCostFixed)
@@ -116,10 +114,9 @@ func TestGetEnabledGenerators(t *testing.T) {
 	enabled := config.GetEnabledGenerators()
 
 	// Default config has all generators enabled
-	assert.Len(t, enabled, 4)
+	assert.Len(t, enabled, 3)
 	assert.Contains(t, enabled, "combinatorial")
 	assert.Contains(t, enabled, "enhanced_combinatorial")
-	assert.Contains(t, enabled, "partial_execution")
 	assert.Contains(t, enabled, "constraint_relaxation")
 }
 

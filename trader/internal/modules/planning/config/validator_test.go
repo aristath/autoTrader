@@ -87,68 +87,6 @@ func TestValidator_Validate_InvalidMaxOpportunitiesPerCategory(t *testing.T) {
 	assert.Contains(t, err.Error(), "must be greater than 0")
 }
 
-func TestValidator_Validate_InvalidPriorityThreshold(t *testing.T) {
-	tests := []struct {
-		name      string
-		threshold float64
-		wantErr   bool
-	}{
-		{
-			name:      "negative threshold",
-			threshold: -0.1,
-			wantErr:   true,
-		},
-		{
-			name:      "too high threshold",
-			threshold: 1.5,
-			wantErr:   true,
-		},
-		{
-			name:      "valid threshold 0.0",
-			threshold: 0.0,
-			wantErr:   false,
-		},
-		{
-			name:      "valid threshold 1.0",
-			threshold: 1.0,
-			wantErr:   false,
-		},
-		{
-			name:      "valid threshold 0.5",
-			threshold: 0.5,
-			wantErr:   false,
-		},
-	}
-
-	validator := NewValidator()
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config := domain.NewDefaultConfiguration()
-			config.PriorityThreshold = tt.threshold
-
-			err := validator.Validate(config)
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), "priority_threshold")
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestValidator_Validate_InvalidBeamWidth(t *testing.T) {
-	validator := NewValidator()
-	config := domain.NewDefaultConfiguration()
-	config.BeamWidth = 0
-
-	err := validator.Validate(config)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "beam_width")
-	assert.Contains(t, err.Error(), "must be greater than 0")
-}
-
 func TestValidator_Validate_InvalidDiversityWeight(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -252,7 +190,6 @@ func TestValidator_Validate_NoGeneratorsEnabled(t *testing.T) {
 	// Disable all generators
 	config.EnableCombinatorialGenerator = false
 	config.EnableEnhancedCombinatorialGenerator = false
-	config.EnablePartialExecutionGenerator = false
 	config.EnableConstraintRelaxationGenerator = false
 
 	err := validator.Validate(config)
@@ -296,7 +233,7 @@ func TestValidator_Validate_MultipleErrors(t *testing.T) {
 	// Introduce multiple errors
 	config.Name = ""
 	config.MaxDepth = 0
-	config.PriorityThreshold = 1.5
+	config.MaxOpportunitiesPerCategory = 0
 
 	err := validator.Validate(config)
 	assert.Error(t, err)
@@ -304,7 +241,7 @@ func TestValidator_Validate_MultipleErrors(t *testing.T) {
 	errMsg := err.Error()
 	assert.Contains(t, errMsg, "name is required")
 	assert.Contains(t, errMsg, "max_depth")
-	assert.Contains(t, errMsg, "priority_threshold")
+	assert.Contains(t, errMsg, "max_opportunities_per_category")
 
 	// Check that errors are separated by semicolon
 	assert.True(t, strings.Count(errMsg, ";") >= 2)

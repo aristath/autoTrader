@@ -131,12 +131,10 @@ type PlanningContext struct {
 	// Planner configuration
 	MaxDepth                    int     `json:"max_depth"`
 	MaxOpportunitiesPerCategory int     `json:"max_opportunities_per_category"`
-	PriorityThreshold           float64 `json:"priority_threshold"`
 	EnableDiverseSelection      bool    `json:"enable_diverse_selection"`
 	DiversityWeight             float64 `json:"diversity_weight"`
 
 	// Advanced settings
-	BeamWidth           int       `json:"beam_width"`        // For beam search in multi-objective mode
 	EvaluationMode      string    `json:"evaluation_mode"`   // "single_objective", "multi_objective", "stochastic", "monte_carlo"
 	StochasticShifts    []float64 `json:"stochastic_shifts"` // Price shift scenarios
 	MonteCarloPathCount int       `json:"monte_carlo_path_count"`
@@ -156,10 +154,8 @@ func NewPlanningContext(
 		EvaluationContext:           evaluationContext,
 		MaxDepth:                    5,
 		MaxOpportunitiesPerCategory: 5,
-		PriorityThreshold:           0.3,
 		EnableDiverseSelection:      true,
 		DiversityWeight:             0.3,
-		BeamWidth:                   10,
 		EvaluationMode:              "single_objective",
 		StochasticShifts:            []float64{-0.10, -0.05, 0.0, 0.05, 0.10},
 		MonteCarloPathCount:         100,
