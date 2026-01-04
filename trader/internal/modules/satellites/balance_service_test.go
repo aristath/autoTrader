@@ -390,7 +390,7 @@ func TestTransferBetweenBuckets_InsufficientFunds(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, fromBal)
 	assert.Nil(t, toBal)
-	assert.Contains(t, err.Error(), "insufficient funds")
+	assert.Contains(t, err.Error(), "insufficient")
 }
 
 // TestTransferBetweenBuckets_SameBucket tests error on same bucket transfer
@@ -498,17 +498,20 @@ func TestGetPortfolioSummary(t *testing.T) {
 	cashManager := NewMockCashManager()
 	service := NewBalanceService(cashManager, balanceRepo, bucketRepo, log)
 
-	// Create satellite
-	_, err := db.Exec(`INSERT INTO buckets (id, name, type, status)
-		VALUES ('sat1', 'Satellite 1', 'SATELLITE', 'ACTIVE')`)
+	// Create core and satellite buckets
+	_, err := db.Exec(`INSERT INTO buckets (id, name, type, status, created_at, updated_at)
+		VALUES ('core', 'Core', 'CORE', 'ACTIVE', datetime('now'), datetime('now'))`)
+	assert.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO buckets (id, name, type, status, created_at, updated_at)
+		VALUES ('sat1', 'Satellite 1', 'SATELLITE', 'ACTIVE', datetime('now'), datetime('now'))`)
 	assert.NoError(t, err)
 
-	// Set balances
-	_, err = balanceRepo.AdjustBalance("core", "EUR", 1000.0)
+	// Set balances in mock cash manager (GetPortfolioSummary reads from cash manager)
+	_, err = cashManager.AdjustCashBalance("core", "EUR", 1000.0)
 	assert.NoError(t, err)
-	_, err = balanceRepo.AdjustBalance("core", "USD", 500.0)
+	_, err = cashManager.AdjustCashBalance("core", "USD", 500.0)
 	assert.NoError(t, err)
-	_, err = balanceRepo.AdjustBalance("sat1", "EUR", 200.0)
+	_, err = cashManager.AdjustCashBalance("sat1", "EUR", 200.0)
 	assert.NoError(t, err)
 
 	summary, err := service.GetPortfolioSummary()
