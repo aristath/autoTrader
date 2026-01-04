@@ -7,6 +7,7 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
         args: ['--maxkb=1000']
+        exclude: ^trader/frontend/dist/
       - id: check-json
       - id: check-toml
       - id: check-merge-conflict
@@ -81,3 +82,12 @@ repos:
         language: system
         files: ^trader/.*\.go$
         pass_filenames: false
+
+      # Build frontend and stage dist/ when frontend files change
+      - id: build-frontend
+        name: Build frontend and stage dist/
+        entry: bash scripts/pre-commit-build-frontend.sh
+        language: system
+        files: ^trader/frontend/
+        pass_filenames: false
+        always_run: false

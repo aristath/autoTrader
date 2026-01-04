@@ -40,16 +40,16 @@ type Manager struct {
 	gitBranch  string
 
 	// Components
-	lock            *DeploymentLock
-	gitChecker      *GitChecker
-	goBuilder       *GoServiceBuilder
-	binaryDeployer  *BinaryDeployer
-	staticDeployer  *StaticDeployer
-	frontendBuilder *FrontendBuilder
-	serviceManager  *ServiceManager
-	dockerManager   *DockerManager
-	microDeployer   *MicroserviceDeployer
-	sketchDeployer  *SketchDeployer
+	lock             *DeploymentLock
+	gitChecker       *GitChecker
+	goBuilder        *GoServiceBuilder
+	binaryDeployer   *BinaryDeployer
+	staticDeployer   *StaticDeployer
+	frontendDeployer *FrontendDeployer
+	serviceManager   *ServiceManager
+	dockerManager    *DockerManager
+	microDeployer    *MicroserviceDeployer
+	sketchDeployer   *SketchDeployer
 }
 
 // NewManager creates a new deployment manager
@@ -77,7 +77,7 @@ func NewManager(config *DeploymentConfig, version string, log zerolog.Logger) *M
 		&logAdapter{log: log.With().Str("component", "static").Logger()},
 	)
 
-	frontendBuilder := NewFrontendBuilder(
+	frontendDeployer := NewFrontendDeployer(
 		&logAdapter{log: log.With().Str("component", "frontend").Logger()},
 	)
 
@@ -100,22 +100,22 @@ func NewManager(config *DeploymentConfig, version string, log zerolog.Logger) *M
 	)
 
 	return &Manager{
-		config:          config,
-		log:             log.With().Str("component", "deployment").Logger(),
-		statusFile:      filepath.Join(config.DeployDir, "deployment_status.json"),
-		version:         version,
-		gitCommit:       getEnv("GIT_COMMIT", "unknown"),
-		gitBranch:       config.GitBranch,
-		lock:            lock,
-		gitChecker:      gitChecker,
-		goBuilder:       goBuilder,
-		binaryDeployer:  binaryDeployer,
-		staticDeployer:  staticDeployer,
-		frontendBuilder: frontendBuilder,
-		serviceManager:  serviceManager,
-		dockerManager:   dockerManager,
-		microDeployer:   microDeployer,
-		sketchDeployer:  sketchDeployer,
+		config:           config,
+		log:              log.With().Str("component", "deployment").Logger(),
+		statusFile:       filepath.Join(config.DeployDir, "deployment_status.json"),
+		version:          version,
+		gitCommit:        getEnv("GIT_COMMIT", "unknown"),
+		gitBranch:        config.GitBranch,
+		lock:             lock,
+		gitChecker:       gitChecker,
+		goBuilder:        goBuilder,
+		binaryDeployer:   binaryDeployer,
+		staticDeployer:   staticDeployer,
+		frontendDeployer: frontendDeployer,
+		serviceManager:   serviceManager,
+		dockerManager:    dockerManager,
+		microDeployer:    microDeployer,
+		sketchDeployer:   sketchDeployer,
 	}
 }
 
@@ -223,10 +223,10 @@ func (m *Manager) Deploy() (*DeploymentResult, error) {
 		}
 	}
 
-	// Build and deploy frontend
+	// Deploy frontend (pre-built, committed to git)
 	if categories.Frontend {
-		if err := m.frontendBuilder.BuildFrontend(m.config.RepoDir, m.config.DeployDir); err != nil {
-			m.log.Error().Err(err).Msg("Failed to build frontend")
+		if err := m.frontendDeployer.DeployFrontend(m.config.RepoDir, m.config.DeployDir); err != nil {
+			m.log.Error().Err(err).Msg("Failed to deploy frontend")
 		}
 	}
 

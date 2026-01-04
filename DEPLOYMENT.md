@@ -8,7 +8,10 @@ This guide walks you through deploying the Arduino Trader application to your Ar
 2. **SSH access** to the Arduino device (user: `arduino`, default IP: `192.168.1.11`)
 3. **Docker** installed on the Arduino device (for microservices)
 4. **Go 1.22+** installed on your development machine (for building)
-5. **Tradernet API credentials** configured
+5. **Node.js and npm** installed on your development machine (for frontend building)
+6. **Tradernet API credentials** configured
+
+**Note**: Node.js is NOT required on the Arduino device - the frontend is pre-built and committed to git.
 
 ## Quick Start
 

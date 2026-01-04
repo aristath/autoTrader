@@ -1,7 +1,6 @@
 import { createTheme } from '@mantine/core';
 
 export const theme = createTheme({
-  colorScheme: 'dark',
   primaryColor: 'blue',
   defaultRadius: 'md',
   fontFamily: 'system-ui, -apple-system, sans-serif',
