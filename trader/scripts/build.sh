@@ -15,7 +15,6 @@ echo "Version: ${VERSION}"
 echo "Build Time: ${BUILD_TIME}"
 echo
 
-# Build Go backend
 if [ "$ARCH" = "arm64" ]; then
     echo "Cross-compiling for ARM64 (Arduino Uno Q)..."
     GOOS=linux GOARCH=arm64 go build -ldflags "${LDFLAGS}" -o trader-go-arm64 ./cmd/server
