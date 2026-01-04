@@ -17,6 +17,12 @@ type TradeRepository struct {
 	log      zerolog.Logger
 }
 
+// tradesColumns is the list of columns for the trades table
+// Used to avoid SELECT * which can break when schema changes
+// Column order must match scanTrade() and scanTradeFromRows() function expectations
+// After migration 017: bucket_id removed, currency_rate not scanned
+const tradesColumns = `id, symbol, isin, side, quantity, price, executed_at, order_id, currency, value_eur, source, mode, created_at`
+
 // NewTradeRepository creates a new trade repository
 func NewTradeRepository(ledgerDB *sql.DB, log zerolog.Logger) *TradeRepository {
 	return &TradeRepository{
@@ -70,7 +76,7 @@ func (r *TradeRepository) Create(trade Trade) error {
 // GetByOrderID retrieves a trade by broker order ID
 // Faithful translation of Python: async def get_by_order_id(self, order_id: str) -> Optional[Trade]
 func (r *TradeRepository) GetByOrderID(orderID string) (*Trade, error) {
-	query := "SELECT * FROM trades WHERE order_id = ?"
+	query := "SELECT " + tradesColumns + " FROM trades WHERE order_id = ?"
 
 	row := r.ledgerDB.QueryRow(query, orderID)
 	trade, err := r.scanTrade(row)
@@ -105,7 +111,7 @@ func (r *TradeRepository) Exists(orderID string) (bool, error) {
 // Faithful translation of Python: async def get_history(self, limit: int = 50) -> List[Trade]
 func (r *TradeRepository) GetHistory(limit int) ([]Trade, error) {
 	query := `
-		SELECT * FROM trades
+		SELECT ` + tradesColumns + ` FROM trades
 		ORDER BY executed_at DESC
 		LIMIT ?
 	`
@@ -136,7 +142,7 @@ func (r *TradeRepository) GetHistory(limit int) ([]Trade, error) {
 // Faithful translation of Python: async def get_all_in_range(self, start_date: str, end_date: str) -> List[Trade]
 func (r *TradeRepository) GetAllInRange(startDate, endDate string) ([]Trade, error) {
 	query := `
-		SELECT * FROM trades
+		SELECT ` + tradesColumns + ` FROM trades
 		WHERE executed_at >= ? AND executed_at <= ?
 		ORDER BY executed_at ASC
 	`
@@ -167,7 +173,7 @@ func (r *TradeRepository) GetAllInRange(startDate, endDate string) ([]Trade, err
 // Faithful translation of Python: async def get_by_symbol(self, symbol: str, limit: int = 100) -> List[Trade]
 func (r *TradeRepository) GetBySymbol(symbol string, limit int) ([]Trade, error) {
 	query := `
-		SELECT * FROM trades
+		SELECT ` + tradesColumns + ` FROM trades
 		WHERE symbol = ?
 		ORDER BY executed_at DESC
 		LIMIT ?
@@ -199,7 +205,7 @@ func (r *TradeRepository) GetBySymbol(symbol string, limit int) ([]Trade, error)
 // Faithful translation of Python: async def get_by_isin(self, isin: str, limit: int = 100) -> List[Trade]
 func (r *TradeRepository) GetByISIN(isin string, limit int) ([]Trade, error) {
 	query := `
-		SELECT * FROM trades
+		SELECT ` + tradesColumns + ` FROM trades
 		WHERE isin = ?
 		ORDER BY executed_at DESC
 		LIMIT ?
@@ -467,7 +473,7 @@ func (r *TradeRepository) GetRecentTrades(symbol string, days int) ([]Trade, err
 	cutoff := time.Now().AddDate(0, 0, -days).Format(time.RFC3339)
 
 	query := `
-		SELECT * FROM trades
+		SELECT ` + tradesColumns + ` FROM trades
 		WHERE symbol = ? AND executed_at >= ?
 		ORDER BY executed_at DESC
 	`

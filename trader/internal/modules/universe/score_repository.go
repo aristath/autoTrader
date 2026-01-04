@@ -16,6 +16,13 @@ type ScoreRepository struct {
 	log         zerolog.Logger
 }
 
+// scoresColumns is the list of columns for the scores table
+// Used to avoid SELECT * which can break when schema changes
+// Column order must match scanScore() function expectations
+const scoresColumns = `symbol, quality_score, opportunity_score, analyst_score, allocation_fit_score,
+cagr_score, consistency_score, financial_strength_score, sharpe_score, drawdown_score,
+dividend_bonus, rsi, ema_200, below_52w_high_pct, total_score, sell_score, history_years, calculated_at`
+
 // NewScoreRepository creates a new score repository
 func NewScoreRepository(portfolioDB *sql.DB, log zerolog.Logger) *ScoreRepository {
 	return &ScoreRepository{
@@ -27,7 +34,7 @@ func NewScoreRepository(portfolioDB *sql.DB, log zerolog.Logger) *ScoreRepositor
 // GetBySymbol returns a score by symbol
 // Faithful translation of Python: async def get_by_symbol(self, symbol: str) -> Optional[SecurityScore]
 func (r *ScoreRepository) GetBySymbol(symbol string) (*SecurityScore, error) {
-	query := "SELECT * FROM scores WHERE symbol = ?"
+	query := "SELECT " + scoresColumns + " FROM scores WHERE symbol = ?"
 
 	rows, err := r.portfolioDB.Query(query, strings.ToUpper(strings.TrimSpace(symbol)))
 	if err != nil {
@@ -59,7 +66,7 @@ func (r *ScoreRepository) GetByIdentifier(identifier string) (*SecurityScore, er
 // GetAll returns all scores
 // Faithful translation of Python: async def get_all(self) -> List[SecurityScore]
 func (r *ScoreRepository) GetAll() ([]SecurityScore, error) {
-	query := "SELECT * FROM scores"
+	query := "SELECT " + scoresColumns + " FROM scores"
 
 	rows, err := r.portfolioDB.Query(query)
 	if err != nil {
@@ -87,7 +94,7 @@ func (r *ScoreRepository) GetAll() ([]SecurityScore, error) {
 // Faithful translation of Python: async def get_top(self, limit: int = 10) -> List[SecurityScore]
 func (r *ScoreRepository) GetTop(limit int) ([]SecurityScore, error) {
 	query := `
-		SELECT * FROM scores
+		SELECT ` + scoresColumns + ` FROM scores
 		WHERE total_score IS NOT NULL
 		ORDER BY total_score DESC
 		LIMIT ?

@@ -17,6 +17,12 @@ type PortfolioRepository struct {
 	log zerolog.Logger
 }
 
+// portfolioSnapshotsColumns is the list of columns for the portfolio_snapshots table
+// Used to avoid SELECT * which can break when schema changes
+// Column order must match scanSnapshot() function expectations
+const portfolioSnapshotsColumns = `snapshot_date, total_value, cash_balance, invested_value,
+unrealized_pnl, geo_eu_pct, geo_asia_pct, geo_us_pct, position_count, annual_turnover, created_at`
+
 // NewPortfolioRepository creates a new portfolio repository
 // db parameter should be portfolio.db connection
 func NewPortfolioRepository(db *sql.DB, log zerolog.Logger) *PortfolioRepository {
@@ -51,8 +57,8 @@ func (r *PortfolioRepository) GetLatestCashBalance() (float64, error) {
 // Faithful translation of Python: async def get_history(self, days: int = 90) -> List[PortfolioSnapshot]
 func (r *PortfolioRepository) GetHistory(days int) ([]PortfolioSnapshot, error) {
 	query := `
-		SELECT * FROM portfolio_snapshots
-		ORDER BY date DESC
+		SELECT ` + portfolioSnapshotsColumns + ` FROM portfolio_snapshots
+		ORDER BY snapshot_date DESC
 		LIMIT ?
 	`
 
@@ -81,7 +87,7 @@ func (r *PortfolioRepository) GetHistory(days int) ([]PortfolioSnapshot, error) 
 // GetByDate returns snapshot for a specific date
 // Faithful translation of Python: async def get_by_date(self, date: str) -> Optional[PortfolioSnapshot]
 func (r *PortfolioRepository) GetByDate(date string) (*PortfolioSnapshot, error) {
-	query := "SELECT * FROM portfolio_snapshots WHERE date = ?"
+	query := "SELECT " + portfolioSnapshotsColumns + " FROM portfolio_snapshots WHERE snapshot_date = ?"
 
 	rows, err := r.db.Query(query, date)
 	if err != nil {
@@ -104,7 +110,7 @@ func (r *PortfolioRepository) GetByDate(date string) (*PortfolioSnapshot, error)
 // GetLatest returns the most recent snapshot
 // Faithful translation of Python: async def get_latest(self) -> Optional[PortfolioSnapshot]
 func (r *PortfolioRepository) GetLatest() (*PortfolioSnapshot, error) {
-	query := "SELECT * FROM portfolio_snapshots ORDER BY date DESC LIMIT 1"
+	query := "SELECT " + portfolioSnapshotsColumns + " FROM portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
 
 	rows, err := r.db.Query(query)
 	if err != nil {
@@ -128,9 +134,9 @@ func (r *PortfolioRepository) GetLatest() (*PortfolioSnapshot, error) {
 // Faithful translation of Python: async def get_range(self, start_date: str, end_date: str) -> List[PortfolioSnapshot]
 func (r *PortfolioRepository) GetRange(startDate, endDate string) ([]PortfolioSnapshot, error) {
 	query := `
-		SELECT * FROM portfolio_snapshots
-		WHERE date >= ? AND date <= ?
-		ORDER BY date ASC
+		SELECT ` + portfolioSnapshotsColumns + ` FROM portfolio_snapshots
+		WHERE snapshot_date >= ? AND snapshot_date <= ?
+		ORDER BY snapshot_date ASC
 	`
 
 	rows, err := r.db.Query(query, startDate, endDate)

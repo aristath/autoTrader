@@ -17,6 +17,12 @@ type DividendRepository struct {
 	log      zerolog.Logger
 }
 
+// dividendHistoryColumns is the list of columns for the dividend_history table
+// Used to avoid SELECT * which can break when schema changes
+// Column order must match scanDividend() and scanDividendFromRows() function expectations
+const dividendHistoryColumns = `id, symbol, isin, cash_flow_id, amount, currency, amount_eur, payment_date,
+reinvested, reinvested_at, reinvested_quantity, pending_bonus, bonus_cleared, cleared_at, created_at`
+
 // NewDividendRepository creates a new dividend repository
 func NewDividendRepository(ledgerDB *sql.DB, log zerolog.Logger) *DividendRepository {
 	return &DividendRepository{
@@ -79,7 +85,7 @@ func (r *DividendRepository) Create(dividend *DividendRecord) error {
 // GetByID retrieves a dividend record by ID
 // Faithful translation of Python: async def get_by_id(self, dividend_id: int) -> Optional[DividendRecord]
 func (r *DividendRepository) GetByID(id int) (*DividendRecord, error) {
-	query := "SELECT * FROM dividend_history WHERE id = ?"
+	query := "SELECT " + dividendHistoryColumns + " FROM dividend_history WHERE id = ?"
 
 	row := r.ledgerDB.QueryRow(query, id)
 	dividend, err := r.scanDividend(row)
@@ -96,7 +102,7 @@ func (r *DividendRepository) GetByID(id int) (*DividendRecord, error) {
 // GetByCashFlowID retrieves a dividend record linked to a cash flow
 // Faithful translation of Python: async def get_by_cash_flow_id(self, cash_flow_id: int) -> Optional[DividendRecord]
 func (r *DividendRepository) GetByCashFlowID(cashFlowID int) (*DividendRecord, error) {
-	query := "SELECT * FROM dividend_history WHERE cash_flow_id = ?"
+	query := "SELECT " + dividendHistoryColumns + " FROM dividend_history WHERE cash_flow_id = ?"
 
 	row := r.ledgerDB.QueryRow(query, cashFlowID)
 	dividend, err := r.scanDividend(row)
@@ -131,7 +137,7 @@ func (r *DividendRepository) ExistsForCashFlow(cashFlowID int) (bool, error) {
 // Faithful translation of Python: async def get_by_symbol(self, symbol: str) -> List[DividendRecord]
 func (r *DividendRepository) GetBySymbol(symbol string) ([]DividendRecord, error) {
 	query := `
-		SELECT * FROM dividend_history
+		SELECT ` + dividendHistoryColumns + ` FROM dividend_history
 		WHERE symbol = ?
 		ORDER BY payment_date DESC
 	`
@@ -158,7 +164,7 @@ func (r *DividendRepository) GetBySymbol(symbol string) ([]DividendRecord, error
 // Faithful translation of Python: async def get_by_isin(self, isin: str) -> List[DividendRecord]
 func (r *DividendRepository) GetByISIN(isin string) ([]DividendRecord, error) {
 	query := `
-		SELECT * FROM dividend_history
+		SELECT ` + dividendHistoryColumns + ` FROM dividend_history
 		WHERE isin = ?
 		ORDER BY payment_date DESC
 	`
@@ -206,10 +212,10 @@ func (r *DividendRepository) GetAll(limit int) ([]DividendRecord, error) {
 	var err error
 
 	if limit > 0 {
-		query = "SELECT * FROM dividend_history ORDER BY payment_date DESC LIMIT ?"
+		query = "SELECT " + dividendHistoryColumns + " FROM dividend_history ORDER BY payment_date DESC LIMIT ?"
 		rows, err = r.ledgerDB.Query(query, limit)
 	} else {
-		query = "SELECT * FROM dividend_history ORDER BY payment_date DESC"
+		query = "SELECT " + dividendHistoryColumns + " FROM dividend_history ORDER BY payment_date DESC"
 		rows, err = r.ledgerDB.Query(query)
 	}
 
@@ -356,7 +362,7 @@ func (r *DividendRepository) ClearBonus(symbol string) (int, error) {
 // Faithful translation of Python: async def get_unreinvested_dividends(self, min_amount_eur: float = 0.0) -> List[DividendRecord]
 func (r *DividendRepository) GetUnreinvestedDividends(minAmountEUR float64) ([]DividendRecord, error) {
 	query := `
-		SELECT * FROM dividend_history
+		SELECT ` + dividendHistoryColumns + ` FROM dividend_history
 		WHERE reinvested = 0 AND amount_eur >= ?
 		ORDER BY payment_date ASC
 	`

@@ -16,6 +16,13 @@ type SecurityRepository struct {
 	log        zerolog.Logger
 }
 
+// securitiesColumns is the list of columns for the securities table
+// Used to avoid SELECT * which can break when schema changes
+// Column order must match the table schema (matches SELECT * order)
+const securitiesColumns = `symbol, yahoo_symbol, isin, name, product_type, industry, country, fullExchangeName,
+priority_multiplier, min_lot, active, allow_buy, allow_sell, currency, last_synced,
+min_portfolio_target, max_portfolio_target, created_at, updated_at, bucket_id`
+
 // NewSecurityRepository creates a new security repository
 func NewSecurityRepository(universeDB *sql.DB, log zerolog.Logger) *SecurityRepository {
 	return &SecurityRepository{
@@ -27,7 +34,7 @@ func NewSecurityRepository(universeDB *sql.DB, log zerolog.Logger) *SecurityRepo
 // GetBySymbol returns a security by symbol
 // Faithful translation of Python: async def get_by_symbol(self, symbol: str) -> Optional[Security]
 func (r *SecurityRepository) GetBySymbol(symbol string) (*Security, error) {
-	query := "SELECT * FROM securities WHERE symbol = ?"
+	query := "SELECT " + securitiesColumns + " FROM securities WHERE symbol = ?"
 
 	rows, err := r.universeDB.Query(query, strings.ToUpper(strings.TrimSpace(symbol)))
 	if err != nil {
@@ -50,7 +57,7 @@ func (r *SecurityRepository) GetBySymbol(symbol string) (*Security, error) {
 // GetByISIN returns a security by ISIN
 // Faithful translation of Python: async def get_by_isin(self, isin: str) -> Optional[Security]
 func (r *SecurityRepository) GetByISIN(isin string) (*Security, error) {
-	query := "SELECT * FROM securities WHERE isin = ?"
+	query := "SELECT " + securitiesColumns + " FROM securities WHERE isin = ?"
 
 	rows, err := r.universeDB.Query(query, strings.ToUpper(strings.TrimSpace(isin)))
 	if err != nil {
@@ -97,7 +104,7 @@ func (r *SecurityRepository) GetByIdentifier(identifier string) (*Security, erro
 // GetAllActive returns all active securities
 // Faithful translation of Python: async def get_all_active(self) -> List[Security]
 func (r *SecurityRepository) GetAllActive() ([]Security, error) {
-	query := "SELECT * FROM securities WHERE active = 1"
+	query := "SELECT " + securitiesColumns + " FROM securities WHERE active = 1"
 
 	rows, err := r.universeDB.Query(query)
 	if err != nil {
@@ -124,7 +131,7 @@ func (r *SecurityRepository) GetAllActive() ([]Security, error) {
 // GetAllActiveTradable returns all active securities excluding cash
 // Used for scoring and trading operations where cash should not be included
 func (r *SecurityRepository) GetAllActiveTradable() ([]Security, error) {
-	query := "SELECT * FROM securities WHERE active = 1 AND product_type != 'CASH'"
+	query := "SELECT " + securitiesColumns + " FROM securities WHERE active = 1 AND product_type != 'CASH'"
 
 	rows, err := r.universeDB.Query(query)
 	if err != nil {
@@ -151,7 +158,7 @@ func (r *SecurityRepository) GetAllActiveTradable() ([]Security, error) {
 // GetAll returns all securities (active and inactive)
 // Faithful translation of Python: async def get_all(self) -> List[Security]
 func (r *SecurityRepository) GetAll() ([]Security, error) {
-	query := "SELECT * FROM securities"
+	query := "SELECT " + securitiesColumns + " FROM securities"
 
 	rows, err := r.universeDB.Query(query)
 	if err != nil {
@@ -314,7 +321,7 @@ func (r *SecurityRepository) Delete(symbol string) error {
 // Note: This method accesses multiple databases (universe.db and portfolio.db) - architecture violation
 func (r *SecurityRepository) GetWithScores(portfolioDB *sql.DB) ([]SecurityWithScore, error) {
 	// Fetch securities from universe.db (excluding cash - cash doesn't have scores)
-	securityRows, err := r.universeDB.Query("SELECT * FROM securities WHERE active = 1 AND product_type != 'CASH'")
+	securityRows, err := r.universeDB.Query("SELECT " + securitiesColumns + " FROM securities WHERE active = 1 AND product_type != 'CASH'")
 	if err != nil {
 		return nil, fmt.Errorf("failed to query securities: %w", err)
 	}
@@ -355,7 +362,7 @@ func (r *SecurityRepository) GetWithScores(portfolioDB *sql.DB) ([]SecurityWithS
 	}
 
 	// Fetch scores from portfolio.db
-	scoreRows, err := portfolioDB.Query("SELECT * FROM scores")
+	scoreRows, err := portfolioDB.Query("SELECT " + scoresColumns + " FROM scores")
 	if err != nil {
 		return nil, fmt.Errorf("failed to query scores: %w", err)
 	}
