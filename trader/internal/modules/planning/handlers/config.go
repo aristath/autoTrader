@@ -83,7 +83,6 @@ func (h *ConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// /api/planning/configs/:id - GET (retrieve), PUT (update), DELETE (delete)
 	// /api/planning/configs/:id/validate - POST (validate)
 	// /api/planning/configs/:id/history - GET (version history)
-	// /api/planning/configs/bucket/:bucket_id - GET (retrieve by bucket)
 
 	if len(pathParts) == 3 {
 		// /api/planning/configs
@@ -99,7 +98,7 @@ func (h *ConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(pathParts) == 4 {
-		// /api/planning/configs/:id or /api/planning/configs/bucket
+		// /api/planning/configs/:id
 		configID := pathParts[3]
 
 		switch r.Method {
@@ -117,23 +116,8 @@ func (h *ConfigHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if len(pathParts) == 5 {
 		// /api/planning/configs/:id/validate or /api/planning/configs/:id/history
-		// or /api/planning/configs/bucket/:bucket_id
-		resourceType := pathParts[3]
-		resourceID := pathParts[4]
-
-		if resourceType == "bucket" {
-			// /api/planning/configs/bucket/:bucket_id
-			if r.Method == http.MethodGet {
-				h.handleGetByBucket(w, r, resourceID)
-			} else {
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			}
-			return
-		}
-
-		// Otherwise it's /api/planning/configs/:id/validate or history
-		configID := resourceType
-		action := resourceID
+		configID := pathParts[3]
+		action := pathParts[4]
 
 		switch action {
 		case "validate":
@@ -201,28 +185,6 @@ func (h *ConfigHandler) handleGet(w http.ResponseWriter, r *http.Request, config
 	if err != nil {
 		h.log.Error().Err(err).Int64("config_id", id).Msg("Failed to retrieve configuration")
 		http.Error(w, "Configuration not found", http.StatusNotFound)
-		return
-	}
-
-	response := ConfigResponse{Config: config}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
-
-func (h *ConfigHandler) handleGetByBucket(w http.ResponseWriter, r *http.Request, bucketID string) {
-	h.log.Debug().Str("bucket_id", bucketID).Msg("Getting configuration by bucket")
-
-	config, err := h.configRepo.GetByBucket(bucketID)
-	if err != nil {
-		h.log.Error().Err(err).Str("bucket_id", bucketID).Msg("Failed to retrieve configuration")
-		http.Error(w, "Configuration not found", http.StatusNotFound)
-		return
-	}
-
-	if config == nil {
-		// No bucket-specific config found, return 404
-		http.Error(w, "No configuration found for this bucket", http.StatusNotFound)
 		return
 	}
 

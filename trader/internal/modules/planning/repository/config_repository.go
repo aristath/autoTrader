@@ -242,11 +242,6 @@ func (r *ConfigRepository) GetConfigByName(name string) (*domain.PlannerConfigur
 	return r.getSettings()
 }
 
-// GetByBucket retrieves the configuration for a specific bucket (always returns the single config, no buckets).
-func (r *ConfigRepository) GetByBucket(bucketID string) (*domain.PlannerConfiguration, error) {
-	return r.getSettings()
-}
-
 // UpdateConfig updates the planner configuration (single config exists).
 func (r *ConfigRepository) UpdateConfig(
 	id int64,
