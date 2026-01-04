@@ -526,7 +526,7 @@ arduino-trader/
 │   │   │   ├── dividends/    # Dividend processing
 │   │   │   ├── planning/     # Planning & recommendations
 │   │   │   ├── portfolio/    # Portfolio management
-│   │   │   ├── satellites/   # Multi-bucket strategies
+│   │   │   ├── planning/     # Planning & recommendations
 │   │   │   ├── scoring/      # Security scoring
 │   │   │   ├── settings/     # Settings management
 │   │   │   ├── trading/      # Trade execution

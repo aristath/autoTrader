@@ -114,18 +114,19 @@ history/AMD_US.db   - (65+ individual files)
    └─ positions, scores, calculated_metrics, portfolio_snapshots
    └─ Consolidated from: state.db + calculations.db + snapshots.db
 
-5. satellites.db    - Multi-bucket portfolio system
-   └─ buckets (with agent_id), bucket_balances, bucket_transactions
+5. satellites.db    - ⚠️ REMOVED (obsolete)
+   └─ Multi-bucket portfolio system has been removed
+   └─ System now uses a single, unified portfolio
 
-6. agents.db        - Strategy management (RENAMED)
-   └─ agent_configs, config_history, sequences, evaluations
-   └─ Previously: planner.db
+5. agents.db        - Planning sequences and evaluations
+   └─ sequences, evaluations, best_result
+   └─ Note: agent_configs and config_history removed (config now in config.db)
 
-7. history.db       - Historical time-series (CONSOLIDATED)
+6. history.db       - Historical time-series (CONSOLIDATED)
    └─ daily_prices (all symbols), exchange_rates, symbol_removals
    └─ Will consolidate 65+ files
 
-8. cache.db         - Ephemeral operational data
+7. cache.db         - Ephemeral operational data
    └─ recommendations, cache_data
    └─ ProfileCache (synchronous=OFF)
 ```

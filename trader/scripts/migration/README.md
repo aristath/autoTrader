@@ -1,6 +1,6 @@
 # Database Migration Scripts
 
-This directory contains scripts to migrate the Arduino Trader database architecture from 15+ databases to a clean 8-database system.
+This directory contains scripts to migrate the Arduino Trader database architecture from 15+ databases to a clean 7-database system.
 
 ## ⚠️ CRITICAL WARNING
 
@@ -27,15 +27,16 @@ This directory contains scripts to migrate the Arduino Trader database architect
 - cache.db
 - + several empty/unused databases
 
-### After (8 databases):
+### After (7 databases):
 1. **universe.db** - Securities and groups
 2. **config.db** - Settings and allocation targets (REDUCED)
 3. **ledger.db** - Financial audit trail (EXPANDED)
 4. **portfolio.db** - Current state (NEW consolidation)
-5. **satellites.db** - Multi-bucket system
-6. **agents.db** - Strategy management (RENAMED)
-7. **history.db** - Time-series data (CONSOLIDATED)
-8. **cache.db** - Ephemeral data
+5. **agents.db** - Planning sequences and evaluations
+6. **history.db** - Time-series data (CONSOLIDATED)
+7. **cache.db** - Ephemeral data
+
+**Note:** satellites.db has been removed as part of the simplification to a single-portfolio system.
 
 ## Migration Scripts
 

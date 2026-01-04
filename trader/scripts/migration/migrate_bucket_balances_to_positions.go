@@ -29,6 +29,12 @@ type BucketBalance struct {
 }
 
 func main() {
+	fmt.Fprintf(os.Stderr, "⚠️  WARNING: This migration script is OBSOLETE.\n")
+	fmt.Fprintf(os.Stderr, "Satellites/buckets functionality has been removed.\n")
+	fmt.Fprintf(os.Stderr, "This script is kept for historical reference only.\n")
+	fmt.Fprintf(os.Stderr, "Exiting without making any changes.\n")
+	os.Exit(0)
+
 	// Parse command-line flags
 	dryRun := flag.Bool("dry-run", false, "Run in dry-run mode (no actual changes)")
 	dataDir := flag.String("data-dir", "../data", "Path to data directory")

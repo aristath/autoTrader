@@ -55,13 +55,11 @@
    - Tables: positions, scores, calculated_metrics, portfolio_snapshots
    - Repositories: PositionRepository, ScoreRepository, PortfolioRepository
 
-5. **satellites.db** (UPDATED schema)
-   - Tables: buckets (add agent_id column), bucket_balances, bucket_transactions, satellite_settings
-   - Repositories: BucketRepository, BalanceRepository
-
-6. **agents.db** (RENAMED from planner.db)
-   - Tables: agent_configs (rename from planner_configs), config_history, sequences, evaluations, best_result
-   - Repositories: PlannerConfigRepository, PlannerRepository, RecommendationRepository
+5. **agents.db** (RENAMED from planner.db, SIMPLIFIED)
+   - Tables: sequences, evaluations, best_result
+   - Note: agent_configs and config_history removed (config now in config.db as planner_settings)
+   - Repositories: PlannerRepository
+   - ⚠️ satellites.db removed - system now uses single-portfolio architecture
 
 7. **history.db** (NEW - consolidate all history/*.db)
    - Tables: daily_prices, exchange_rates, symbol_removals, cleanup_log
