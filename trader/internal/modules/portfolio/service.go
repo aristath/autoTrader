@@ -714,7 +714,6 @@ func (s *PortfolioService) SyncFromTradernet() error {
 			CurrencyRate:   tradernetPos.CurrencyRate,
 			MarketValueEUR: tradernetPos.MarketValueEUR,
 			LastUpdated:    time.Now().Format(time.RFC3339),
-			BucketID:       "core", // Default bucket
 		}
 
 		if err := s.positionRepo.Upsert(dbPos); err != nil {

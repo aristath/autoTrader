@@ -4,7 +4,6 @@ package portfolio
 // Faithful translation from Python: app/modules/portfolio/domain/models.py
 type Position struct {
 	LastUpdated      string  `json:"last_updated,omitempty"`
-	BucketID         string  `json:"bucket_id"`
 	LastSoldAt       string  `json:"last_sold_at,omitempty"`
 	ISIN             string  `json:"isin,omitempty"`
 	Currency         string  `json:"currency"`
@@ -59,7 +58,6 @@ type PortfolioSummary struct {
 // Used by get_with_security_info() - combines Position + Security data
 type PositionWithSecurity struct {
 	Country          string  `db:"country"`
-	BucketID         string  `db:"bucket_id"`
 	StockName        string  `db:"name"`
 	Symbol           string  `db:"symbol"`
 	Currency         string  `db:"currency"`

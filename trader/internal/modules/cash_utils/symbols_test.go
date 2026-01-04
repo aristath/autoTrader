@@ -10,57 +10,44 @@ func TestMakeCashSymbol(t *testing.T) {
 	tests := []struct {
 		name        string
 		currency    string
-		bucketID    string
 		want        string
 		description string
 	}{
 		{
-			name:        "EUR core bucket",
+			name:        "EUR currency",
 			currency:    "EUR",
-			bucketID:    "core",
-			want:        "CASH:EUR:core",
-			description: "Standard EUR cash symbol for core bucket",
+			want:        "CASH:EUR",
+			description: "Standard EUR cash symbol",
 		},
 		{
-			name:        "USD satellite bucket",
+			name:        "USD currency",
 			currency:    "USD",
-			bucketID:    "satellite1",
-			want:        "CASH:USD:satellite1",
-			description: "USD cash symbol for satellite bucket",
+			want:        "CASH:USD",
+			description: "USD cash symbol",
 		},
 		{
 			name:        "currency is uppercased",
 			currency:    "eur",
-			bucketID:    "core",
-			want:        "CASH:EUR:core",
+			want:        "CASH:EUR",
 			description: "Currency should be converted to uppercase",
 		},
 		{
 			name:        "mixed case currency",
 			currency:    "UsD",
-			bucketID:    "satellite",
-			want:        "CASH:USD:satellite",
+			want:        "CASH:USD",
 			description: "Mixed case currency should be uppercased",
-		},
-		{
-			name:        "bucket ID preserved as-is",
-			currency:    "EUR",
-			bucketID:    "SatelliteBucket",
-			want:        "CASH:EUR:SatelliteBucket",
-			description: "Bucket ID should be preserved exactly as provided",
 		},
 		{
 			name:        "GBP currency",
 			currency:    "GBP",
-			bucketID:    "core",
-			want:        "CASH:GBP:core",
+			want:        "CASH:GBP",
 			description: "GBP currency support",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := MakeCashSymbol(tt.currency, tt.bucketID)
+			got := MakeCashSymbol(tt.currency)
 			assert.Equal(t, tt.want, got, tt.description)
 		})
 	}
@@ -75,13 +62,13 @@ func TestIsCashSymbol(t *testing.T) {
 	}{
 		{
 			name:        "valid EUR cash symbol",
-			symbol:      "CASH:EUR:core",
+			symbol:      "CASH:EUR",
 			want:        true,
 			description: "Valid cash symbol should return true",
 		},
 		{
 			name:        "valid USD cash symbol",
-			symbol:      "CASH:USD:satellite1",
+			symbol:      "CASH:USD",
 			want:        true,
 			description: "Valid USD cash symbol should return true",
 		},
@@ -136,110 +123,76 @@ func TestParseCashSymbol(t *testing.T) {
 		name         string
 		symbol       string
 		wantCurrency string
-		wantBucketID string
 		wantErr      bool
 		errContains  string
 		description  string
 	}{
 		{
-			name:         "valid EUR core symbol",
-			symbol:       "CASH:EUR:core",
+			name:         "valid EUR symbol",
+			symbol:       "CASH:EUR",
 			wantCurrency: "EUR",
-			wantBucketID: "core",
 			wantErr:      false,
 			description:  "Valid cash symbol should parse correctly",
 		},
 		{
-			name:         "valid USD satellite symbol",
-			symbol:       "CASH:USD:satellite1",
+			name:         "valid USD symbol",
+			symbol:       "CASH:USD",
 			wantCurrency: "USD",
-			wantBucketID: "satellite1",
 			wantErr:      false,
-			description:  "Valid USD satellite symbol should parse correctly",
-		},
-		{
-			name:         "symbol with complex bucket ID",
-			symbol:       "CASH:GBP:satellite-2-bucket",
-			wantCurrency: "GBP",
-			wantBucketID: "satellite-2-bucket",
-			wantErr:      false,
-			description:  "Bucket ID with hyphens should be preserved",
+			description:  "Valid USD symbol should parse correctly",
 		},
 		{
 			name:         "not a cash symbol",
 			symbol:       "AAPL",
 			wantCurrency: "",
-			wantBucketID: "",
 			wantErr:      true,
 			errContains:  "not a cash symbol",
 			description:  "Non-cash symbol should return error",
 		},
 		{
 			name:         "invalid format - too few parts",
-			symbol:       "CASH:EUR",
+			symbol:       "CASH",
 			wantCurrency: "",
-			wantBucketID: "",
 			wantErr:      true,
-			errContains:  "invalid cash symbol format",
-			description:  "Symbol with only 2 parts should return format error",
+			errContains:  "not a cash symbol",
+			description:  "Symbol without colon should return 'not a cash symbol' error",
 		},
 		{
 			name:         "invalid format - too many parts",
-			symbol:       "CASH:EUR:core:extra",
+			symbol:       "CASH:EUR:core",
 			wantCurrency: "",
-			wantBucketID: "",
 			wantErr:      true,
 			errContains:  "invalid cash symbol format",
-			description:  "Symbol with 4 parts should return format error",
+			description:  "Symbol with 3 parts should return format error",
 		},
 		{
 			name:         "empty currency",
-			symbol:       "CASH::core",
+			symbol:       "CASH:",
 			wantCurrency: "",
-			wantBucketID: "",
 			wantErr:      true,
 			errContains:  "empty currency",
 			description:  "Empty currency should return error",
 		},
 		{
-			name:         "empty bucket ID",
-			symbol:       "CASH:EUR:",
-			wantCurrency: "",
-			wantBucketID: "",
-			wantErr:      true,
-			errContains:  "empty bucket ID",
-			description:  "Empty bucket ID should return error",
-		},
-		{
 			name:         "empty string",
 			symbol:       "",
 			wantCurrency: "",
-			wantBucketID: "",
 			wantErr:      true,
 			errContains:  "not a cash symbol",
 			description:  "Empty string should return error",
 		},
 		{
 			name:         "currency with spaces",
-			symbol:       "CASH:EUR :core",
+			symbol:       "CASH:EUR ",
 			wantCurrency: "EUR ",
-			wantBucketID: "core",
 			wantErr:      false,
 			description:  "Currency with trailing space should be parsed (may want to trim in future)",
-		},
-		{
-			name:         "bucket ID with spaces",
-			symbol:       "CASH:EUR: core",
-			wantCurrency: "EUR",
-			wantBucketID: " core",
-			wantErr:      false,
-			description:  "Bucket ID with leading space should be parsed",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotCurrency, gotBucketID, err := ParseCashSymbol(tt.symbol)
+			gotCurrency, err := ParseCashSymbol(tt.symbol)
 
 			if tt.wantErr {
 				assert.Error(t, err, tt.description)
@@ -247,11 +200,9 @@ func TestParseCashSymbol(t *testing.T) {
 					assert.Contains(t, err.Error(), tt.errContains, "Error message should contain expected text")
 				}
 				assert.Empty(t, gotCurrency, "Currency should be empty on error")
-				assert.Empty(t, gotBucketID, "Bucket ID should be empty on error")
 			} else {
 				assert.NoError(t, err, tt.description)
 				assert.Equal(t, tt.wantCurrency, gotCurrency, "Currency mismatch: %s", tt.description)
-				assert.Equal(t, tt.wantBucketID, gotBucketID, "Bucket ID mismatch: %s", tt.description)
 			}
 		})
 	}
@@ -262,22 +213,20 @@ func TestParseCashSymbol_RoundTrip(t *testing.T) {
 	tests := []struct {
 		name     string
 		currency string
-		bucketID string
 	}{
-		{"EUR core", "EUR", "core"},
-		{"USD satellite1", "USD", "satellite1"},
-		{"GBP satellite-2", "GBP", "satellite-2"},
-		{"EUR complex-bucket-id", "EUR", "complex-bucket-id"},
+		{"EUR", "EUR"},
+		{"USD", "USD"},
+		{"GBP", "GBP"},
+		{"CHF", "CHF"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			symbol := MakeCashSymbol(tt.currency, tt.bucketID)
-			parsedCurrency, parsedBucketID, err := ParseCashSymbol(symbol)
+			symbol := MakeCashSymbol(tt.currency)
+			parsedCurrency, err := ParseCashSymbol(symbol)
 
 			assert.NoError(t, err, "Round-trip parsing should not error")
 			assert.Equal(t, tt.currency, parsedCurrency, "Currency should match after round-trip")
-			assert.Equal(t, tt.bucketID, parsedBucketID, "Bucket ID should match after round-trip")
 		})
 	}
 }

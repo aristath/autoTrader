@@ -33,7 +33,6 @@ import (
 	planningrepo "github.com/aristath/arduino-trader/internal/modules/planning/repository"
 	"github.com/aristath/arduino-trader/internal/modules/portfolio"
 	"github.com/aristath/arduino-trader/internal/modules/rebalancing"
-	"github.com/aristath/arduino-trader/internal/modules/satellites"
 	"github.com/aristath/arduino-trader/internal/modules/scoring/api"
 	"github.com/aristath/arduino-trader/internal/modules/scoring/scorers"
 	"github.com/aristath/arduino-trader/internal/modules/sequences"
@@ -44,14 +43,13 @@ import (
 	"github.com/aristath/arduino-trader/internal/services"
 )
 
-// Config holds server configuration - NEW 8-database architecture
+// Config holds server configuration - NEW 7-database architecture
 type Config struct {
 	Log                zerolog.Logger
 	UniverseDB         *database.DB
 	ConfigDB           *database.DB
 	LedgerDB           *database.DB
 	PortfolioDB        *database.DB
-	SatellitesDB       *database.DB
 	AgentsDB           *database.DB
 	HistoryDB          *database.DB
 	CacheDB            *database.DB
@@ -63,7 +61,7 @@ type Config struct {
 	DeploymentHandlers *DeploymentHandlers
 }
 
-// Server represents the HTTP server - NEW 8-database architecture
+// Server represents the HTTP server - NEW 7-database architecture
 type Server struct {
 	router             *chi.Mux
 	server             *http.Server
@@ -72,7 +70,6 @@ type Server struct {
 	configDB           *database.DB
 	ledgerDB           *database.DB
 	portfolioDB        *database.DB
-	satellitesDB       *database.DB
 	agentsDB           *database.DB
 	historyDB          *database.DB
 	cacheDB            *database.DB
@@ -120,7 +117,6 @@ func New(cfg Config) *Server {
 		configDB:           cfg.ConfigDB,
 		ledgerDB:           cfg.LedgerDB,
 		portfolioDB:        cfg.PortfolioDB,
-		satellitesDB:       cfg.SatellitesDB,
 		agentsDB:           cfg.AgentsDB,
 		historyDB:          cfg.HistoryDB,
 		cacheDB:            cfg.CacheDB,
@@ -904,17 +900,14 @@ func (s *Server) setupRebalancingRoutes(r chi.Router) {
 	securityRepo := universe.NewSecurityRepository(s.universeDB.Conn(), s.log)
 	settingsRepo := settings.NewRepository(s.configDB.Conn(), s.log)
 
-	// Initialize balance service for cash validation (reuse cashManagerForRebalancing created above)
-	balanceRepo := satellites.NewBalanceRepository(s.satellitesDB.Conn(), s.log)
-	bucketRepoForRebalancing := satellites.NewBucketRepository(s.satellitesDB.Conn(), s.log)
-	balanceService := satellites.NewBalanceService(cashManagerForRebalancing, balanceRepo, bucketRepoForRebalancing, s.log)
-
+	// Trade execution service for rebalancing
+	// TODO: Create adapter for TradeExecutionService to use CashSecurityManager directly
 	tradingRepo := trading.NewTradeRepository(s.ledgerDB.Conn(), s.log)
 	tradeExecutionService := services.NewTradeExecutionService(
 		tradernetClient,
 		tradingRepo,
 		positionRepo,
-		balanceService,
+		nil, // balanceService - TODO: implement adapter
 		currencyExchangeService,
 		s.log,
 	)

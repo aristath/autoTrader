@@ -13,50 +13,47 @@ import (
 )
 
 // HealthCheckJob performs database integrity checks and auto-recovery
-// Runs every 6 hours to ensure database health - NEW 8-database architecture
+// Runs every 6 hours to ensure database health - NEW 7-database architecture
 type HealthCheckJob struct {
-	log          zerolog.Logger
-	dataDir      string
-	universeDB   *database.DB
-	configDB     *database.DB
-	ledgerDB     *database.DB
-	portfolioDB  *database.DB
-	satellitesDB *database.DB
-	agentsDB     *database.DB
-	historyDB    *database.DB
-	cacheDB      *database.DB
-	historyPath  string
+	log         zerolog.Logger
+	dataDir     string
+	universeDB  *database.DB
+	configDB    *database.DB
+	ledgerDB    *database.DB
+	portfolioDB *database.DB
+	agentsDB    *database.DB
+	historyDB   *database.DB
+	cacheDB     *database.DB
+	historyPath string
 }
 
 // HealthCheckConfig holds configuration for health check job
 type HealthCheckConfig struct {
-	Log          zerolog.Logger
-	DataDir      string
-	UniverseDB   *database.DB
-	ConfigDB     *database.DB
-	LedgerDB     *database.DB
-	PortfolioDB  *database.DB
-	SatellitesDB *database.DB
-	AgentsDB     *database.DB
-	HistoryDB    *database.DB
-	CacheDB      *database.DB
-	HistoryPath  string
+	Log         zerolog.Logger
+	DataDir     string
+	UniverseDB  *database.DB
+	ConfigDB    *database.DB
+	LedgerDB    *database.DB
+	PortfolioDB *database.DB
+	AgentsDB    *database.DB
+	HistoryDB   *database.DB
+	CacheDB     *database.DB
+	HistoryPath string
 }
 
 // NewHealthCheckJob creates a new health check job
 func NewHealthCheckJob(cfg HealthCheckConfig) *HealthCheckJob {
 	return &HealthCheckJob{
-		log:          cfg.Log.With().Str("job", "health_check").Logger(),
-		dataDir:      cfg.DataDir,
-		universeDB:   cfg.UniverseDB,
-		configDB:     cfg.ConfigDB,
-		ledgerDB:     cfg.LedgerDB,
-		portfolioDB:  cfg.PortfolioDB,
-		satellitesDB: cfg.SatellitesDB,
-		agentsDB:     cfg.AgentsDB,
-		historyDB:    cfg.HistoryDB,
-		cacheDB:      cfg.CacheDB,
-		historyPath:  cfg.HistoryPath,
+		log:         cfg.Log.With().Str("job", "health_check").Logger(),
+		dataDir:     cfg.DataDir,
+		universeDB:  cfg.UniverseDB,
+		configDB:    cfg.ConfigDB,
+		ledgerDB:    cfg.LedgerDB,
+		portfolioDB: cfg.PortfolioDB,
+		agentsDB:    cfg.AgentsDB,
+		historyDB:   cfg.HistoryDB,
+		cacheDB:     cfg.CacheDB,
+		historyPath: cfg.HistoryPath,
 	}
 }
 
@@ -94,14 +91,13 @@ func (j *HealthCheckJob) Run() error {
 // checkCoreDatabases verifies integrity of core SQLite databases
 func (j *HealthCheckJob) checkCoreDatabases() error {
 	databases := map[string]*database.DB{
-		"universe":   j.universeDB,
-		"config":     j.configDB,
-		"ledger":     j.ledgerDB,
-		"portfolio":  j.portfolioDB,
-		"satellites": j.satellitesDB,
-		"agents":     j.agentsDB,
-		"history":    j.historyDB,
-		"cache":      j.cacheDB,
+		"universe":  j.universeDB,
+		"config":    j.configDB,
+		"ledger":    j.ledgerDB,
+		"portfolio": j.portfolioDB,
+		"agents":    j.agentsDB,
+		"history":   j.historyDB,
+		"cache":     j.cacheDB,
 	}
 
 	for name, db := range databases {
@@ -204,14 +200,13 @@ func (j *HealthCheckJob) checkDatabaseIntegrity(name string, db *sql.DB) error {
 // checkWALCheckpoints monitors WAL checkpoint status
 func (j *HealthCheckJob) checkWALCheckpoints() {
 	databases := map[string]*database.DB{
-		"universe":   j.universeDB,
-		"config":     j.configDB,
-		"ledger":     j.ledgerDB,
-		"portfolio":  j.portfolioDB,
-		"satellites": j.satellitesDB,
-		"agents":     j.agentsDB,
-		"history":    j.historyDB,
-		"cache":      j.cacheDB,
+		"universe":  j.universeDB,
+		"config":    j.configDB,
+		"ledger":    j.ledgerDB,
+		"portfolio": j.portfolioDB,
+		"agents":    j.agentsDB,
+		"history":   j.historyDB,
+		"cache":     j.cacheDB,
 	}
 
 	for name, db := range databases {

@@ -302,8 +302,8 @@ func (h *SystemHandlers) HandleSystemStatus(w http.ResponseWriter, r *http.Reque
 				continue
 			}
 
-			// Parse currency from symbol (format: CASH:CURRENCY:BUCKET)
-			currency, _, err := cash_utils.ParseCashSymbol(symbol)
+			// Parse currency from symbol (format: CASH:CURRENCY)
+			currency, err := cash_utils.ParseCashSymbol(symbol)
 			if err != nil {
 				h.log.Warn().Err(err).Str("symbol", symbol).Msg("Failed to parse cash symbol")
 				continue
