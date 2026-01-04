@@ -75,7 +75,7 @@ func (r *ConfigRepository) CreateConfig(
 	result, err := r.db.Exec(`
 		INSERT INTO planner_configs (name, description, config_data, bucket_id, is_default, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, cfg.Name, cfg.Description, tomlData, cfg.BucketID, isDefault, now, now)
+	`, cfg.Name, cfg.Description, tomlData, nil, isDefault, now, now)
 
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert config: %w", err)
@@ -267,7 +267,7 @@ func (r *ConfigRepository) UpdateConfig(
 		UPDATE planner_configs
 		SET name = ?, description = ?, config_data = ?, bucket_id = ?, updated_at = ?
 		WHERE id = ?
-	`, cfg.Name, cfg.Description, tomlData, cfg.BucketID, now, id)
+	`, cfg.Name, cfg.Description, tomlData, nil, now, id)
 
 	if err != nil {
 		return fmt.Errorf("failed to update config: %w", err)

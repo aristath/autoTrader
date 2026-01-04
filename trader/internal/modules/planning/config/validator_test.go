@@ -207,12 +207,12 @@ func TestValidator_Validate_NoCalculatorsEnabled(t *testing.T) {
 	config := domain.NewDefaultConfiguration()
 
 	// Disable all calculators
-	config.OpportunityCalculators.ProfitTaking.Enabled = false
-	config.OpportunityCalculators.AveragingDown.Enabled = false
-	config.OpportunityCalculators.OpportunityBuys.Enabled = false
-	config.OpportunityCalculators.RebalanceSells.Enabled = false
-	config.OpportunityCalculators.RebalanceBuys.Enabled = false
-	config.OpportunityCalculators.WeightBased.Enabled = false
+	config.EnableProfitTakingCalc = false
+	config.EnableAveragingDownCalc = false
+	config.EnableOpportunityBuysCalc = false
+	config.EnableRebalanceSellsCalc = false
+	config.EnableRebalanceBuysCalc = false
+	config.EnableWeightBasedCalc = false
 
 	err := validator.Validate(config)
 	assert.Error(t, err)
@@ -225,19 +225,19 @@ func TestValidator_Validate_NoPatternsEnabled(t *testing.T) {
 	config := domain.NewDefaultConfiguration()
 
 	// Disable all patterns
-	config.PatternGenerators.DirectBuy.Enabled = false
-	config.PatternGenerators.ProfitTaking.Enabled = false
-	config.PatternGenerators.Rebalance.Enabled = false
-	config.PatternGenerators.AveragingDown.Enabled = false
-	config.PatternGenerators.SingleBest.Enabled = false
-	config.PatternGenerators.MultiSell.Enabled = false
-	config.PatternGenerators.MixedStrategy.Enabled = false
-	config.PatternGenerators.OpportunityFirst.Enabled = false
-	config.PatternGenerators.DeepRebalance.Enabled = false
-	config.PatternGenerators.CashGeneration.Enabled = false
-	config.PatternGenerators.CostOptimized.Enabled = false
-	config.PatternGenerators.Adaptive.Enabled = false
-	config.PatternGenerators.MarketRegime.Enabled = false
+	config.EnableDirectBuyPattern = false
+	config.EnableProfitTakingPattern = false
+	config.EnableRebalancePattern = false
+	config.EnableAveragingDownPattern = false
+	config.EnableSingleBestPattern = false
+	config.EnableMultiSellPattern = false
+	config.EnableMixedStrategyPattern = false
+	config.EnableOpportunityFirstPattern = false
+	config.EnableDeepRebalancePattern = false
+	config.EnableCashGenerationPattern = false
+	config.EnableCostOptimizedPattern = false
+	config.EnableAdaptivePattern = false
+	config.EnableMarketRegimePattern = false
 
 	err := validator.Validate(config)
 	assert.Error(t, err)
@@ -250,10 +250,10 @@ func TestValidator_Validate_NoGeneratorsEnabled(t *testing.T) {
 	config := domain.NewDefaultConfiguration()
 
 	// Disable all generators
-	config.SequenceGenerators.Combinatorial.Enabled = false
-	config.SequenceGenerators.EnhancedCombinatorial.Enabled = false
-	config.SequenceGenerators.PartialExecution.Enabled = false
-	config.SequenceGenerators.ConstraintRelaxation.Enabled = false
+	config.EnableCombinatorialGenerator = false
+	config.EnableEnhancedCombinatorialGenerator = false
+	config.EnablePartialExecutionGenerator = false
+	config.EnableConstraintRelaxationGenerator = false
 
 	err := validator.Validate(config)
 	assert.Error(t, err)
@@ -266,10 +266,10 @@ func TestValidator_Validate_NoFiltersEnabled(t *testing.T) {
 	config := domain.NewDefaultConfiguration()
 
 	// Disable all filters
-	config.Filters.CorrelationAware.Enabled = false
-	config.Filters.Diversity.Enabled = false
-	config.Filters.Eligibility.Enabled = false
-	config.Filters.RecentlyTraded.Enabled = false
+	config.EnableCorrelationAwareFilter = false
+	config.EnableDiversityFilter = false
+	config.EnableEligibilityFilter = false
+	config.EnableRecentlyTradedFilter = false
 
 	err := validator.Validate(config)
 	assert.Error(t, err)
@@ -338,12 +338,12 @@ func TestValidator_ValidateQuick(t *testing.T) {
 	t.Run("quick validation doesn't check modules", func(t *testing.T) {
 		config := domain.NewDefaultConfiguration()
 		// Disable all calculators
-		config.OpportunityCalculators.ProfitTaking.Enabled = false
-		config.OpportunityCalculators.AveragingDown.Enabled = false
-		config.OpportunityCalculators.OpportunityBuys.Enabled = false
-		config.OpportunityCalculators.RebalanceSells.Enabled = false
-		config.OpportunityCalculators.RebalanceBuys.Enabled = false
-		config.OpportunityCalculators.WeightBased.Enabled = false
+		config.EnableProfitTakingCalc = false
+		config.EnableAveragingDownCalc = false
+		config.EnableOpportunityBuysCalc = false
+		config.EnableRebalanceSellsCalc = false
+		config.EnableRebalanceBuysCalc = false
+		config.EnableWeightBasedCalc = false
 
 		// Quick validation should pass (doesn't check module enablement)
 		err := validator.ValidateQuick(config)

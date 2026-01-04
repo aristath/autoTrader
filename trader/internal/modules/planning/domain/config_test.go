@@ -22,6 +22,20 @@ func TestNewDefaultConfiguration(t *testing.T) {
 	assert.Equal(t, 0.001, config.TransactionCostPercent)
 	assert.True(t, config.AllowSell)
 	assert.True(t, config.AllowBuy)
+
+	// All modules should be enabled by default
+	assert.True(t, config.EnableProfitTakingCalc)
+	assert.True(t, config.EnableAveragingDownCalc)
+	assert.True(t, config.EnableOpportunityBuysCalc)
+	assert.True(t, config.EnableRebalanceSellsCalc)
+	assert.True(t, config.EnableRebalanceBuysCalc)
+	assert.True(t, config.EnableWeightBasedCalc)
+	assert.True(t, config.EnableDirectBuyPattern)
+	assert.True(t, config.EnableProfitTakingPattern)
+	assert.True(t, config.EnableRebalancePattern)
+	assert.True(t, config.EnableAdaptivePattern)
+	assert.True(t, config.EnableCombinatorialGenerator)
+	assert.True(t, config.EnableCorrelationAwareFilter)
 }
 
 func TestGetEnabledCalculators(t *testing.T) {
@@ -33,42 +47,36 @@ func TestGetEnabledCalculators(t *testing.T) {
 		{
 			name: "all enabled",
 			config: &PlannerConfiguration{
-				OpportunityCalculators: OpportunityCalculatorsConfig{
-					ProfitTaking:    ModuleConfig{Enabled: true},
-					AveragingDown:   ModuleConfig{Enabled: true},
-					OpportunityBuys: ModuleConfig{Enabled: true},
-					RebalanceSells:  ModuleConfig{Enabled: true},
-					RebalanceBuys:   ModuleConfig{Enabled: true},
-					WeightBased:     ModuleConfig{Enabled: true},
-				},
+				EnableProfitTakingCalc:    true,
+				EnableAveragingDownCalc:   true,
+				EnableOpportunityBuysCalc: true,
+				EnableRebalanceSellsCalc:  true,
+				EnableRebalanceBuysCalc:   true,
+				EnableWeightBasedCalc:     true,
 			},
 			expected: []string{"profit_taking", "averaging_down", "opportunity_buys", "rebalance_sells", "rebalance_buys", "weight_based"},
 		},
 		{
 			name: "only profit taking enabled",
 			config: &PlannerConfiguration{
-				OpportunityCalculators: OpportunityCalculatorsConfig{
-					ProfitTaking:    ModuleConfig{Enabled: true},
-					AveragingDown:   ModuleConfig{Enabled: false},
-					OpportunityBuys: ModuleConfig{Enabled: false},
-					RebalanceSells:  ModuleConfig{Enabled: false},
-					RebalanceBuys:   ModuleConfig{Enabled: false},
-					WeightBased:     ModuleConfig{Enabled: false},
-				},
+				EnableProfitTakingCalc:    true,
+				EnableAveragingDownCalc:   false,
+				EnableOpportunityBuysCalc: false,
+				EnableRebalanceSellsCalc:  false,
+				EnableRebalanceBuysCalc:   false,
+				EnableWeightBasedCalc:     false,
 			},
 			expected: []string{"profit_taking"},
 		},
 		{
 			name: "none enabled",
 			config: &PlannerConfiguration{
-				OpportunityCalculators: OpportunityCalculatorsConfig{
-					ProfitTaking:    ModuleConfig{Enabled: false},
-					AveragingDown:   ModuleConfig{Enabled: false},
-					OpportunityBuys: ModuleConfig{Enabled: false},
-					RebalanceSells:  ModuleConfig{Enabled: false},
-					RebalanceBuys:   ModuleConfig{Enabled: false},
-					WeightBased:     ModuleConfig{Enabled: false},
-				},
+				EnableProfitTakingCalc:    false,
+				EnableAveragingDownCalc:   false,
+				EnableOpportunityBuysCalc: false,
+				EnableRebalanceSellsCalc:  false,
+				EnableRebalanceBuysCalc:   false,
+				EnableWeightBasedCalc:     false,
 			},
 			expected: []string{},
 		},
@@ -128,22 +136,12 @@ func TestGetEnabledFilters(t *testing.T) {
 }
 
 func TestGetCalculatorParams(t *testing.T) {
-	config := &PlannerConfiguration{
-		OpportunityCalculators: OpportunityCalculatorsConfig{
-			ProfitTaking: ModuleConfig{
-				Enabled: true,
-				Params: map[string]interface{}{
-					"min_gain_threshold": 0.15,
-					"windfall_threshold": 0.30,
-				},
-			},
-		},
-	}
+	config := &PlannerConfiguration{}
 
+	// Simplified: Returns empty map (parameters removed)
 	params := config.GetCalculatorParams("profit_taking")
 	assert.NotNil(t, params)
-	assert.Equal(t, 0.15, params["min_gain_threshold"])
-	assert.Equal(t, 0.30, params["windfall_threshold"])
+	assert.Len(t, params, 0)
 
 	// Non-existent calculator should return empty map
 	params = config.GetCalculatorParams("non_existent")
@@ -152,20 +150,12 @@ func TestGetCalculatorParams(t *testing.T) {
 }
 
 func TestGetPatternParams(t *testing.T) {
-	config := &PlannerConfiguration{
-		PatternGenerators: PatternGeneratorsConfig{
-			Adaptive: ModuleConfig{
-				Enabled: true,
-				Params: map[string]interface{}{
-					"market_regime_threshold": 0.7,
-				},
-			},
-		},
-	}
+	config := &PlannerConfiguration{}
 
+	// Simplified: Returns empty map (parameters removed)
 	params := config.GetPatternParams("adaptive")
 	assert.NotNil(t, params)
-	assert.Equal(t, 0.7, params["market_regime_threshold"])
+	assert.Len(t, params, 0)
 
 	// Non-existent pattern should return empty map
 	params = config.GetPatternParams("non_existent")
@@ -174,20 +164,12 @@ func TestGetPatternParams(t *testing.T) {
 }
 
 func TestGetGeneratorParams(t *testing.T) {
-	config := &PlannerConfiguration{
-		SequenceGenerators: SequenceGeneratorsConfig{
-			Combinatorial: ModuleConfig{
-				Enabled: true,
-				Params: map[string]interface{}{
-					"max_combinations": 100,
-				},
-			},
-		},
-	}
+	config := &PlannerConfiguration{}
 
+	// Simplified: Returns empty map (parameters removed)
 	params := config.GetGeneratorParams("combinatorial")
 	assert.NotNil(t, params)
-	assert.Equal(t, 100, params["max_combinations"])
+	assert.Len(t, params, 0)
 
 	// Non-existent generator should return empty map
 	params = config.GetGeneratorParams("non_existent")
@@ -196,20 +178,12 @@ func TestGetGeneratorParams(t *testing.T) {
 }
 
 func TestGetFilterParams(t *testing.T) {
-	config := &PlannerConfiguration{
-		Filters: FiltersConfig{
-			Diversity: ModuleConfig{
-				Enabled: true,
-				Params: map[string]interface{}{
-					"min_diversity_score": 0.5,
-				},
-			},
-		},
-	}
+	config := &PlannerConfiguration{}
 
+	// Simplified: Returns empty map (parameters removed)
 	params := config.GetFilterParams("diversity")
 	assert.NotNil(t, params)
-	assert.Equal(t, 0.5, params["min_diversity_score"])
+	assert.Len(t, params, 0)
 
 	// Non-existent filter should return empty map
 	params = config.GetFilterParams("non_existent")
