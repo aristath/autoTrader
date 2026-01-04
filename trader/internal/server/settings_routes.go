@@ -9,7 +9,6 @@ import (
 	"github.com/aristath/arduino-trader/internal/modules/allocation"
 	"github.com/aristath/arduino-trader/internal/modules/cash_flows"
 	"github.com/aristath/arduino-trader/internal/modules/portfolio"
-	"github.com/aristath/arduino-trader/internal/modules/satellites"
 	"github.com/aristath/arduino-trader/internal/modules/scoring/scorers"
 	"github.com/aristath/arduino-trader/internal/modules/settings"
 	"github.com/aristath/arduino-trader/internal/modules/trading"
@@ -44,8 +43,7 @@ func (s *Server) setupSettingsRoutes(r chi.Router) {
 
 	// Cash manager (needed for portfolio service)
 	securityRepo := universe.NewSecurityRepository(s.universeDB.Conn(), s.log)
-	bucketRepo := satellites.NewBucketRepository(s.satellitesDB.Conn(), s.log)
-	cashManager := cash_flows.NewCashSecurityManager(securityRepo, positionRepo, bucketRepo, s.universeDB.Conn(), s.portfolioDB.Conn(), s.log)
+	cashManager := cash_flows.NewCashSecurityManager(securityRepo, positionRepo, s.universeDB.Conn(), s.portfolioDB.Conn(), s.log)
 
 	portfolioService := portfolio.NewPortfolioService(
 		portfolioRepo,

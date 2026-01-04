@@ -8,9 +8,13 @@ import (
 
 	"github.com/aristath/arduino-trader/internal/modules/cash_utils"
 	"github.com/aristath/arduino-trader/internal/modules/portfolio"
-	"github.com/aristath/arduino-trader/internal/modules/satellites"
 	"github.com/aristath/arduino-trader/internal/modules/universe"
 	"github.com/rs/zerolog"
+)
+
+const (
+	// CoreBucketID is the default bucket ID used for cash positions in the simplified single-universe system
+	CoreBucketID = "core"
 )
 
 // CashSecurityManager manages cash as synthetic securities and positions
@@ -18,7 +22,6 @@ import (
 type CashSecurityManager struct {
 	securityRepo *universe.SecurityRepository
 	positionRepo portfolio.PositionRepositoryInterface
-	bucketRepo   *satellites.BucketRepository
 	universeDB   *sql.DB
 	portfolioDB  *sql.DB
 	log          zerolog.Logger
@@ -29,7 +32,6 @@ type CashSecurityManager struct {
 func NewCashSecurityManager(
 	securityRepo *universe.SecurityRepository,
 	positionRepo portfolio.PositionRepositoryInterface,
-	bucketRepo *satellites.BucketRepository,
 	universeDB *sql.DB,
 	portfolioDB *sql.DB,
 	log zerolog.Logger,
@@ -37,7 +39,6 @@ func NewCashSecurityManager(
 	return &CashSecurityManager{
 		securityRepo: securityRepo,
 		positionRepo: positionRepo,
-		bucketRepo:   bucketRepo,
 		universeDB:   universeDB,
 		portfolioDB:  portfolioDB,
 		log:          log.With().Str("manager", "cash_security").Logger(),
@@ -69,19 +70,10 @@ func (m *CashSecurityManager) EnsureCashSecurity(currency string, bucketID strin
 		return nil
 	}
 
-	// Get bucket name for human-readable security name
-	bucket, err := m.bucketRepo.GetByID(bucketID)
-	if err != nil {
-		return fmt.Errorf("failed to get bucket %s: %w", bucketID, err)
-	}
-	if bucket == nil {
-		return fmt.Errorf("bucket not found: %s", bucketID)
-	}
-
 	// Create new cash security
 	security := universe.Security{
 		Symbol:             symbol,
-		Name:               cash_utils.GetCashSecurityName(currency, bucket.Name),
+		Name:               cash_utils.GetCashSecurityName(currency),
 		ProductType:        string(universe.ProductTypeCash),
 		Currency:           currency,
 		Active:             true,
@@ -183,19 +175,10 @@ func (m *CashSecurityManager) ensureCashSecurityLocked(currency string, bucketID
 		return nil
 	}
 
-	// Get bucket name
-	bucket, err := m.bucketRepo.GetByID(bucketID)
-	if err != nil {
-		return fmt.Errorf("failed to get bucket %s: %w", bucketID, err)
-	}
-	if bucket == nil {
-		return fmt.Errorf("bucket not found: %s", bucketID)
-	}
-
 	// Create new cash security
 	security := universe.Security{
 		Symbol:             symbol,
-		Name:               cash_utils.GetCashSecurityName(currency, bucket.Name),
+		Name:               cash_utils.GetCashSecurityName(currency),
 		ProductType:        string(universe.ProductTypeCash),
 		Currency:           currency,
 		Active:             true,

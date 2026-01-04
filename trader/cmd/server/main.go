@@ -346,7 +346,7 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 	marketHours := scheduler.NewMarketHoursService(log)
 
 	// Cash security manager (cash-as-positions architecture)
-	cashManager := cash_flows.NewCashSecurityManager(securityRepo, positionRepo, bucketRepo, universeDB.Conn(), portfolioDB.Conn(), log)
+	cashManager := cash_flows.NewCashSecurityManager(securityRepo, positionRepo, universeDB.Conn(), portfolioDB.Conn(), log)
 
 	// Satellite services (still needed for cash flows and trade execution)
 	tradeRepo := trading.NewTradeRepository(ledgerDB.Conn(), log)

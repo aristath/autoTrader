@@ -79,7 +79,6 @@ func main() {
 	_ = cash_flows.NewCashSecurityManager(
 		securityRepo,
 		positionRepo,
-		bucketRepo,
 		universeDB.Conn(),
 		portfolioDB.Conn(),
 		log,

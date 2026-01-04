@@ -286,57 +286,44 @@ func TestGetCashSecurityName(t *testing.T) {
 	tests := []struct {
 		name        string
 		currency    string
-		bucketName  string
 		want        string
 		description string
 	}{
 		{
-			name:        "EUR core bucket",
+			name:        "EUR currency",
 			currency:    "EUR",
-			bucketName:  "core",
-			want:        "Cash (EUR - core)",
-			description: "Standard format for EUR core",
+			want:        "Cash (EUR)",
+			description: "Standard format for EUR",
 		},
 		{
-			name:        "USD satellite bucket",
+			name:        "USD currency",
 			currency:    "USD",
-			bucketName:  "Satellite 1",
-			want:        "Cash (USD - Satellite 1)",
-			description: "USD with formatted bucket name",
+			want:        "Cash (USD)",
+			description: "Standard format for USD",
 		},
 		{
 			name:        "currency is uppercased",
 			currency:    "eur",
-			bucketName:  "core",
-			want:        "Cash (EUR - core)",
+			want:        "Cash (EUR)",
 			description: "Currency should be converted to uppercase",
 		},
 		{
 			name:        "mixed case currency",
 			currency:    "UsD",
-			bucketName:  "satellite",
-			want:        "Cash (USD - satellite)",
+			want:        "Cash (USD)",
 			description: "Mixed case currency should be uppercased",
-		},
-		{
-			name:        "bucket name preserved as-is",
-			currency:    "GBP",
-			bucketName:  "My Satellite Bucket",
-			want:        "Cash (GBP - My Satellite Bucket)",
-			description: "Bucket name should be preserved exactly",
 		},
 		{
 			name:        "GBP currency",
 			currency:    "GBP",
-			bucketName:  "core",
-			want:        "Cash (GBP - core)",
+			want:        "Cash (GBP)",
 			description: "GBP currency support",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := GetCashSecurityName(tt.currency, tt.bucketName)
+			got := GetCashSecurityName(tt.currency)
 			assert.Equal(t, tt.want, got, tt.description)
 		})
 	}

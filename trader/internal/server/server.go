@@ -401,8 +401,7 @@ func (s *Server) setupAllocationRoutes(r chi.Router) {
 
 	// Cash manager (needed for portfolio service)
 	securityRepo := universe.NewSecurityRepository(s.universeDB.Conn(), s.log)
-	bucketRepo := satellites.NewBucketRepository(s.satellitesDB.Conn(), s.log)
-	cashManager := cash_flows.NewCashSecurityManager(securityRepo, positionRepo, bucketRepo, s.universeDB.Conn(), s.portfolioDB.Conn(), s.log)
+	cashManager := cash_flows.NewCashSecurityManager(securityRepo, positionRepo, s.universeDB.Conn(), s.portfolioDB.Conn(), s.log)
 
 	portfolioService := portfolio.NewPortfolioService(
 		portfolioRepo,
@@ -466,8 +465,7 @@ func (s *Server) setupPortfolioRoutes(r chi.Router) {
 
 	// Cash manager (needed for portfolio service)
 	securityRepo := universe.NewSecurityRepository(s.universeDB.Conn(), s.log)
-	bucketRepo := satellites.NewBucketRepository(s.satellitesDB.Conn(), s.log)
-	cashManager := cash_flows.NewCashSecurityManager(securityRepo, positionRepo, bucketRepo, s.universeDB.Conn(), s.portfolioDB.Conn(), s.log)
+	cashManager := cash_flows.NewCashSecurityManager(securityRepo, positionRepo, s.universeDB.Conn(), s.portfolioDB.Conn(), s.log)
 
 	portfolioService := portfolio.NewPortfolioService(
 		portfolioRepo,
@@ -636,8 +634,7 @@ func (s *Server) setupTradingRoutes(r chi.Router) {
 
 	// Cash manager (needed for portfolio service)
 	securityRepoForCash := universe.NewSecurityRepository(s.universeDB.Conn(), s.log)
-	bucketRepoForCash := satellites.NewBucketRepository(s.satellitesDB.Conn(), s.log)
-	cashManager := cash_flows.NewCashSecurityManager(securityRepoForCash, positionRepo, bucketRepoForCash, s.universeDB.Conn(), s.portfolioDB.Conn(), s.log)
+	cashManager := cash_flows.NewCashSecurityManager(securityRepoForCash, positionRepo, s.universeDB.Conn(), s.portfolioDB.Conn(), s.log)
 
 	portfolioService := portfolio.NewPortfolioService(
 		portfolioRepo,
@@ -885,8 +882,7 @@ func (s *Server) setupRebalancingRoutes(r chi.Router) {
 
 	// Cash manager (needed for portfolio service)
 	securityRepoForRebalancing := universe.NewSecurityRepository(s.universeDB.Conn(), s.log)
-	bucketRepoForRebalancing := satellites.NewBucketRepository(s.satellitesDB.Conn(), s.log)
-	cashManagerForRebalancing := cash_flows.NewCashSecurityManager(securityRepoForRebalancing, positionRepo, bucketRepoForRebalancing, s.universeDB.Conn(), s.portfolioDB.Conn(), s.log)
+	cashManagerForRebalancing := cash_flows.NewCashSecurityManager(securityRepoForRebalancing, positionRepo, s.universeDB.Conn(), s.portfolioDB.Conn(), s.log)
 
 	portfolioService := portfolio.NewPortfolioService(
 		portfolioRepo,
@@ -910,6 +906,7 @@ func (s *Server) setupRebalancingRoutes(r chi.Router) {
 
 	// Initialize balance service for cash validation (reuse cashManagerForRebalancing created above)
 	balanceRepo := satellites.NewBalanceRepository(s.satellitesDB.Conn(), s.log)
+	bucketRepoForRebalancing := satellites.NewBucketRepository(s.satellitesDB.Conn(), s.log)
 	balanceService := satellites.NewBalanceService(cashManagerForRebalancing, balanceRepo, bucketRepoForRebalancing, s.log)
 
 	tradingRepo := trading.NewTradeRepository(s.ledgerDB.Conn(), s.log)

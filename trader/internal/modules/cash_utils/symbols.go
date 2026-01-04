@@ -44,7 +44,7 @@ func ParseCashSymbol(symbol string) (string, string, error) {
 }
 
 // GetCashSecurityName generates human-readable name for cash security
-// Examples: "Cash (EUR - core)", "Cash (USD - Satellite 1)"
-func GetCashSecurityName(currency string, bucketName string) string {
-	return fmt.Sprintf("Cash (%s - %s)", strings.ToUpper(currency), bucketName)
+// Examples: "Cash (EUR)", "Cash (USD)"
+func GetCashSecurityName(currency string) string {
+	return fmt.Sprintf("Cash (%s)", strings.ToUpper(currency))
 }
