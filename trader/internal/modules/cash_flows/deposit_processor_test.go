@@ -10,7 +10,6 @@ import (
 // TestShouldProcessCashFlow tests deposit detection logic
 func TestShouldProcessCashFlow(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
-	// DepositProcessor can handle nil cashManager (logs warning, returns result)
 	processor := NewDepositProcessor(nil, log)
 
 	tests := []struct {
@@ -87,58 +86,105 @@ func TestShouldProcessCashFlow(t *testing.T) {
 	}
 }
 
-// TestProcessDeposit_Success tests successful deposit processing
-// NOTE: Test needs to be updated to use mock CashSecurityManager
-func TestProcessDeposit_Success(t *testing.T) {
-	t.Skip("Test needs to be updated to use mock CashSecurityManager")
+// TestProcessDeposit_NilCashManager tests deposit with nil cash manager (graceful degradation)
+// This tests the fallback behavior when CashSecurityManager is not available
+func TestProcessDeposit_NilCashManager(t *testing.T) {
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+	processor := NewDepositProcessor(nil, log)
+
+	result, err := processor.ProcessDeposit(500.0, "EUR", stringPtr("tx-123"), stringPtr("Test deposit"))
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	// When cashManager is nil, it returns the deposit amount as total (graceful degradation)
+	assert.Equal(t, 500.0, result["total"])
 }
 
 // TestProcessDeposit_NilDescription tests deposit with nil description
-// NOTE: Test needs to be updated to use mock CashSecurityManager
 func TestProcessDeposit_NilDescription(t *testing.T) {
-	t.Skip("Test needs to be updated to use mock CashSecurityManager")
-}
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+	processor := NewDepositProcessor(nil, log)
 
-// TestProcessDeposit_AllocationFailure tests handling of allocation service errors
-// NOTE: Test needs to be updated to use mock CashSecurityManager
-func TestProcessDeposit_AllocationFailure(t *testing.T) {
-	t.Skip("Test needs to be updated to use mock CashSecurityManager")
+	result, err := processor.ProcessDeposit(500.0, "EUR", stringPtr("tx-123"), nil)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 500.0, result["total"])
 }
 
 // TestProcessDeposit_ZeroAmount tests deposit with zero amount
-// NOTE: Test needs to be updated to use mock CashSecurityManager
 func TestProcessDeposit_ZeroAmount(t *testing.T) {
-	t.Skip("Test needs to be updated to use mock CashSecurityManager")
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+	processor := NewDepositProcessor(nil, log)
+
+	result, err := processor.ProcessDeposit(0.0, "EUR", stringPtr("tx-123"), stringPtr("Zero deposit"))
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 0.0, result["total"])
 }
 
 // TestProcessDeposit_NegativeAmount tests deposit with negative amount (withdrawal scenario)
-// NOTE: Test needs to be updated to use mock CashSecurityManager
 func TestProcessDeposit_NegativeAmount(t *testing.T) {
-	t.Skip("Test needs to be updated to use mock CashSecurityManager")
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+	processor := NewDepositProcessor(nil, log)
+
+	result, err := processor.ProcessDeposit(-500.0, "EUR", stringPtr("tx-123"), stringPtr("Withdrawal"))
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	// Negative amounts are passed through (validation should happen elsewhere)
+	assert.Equal(t, -500.0, result["total"])
 }
 
 // TestProcessDeposit_DifferentCurrencies tests deposit processing with various currencies
-// NOTE: Test needs to be updated to use mock CashSecurityManager
 func TestProcessDeposit_DifferentCurrencies(t *testing.T) {
-	t.Skip("Test needs to be updated to use mock CashSecurityManager")
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+	processor := NewDepositProcessor(nil, log)
+
+	currencies := []string{"EUR", "USD", "GBP", "JPY"}
+
+	for _, currency := range currencies {
+		t.Run(currency, func(t *testing.T) {
+			result, err := processor.ProcessDeposit(100.0, currency, stringPtr("tx-"+currency), stringPtr("Test"))
+
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.Equal(t, 100.0, result["total"])
+		})
+	}
 }
 
 // TestProcessDeposit_SmallAmount tests deposit with very small amount (rounding edge case)
-// NOTE: Test needs to be updated to use mock CashSecurityManager
 func TestProcessDeposit_SmallAmount(t *testing.T) {
-	t.Skip("Test needs to be updated to use mock CashSecurityManager")
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+	processor := NewDepositProcessor(nil, log)
+
+	// Test very small amounts
+	smallAmounts := []float64{0.01, 0.001, 0.0001}
+
+	for i, amount := range smallAmounts {
+		t.Run(string(rune('a'+i)), func(t *testing.T) {
+			result, err := processor.ProcessDeposit(amount, "EUR", stringPtr("tx-small"), stringPtr("Small deposit"))
+
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.InDelta(t, amount, result["total"], 0.0001)
+		})
+	}
 }
 
 // TestProcessDeposit_LargeAmount tests deposit with large amount
-// NOTE: Test needs to be updated to use mock CashSecurityManager
 func TestProcessDeposit_LargeAmount(t *testing.T) {
-	t.Skip("Test needs to be updated to use mock CashSecurityManager")
-}
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+	processor := NewDepositProcessor(nil, log)
 
-// TestProcessDeposit_MultipleAllocations tests complex allocation
-// NOTE: Test removed - no longer applicable with single portfolio (no buckets)
-func TestProcessDeposit_MultipleAllocations(t *testing.T) {
-	t.Skip("Test removed - no longer applicable with single portfolio (no buckets)")
+	largeAmount := 1000000.0
+	result, err := processor.ProcessDeposit(largeAmount, "EUR", stringPtr("tx-large"), stringPtr("Large deposit"))
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, largeAmount, result["total"])
 }
 
 // Helper function to create string pointer
