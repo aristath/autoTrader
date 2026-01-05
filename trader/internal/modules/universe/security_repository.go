@@ -852,8 +852,9 @@ func (r *SecurityRepository) UpdateSpecificTags(symbol string, tagIDs []string) 
 			}
 		} else {
 			// Tag doesn't exist - insert it (using ISIN)
+			// Use INSERT OR IGNORE to handle race conditions where tag might be inserted between check and insert
 			_, err = tx.Exec(`
-				INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
+				INSERT OR IGNORE INTO security_tags (isin, tag_id, created_at, updated_at)
 				VALUES (?, ?, ?, ?)
 			`, isin, tagID, now, now)
 			if err != nil {

@@ -540,7 +540,16 @@ func (s *PortfolioService) SyncFromTradernet() error {
 		query := "SELECT isin FROM securities WHERE symbol = ?"
 		row := s.universeDB.QueryRow(query, strings.ToUpper(strings.TrimSpace(tradernetPos.Symbol)))
 		if err := row.Scan(&isin); err != nil {
-			s.log.Warn().Err(err).Str("symbol", tradernetPos.Symbol).Msg("Failed to lookup ISIN, position may not save correctly")
+			if err == sql.ErrNoRows {
+				s.log.Warn().Str("symbol", tradernetPos.Symbol).Msg("Security not found in universe, skipping position")
+				continue // Skip positions without ISIN
+			}
+			s.log.Warn().Err(err).Str("symbol", tradernetPos.Symbol).Msg("Failed to lookup ISIN, skipping position")
+			continue // Skip on lookup errors
+		}
+		if isin == "" {
+			s.log.Warn().Str("symbol", tradernetPos.Symbol).Msg("Security has no ISIN, skipping position")
+			continue
 		}
 
 		// Convert tradernet.Position to portfolio.Position

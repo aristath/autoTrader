@@ -338,10 +338,10 @@ func (rc *ReturnsCalculator) calculateSingle(
 func (rc *ReturnsCalculator) getCAGRAndDividend(symbol string) (*float64, float64, error) {
 	query := `
 		SELECT
-			COALESCE(MAX(CASE WHEN metric_name = 'CAGR_5Y' THEN value END),
-			         MAX(CASE WHEN metric_name = 'CAGR_10Y' THEN value END)) as cagr,
-			COALESCE(MAX(CASE WHEN metric_name = 'DIVIDEND_YIELD' THEN value END), 0.0) as dividend_yield
-		FROM calculations
+			COALESCE(MAX(CASE WHEN metric_name = 'CAGR_5Y' THEN metric_value END),
+			         MAX(CASE WHEN metric_name = 'CAGR_10Y' THEN metric_value END)) as cagr,
+			COALESCE(MAX(CASE WHEN metric_name = 'DIVIDEND_YIELD' THEN metric_value END), 0.0) as dividend_yield
+		FROM calculated_metrics
 		WHERE symbol = ?
 			AND metric_name IN ('CAGR_5Y', 'CAGR_10Y', 'DIVIDEND_YIELD')
 	`

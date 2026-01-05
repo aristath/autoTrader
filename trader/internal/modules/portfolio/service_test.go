@@ -929,6 +929,60 @@ func TestGetPortfolioSummary_AllocationTargetError(t *testing.T) {
 }
 
 // TestGetPortfolioSummary_PositionError tests error handling for position retrieval
+func TestSyncFromTradernet_SkipPositionWithoutISIN(t *testing.T) {
+	// Setup
+	mockTradernetClient := new(MockTradernetClient)
+	mockPositionRepo := new(MockPositionRepository)
+	mockCashManager := new(MockCashManager)
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+
+	// Create test universeDB WITHOUT the security (to simulate missing ISIN)
+	universeDB, err := sql.Open("sqlite3", ":memory:")
+	require.NoError(t, err)
+	defer universeDB.Close()
+
+	_, err = universeDB.Exec(`
+		CREATE TABLE securities (
+			isin TEXT PRIMARY KEY,
+			symbol TEXT NOT NULL,
+			name TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)
+	`)
+	require.NoError(t, err)
+	// Note: No securities inserted - symbol won't be found
+
+	service := &PortfolioService{
+		tradernetClient: mockTradernetClient,
+		positionRepo:    mockPositionRepo,
+		cashManager:     mockCashManager,
+		universeDB:      universeDB,
+		log:             log,
+	}
+
+	// Mock Tradernet returns position for symbol not in universe
+	tradernetPositions := []tradernet.Position{
+		{
+			Symbol:   "UNKNOWN.STOCK",
+			Quantity: 10.0,
+			AvgPrice: 100.0,
+			Currency: "USD",
+		},
+	}
+	mockTradernetClient.On("GetPortfolio").Return(tradernetPositions, nil)
+	mockTradernetClient.On("GetCashBalances").Return([]tradernet.CashBalance{}, nil)
+	mockPositionRepo.On("GetAll").Return([]Position{}, nil)
+	mockPositionRepo.On("GetBySymbol", "UNKNOWN.STOCK").Return(nil, nil).Once()
+
+	// Execute
+	err = service.SyncFromTradernet()
+	require.NoError(t, err) // Should not error, just skip
+
+	// Verify position was NOT upserted (no ISIN = skipped)
+	mockPositionRepo.AssertNotCalled(t, "Upsert", mock.Anything)
+}
+
 func TestGetPortfolioSummary_PositionError(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 

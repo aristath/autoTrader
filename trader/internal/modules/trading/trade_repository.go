@@ -60,7 +60,7 @@ func (r *TradeRepository) Create(trade Trade) error {
 	_, err := r.ledgerDB.Exec(query,
 		strings.ToUpper(strings.TrimSpace(trade.Symbol)),
 		nullString(trade.ISIN),
-		strings.ToUpper(string(trade.Side)),
+		strings.ToLower(string(trade.Side)),
 		trade.Quantity,
 		trade.Price,
 		executedAt,

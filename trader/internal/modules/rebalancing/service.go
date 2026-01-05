@@ -398,17 +398,17 @@ func (s *Service) populateCAGRs(securities []universe.Security) map[string]float
 		SELECT
 			symbol,
 			COALESCE(
-				MAX(CASE WHEN metric_name = 'CAGR_5Y' THEN value END),
-				MAX(CASE WHEN metric_name = 'CAGR_10Y' THEN value END)
+				MAX(CASE WHEN metric_name = 'CAGR_5Y' THEN metric_value END),
+				MAX(CASE WHEN metric_name = 'CAGR_10Y' THEN metric_value END)
 			) as cagr
-		FROM calculations
+		FROM calculated_metrics
 		WHERE metric_name IN ('CAGR_5Y', 'CAGR_10Y')
 		GROUP BY symbol
 	`
 
 	rows, err := s.portfolioDB.Query(query)
 	if err != nil {
-		s.log.Warn().Err(err).Msg("Failed to query CAGR from calculations table")
+		s.log.Warn().Err(err).Msg("Failed to query CAGR from calculated_metrics table")
 		return cagrs
 	}
 	defer rows.Close()
