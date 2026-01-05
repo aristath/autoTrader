@@ -65,11 +65,32 @@ func (t *ArtifactTracker) MarkDeployed(runID string) error {
 
 // GitHubRun represents a GitHub Actions workflow run
 type GitHubRun struct {
-	DatabaseID string    `json:"databaseId"`
-	Status     string    `json:"status"`
-	Conclusion string    `json:"conclusion"`
-	HeadSHA    string    `json:"headSha"`
-	CreatedAt  time.Time `json:"createdAt"`
+	DatabaseID databaseIDString `json:"databaseId"`
+	Status     string           `json:"status"`
+	Conclusion string           `json:"conclusion"`
+	HeadSHA    string           `json:"headSha"`
+	CreatedAt  time.Time        `json:"createdAt"`
+}
+
+// databaseIDString handles unmarshaling databaseId from both number and string
+// GitHub API returns it as a number, but we need it as a string for comparison
+type databaseIDString string
+
+// UnmarshalJSON handles both number and string types for databaseId
+func (d *databaseIDString) UnmarshalJSON(data []byte) error {
+	// Try number first
+	var num int64
+	if err := json.Unmarshal(data, &num); err == nil {
+		*d = databaseIDString(fmt.Sprintf("%d", num))
+		return nil
+	}
+	// Fall back to string
+	var str string
+	if err := json.Unmarshal(data, &str); err != nil {
+		return err
+	}
+	*d = databaseIDString(str)
+	return nil
 }
 
 // GitHubArtifactDeployer handles downloading and deploying artifacts from GitHub Actions
@@ -130,7 +151,7 @@ func (g *GitHubArtifactDeployer) CheckForNewBuild() (string, error) {
 	}
 
 	latestRun := runs[0]
-	latestRunID := latestRun.DatabaseID
+	latestRunID := string(latestRun.DatabaseID)
 
 	// Check if this is a new build
 	if lastRunID == "" {
