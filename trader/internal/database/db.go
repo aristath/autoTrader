@@ -180,6 +180,7 @@ func (db *DB) Migrate() error {
 	dbDir := filepath.Dir(db.path)
 	candidates := []string{
 		filepath.Join(dbDir, "../trader/internal/database/migrations"), // From ../data to trader/internal/...
+		filepath.Join(dbDir, "../repo/trader/internal/database/migrations"), // From ../data to repo/trader/internal/...
 		filepath.Join(dbDir, "../internal/database/migrations"),        // From ../data to internal/...
 		filepath.Join(dbDir, "internal/database/migrations"),           // Same directory
 		"internal/database/migrations",                                 // Relative to CWD
@@ -192,6 +193,8 @@ func (db *DB) Migrate() error {
 		candidates = append(candidates,
 			filepath.Join(execDir, "internal/database/migrations"),
 			filepath.Join(filepath.Dir(execDir), "internal/database/migrations"),
+			filepath.Join(execDir, "../repo/trader/internal/database/migrations"), // From bin/ to repo/trader/internal/...
+			filepath.Join(filepath.Dir(execDir), "repo/trader/internal/database/migrations"), // From app/ to repo/trader/internal/...
 		)
 	}
 
