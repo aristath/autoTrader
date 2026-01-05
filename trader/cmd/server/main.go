@@ -150,10 +150,10 @@ func main() {
 	}
 	defer cacheDB.Close()
 
-	// Run migrations on all databases
+	// Apply schemas to all databases (single source of truth)
 	for _, db := range []*database.DB{universeDB, configDB, ledgerDB, portfolioDB, agentsDB, historyDB, cacheDB} {
 		if err := db.Migrate(); err != nil {
-			log.Fatal().Err(err).Str("database", db.Name()).Msg("Failed to run migrations")
+			log.Fatal().Err(err).Str("database", db.Name()).Msg("Failed to apply schema")
 		}
 	}
 

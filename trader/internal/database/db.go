@@ -171,89 +171,97 @@ func (db *DB) Path() string {
 	return db.path
 }
 
-// Migrate runs database migrations from the migrations directory
+// Migrate applies the database schema from the schemas directory
+// This is the single source of truth for each database's schema
 func (db *DB) Migrate() error {
-	// Try multiple paths to find migrations directory
-	var migrationsDir string
+	// Map database names to their schema files
+	schemaFiles := map[string]string{
+		"universe":  "universe_schema.sql",
+		"config":    "config_schema.sql",
+		"ledger":    "ledger_schema.sql",
+		"portfolio": "portfolio_schema.sql",
+		"agents":    "agents_schema.sql",
+		"history":   "history_schema.sql",
+		"cache":     "cache_schema.sql",
+	}
+
+	schemaFile, ok := schemaFiles[db.name]
+	if !ok {
+		// Unknown database name, skip migration
+		return nil
+	}
+	// Try multiple paths to find schemas directory
+	var schemasDir string
 
 	// 1. Try relative to database path (for absolute paths)
 	dbDir := filepath.Dir(db.path)
 	candidates := []string{
-		filepath.Join(dbDir, "../trader/internal/database/migrations"),      // From ../data to trader/internal/...
-		filepath.Join(dbDir, "../repo/trader/internal/database/migrations"), // From ../data to repo/trader/internal/...
-		filepath.Join(dbDir, "../internal/database/migrations"),             // From ../data to internal/...
-		filepath.Join(dbDir, "internal/database/migrations"),                // Same directory
-		"internal/database/migrations",                                      // Relative to CWD
-		"./internal/database/migrations",                                    // Explicit relative
+		filepath.Join(dbDir, "../trader/internal/database/schemas"),      // From ../data to trader/internal/...
+		filepath.Join(dbDir, "../repo/trader/internal/database/schemas"), // From ../data to repo/trader/internal/...
+		filepath.Join(dbDir, "../internal/database/schemas"),             // From ../data to internal/...
+		filepath.Join(dbDir, "internal/database/schemas"),                // Same directory
+		"internal/database/schemas",                                      // Relative to CWD
+		"./internal/database/schemas",                                    // Explicit relative
 	}
 
 	// Also try from executable directory if available
 	if execPath, err := os.Executable(); err == nil {
 		execDir := filepath.Dir(execPath)
 		candidates = append(candidates,
-			filepath.Join(execDir, "internal/database/migrations"),
-			filepath.Join(filepath.Dir(execDir), "internal/database/migrations"),
-			filepath.Join(execDir, "../repo/trader/internal/database/migrations"),            // From bin/ to repo/trader/internal/...
-			filepath.Join(filepath.Dir(execDir), "repo/trader/internal/database/migrations"), // From app/ to repo/trader/internal/...
+			filepath.Join(execDir, "internal/database/schemas"),
+			filepath.Join(filepath.Dir(execDir), "internal/database/schemas"),
+			filepath.Join(execDir, "../repo/trader/internal/database/schemas"),            // From bin/ to repo/trader/internal/...
+			filepath.Join(filepath.Dir(execDir), "repo/trader/internal/database/schemas"), // From app/ to repo/trader/internal/...
 		)
 	}
 
-	// Find first existing migrations directory
+	// Find first existing schemas directory
 	for _, candidate := range candidates {
 		if absPath, err := filepath.Abs(candidate); err == nil {
 			if info, err := os.Stat(absPath); err == nil && info.IsDir() {
-				migrationsDir = absPath
+				schemasDir = absPath
 				break
 			}
 		}
 	}
 
-	// Check if migrations directory exists
-	if migrationsDir == "" {
-		// Migrations directory doesn't exist, skip (tables may already exist from Python)
+	// Check if schemas directory exists
+	if schemasDir == "" {
+		// Schemas directory doesn't exist, skip (tables may already exist)
 		return nil
 	}
 
-	// Get list of migration files (sorted by name)
-	files, err := filepath.Glob(filepath.Join(migrationsDir, "*.sql"))
+	// Read and execute the schema file
+	schemaPath := filepath.Join(schemasDir, schemaFile)
+	content, err := os.ReadFile(schemaPath)
 	if err != nil {
-		return fmt.Errorf("failed to list migration files for %s: %w", db.name, err)
+		// Schema file doesn't exist, skip (tables may already exist)
+		return nil
 	}
 
-	// Execute each migration
-	for _, file := range files {
-		content, err := os.ReadFile(file)
-		if err != nil {
-			return fmt.Errorf("failed to read migration %s for %s: %w", filepath.Base(file), db.name, err)
+	// Execute schema within a transaction
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction for schema %s: %w", schemaFile, err)
+	}
+
+	if _, err := tx.Exec(string(content)); err != nil {
+		_ = tx.Rollback()
+
+		// If error indicates schema already applied, skip it
+		errStr := err.Error()
+		if strings.Contains(errStr, "duplicate column") ||
+			strings.Contains(errStr, "already exists") {
+			// Schema already applied, commit and continue
+			_ = tx.Commit()
+			return nil
 		}
 
-		// Execute migration within a transaction
-		tx, err := db.conn.Begin()
-		if err != nil {
-			return fmt.Errorf("failed to begin transaction for migration %s: %w", filepath.Base(file), err)
-		}
+		return fmt.Errorf("failed to execute schema %s for %s: %w", schemaFile, db.name, err)
+	}
 
-		if _, err := tx.Exec(string(content)); err != nil {
-			_ = tx.Rollback()
-
-			// Some migrations are database-specific
-			// If error indicates migration doesn't apply to this database, skip it
-			errStr := err.Error()
-			if strings.Contains(errStr, "no such table") ||
-				strings.Contains(errStr, "no such column") ||
-				strings.Contains(errStr, "duplicate column") ||
-				strings.Contains(errStr, "near \"EXISTS\"") ||
-				strings.Contains(errStr, "constraint failed") {
-				// This migration is not applicable to this database or already applied, skip it
-				continue
-			}
-
-			return fmt.Errorf("failed to execute migration %s for %s: %w", filepath.Base(file), db.name, err)
-		}
-
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("failed to commit migration %s for %s: %w", filepath.Base(file), db.name, err)
-		}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit schema %s for %s: %w", schemaFile, db.name, err)
 	}
 
 	return nil

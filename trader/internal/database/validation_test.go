@@ -14,7 +14,7 @@ func setupTestDBForValidation(t *testing.T) *sql.DB {
 	db, err := sql.Open("sqlite3", ":memory:")
 	require.NoError(t, err)
 
-	// Create securities table with current schema (symbol as PRIMARY KEY)
+	// Create securities table with current schema (isin as PRIMARY KEY)
 	_, err = db.Exec(`
 		CREATE TABLE securities (
 			symbol TEXT PRIMARY KEY,

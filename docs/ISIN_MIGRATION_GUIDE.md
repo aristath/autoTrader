@@ -49,18 +49,16 @@ Before running the migration on a production database, ensure:
 
 ## Running the Migration
 
-The migration script `030_migrate_to_isin_primary_key.sql` will be automatically executed when the database is initialized via the `DB.Migrate()` method.
+The ISIN-based schema is automatically applied when the database is initialized via `database.New()`, which calls `DB.Migrate()`. The schema files in `trader/internal/database/schemas/` contain the complete, final schema with ISIN as the primary key.
 
-### Manual Execution
+### Schema Files
 
-If you need to run the migration manually:
+The ISIN migration is now part of the consolidated schema files:
+- `universe_schema.sql` - Securities table uses `isin TEXT PRIMARY KEY`
+- `portfolio_schema.sql` - Positions and scores tables use `isin TEXT PRIMARY KEY`
+- `ledger_schema.sql` - Trades and dividend_history include `isin` columns
 
-```bash
-# Connect to your database
-sqlite3 universe.db < trader/internal/database/migrations/030_migrate_to_isin_primary_key.sql
-```
-
-**WARNING**: Always backup your database before running migrations!
+**Note**: The old migration files (001-036) have been archived to `migrations_archive/` for reference. The system now uses schema files as the single source of truth.
 
 ## What Changed
 

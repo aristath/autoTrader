@@ -216,8 +216,8 @@ func TestMigration_ChangesPrimaryKeysToISIN(t *testing.T) {
 
 	insertTestData(t, db)
 
-	// Read migration script
-	migrationPath := filepath.Join(".", "030_migrate_to_isin_primary_key.sql")
+	// Read migration script from archive (migration is now part of consolidated schema)
+	migrationPath := filepath.Join("..", "migrations_archive", "030_migrate_to_isin_primary_key.sql")
 	migrationSQL, err := os.ReadFile(migrationPath)
 	require.NoError(t, err, "Migration file should exist")
 
@@ -264,7 +264,7 @@ func TestMigration_PreservesAllData(t *testing.T) {
 	db.QueryRow("SELECT COUNT(*) FROM security_tags").Scan(&securityTagsCount)
 
 	// Read and execute migration
-	migrationPath := filepath.Join(".", "030_migrate_to_isin_primary_key.sql")
+	migrationPath := filepath.Join("..", "migrations_archive", "030_migrate_to_isin_primary_key.sql")
 	migrationSQL, err := os.ReadFile(migrationPath)
 	require.NoError(t, err)
 
@@ -297,7 +297,7 @@ func TestMigration_UpdatesForeignKeys(t *testing.T) {
 	insertTestData(t, db)
 
 	// Read and execute migration
-	migrationPath := filepath.Join(".", "030_migrate_to_isin_primary_key.sql")
+	migrationPath := filepath.Join("..", "migrations_archive", "030_migrate_to_isin_primary_key.sql")
 	migrationSQL, err := os.ReadFile(migrationPath)
 	require.NoError(t, err)
 
@@ -328,7 +328,7 @@ func TestMigration_FailsIfMissingISIN(t *testing.T) {
 
 	// Migration should fail or handle missing ISINs
 	// The migration script should check for missing ISINs before proceeding
-	migrationPath := filepath.Join(".", "030_migrate_to_isin_primary_key.sql")
+	migrationPath := filepath.Join("..", "migrations_archive", "030_migrate_to_isin_primary_key.sql")
 	migrationSQL, err := os.ReadFile(migrationPath)
 	require.NoError(t, err)
 
