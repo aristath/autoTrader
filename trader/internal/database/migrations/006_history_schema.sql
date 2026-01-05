@@ -41,3 +41,19 @@ CREATE TABLE IF NOT EXISTS exchange_rates (
 
 CREATE INDEX IF NOT EXISTS idx_rates_pair ON exchange_rates(from_currency, to_currency);
 CREATE INDEX IF NOT EXISTS idx_rates_date ON exchange_rates(date DESC);
+
+-- Monthly prices: aggregated monthly averages for all securities
+-- Used for CAGR calculations and historical analysis
+CREATE TABLE IF NOT EXISTS monthly_prices (
+    symbol TEXT NOT NULL,
+    year_month TEXT NOT NULL,
+    avg_close REAL NOT NULL,
+    avg_adj_close REAL NOT NULL,
+    source TEXT,
+    created_at TEXT,
+    PRIMARY KEY (symbol, year_month)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_monthly_symbol ON monthly_prices(symbol);
+CREATE INDEX IF NOT EXISTS idx_monthly_year_month ON monthly_prices(year_month DESC);
+CREATE INDEX IF NOT EXISTS idx_monthly_symbol_year_month ON monthly_prices(symbol, year_month DESC);
