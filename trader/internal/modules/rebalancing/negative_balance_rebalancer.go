@@ -663,7 +663,7 @@ func (r *NegativeBalanceRebalancer) step3FinalExchange(tradingMode string) error
 	}
 
 	// Try one more round of currency exchange
-	finalShortfalls, err := r.step1CurrencyExchange(shortfalls, cashBalances, tradingMode)
+	_, err = r.step1CurrencyExchange(shortfalls, cashBalances, tradingMode)
 	if err != nil {
 		return fmt.Errorf("failed in final currency exchange: %w", err)
 	}
@@ -679,7 +679,7 @@ func (r *NegativeBalanceRebalancer) step3FinalExchange(tradingMode string) error
 		cashBalances[balance.Currency] = balance.Amount
 	}
 
-	finalShortfalls, err = r.CheckCurrencyMinimums(cashBalances)
+	finalShortfalls, err := r.CheckCurrencyMinimums(cashBalances)
 	if err != nil {
 		return fmt.Errorf("failed to check final currency minimums: %w", err)
 	}

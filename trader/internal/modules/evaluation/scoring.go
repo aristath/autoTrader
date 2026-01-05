@@ -428,7 +428,7 @@ func calculateVolatilityPenalty(ctx PortfolioContext) float64 {
 // calculateQualityBoost calculates a boost factor based on portfolio quality.
 // Returns 0.0 (no boost) to 1.0 (maximum boost).
 func calculateQualityBoost(ctx PortfolioContext) float64 {
-	if ctx.SecurityScores == nil || len(ctx.SecurityScores) == 0 {
+	if len(ctx.SecurityScores) == 0 {
 		return 0.0
 	}
 
@@ -456,7 +456,7 @@ func calculateQualityBoost(ctx PortfolioContext) float64 {
 func calculateGrowthBoost(ctx PortfolioContext) float64 {
 	// Simplified: Use expected return proxy (CAGR from security scores)
 	// In a real implementation, this would use actual CAGR data
-	if ctx.SecurityScores == nil || len(ctx.SecurityScores) == 0 {
+	if len(ctx.SecurityScores) == 0 {
 		return 0.0
 	}
 

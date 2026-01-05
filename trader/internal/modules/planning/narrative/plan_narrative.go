@@ -190,7 +190,7 @@ func (g *PlanGenerator) generateExecutionGuidance(plan *domain.HolisticPlan) str
 	if len(plan.Steps) == 1 {
 		guidance.WriteString("Single action can be executed immediately.")
 	} else {
-		guidance.WriteString(fmt.Sprintf("Actions are prioritized in recommended order. "))
+		guidance.WriteString("Actions are prioritized in recommended order. ")
 
 		// Check for sells before buys pattern
 		hasSells := false
