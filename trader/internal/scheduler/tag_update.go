@@ -163,6 +163,26 @@ func (j *TagUpdateJob) updateTagsForSecurity(security universe.Security) error {
 		subScores["long_term"] = map[string]float64{
 			"cagr": score.CAGRScore,
 		}
+
+		// Try to get raw CAGR from calculated_metrics for return-based tagging
+		if j.portfolioDB != nil {
+			var cagrRaw sql.NullFloat64
+			err := j.portfolioDB.QueryRow(`
+				SELECT COALESCE(
+					MAX(CASE WHEN metric_name = 'CAGR_5Y' THEN metric_value END),
+					MAX(CASE WHEN metric_name = 'CAGR_10Y' THEN metric_value END)
+				) as cagr
+				FROM calculated_metrics
+				WHERE symbol = ? AND metric_name IN ('CAGR_5Y', 'CAGR_10Y')
+			`, security.Symbol).Scan(&cagrRaw)
+			if err == nil && cagrRaw.Valid && cagrRaw.Float64 > 0 {
+				// Add cagr_raw to sub-scores if not already present
+				if subScores["long_term"] == nil {
+					subScores["long_term"] = make(map[string]float64)
+				}
+				subScores["long_term"]["cagr_raw"] = cagrRaw.Float64
+			}
+		}
 		// Note: Sortino ratio is not currently stored in SecurityScore or sub-scores.
 		// The LongTermScorer stores "sortino" (scored value) but not "sortino_raw" (raw ratio).
 		// For bubble detection tags, Sortino will default to 0.0 when not available,
@@ -322,29 +342,34 @@ func (j *TagUpdateJob) updateTagsForSecurity(security universe.Security) error {
 		maxDrawdown = &score.DrawdownScore
 	}
 
+	// Get target return settings (use defaults if not available)
+	targetReturn, targetReturnThresholdPct := j.getTargetReturnSettings()
+
 	// Build tag assignment input
 	tagInput := universe.AssignTagsInput{
-		Symbol:              security.Symbol,
-		Security:            security,
-		Score:               score,
-		GroupScores:         groupScores,
-		SubScores:           subScores,
-		Volatility:          volatility,
-		DailyPrices:         closePrices,
-		PERatio:             peRatio,
-		MarketAvgPE:         20.0, // Default market average P/E
-		DividendYield:       dividendYield,
-		FiveYearAvgDivYield: fiveYearAvgDivYield,
-		CurrentPrice:        currentPrice,
-		Price52wHigh:        price52wHigh,
-		Price52wLow:         price52wLow,
-		EMA200:              ema200,
-		RSI:                 rsi,
-		MaxDrawdown:         maxDrawdown,
-		PositionWeight:      positionWeight,
-		TargetWeight:        targetWeight,
-		AnnualizedReturn:    annualizedReturn,
-		DaysHeld:            daysHeld,
+		Symbol:                   security.Symbol,
+		Security:                 security,
+		Score:                    score,
+		GroupScores:              groupScores,
+		SubScores:                subScores,
+		Volatility:               volatility,
+		DailyPrices:              closePrices,
+		PERatio:                  peRatio,
+		MarketAvgPE:              20.0, // Default market average P/E
+		DividendYield:            dividendYield,
+		FiveYearAvgDivYield:      fiveYearAvgDivYield,
+		CurrentPrice:             currentPrice,
+		Price52wHigh:             price52wHigh,
+		Price52wLow:              price52wLow,
+		EMA200:                   ema200,
+		RSI:                      rsi,
+		MaxDrawdown:              maxDrawdown,
+		PositionWeight:           positionWeight,
+		TargetWeight:             targetWeight,
+		AnnualizedReturn:         annualizedReturn,
+		DaysHeld:                 daysHeld,
+		TargetReturn:             targetReturn,
+		TargetReturnThresholdPct: targetReturnThresholdPct,
 	}
 
 	// Assign all tags (fast operation - just calculation)
@@ -393,4 +418,17 @@ func (j *TagUpdateJob) updateTagsForSecurity(security universe.Security) error {
 		Msg("Tags updated for security (per-tag frequency)")
 
 	return nil
+}
+
+// getTargetReturnSettings fetches target return and threshold from settings
+// Returns defaults if not available: 0.11 (11%) target, 0.80 (80%) threshold
+func (j *TagUpdateJob) getTargetReturnSettings() (float64, float64) {
+	// Use defaults for now (can be enhanced to query from configDB if available)
+	targetReturn := 0.11 // Default: 11%
+	thresholdPct := 0.80 // Default: 80%
+
+	// TODO: Query from configDB if available (similar to planner_batch.go)
+	// For now, use defaults which match the system defaults
+
+	return targetReturn, thresholdPct
 }

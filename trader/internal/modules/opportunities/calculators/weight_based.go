@@ -187,6 +187,14 @@ func (c *WeightBasedCalculator) Calculate(
 						continue
 					}
 
+					// Skip securities below absolute minimum return (hard filter from tags)
+					if contains(securityTags, "below-minimum-return") {
+						c.log.Debug().
+							Str("symbol", symbol).
+							Msg("Skipping - below absolute minimum return (tag-based filter)")
+						continue
+					}
+
 					// Require quality gate pass for new positions
 					// Check if this is a new position (not in current positions)
 					isNewPosition := true

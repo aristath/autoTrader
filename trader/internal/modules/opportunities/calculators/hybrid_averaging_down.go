@@ -155,6 +155,14 @@ func (c *HybridAveragingDownCalculator) Calculate(
 			continue
 		}
 
+		// CRITICAL: Skip securities below absolute minimum return (hard filter from tags)
+		if contains(securityTags, "below-minimum-return") {
+			c.log.Debug().
+				Str("symbol", position.Symbol).
+				Msg("Skipping - below absolute minimum return (tag-based filter)")
+			continue
+		}
+
 		// CRITICAL: Require quality gate pass
 		if !contains(securityTags, "quality-gate-pass") {
 			c.log.Debug().

@@ -20,29 +20,31 @@ func NewTagAssigner(log zerolog.Logger) *TagAssigner {
 
 // AssignTagsInput contains all data needed to assign tags to a security
 type AssignTagsInput struct {
-	Symbol               string
-	Security             Security
-	Score                *SecurityScore
-	GroupScores          map[string]float64
-	SubScores            map[string]map[string]float64
-	Volatility           *float64
-	DailyPrices          []float64
-	PERatio              *float64
-	MarketAvgPE          float64
-	DividendYield        *float64
-	FiveYearAvgDivYield  *float64
-	CurrentPrice         *float64
-	Price52wHigh         *float64
-	Price52wLow          *float64
-	EMA200               *float64
-	RSI                  *float64
-	BollingerPosition    *float64
-	MaxDrawdown          *float64
-	PositionWeight       *float64
-	TargetWeight         *float64
-	AnnualizedReturn     *float64
-	DaysHeld             *int
-	HistoricalVolatility *float64
+	Symbol                   string
+	Security                 Security
+	Score                    *SecurityScore
+	GroupScores              map[string]float64
+	SubScores                map[string]map[string]float64
+	Volatility               *float64
+	DailyPrices              []float64
+	PERatio                  *float64
+	MarketAvgPE              float64
+	DividendYield            *float64
+	FiveYearAvgDivYield      *float64
+	CurrentPrice             *float64
+	Price52wHigh             *float64
+	Price52wLow              *float64
+	EMA200                   *float64
+	RSI                      *float64
+	BollingerPosition        *float64
+	MaxDrawdown              *float64
+	PositionWeight           *float64
+	TargetWeight             *float64
+	AnnualizedReturn         *float64
+	DaysHeld                 *int
+	HistoricalVolatility     *float64
+	TargetReturn             float64 // Target annual return (default: 0.11 = 11%)
+	TargetReturnThresholdPct float64 // Threshold percentage (default: 0.80 = 80%)
 }
 
 // AssignTagsForSecurity analyzes a security and returns appropriate tag IDs
@@ -484,6 +486,47 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 	// Regime volatile
 	if volatility > 0.30 || volatilitySpike {
 		tags = append(tags, "regime-volatile")
+	}
+
+	// === NEW: RETURN-BASED FILTERING TAGS ===
+	// These tags help calculators filter out low-return securities without duplicating logic
+
+	// Get target return (default: 11% if not provided)
+	targetReturn := input.TargetReturn
+	if targetReturn == 0 {
+		targetReturn = 0.11 // Default 11%
+	}
+	thresholdPct := input.TargetReturnThresholdPct
+	if thresholdPct == 0 {
+		thresholdPct = 0.80 // Default 80%
+	}
+
+	// Calculate thresholds
+	minCAGRThreshold := targetReturn * thresholdPct
+	absoluteMinCAGR := math.Max(0.06, targetReturn*0.50)
+
+	// Get raw CAGR value (from sub-scores "cagr_raw", in decimal: e.g., 0.15 = 15%)
+	// Note: cagr_raw is stored in components, not sub-scores, so we need to check components
+	cagrRaw := getSubScore(input.SubScores, "long_term", "cagr_raw")
+
+	// If cagr_raw not available, try to get from scored CAGR (but this is less accurate)
+	// The scored CAGR is 0-1, so we can't reliably convert it back to raw CAGR
+	// For now, only tag if we have raw CAGR data
+	if cagrRaw > 0 {
+		// Tag securities below absolute minimum (hard filter)
+		if cagrRaw < absoluteMinCAGR {
+			tags = append(tags, "below-minimum-return")
+		}
+
+		// Tag securities below threshold (soft filter - can be overcome with quality)
+		if cagrRaw < minCAGRThreshold {
+			tags = append(tags, "below-target-return")
+		}
+
+		// Tag securities meeting or exceeding target
+		if cagrRaw >= targetReturn {
+			tags = append(tags, "meets-target-return")
+		}
 	}
 
 	// Remove duplicates

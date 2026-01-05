@@ -141,42 +141,7 @@ func (c *HybridOpportunityBuysCalculator) Calculate(
 			continue
 		}
 
-		// Apply target return filtering with absolute minimum guardrail (if CAGR data available)
-		// Get target return and threshold (defaults: 11% target, 80% threshold = 8.8% minimum)
-		targetReturn := ctx.TargetReturn
-		if targetReturn == 0 {
-			targetReturn = 0.11 // Default 11%
-		}
-		thresholdPct := ctx.TargetReturnThresholdPct
-		if thresholdPct == 0 {
-			thresholdPct = 0.80 // Default 80%
-		}
-
-		// Absolute minimum guardrail: Never allow below 6% CAGR or 50% of target (whichever is higher)
-		absoluteMinCAGR := math.Max(0.06, targetReturn*0.50)
-
-		// Get CAGR if available (try ISIN first, fallback to symbol)
-		var cagr *float64
-		if ctx.CAGRs != nil {
-			if cagrVal, ok := ctx.CAGRs[isin]; ok {
-				cagr = &cagrVal
-			} else if cagrVal, ok := ctx.CAGRs[symbol]; ok {
-				cagr = &cagrVal
-			}
-		}
-
-		// Apply absolute minimum guardrail (hard filter) - only if CAGR data is available
-		if cagr != nil && *cagr < absoluteMinCAGR {
-			c.log.Debug().
-				Str("symbol", symbol).
-				Str("isin", isin).
-				Float64("cagr", *cagr).
-				Float64("absolute_min", absoluteMinCAGR).
-				Msg("Filtered out: below absolute minimum CAGR (hard filter)")
-			continue
-		}
-
-		// Quality gate: Exclude value traps and bubble risks
+		// Quality gate: Exclude value traps, bubble risks, and low-return securities
 		securityTags, err := c.securityRepo.GetTagsForSecurity(symbol)
 		if err == nil {
 			// Skip value traps
@@ -192,6 +157,14 @@ func (c *HybridOpportunityBuysCalculator) Calculate(
 				c.log.Debug().
 					Str("symbol", symbol).
 					Msg("Skipping bubble risk")
+				continue
+			}
+
+			// Skip securities below absolute minimum return (hard filter from tags)
+			if contains(securityTags, "below-minimum-return") {
+				c.log.Debug().
+					Str("symbol", symbol).
+					Msg("Skipping - below absolute minimum return (tag-based filter)")
 				continue
 			}
 
