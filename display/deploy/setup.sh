@@ -18,15 +18,15 @@ mkdir -p /home/arduino/bin
 mkdir -p /home/arduino/logs
 mkdir -p "$APP_DIR"
 
-# Clone repo if not exists
+# Clone repo if not exists (using shallow clone to save disk space)
 if [ -d "$REPO_DIR/.git" ]; then
     echo "Repo already exists, pulling latest..."
     cd "$REPO_DIR"
     git pull origin main
 else
-    echo "Cloning repository..."
+    echo "Cloning repository (shallow clone - latest commit only)..."
     cd /home/arduino/repos
-    git clone "$REPO_URL"
+    git clone --depth 1 --single-branch --branch main "$REPO_URL"
 fi
 
 # Copy deploy script
