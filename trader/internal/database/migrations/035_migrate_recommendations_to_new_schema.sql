@@ -32,14 +32,15 @@ CREATE TABLE recommendations_new (
 
 -- Step 2: Migrate data from old schema to new schema
 -- Map old columns to new columns with defaults for missing fields
+-- Note: If old table is empty or doesn't exist, this will just create empty table
 INSERT INTO recommendations_new (
     uuid, symbol, name, side, quantity, estimated_price, estimated_value,
     reason, currency, priority, current_portfolio_score, new_portfolio_score,
     score_change, status, portfolio_hash, created_at, updated_at, executed_at
 )
 SELECT
-    -- Generate UUID from id (or use random UUID if needed)
-    'migrated-' || CAST(id AS TEXT) as uuid,
+    -- Generate UUID from rowid (SQLite internal row identifier)
+    'migrated-' || CAST(rowid AS TEXT) as uuid,
     symbol,
     COALESCE(symbol, 'Unknown') as name, -- Use symbol as name if name not available
     CASE 
