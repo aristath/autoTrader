@@ -12,7 +12,8 @@ import (
 // SecurityRepository handles security database operations
 // Faithful translation from Python: app/modules/universe/database/security_repository.py
 type SecurityRepository struct {
-	universeDB *sql.DB // config.db - securities table
+	universeDB *sql.DB // universe.db - securities table
+	tagRepo    *TagRepository
 	log        zerolog.Logger
 }
 
@@ -27,6 +28,7 @@ min_portfolio_target, max_portfolio_target, created_at, updated_at`
 func NewSecurityRepository(universeDB *sql.DB, log zerolog.Logger) *SecurityRepository {
 	return &SecurityRepository{
 		universeDB: universeDB,
+		tagRepo:    NewTagRepository(universeDB, log),
 		log:        log.With().Str("repo", "security").Logger(),
 	}
 }
@@ -353,6 +355,7 @@ func (r *SecurityRepository) GetWithScores(portfolioDB *sql.DB) ([]SecurityWithS
 			LastSynced:         security.LastSynced,
 			MinPortfolioTarget: security.MinPortfolioTarget,
 			MaxPortfolioTarget: security.MaxPortfolioTarget,
+			Tags:               security.Tags,
 		}
 		securitiesMap[security.Symbol] = sws
 	}
@@ -555,7 +558,93 @@ func (r *SecurityRepository) scanSecurity(rows *sql.Rows) (Security, error) {
 		security.MinLot = 1
 	}
 
+	// Load tags for the security
+	tagIDs, err := r.getTagsForSecurity(security.Symbol)
+	if err != nil {
+		// Log error but don't fail - tags are optional
+		r.log.Warn().Str("symbol", security.Symbol).Err(err).Msg("Failed to load tags for security")
+		security.Tags = []string{} // Initialize to empty slice
+	} else {
+		security.Tags = tagIDs
+	}
+
 	return security, nil
+}
+
+// getTagsForSecurity loads tag IDs for a security
+func (r *SecurityRepository) getTagsForSecurity(symbol string) ([]string, error) {
+	query := "SELECT tag_id FROM security_tags WHERE symbol = ? ORDER BY tag_id"
+
+	rows, err := r.universeDB.Query(query, strings.ToUpper(strings.TrimSpace(symbol)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query tags for security: %w", err)
+	}
+	defer rows.Close()
+
+	var tagIDs []string
+	for rows.Next() {
+		var tagID string
+		err := rows.Scan(&tagID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan tag ID: %w", err)
+		}
+		tagIDs = append(tagIDs, tagID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating tags: %w", err)
+	}
+
+	return tagIDs, nil
+}
+
+// SetTagsForSecurity replaces all tags for a security (deletes existing, inserts new)
+func (r *SecurityRepository) SetTagsForSecurity(symbol string, tagIDs []string) error {
+	// Normalize symbol
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+
+	// Ensure all tag IDs exist (create with default names if missing)
+	if err := r.tagRepo.EnsureTagsExist(tagIDs); err != nil {
+		return fmt.Errorf("failed to ensure tags exist: %w", err)
+	}
+
+	// Begin transaction
+	tx, err := r.universeDB.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Delete all existing tags for this security
+	_, err = tx.Exec("DELETE FROM security_tags WHERE symbol = ?", symbol)
+	if err != nil {
+		return fmt.Errorf("failed to delete existing tags: %w", err)
+	}
+
+	// Insert new tags
+	now := time.Now().Format(time.RFC3339)
+	for _, tagID := range tagIDs {
+		// Skip empty tag IDs
+		tagID = strings.ToLower(strings.TrimSpace(tagID))
+		if tagID == "" {
+			continue
+		}
+
+		_, err = tx.Exec(`
+			INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
+			VALUES (?, ?, ?, ?)
+		`, symbol, tagID, now, now)
+		if err != nil {
+			return fmt.Errorf("failed to insert tag %s: %w", tagID, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	r.log.Debug().Str("symbol", symbol).Int("tag_count", len(tagIDs)).Msg("Tags updated for security")
+	return nil
 }
 
 // Helper functions

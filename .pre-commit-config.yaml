@@ -60,25 +60,30 @@ repos:
       # Format Go code
       - id: go-fmt
         args: [-w]
+        files: ^trader/.*\.go$
       # Fix imports - disabled: goimports not in PATH for pre-commit environment
       # - id: go-imports
       #   args: [-w]
       # Run go vet
       - id: go-vet-mod
+        files: ^trader/.*\.go$
       # Build project
       - id: go-build-mod
+        files: ^trader/.*\.go$
       # Run tests
       - id: go-test-mod
         args: [-timeout=60s]
+        files: ^trader/.*\.go$
       # Check go.mod is tidy
       - id: go-mod-tidy
+        files: ^trader/(go\.mod|go\.sum|.*\.go)$
 
   # golangci-lint - comprehensive linter
   - repo: local
     hooks:
       - id: golangci-lint
         name: golangci-lint
-        entry: bash -c 'export PATH="$(go env GOPATH)/bin:$PATH" && cd trader && golangci-lint run --timeout=5m ./...'
+        entry: bash -c 'export PATH="$(go env GOPATH)/bin:$PATH" && cd trader && golangci-lint run --timeout=5m --config .golangci.yml ./...'
         language: system
         files: ^trader/.*\.go$
         pass_filenames: false

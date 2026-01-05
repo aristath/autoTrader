@@ -386,6 +386,9 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 	// Universe service with cleanup coordination
 	universeService := universe.NewUniverseService(securityRepo, historyDB, portfolioDB, syncService, log)
 
+	// Tag assigner for auto-tagging securities
+	tagAssigner := universe.NewTagAssigner(log)
+
 	// === Rebalancing Services ===
 
 	// Settings repository
@@ -610,6 +613,21 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 		return nil, fmt.Errorf("failed to register daily_maintenance job: %w", err)
 	}
 
+	// Register Tag Update Job (daily at 3:00 AM, after maintenance)
+	tagUpdateJob := scheduler.NewTagUpdateJob(scheduler.TagUpdateConfig{
+		Log:          log,
+		SecurityRepo: securityRepo,
+		ScoreRepo:    scoreRepo,
+		TagAssigner:  tagAssigner,
+		YahooClient:  yahooClient,
+		HistoryDB:    historyDBClient,
+		PortfolioDB:  portfolioDB.Conn(),
+		PositionRepo: positionRepo,
+	})
+	if err := sched.AddJob("0 0 3 * * *", tagUpdateJob); err != nil {
+		return nil, fmt.Errorf("failed to register tag_update job: %w", err)
+	}
+
 	// Register Job 13: Weekly Backup (Sunday at 1:00 AM)
 	weeklyBackup := reliability.NewWeeklyBackupJob(backupService)
 	if err := sched.AddJob("0 0 1 * * 0", weeklyBackup); err != nil {
@@ -635,7 +653,7 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 		return nil, fmt.Errorf("failed to register monthly_maintenance job: %w", err)
 	}
 
-	log.Info().Int("jobs", 13).Msg("Background jobs registered successfully")
+	log.Info().Int("jobs", 14).Msg("Background jobs registered successfully")
 
 	return &JobInstances{
 		// Original jobs

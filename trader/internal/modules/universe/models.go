@@ -2,26 +2,33 @@ package universe
 
 import "time"
 
+// Tag represents a tag definition with ID and human-readable name
+type Tag struct {
+	Id   string `json:"id"`   // Code-friendly ID (e.g., 'value-opportunity')
+	Name string `json:"name"` // Human-readable name (e.g., 'Value Opportunity')
+}
+
 // Security represents a security in the investment universe
 // Faithful translation from Python: app/domain/models.py -> class Security
 type Security struct {
-	Currency           string  `json:"currency,omitempty"`
-	Name               string  `json:"name"`
-	ProductType        string  `json:"product_type"`
-	Country            string  `json:"country,omitempty"`
-	FullExchangeName   string  `json:"fullExchangeName,omitempty"`
-	YahooSymbol        string  `json:"yahoo_symbol,omitempty"`
-	ISIN               string  `json:"isin,omitempty"`
-	Industry           string  `json:"industry,omitempty"`
-	Symbol             string  `json:"symbol"`
-	LastSynced         string  `json:"last_synced,omitempty"`
-	PriorityMultiplier float64 `json:"priority_multiplier"`
-	MinPortfolioTarget float64 `json:"min_portfolio_target,omitempty"`
-	MaxPortfolioTarget float64 `json:"max_portfolio_target,omitempty"`
-	MinLot             int     `json:"min_lot"`
-	AllowSell          bool    `json:"allow_sell"`
-	AllowBuy           bool    `json:"allow_buy"`
-	Active             bool    `json:"active"`
+	Currency           string   `json:"currency,omitempty"`
+	Name               string   `json:"name"`
+	ProductType        string   `json:"product_type"`
+	Country            string   `json:"country,omitempty"`
+	FullExchangeName   string   `json:"fullExchangeName,omitempty"`
+	YahooSymbol        string   `json:"yahoo_symbol,omitempty"`
+	ISIN               string   `json:"isin,omitempty"`
+	Industry           string   `json:"industry,omitempty"`
+	Symbol             string   `json:"symbol"`
+	LastSynced         string   `json:"last_synced,omitempty"`
+	PriorityMultiplier float64  `json:"priority_multiplier"`
+	MinPortfolioTarget float64  `json:"min_portfolio_target,omitempty"`
+	MaxPortfolioTarget float64  `json:"max_portfolio_target,omitempty"`
+	MinLot             int      `json:"min_lot"`
+	AllowSell          bool     `json:"allow_sell"`
+	AllowBuy           bool     `json:"allow_buy"`
+	Active             bool     `json:"active"`
+	Tags               []string `json:"tags,omitempty"`
 }
 
 // SecurityScore represents calculated scores for a security
@@ -85,4 +92,5 @@ type SecurityWithScore struct {
 	AllowSell          bool     `json:"allow_sell"`
 	AllowBuy           bool     `json:"allow_buy"`
 	Active             bool     `json:"active"`
+	Tags               []string `json:"tags,omitempty"`
 }

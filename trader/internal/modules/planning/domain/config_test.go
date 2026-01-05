@@ -167,21 +167,22 @@ func TestGetPatternParams(t *testing.T) {
 func TestGetGeneratorParams(t *testing.T) {
 	config := &PlannerConfiguration{}
 
-	// Simplified: Returns empty map (parameters removed)
+	// GetGeneratorParams always returns max_depth parameter
 	params := config.GetGeneratorParams("combinatorial")
 	assert.NotNil(t, params)
-	assert.Len(t, params, 0)
+	assert.Contains(t, params, "max_depth")
+	assert.Equal(t, float64(0), params["max_depth"])
 
-	// Non-existent generator should return empty map
+	// Non-existent generator still returns max_depth
 	params = config.GetGeneratorParams("non_existent")
 	assert.NotNil(t, params)
-	assert.Len(t, params, 0)
+	assert.Contains(t, params, "max_depth")
 }
 
 func TestGetFilterParams(t *testing.T) {
 	config := &PlannerConfiguration{
 		EnableDiverseSelection: true,
-		DiversityWeight:         0.5,
+		DiversityWeight:        0.5,
 	}
 
 	// Diversity filter should return params with DiversityWeight
@@ -195,10 +196,11 @@ func TestGetFilterParams(t *testing.T) {
 	assert.NotNil(t, params)
 	assert.Len(t, params, 0)
 
-	// If EnableDiverseSelection is false, should still return empty (filter disabled via GetEnabledFilters)
+	// If EnableDiverseSelection is false, should return empty map (filter disabled)
 	config.EnableDiverseSelection = false
 	params = config.GetFilterParams("diversity")
 	assert.NotNil(t, params)
-	// Even if disabled, we still return the param value (the filter won't run anyway)
-	assert.Contains(t, params, "min_diversity_score")
+	// When disabled, params are not returned
+	assert.NotContains(t, params, "min_diversity_score")
+	assert.Len(t, params, 0)
 }

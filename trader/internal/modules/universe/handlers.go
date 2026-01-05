@@ -177,33 +177,33 @@ func (h *UniverseHandlers) HandleGetStocks(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Fetch positions to get currency info for conversion
-	positionRows, err := portfolioDB.Query(`SELECT symbol, currency, currency_rate, market_value_eur 
+	positionRows, err := portfolioDB.Query(`SELECT symbol, currency, currency_rate, market_value_eur
 		FROM positions`)
 	if err != nil {
 		h.log.Error().Err(err).Msg("Failed to fetch positions for currency conversion")
 		// Continue without conversion rather than failing
 	} else {
 		defer positionRows.Close()
-		
+
 		// Build currency map for conversion
 		positionCurrencyMap := make(map[string]struct {
-			currency     string
-			currencyRate float64
+			currency       string
+			currencyRate   float64
 			marketValueEUR float64
 		})
-		
+
 		for positionRows.Next() {
 			var symbol, currency sql.NullString
 			var currencyRate, marketValueEUR sql.NullFloat64
-			
+
 			if err := positionRows.Scan(&symbol, &currency, &currencyRate, &marketValueEUR); err != nil {
 				h.log.Warn().Err(err).Msg("Failed to scan position for currency conversion")
 				continue
 			}
-			
+
 			positionCurrencyMap[symbol.String] = struct {
-				currency     string
-				currencyRate float64
+				currency       string
+				currencyRate   float64
 				marketValueEUR float64
 			}{
 				currency:       currency.String,
@@ -211,14 +211,14 @@ func (h *UniverseHandlers) HandleGetStocks(w http.ResponseWriter, r *http.Reques
 				marketValueEUR: marketValueEUR.Float64,
 			}
 		}
-		
+
 		// Convert position values to EUR
 		for i := range securitiesData {
 			if securitiesData[i].PositionValue != nil {
 				posInfo, found := positionCurrencyMap[securitiesData[i].Symbol]
 				if found && posInfo.currency != "EUR" && posInfo.currency != "" {
 					eurValue := *securitiesData[i].PositionValue
-					
+
 					// Convert using currency exchange service if available
 					if h.currencyExchangeService != nil {
 						rate, err := h.currencyExchangeService.GetRate(posInfo.currency, "EUR")
@@ -255,12 +255,12 @@ func (h *UniverseHandlers) HandleGetStocks(w http.ResponseWriter, r *http.Reques
 							eurValue = eurValue * 0.11
 						}
 					}
-					
+
 					securitiesData[i].PositionValue = &eurValue
 				}
 			}
 		}
-		
+
 		if err := positionRows.Err(); err != nil {
 			h.log.Warn().Err(err).Msg("Error iterating positions for currency conversion")
 		}
@@ -376,6 +376,13 @@ func (h *UniverseHandlers) HandleGetStocks(w http.ResponseWriter, r *http.Reques
 			stockDict["priority_score"] = 0.0
 		}
 
+		// Add tags (read-only, internal only)
+		if len(sec.Tags) > 0 {
+			stockDict["tags"] = sec.Tags
+		} else {
+			stockDict["tags"] = []string{}
+		}
+
 		response = append(response, stockDict)
 	}
 
@@ -434,6 +441,7 @@ func (h *UniverseHandlers) HandleGetStock(w http.ResponseWriter, r *http.Request
 		"allow_sell":           security.AllowSell,
 		"min_portfolio_target": security.MinPortfolioTarget,
 		"max_portfolio_target": security.MaxPortfolioTarget,
+		"tags":                 security.Tags, // Read-only, internal only
 	}
 
 	// Add score data if available
@@ -467,12 +475,13 @@ func (h *UniverseHandlers) HandleGetStock(w http.ResponseWriter, r *http.Request
 
 // SecurityCreateRequest represents the request to create a security
 type SecurityCreateRequest struct {
-	Symbol      string `json:"symbol"`
-	Name        string `json:"name"`
-	YahooSymbol string `json:"yahoo_symbol"`
-	MinLot      int    `json:"min_lot"`
-	AllowBuy    bool   `json:"allow_buy"`
-	AllowSell   bool   `json:"allow_sell"`
+	Symbol      string   `json:"symbol"`
+	Name        string   `json:"name"`
+	YahooSymbol string   `json:"yahoo_symbol"`
+	MinLot      int      `json:"min_lot"`
+	AllowBuy    bool     `json:"allow_buy"`
+	AllowSell   bool     `json:"allow_sell"`
+	Tags        []string `json:"tags,omitempty"` // Ignored - tags are internal only
 }
 
 // HandleCreateStock creates a new security in the universe
@@ -492,6 +501,12 @@ func (h *UniverseHandlers) HandleCreateStock(w http.ResponseWriter, r *http.Requ
 	if req.Name == "" {
 		http.Error(w, "Name is required", http.StatusBadRequest)
 		return
+	}
+
+	// Ignore tags in create request (tags are internal only, auto-assigned)
+	// No need to reject - just ignore them silently
+	if len(req.Tags) > 0 {
+		h.log.Debug().Str("symbol", req.Symbol).Msg("Tags provided in create request - ignoring (tags are internal only)")
 	}
 
 	// Set defaults
@@ -796,10 +811,16 @@ func (h *UniverseHandlers) HandleUpdateStock(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Reject tags in update requests (tags are internal only, auto-assigned)
+	if _, hasTags := updates["tags"]; hasTags {
+		http.Error(w, "Tags cannot be updated via API - they are internal only and auto-assigned", http.StatusBadRequest)
+		return
+	}
+
 	// Apply updates
 	if err := h.securityRepo.Update(oldSymbol, updates); err != nil {
 		h.log.Error().Err(err).Str("symbol", oldSymbol).Msg("Failed to update security")
-		
+
 		// Return specific error message for validation errors, generic for others
 		errorMsg := "Failed to update security"
 		if strings.Contains(err.Error(), "invalid update field") {
@@ -811,7 +832,7 @@ func (h *UniverseHandlers) HandleUpdateStock(w http.ResponseWriter, r *http.Requ
 			})
 			return
 		}
-		
+
 		http.Error(w, errorMsg, http.StatusInternalServerError)
 		return
 	}
@@ -849,6 +870,7 @@ func (h *UniverseHandlers) HandleUpdateStock(w http.ResponseWriter, r *http.Requ
 		"active":              updatedSecurity.Active,
 		"allow_buy":           updatedSecurity.AllowBuy,
 		"allow_sell":          updatedSecurity.AllowSell,
+		"tags":                updatedSecurity.Tags, // Read-only, internal only
 	}
 
 	if score != nil {
