@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -227,7 +228,11 @@ func (g *GitHubArtifactDeployer) DownloadArtifact(runID string, outputDir string
 
 	// Download artifact using gh CLI
 	// gh CLI needs to run from within a git repository to determine the repo context
-	cmd := exec.Command("gh", "run", "download",
+	// Use context with timeout to prevent hanging (60 seconds should be enough for artifact download)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "gh", "run", "download",
 		runID,
 		"--name", g.artifactName,
 		"--dir", outputDir,
@@ -238,6 +243,9 @@ func (g *GitHubArtifactDeployer) DownloadArtifact(runID string, outputDir string
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return "", fmt.Errorf("download timeout after 60s: %w (stderr: %s)", err, stderr.String())
+		}
 		return "", fmt.Errorf("failed to download artifact: %w (stderr: %s)", err, stderr.String())
 	}
 
