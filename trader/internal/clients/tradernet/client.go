@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -517,7 +518,9 @@ type QuoteResponse struct {
 
 // GetQuote gets current quote for a symbol
 func (c *Client) GetQuote(symbol string) (*Quote, error) {
-	url := fmt.Sprintf("/api/market-data/quote/%s", symbol)
+	// URL-encode the symbol to handle special characters like slashes (e.g., "HKD/EUR")
+	encodedSymbol := url.PathEscape(symbol)
+	url := fmt.Sprintf("/api/market-data/quote/%s", encodedSymbol)
 	resp, err := c.get(url)
 	if err != nil {
 		return nil, err
