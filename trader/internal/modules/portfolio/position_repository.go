@@ -28,10 +28,11 @@ func NewPositionRepository(portfolioDB, universeDB *sql.DB, log zerolog.Logger) 
 
 // GetAll returns all positions
 // Faithful translation of Python: async def get_all(self) -> List[Position]
+// Column order after migration: isin, symbol, quantity, avg_price, ...
 func (r *PositionRepository) GetAll() ([]Position, error) {
-	query := `SELECT symbol, quantity, avg_price, current_price, currency,
+	query := `SELECT isin, symbol, quantity, avg_price, current_price, currency,
 		currency_rate, market_value_eur, cost_basis_eur, unrealized_pnl,
-		unrealized_pnl_pct, last_updated, first_bought, last_sold, isin
+		unrealized_pnl_pct, last_updated, first_bought, last_sold
 		FROM positions`
 
 	rows, err := r.portfolioDB.Query(query)
