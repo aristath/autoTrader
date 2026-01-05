@@ -306,7 +306,7 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 	// Clients
 	tradernetClient := tradernet.NewClient(cfg.TradernetServiceURL, log)
 	tradernetClient.SetCredentials(cfg.TradernetAPIKey, cfg.TradernetAPISecret)
-	// Use Yahoo Finance microservice client by default (falls back to direct client if microservice unavailable)
+	// Use Yahoo Finance microservice client (required - direct client removed)
 	// The microservice uses yfinance which has better browser impersonation and avoids 401 errors
 	yahooClient := yahoo.NewMicroserviceClient(cfg.YahooFinanceServiceURL, log)
 	log.Info().Str("url", cfg.YahooFinanceServiceURL).Msg("Using Yahoo Finance microservice")
