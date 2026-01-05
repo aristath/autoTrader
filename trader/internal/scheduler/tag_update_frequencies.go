@@ -133,4 +133,3 @@ func GetTagsNeedingUpdate(
 
 	return tagsNeedingUpdate
 }
-
