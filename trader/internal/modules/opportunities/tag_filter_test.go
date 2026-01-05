@@ -267,8 +267,8 @@ func TestTagBasedFilter_GetSellCandidates(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, candidates)
 	// Should include positions with sell tags
-	assert.Contains(t, candidates, "AAPL") // Has overvalued and needs-rebalance
-	assert.Contains(t, candidates, "MSFT") // Has bubble-risk
+	assert.Contains(t, candidates, "AAPL")     // Has overvalued and needs-rebalance
+	assert.Contains(t, candidates, "MSFT")     // Has bubble-risk
 	assert.NotContains(t, candidates, "GOOGL") // No sell tags
 }
 
@@ -421,4 +421,3 @@ func TestTagBasedFilter_isMarketVolatile_NotVolatile(t *testing.T) {
 	// Assert
 	assert.False(t, isVolatile, "Market should not be volatile with only 2 securities having volatility-spike tag")
 }
-

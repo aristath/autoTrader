@@ -273,4 +273,3 @@ func (c *HybridProfitTakingCalculator) calculatePriority(
 
 	return priority
 }
-

@@ -375,7 +375,7 @@ func TestHybridOpportunityBuysCalculator_Calculate_PriorityBoosting(t *testing.T
 	// Assert
 	assert.NoError(t, err)
 	assert.NotEmpty(t, candidates)
-	
+
 	// Priority should be boosted (quality-value tag gives 1.4x boost, capped at 1.0)
 	// So 0.70 * 1.4 = 0.98, which should be capped at 1.0
 	// But due to floating point precision, it might be slightly less
@@ -384,4 +384,3 @@ func TestHybridOpportunityBuysCalculator_Calculate_PriorityBoosting(t *testing.T
 	// Should be close to 0.98 (0.70 * 1.4)
 	assert.InDelta(t, 0.98, candidates[0].Priority, 0.01, "Priority should be approximately 0.98")
 }
-

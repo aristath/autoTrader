@@ -46,10 +46,10 @@ func (c *HybridAveragingDownCalculator) Calculate(
 	params map[string]interface{},
 ) ([]domain.ActionCandidate, error) {
 	// Parameters with defaults
-	maxLossPercent := GetFloatParam(params, "max_loss_percent", -0.20)    // -20% maximum loss
-	minLossPercent := GetFloatParam(params, "min_loss_percent", -0.05)    // -5% minimum loss (must be down)
+	maxLossPercent := GetFloatParam(params, "max_loss_percent", -0.20) // -20% maximum loss
+	minLossPercent := GetFloatParam(params, "min_loss_percent", -0.05) // -5% minimum loss (must be down)
 	maxValuePerPosition := GetFloatParam(params, "max_value_per_position", 500.0)
-	maxPositions := GetIntParam(params, "max_positions", 3)                // Default to top 3
+	maxPositions := GetIntParam(params, "max_positions", 3) // Default to top 3
 
 	if !ctx.AllowBuy {
 		c.log.Debug().Msg("Buying not allowed, skipping hybrid averaging down")
@@ -276,4 +276,3 @@ func (c *HybridAveragingDownCalculator) calculatePriority(
 
 	return priority
 }
-

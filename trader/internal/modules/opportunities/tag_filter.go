@@ -169,4 +169,3 @@ func (f *TagBasedFilter) isMarketVolatile(ctx *domain.OpportunityContext) bool {
 	// Threshold for "volatile market" - if 5+ securities have volatility spike, market is volatile
 	return len(volatileSecurities) >= 5
 }
-
