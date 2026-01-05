@@ -99,9 +99,9 @@ func TestScoreRepository_Upsert_WithISIN(t *testing.T) {
 	// Execute - Upsert should use ISIN
 	now := time.Now()
 	score := SecurityScore{
-		ISIN:       "US0378331005",
-		Symbol:     "AAPL.US", // Keep symbol for display/backward compatibility
-		TotalScore: 90.0,
+		ISIN:         "US0378331005",
+		Symbol:       "AAPL.US", // Keep symbol for display/backward compatibility
+		TotalScore:   90.0,
 		QualityScore: 85.0,
 		CalculatedAt: &now,
 	}
@@ -185,4 +185,3 @@ func TestScoreRepository_GetBySymbol_HelperMethod(t *testing.T) {
 	assert.Equal(t, "US0378331005", score.ISIN)
 	assert.Equal(t, 85.5, score.TotalScore)
 }
-

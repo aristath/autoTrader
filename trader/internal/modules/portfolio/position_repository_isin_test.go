@@ -204,4 +204,3 @@ func TestPositionRepository_CashPosition_HandledSpecially(t *testing.T) {
 	assert.Equal(t, "CASH:USD", position.ISIN)
 	assert.Equal(t, "CASH:USD", position.Symbol)
 }
-

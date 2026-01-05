@@ -128,7 +128,7 @@ func TestUpdate_ByISIN(t *testing.T) {
 
 	// Execute - Update should use ISIN
 	err = repo.Update("US0378331005", map[string]interface{}{
-		"name": "Apple Inc. Updated",
+		"name":   "Apple Inc. Updated",
 		"active": false,
 	})
 	require.NoError(t, err)
@@ -175,11 +175,11 @@ func TestCreate_WithISINAsPrimaryKey(t *testing.T) {
 
 	// Execute - Create should use ISIN as PRIMARY KEY
 	security := Security{
-		ISIN:     "US0378331005",
-		Symbol:   "AAPL.US",
-		Name:     "Apple Inc.",
-		Active:   true,
-		AllowBuy: true,
+		ISIN:      "US0378331005",
+		Symbol:    "AAPL.US",
+		Name:      "Apple Inc.",
+		Active:    true,
+		AllowBuy:  true,
 		AllowSell: true,
 	}
 
@@ -245,4 +245,3 @@ func TestGetByIdentifier_PrioritizesISIN(t *testing.T) {
 	require.NotNil(t, security)
 	assert.Equal(t, "AAPL.US", security.Symbol)
 }
-
