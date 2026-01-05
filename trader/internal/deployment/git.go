@@ -153,6 +153,14 @@ func (g *GitChecker) CategorizeChanges(files []string) *ChangeCategories {
 			categories.TradernetDeps = true
 		}
 
+		// Yahoo Finance changes
+		if strings.HasPrefix(file, "microservices/yfinance/app/") {
+			categories.YahooFinance = true
+		}
+		if file == "microservices/yfinance/requirements.txt" {
+			categories.YahooFinanceDeps = true
+		}
+
 		// Config changes
 		if strings.HasPrefix(file, "config/") || file == ".env" || strings.HasSuffix(file, ".env") {
 			categories.Config = true

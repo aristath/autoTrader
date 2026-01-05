@@ -195,6 +195,7 @@ func (d *MicroserviceDeployer) GetMicroserviceHealthURL(serviceName string) stri
 	ports := map[string]string{
 		"pypfopt":   "http://localhost:9001/health",
 		"tradernet": "http://localhost:9002/health",
+		"yfinance":  "http://localhost:9003/health",
 	}
 
 	if url, ok := ports[serviceName]; ok {

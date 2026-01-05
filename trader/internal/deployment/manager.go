@@ -393,6 +393,7 @@ func (m *Manager) HardUpdate() (*DeploymentResult, error) {
 		servicesToDeploy := map[string]bool{
 			"pypfopt":   true, // Always rebuild
 			"tradernet": true, // Always rebuild
+			"yfinance":  true, // Always rebuild
 		}
 
 		for serviceName, rebuildImage := range servicesToDeploy {
@@ -534,6 +535,10 @@ func (m *Manager) deployServices(categories *ChangeCategories, result *Deploymen
 
 		if categories.Tradernet || categories.TradernetDeps {
 			servicesToDeploy["tradernet"] = categories.TradernetDeps
+		}
+
+		if categories.YahooFinance || categories.YahooFinanceDeps {
+			servicesToDeploy["yfinance"] = categories.YahooFinanceDeps
 		}
 
 		for serviceName, rebuildImage := range servicesToDeploy {
