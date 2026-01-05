@@ -46,33 +46,6 @@ func NewMicroserviceClient(baseURL string, log zerolog.Logger) *MicroserviceClie
 	}
 }
 
-// checkMicroserviceHealth checks if the microservice is available
-func (c *MicroserviceClient) checkMicroserviceHealth() bool {
-	if c.useDirect {
-		return false // Already using direct client
-	}
-	
-	resp, err := c.get("/health")
-	if err != nil {
-		c.log.Warn().Err(err).Msg("Yahoo Finance microservice unavailable, falling back to direct client")
-		c.useDirect = true
-		return false
-	}
-	
-	return resp.Success
-}
-
-// getClient returns the appropriate client (microservice or direct)
-func (c *MicroserviceClient) getClient() FullClientInterface {
-	if c.useDirect {
-		return c.directClient
-	}
-	
-	// Check health periodically (every 10 requests or on first use)
-	// For simplicity, we'll check on first failure instead
-	return c
-}
-
 // post makes a POST request to the microservice
 func (c *MicroserviceClient) post(endpoint string, request interface{}) (*ServiceResponse, error) {
 	if c.useDirect {
