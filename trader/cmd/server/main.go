@@ -117,7 +117,7 @@ func main() {
 	}
 	defer portfolioDB.Close()
 
-	// 5. agents.db - Strategy management (TOML configs, sequences, evaluations)
+	// 5. agents.db - Strategy management (sequences, evaluations)
 	agentsDB, err := database.New(database.Config{
 		Path:    cfg.DataDir + "/agents.db",
 		Profile: database.ProfileStandard,
