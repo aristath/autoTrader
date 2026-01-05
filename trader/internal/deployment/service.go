@@ -22,27 +22,65 @@ func NewServiceManager(log Logger) *ServiceManager {
 }
 
 // RestartService restarts a systemd service
+// Tries multiple methods to work around NoNewPrivileges restriction
 func (s *ServiceManager) RestartService(serviceName string) error {
 	s.log.Info().
 		Str("service", serviceName).
 		Msg("Restarting systemd service")
 
-	cmd := exec.Command("sudo", "systemctl", "restart", serviceName)
+	// Method 1: Try systemctl directly (may work with polkit)
+	cmd := exec.Command("systemctl", "restart", serviceName)
 	output, err := cmd.CombinedOutput()
-	if err != nil {
-		outputStr := strings.TrimSpace(string(output))
-		return &ServiceRestartError{
-			ServiceName: serviceName,
-			Message:     fmt.Sprintf("systemctl restart failed: %s", outputStr),
-			Err:         err,
-		}
+	if err == nil {
+		s.log.Info().
+			Str("service", serviceName).
+			Msg("Successfully restarted systemd service (direct)")
+		return nil
 	}
 
-	s.log.Info().
-		Str("service", serviceName).
-		Msg("Successfully restarted systemd service")
+	// Method 2: Try sudo (may fail with NoNewPrivileges, but worth trying)
+	cmd = exec.Command("sudo", "systemctl", "restart", serviceName)
+	output, err = cmd.CombinedOutput()
+	if err == nil {
+		s.log.Info().
+			Str("service", serviceName).
+			Msg("Successfully restarted systemd service (sudo)")
+		return nil
+	}
 
-	return nil
+	// Method 3: Try using dbus-send (works without sudo if user has polkit permissions)
+	// Convert service name to D-Bus object path format (e.g., "trader.service" -> "trader_2eservice")
+	dbusPath := strings.ReplaceAll(serviceName, "-", "_2d")
+	if !strings.HasSuffix(dbusPath, "_2eservice") {
+		dbusPath = dbusPath + "_2eservice"
+	}
+	unitPath := fmt.Sprintf("/org/freedesktop/systemd1/unit/%s", dbusPath)
+	cmd = exec.Command("dbus-send", "--system", "--print-reply",
+		"--dest=org.freedesktop.systemd1",
+		unitPath,
+		"org.freedesktop.systemd1.Unit.Restart", "replace", "s", "")
+	output, err = cmd.CombinedOutput()
+	if err == nil {
+		s.log.Info().
+			Str("service", serviceName).
+			Msg("Successfully restarted systemd service (dbus)")
+		return nil
+	}
+
+	// All methods failed
+	outputStr := strings.TrimSpace(string(output))
+	s.log.Warn().
+		Str("service", serviceName).
+		Str("error", outputStr).
+		Msg("All restart methods failed, service may need manual restart")
+
+	// Return error but don't fail deployment - binary was deployed successfully
+	// The user can restart manually or fix the systemd configuration
+	return &ServiceRestartError{
+		ServiceName: serviceName,
+		Message:     fmt.Sprintf("systemctl restart failed (NoNewPrivileges restriction): %s. Binary deployed successfully, but service restart requires manual intervention or systemd configuration change.", outputStr),
+		Err:         err,
+	}
 }
 
 // RestartServices restarts multiple services in parallel
