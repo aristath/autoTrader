@@ -197,7 +197,7 @@ func loadDeploymentConfig() *DeploymentConfig {
 		DeployDir:              ".",                      // Current directory (resolved to WorkingDirectory)
 		APIPort:                8001,
 		APIHost:                "localhost",
-		LockTimeout:            300, // 5 minutes
+		LockTimeout:            120, // 2 minutes
 		HealthCheckTimeout:     10,
 		HealthCheckMaxAttempts: 3,
 		GitBranch:              "", // Empty = auto-detect at runtime (deployment manager has fallback logic)
