@@ -29,20 +29,13 @@ else
     git clone --depth 1 --single-branch --branch main "$REPO_URL"
 fi
 
-# Copy deploy script
-echo "Installing deploy script..."
-cp "$REPO_DIR/display/deploy/auto-deploy.sh" /home/arduino/bin/
-chmod +x /home/arduino/bin/auto-deploy.sh
-
 # Sync app files (using cp since rsync may not be available)
 echo "Syncing app files..."
 rm -rf "$APP_DIR"/* 2>/dev/null || true
 cp -r "$REPO_DIR/display/"* "$APP_DIR/"
 
-# Note: Auto-deploy is now handled by the main app scheduler (configurable via settings UI)
-# Remove any existing cron job to avoid duplicate executions
-echo "Removing any existing auto-deploy cron job (scheduler handles this now)..."
-(crontab -l 2>/dev/null | grep -v 'auto-deploy.sh') | crontab - || true
+# Note: Deployment is handled by the Go trader service scheduler (configurable via settings UI)
+# No separate auto-deploy script needed
 
 # Set as default app (auto-starts on boot)
 echo "Setting as default app for auto-start..."
@@ -60,8 +53,7 @@ arduino-app-cli app list | grep trader
 echo ""
 echo "The app will:"
 echo "  - Auto-start on boot (set as default)"
-echo "  - Auto-update interval configurable via Settings UI (default: 5 minutes)"
+echo "  - Display updates handled by trader service (LED display API)"
 echo ""
-echo "Logs: /home/arduino/logs/auto-deploy.log"
 echo "App logs: arduino-app-cli app logs user:trader-display"
 echo ""

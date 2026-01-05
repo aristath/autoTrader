@@ -1,7 +1,7 @@
 #!/bin/bash
 # Device-local deployment script
 # Runs on the Arduino device itself to trigger deployment and restart services
-# This script pulls latest code and relies on auto-deploy, or triggers manual deployment
+# This script pulls latest code and triggers deployment via the Go trader service
 
 set -e  # Exit on error
 
@@ -24,7 +24,7 @@ else
         ON_DEVICE=true
     else
         log_error "This script must run on the Arduino device"
-        log_info "Deployment is handled automatically by the auto-deploy system"
+        log_info "Deployment is handled automatically by the Go trader service"
         exit 1
     fi
 fi
@@ -49,7 +49,7 @@ else
     log_warn "Failed to fetch from git, continuing anyway"
 fi
 
-# Step 2: Trigger deployment (auto-deploy or manual)
+# Step 2: Trigger deployment via Go trader service
 log_header "Step 2: Triggering deployment"
 
 # Try to trigger deployment via API (if service is running)
@@ -61,11 +61,10 @@ if curl -s -f http://localhost:8080/health >/dev/null 2>&1; then
         echo "$DEPLOY_RESULT" | head -20
     else
         log_warn "Deployment API call failed or returned error"
-        log_info "Auto-deploy will run automatically in the next cycle (every 5 minutes)"
-        log_info "Or the deployment manager will detect changes on next check"
+        log_info "The deployment manager will detect changes on next check (every 5 minutes)"
     fi
 else
-    log_info "Service not running, auto-deploy will handle deployment on startup"
+    log_info "Service not running, deployment will be handled when service starts"
 fi
 
 # Step 3: Restart services
@@ -119,4 +118,4 @@ fi
 # Final status
 log_header "Deployment Complete!"
 log_info "Services should be running with latest code"
-log_info "Auto-deploy will continue to monitor for changes every 5 minutes"
+log_info "The Go trader service will continue to monitor for changes every 5 minutes"

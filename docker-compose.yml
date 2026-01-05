@@ -19,4 +19,4 @@ services:
       start_period: 5s
 
 # Note: tradernet is now deployed as a native systemd service (not Docker)
-# See tradernet.service - venv is managed automatically by the auto-deployer
+# See tradernet.service - deployment is handled by the Go trader service

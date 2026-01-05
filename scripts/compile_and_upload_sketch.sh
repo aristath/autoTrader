@@ -1,6 +1,6 @@
 #!/bin/bash
 # Compile and upload Arduino sketch to MCU
-# Used by auto-deploy script when sketch files change
+# Used when sketch files change (deployment handled by Go trader service)
 
 set -euo pipefail
 
