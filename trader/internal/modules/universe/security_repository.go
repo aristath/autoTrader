@@ -510,25 +510,25 @@ func (r *SecurityRepository) scanSecurity(rows *sql.Rows) (Security, error) {
 	// min_portfolio_target, max_portfolio_target, created_at, updated_at
 	var symbol sql.NullString
 	err := rows.Scan(
-		&isin,           // isin (PRIMARY KEY)
-		&symbol,         // symbol
-		&yahooSymbol,    // yahoo_symbol
-		&security.Name,  // name
-		&productType,    // product_type
-		&industry,       // industry
-		&country,        // country
-		&fullExchangeName, // fullExchangeName
+		&isin,                        // isin (PRIMARY KEY)
+		&symbol,                      // symbol
+		&yahooSymbol,                 // yahoo_symbol
+		&security.Name,               // name
+		&productType,                 // product_type
+		&industry,                    // industry
+		&country,                     // country
+		&fullExchangeName,            // fullExchangeName
 		&security.PriorityMultiplier, // priority_multiplier
-		&security.MinLot, // min_lot
-		&active,         // active
-		&allowBuy,       // allow_buy
-		&allowSell,      // allow_sell
-		&currency,       // currency
-		&lastSynced,     // last_synced
-		&minPortfolioTarget, // min_portfolio_target
-		&maxPortfolioTarget, // max_portfolio_target
-		&createdAt,      // created_at
-		&updatedAt,      // updated_at
+		&security.MinLot,             // min_lot
+		&active,                      // active
+		&allowBuy,                    // allow_buy
+		&allowSell,                   // allow_sell
+		&currency,                    // currency
+		&lastSynced,                  // last_synced
+		&minPortfolioTarget,          // min_portfolio_target
+		&maxPortfolioTarget,          // max_portfolio_target
+		&createdAt,                   // created_at
+		&updatedAt,                   // updated_at
 	)
 	if err != nil {
 		return security, err
