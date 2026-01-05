@@ -3,8 +3,6 @@ package universe
 import (
 	"database/sql"
 	"fmt"
-	"path/filepath"
-	"strings"
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 	"github.com/rs/zerolog"
@@ -12,15 +10,15 @@ import (
 
 // HistoryDB provides access to historical price data
 type HistoryDB struct {
-	historyDir string
-	log        zerolog.Logger
+	db  *sql.DB
+	log zerolog.Logger
 }
 
 // NewHistoryDB creates a new history database accessor
-func NewHistoryDB(historyDir string, log zerolog.Logger) *HistoryDB {
+func NewHistoryDB(db *sql.DB, log zerolog.Logger) *HistoryDB {
 	return &HistoryDB{
-		historyDir: historyDir,
-		log:        log.With().Str("component", "history_db").Logger(),
+		db:  db,
+		log: log.With().Str("component", "history_db").Logger(),
 	}
 }
 
@@ -40,22 +38,17 @@ type MonthlyPrice struct {
 	AvgAdjClose float64 `json:"avg_adj_close"`
 }
 
-// GetDailyPrices fetches daily price data for a symbol
-func (h *HistoryDB) GetDailyPrices(symbol string, limit int) ([]DailyPrice, error) {
-	db, err := h.openHistoryDB(symbol)
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
-
+// GetDailyPrices fetches daily price data for an ISIN
+func (h *HistoryDB) GetDailyPrices(isin string, limit int) ([]DailyPrice, error) {
 	query := `
-		SELECT date, close_price as close, high_price as high, low_price as low, open_price as open, volume
+		SELECT date, close, high, low, open, volume
 		FROM daily_prices
+		WHERE symbol = ?
 		ORDER BY date DESC
 		LIMIT ?
 	`
 
-	rows, err := db.Query(query, limit)
+	rows, err := h.db.Query(query, isin, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query daily prices: %w", err)
 	}
@@ -85,22 +78,17 @@ func (h *HistoryDB) GetDailyPrices(symbol string, limit int) ([]DailyPrice, erro
 	return prices, nil
 }
 
-// GetMonthlyPrices fetches monthly price data for a symbol
-func (h *HistoryDB) GetMonthlyPrices(symbol string, limit int) ([]MonthlyPrice, error) {
-	db, err := h.openHistoryDB(symbol)
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
-
+// GetMonthlyPrices fetches monthly price data for an ISIN
+func (h *HistoryDB) GetMonthlyPrices(isin string, limit int) ([]MonthlyPrice, error) {
 	query := `
 		SELECT year_month, avg_adj_close
 		FROM monthly_prices
+		WHERE symbol = ?
 		ORDER BY year_month DESC
 		LIMIT ?
 	`
 
-	rows, err := db.Query(query, limit)
+	rows, err := h.db.Query(query, isin, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query monthly prices: %w", err)
 	}
@@ -125,17 +113,11 @@ func (h *HistoryDB) GetMonthlyPrices(symbol string, limit int) ([]MonthlyPrice, 
 	return prices, nil
 }
 
-// HasMonthlyData checks if the history database has monthly price data
+// HasMonthlyData checks if the history database has monthly price data for an ISIN
 // Used to determine if initial 10-year seed has been done
-func (h *HistoryDB) HasMonthlyData(symbol string) (bool, error) {
-	db, err := h.openHistoryDB(symbol)
-	if err != nil {
-		return false, err
-	}
-	defer db.Close()
-
+func (h *HistoryDB) HasMonthlyData(isin string) (bool, error) {
 	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM monthly_prices").Scan(&count)
+	err := h.db.QueryRow("SELECT COUNT(*) FROM monthly_prices WHERE symbol = ?", isin).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("failed to check monthly data: %w", err)
 	}
@@ -147,25 +129,20 @@ func (h *HistoryDB) HasMonthlyData(symbol string) (bool, error) {
 // Faithful translation from Python: app/jobs/securities_data_sync.py -> _sync_historical_for_symbol()
 //
 // Inserts/replaces daily prices and aggregates to monthly prices in a single transaction
-func (h *HistoryDB) SyncHistoricalPrices(symbol string, prices []DailyPrice) error {
-	db, err := h.openHistoryDB(symbol)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
+// The isin parameter is the ISIN (e.g., US0378331005), not the Tradernet symbol
+func (h *HistoryDB) SyncHistoricalPrices(isin string, prices []DailyPrice) error {
 	// Begin transaction
-	tx, err := db.Begin()
+	tx, err := h.db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback() // Will be no-op if Commit succeeds
 
-	// Insert/replace daily prices
+	// Insert/replace daily prices with ISIN
 	stmt, err := tx.Prepare(`
 		INSERT OR REPLACE INTO daily_prices
-		(date, open_price, high_price, low_price, close_price, volume, source, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, 'yahoo', datetime('now'))
+		(symbol, date, open, high, low, close, volume, adjusted_close)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement: %w", err)
@@ -179,33 +156,38 @@ func (h *HistoryDB) SyncHistoricalPrices(symbol string, prices []DailyPrice) err
 			volume.Valid = true
 		}
 
+		adjustedClose := price.Close // Use close as adjusted_close if not provided
+
 		_, err = stmt.Exec(
+			isin,
 			price.Date,
 			price.Open,
 			price.High,
 			price.Low,
 			price.Close,
 			volume,
+			adjustedClose,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert daily price for %s: %w", price.Date, err)
 		}
 	}
 
-	// Aggregate to monthly prices
-	// This matches the Python SQL exactly
+	// Aggregate to monthly prices with ISIN filter
 	_, err = tx.Exec(`
 		INSERT OR REPLACE INTO monthly_prices
-		(year_month, avg_close, avg_adj_close, source, created_at)
+		(symbol, year_month, avg_close, avg_adj_close, source, created_at)
 		SELECT
+			? as symbol,
 			strftime('%Y-%m', date) as year_month,
-			AVG(close_price) as avg_close,
-			AVG(close_price) as avg_adj_close,
+			AVG(close) as avg_close,
+			AVG(adjusted_close) as avg_adj_close,
 			'calculated',
 			datetime('now')
 		FROM daily_prices
+		WHERE symbol = ?
 		GROUP BY strftime('%Y-%m', date)
-	`)
+	`, isin, isin)
 	if err != nil {
 		return fmt.Errorf("failed to aggregate monthly prices: %w", err)
 	}
@@ -216,30 +198,9 @@ func (h *HistoryDB) SyncHistoricalPrices(symbol string, prices []DailyPrice) err
 	}
 
 	h.log.Info().
-		Str("symbol", symbol).
+		Str("isin", isin).
 		Int("count", len(prices)).
 		Msg("Synced historical prices")
 
 	return nil
-}
-
-// openHistoryDB opens the history database for a symbol
-func (h *HistoryDB) openHistoryDB(symbol string) (*sql.DB, error) {
-	// Convert symbol format: AAPL.US -> AAPL_US
-	dbSymbol := strings.ReplaceAll(symbol, ".", "_")
-
-	dbPath := filepath.Join(h.historyDir, dbSymbol+".db")
-
-	db, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open history database for %s: %w", symbol, err)
-	}
-
-	// Verify database is accessible
-	if err := db.Ping(); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to ping history database for %s: %w", symbol, err)
-	}
-
-	return db, nil
 }

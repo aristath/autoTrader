@@ -286,7 +286,7 @@ func (s *Server) setupSystemRoutes(r chi.Router) {
 	positionRepo := portfolio.NewPositionRepository(s.portfolioDB.Conn(), s.universeDB.Conn(), s.log)
 	yahooClient := yahoo.NewClient(s.log)
 	securityScorer := scorers.NewSecurityScorer()
-	historyDB := universe.NewHistoryDB(s.cfg.HistoryPath, s.log)
+	historyDB := universe.NewHistoryDB(s.historyDB.Conn(), s.log)
 
 	// Tradernet client for symbol resolution and data fetching
 	tradernetClient := tradernet.NewClient(s.cfg.TradernetServiceURL, s.log)
@@ -498,7 +498,7 @@ func (s *Server) setupUniverseRoutes(r chi.Router) {
 	securityScorer := scorers.NewSecurityScorer()
 
 	// History database for historical price data
-	historyDB := universe.NewHistoryDB(s.cfg.HistoryPath, s.log)
+	historyDB := universe.NewHistoryDB(s.historyDB.Conn(), s.log)
 
 	// Tradernet client for symbol resolution and data fetching
 	tradernetClient := tradernet.NewClient(s.cfg.TradernetServiceURL, s.log)

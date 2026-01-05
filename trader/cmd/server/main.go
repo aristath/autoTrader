@@ -364,7 +364,7 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 	cashFlowsService := cash_flows.NewCashFlowsService(syncJob, log)
 
 	// Universe sync services
-	historyDBClient := universe.NewHistoryDB(cfg.HistoryPath, log)
+	historyDBClient := universe.NewHistoryDB(historyDB.Conn(), log)
 	historicalSyncService := universe.NewHistoricalSyncService(
 		yahooClient,
 		securityRepo,

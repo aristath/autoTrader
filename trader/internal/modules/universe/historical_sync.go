@@ -57,10 +57,16 @@ func (s *HistoricalSyncService) SyncHistoricalPrices(symbol string) error {
 		return fmt.Errorf("security not found: %s", symbol)
 	}
 
+	// Extract ISIN - required for history database operations
+	if security.ISIN == "" {
+		return fmt.Errorf("security %s has no ISIN, cannot sync historical prices", symbol)
+	}
+	isin := security.ISIN
+
 	// Check if we have monthly data (indicates initial seeding was done)
-	hasMonthly, err := s.historyDB.HasMonthlyData(symbol)
+	hasMonthly, err := s.historyDB.HasMonthlyData(isin)
 	if err != nil {
-		s.log.Warn().Err(err).Str("symbol", symbol).Msg("Failed to check monthly data, assuming no data")
+		s.log.Warn().Err(err).Str("symbol", symbol).Str("isin", isin).Msg("Failed to check monthly data, assuming no data")
 		hasMonthly = false
 	}
 
@@ -148,7 +154,8 @@ func (s *HistoricalSyncService) SyncHistoricalPrices(symbol string) error {
 	}
 
 	// Write to history database (transaction, daily + monthly aggregation)
-	err = s.historyDB.SyncHistoricalPrices(symbol, dailyPrices)
+	// Use ISIN instead of Tradernet symbol
+	err = s.historyDB.SyncHistoricalPrices(isin, dailyPrices)
 	if err != nil {
 		return fmt.Errorf("failed to sync historical prices to database: %w", err)
 	}
@@ -164,6 +171,7 @@ func (s *HistoricalSyncService) SyncHistoricalPrices(symbol string) error {
 
 	s.log.Info().
 		Str("symbol", symbol).
+		Str("isin", isin).
 		Int("count", len(dailyPrices)).
 		Msg("Historical price sync complete")
 
