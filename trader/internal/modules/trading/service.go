@@ -69,14 +69,25 @@ func (s *TradingService) SyncFromTradernet() error {
 		}
 
 		// Parse executed_at timestamp
-		executedAt, err := time.Parse(time.RFC3339, trade.ExecutedAt)
+		// Try RFC3339 first, then try without timezone (common format from APIs)
+		var executedAt time.Time
+		var err error
+		executedAt, err = time.Parse(time.RFC3339, trade.ExecutedAt)
 		if err != nil {
-			s.log.Error().
-				Err(err).
-				Str("order_id", trade.OrderID).
-				Str("executed_at", trade.ExecutedAt).
-				Msg("Invalid executed_at timestamp")
-			continue
+			// Try parsing without timezone (e.g., "2025-05-07T14:03:22.300")
+			executedAt, err = time.Parse("2006-01-02T15:04:05.000", trade.ExecutedAt)
+			if err != nil {
+				// Try parsing without milliseconds
+				executedAt, err = time.Parse("2006-01-02T15:04:05", trade.ExecutedAt)
+				if err != nil {
+					s.log.Error().
+						Err(err).
+						Str("order_id", trade.OrderID).
+						Str("executed_at", trade.ExecutedAt).
+						Msg("Invalid executed_at timestamp")
+					continue
+				}
+			}
 		}
 
 		// Convert tradernet.Trade to trading.Trade domain model
