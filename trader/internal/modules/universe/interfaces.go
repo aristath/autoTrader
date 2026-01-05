@@ -14,8 +14,8 @@ type SyncServiceInterface interface {
 type SecurityRepositoryInterface interface {
 	GetGroupedByExchange() (map[string][]Security, error)
 	GetAllActive() ([]Security, error)
-	GetBySymbol(symbol string) (*Security, error) // Helper method - looks up ISIN first
-	GetByISIN(isin string) (*Security, error)     // Primary method
+	GetBySymbol(symbol string) (*Security, error)             // Helper method - looks up ISIN first
+	GetByISIN(isin string) (*Security, error)                 // Primary method
 	Update(isin string, updates map[string]interface{}) error // Changed from symbol to ISIN
 }
 
