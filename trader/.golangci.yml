@@ -98,7 +98,7 @@ linters-settings:
       - name: redefines-builtin-id
 
   goimports:
-    local-prefixes: github.com/yourusername/arduino-trader
+    local-prefixes: github.com/aristath/arduino-trader
 
   gocritic:
     disabled-checks:

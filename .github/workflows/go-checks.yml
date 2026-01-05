@@ -2,7 +2,7 @@ name: Go Code Quality
 
 on:
   push:
-    branches: [ main, go2 ]
+    branches: [ main ]
     paths:
       - 'trader/**.go'
       - 'trader/go.mod'
@@ -10,7 +10,7 @@ on:
       - '.github/workflows/go-checks.yml'
       - 'trader/.golangci.yml'
   pull_request:
-    branches: [ main, go2 ]
+    branches: [ main ]
     paths:
       - 'trader/**.go'
       - 'trader/go.mod'

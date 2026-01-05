@@ -7,7 +7,6 @@ on:
       - '.github/workflows/build-go.yml'
     branches:
       - main
-      - go2
 
 jobs:
   build:

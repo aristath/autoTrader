@@ -2,9 +2,9 @@ name: Pre-commit Checks
 
 on:
   push:
-    branches: [ main, go2 ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, go2 ]
+    branches: [ main ]
 
 jobs:
   pre-commit:

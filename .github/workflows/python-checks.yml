@@ -2,14 +2,14 @@ name: Python Code Quality
 
 on:
   push:
-    branches: [ main, go2 ]
+    branches: [ main ]
     paths:
       - 'microservices/**'
       - '**.py'
       - 'microservices/**/requirements.txt'
       - '.github/workflows/python-checks.yml'
   pull_request:
-    branches: [ main, go2 ]
+    branches: [ main ]
     paths:
       - 'microservices/**'
       - '**.py'
