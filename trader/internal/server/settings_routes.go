@@ -140,6 +140,11 @@ func (s *Server) setupSettingsRoutes(r chi.Router) {
 	settingsHandler := settings.NewHandler(settingsService, s.log)
 	settingsHandler.SetOnboardingService(onboardingService)
 
+	// Set credential refresher to refresh system handlers' tradernet client
+	if s.systemHandlers != nil {
+		settingsHandler.SetCredentialRefresher(s.systemHandlers)
+	}
+
 	// Register routes
 	// Note: r is already under /api route group, so use /settings not /api/settings
 	r.Route("/settings", func(r chi.Router) {

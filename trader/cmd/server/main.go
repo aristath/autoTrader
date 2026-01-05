@@ -95,6 +95,18 @@ func main() {
 		log.Warn().Err(err).Msg("Failed to update config from settings DB, using environment variables")
 	}
 
+	// Warn if credentials are loaded from .env (deprecated)
+	if cfg.TradernetAPIKey != "" || cfg.TradernetAPISecret != "" {
+		// Check if credentials came from env vars (not settings DB)
+		apiKeyFromDB, _ := settingsRepo.Get("tradernet_api_key")
+		apiSecretFromDB, _ := settingsRepo.Get("tradernet_api_secret")
+		usingEnvVars := (apiKeyFromDB == nil || *apiKeyFromDB == "") && cfg.TradernetAPIKey != "" ||
+			(apiSecretFromDB == nil || *apiSecretFromDB == "") && cfg.TradernetAPISecret != ""
+		if usingEnvVars {
+			log.Warn().Msg("Tradernet credentials loaded from .env file - this is deprecated. Please configure credentials via Settings UI (Credentials tab) or API. The .env file will no longer be required in future versions.")
+		}
+	}
+
 	// 3. ledger.db - Immutable financial audit trail (EXPANDED: trades, cash flows, dividends)
 	ledgerDB, err := database.New(database.Config{
 		Path:    cfg.DataDir + "/ledger.db",

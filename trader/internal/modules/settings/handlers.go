@@ -14,11 +14,17 @@ type OnboardingServiceInterface interface {
 	RunOnboarding() error
 }
 
+// CredentialRefresher defines the interface for refreshing tradernet client credentials
+type CredentialRefresher interface {
+	RefreshCredentials() error
+}
+
 // Handler provides HTTP handlers for settings endpoints
 type Handler struct {
-	service           *Service
-	onboardingService OnboardingServiceInterface
-	log               zerolog.Logger
+	service             *Service
+	onboardingService   OnboardingServiceInterface
+	credentialRefresher CredentialRefresher
+	log                 zerolog.Logger
 }
 
 // NewHandler creates a new settings handler
@@ -32,6 +38,11 @@ func NewHandler(service *Service, log zerolog.Logger) *Handler {
 // SetOnboardingService sets the onboarding service (for dependency injection)
 func (h *Handler) SetOnboardingService(onboardingService OnboardingServiceInterface) {
 	h.onboardingService = onboardingService
+}
+
+// SetCredentialRefresher sets the credential refresher (for dependency injection)
+func (h *Handler) SetCredentialRefresher(refresher CredentialRefresher) {
+	h.credentialRefresher = refresher
 }
 
 // HandleGetAll handles GET /api/settings
@@ -76,6 +87,15 @@ func (h *Handler) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 			Msg("Failed to update setting")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	// Refresh tradernet client credentials if this was a credential update
+	if (key == "tradernet_api_key" || key == "tradernet_api_secret") && h.credentialRefresher != nil {
+		if err := h.credentialRefresher.RefreshCredentials(); err != nil {
+			h.log.Warn().Err(err).Msg("Failed to refresh tradernet client credentials after update")
+		} else {
+			h.log.Info().Msg("Tradernet client credentials refreshed after settings update")
+		}
 	}
 
 	// Trigger onboarding if this is first-time credential setup

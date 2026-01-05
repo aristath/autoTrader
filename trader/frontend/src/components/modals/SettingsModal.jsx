@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, Tabs, Text, Button, NumberInput, Switch, Slider, Group, Stack, Paper, Divider, Alert } from '@mantine/core';
+import { Modal, Tabs, Text, Button, NumberInput, Switch, Slider, Group, Stack, Paper, Divider, Alert, TextInput } from '@mantine/core';
 import { useAppStore } from '../../stores/appStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { api } from '../../api/client';
@@ -89,6 +89,7 @@ export function SettingsModal() {
           <Tabs.Tab value="portfolio">Portfolio</Tabs.Tab>
           <Tabs.Tab value="display">Display</Tabs.Tab>
           <Tabs.Tab value="system">System</Tabs.Tab>
+          <Tabs.Tab value="credentials">Credentials</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="trading" p="md">
@@ -559,6 +560,43 @@ export function SettingsModal() {
                     Restart
                   </Button>
                 </Group>
+              </Stack>
+            </Paper>
+          </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="credentials" p="md">
+          <Stack gap="md">
+            {/* API Credentials */}
+            <Paper p="md" withBorder>
+              <Text size="sm" fw={500} mb="xs" tt="uppercase">API Credentials</Text>
+              <Text size="xs" c="dimmed" mb="md">
+                Configure API keys for external services. Credentials are stored securely in the database.
+                The .env file is no longer required - all configuration can be managed through this UI.
+              </Text>
+              <Stack gap="md">
+                <TextInput
+                  label="Tradernet API Key"
+                  value={getSetting('tradernet_api_key', '') || ''}
+                  onChange={(e) => handleUpdateSetting('tradernet_api_key', e.target.value)}
+                  placeholder="Enter your Tradernet API key"
+                  description="Your Tradernet API key for accessing trading services"
+                />
+                <TextInput
+                  label="Tradernet API Secret"
+                  type="password"
+                  value={getSetting('tradernet_api_secret', '') || ''}
+                  onChange={(e) => handleUpdateSetting('tradernet_api_secret', e.target.value)}
+                  placeholder="Enter your Tradernet API secret"
+                  description="Your Tradernet API secret (hidden for security)"
+                />
+                <Divider />
+                <Alert color="blue" size="sm">
+                  <Text size="xs">
+                    Credentials are stored in the settings database and take precedence over environment variables.
+                    Changes are applied immediately - no restart required.
+                  </Text>
+                </Alert>
               </Stack>
             </Paper>
           </Stack>

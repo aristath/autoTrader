@@ -126,23 +126,28 @@ func Load() (*Config, error) {
 
 // UpdateFromSettings updates configuration from settings database
 // This should be called after the config database is initialized
+// Settings DB values take precedence over environment variables
 func (c *Config) UpdateFromSettings(settingsRepo *settings.Repository) error {
 	// Try to get credentials from settings DB
 	apiKey, err := settingsRepo.Get("tradernet_api_key")
 	if err != nil {
 		return fmt.Errorf("failed to get tradernet_api_key from settings: %w", err)
 	}
+	// Only use settings DB value if it's not empty (settings DB takes precedence)
 	if apiKey != nil && *apiKey != "" {
 		c.TradernetAPIKey = *apiKey
 	}
+	// If settings DB value is empty, keep the env var value (if any) as fallback
 
 	apiSecret, err := settingsRepo.Get("tradernet_api_secret")
 	if err != nil {
 		return fmt.Errorf("failed to get tradernet_api_secret from settings: %w", err)
 	}
+	// Only use settings DB value if it's not empty (settings DB takes precedence)
 	if apiSecret != nil && *apiSecret != "" {
 		c.TradernetAPISecret = *apiSecret
 	}
+	// If settings DB value is empty, keep the env var value (if any) as fallback
 
 	return nil
 }

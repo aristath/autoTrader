@@ -158,12 +158,6 @@ cd trader
 # Install dependencies
 go mod download
 
-# Copy environment file
-cp .env.example .env
-
-# Edit configuration
-nano .env
-
 # Build
 go build -o trader ./cmd/server
 
@@ -171,26 +165,32 @@ go build -o trader ./cmd/server
 GOOS=linux GOARCH=arm64 go build -o trader-arm64 ./cmd/server
 ```
 
-#### 3. Configure Environment
+#### 3. Configure Credentials
 
-Edit `.env` file:
+**Recommended: Use Settings UI**
+
+1. Start the application: `./trader`
+2. Open the web UI (default: http://localhost:8001)
+3. Click the Settings icon (gear) in the header
+4. Navigate to the **Credentials** tab
+5. Enter your Tradernet API Key and Secret
+
+**Alternative: Use API**
 
 ```bash
-# Data directory (contains all 7 databases)
-DATA_DIR=../data
+# Set credentials via API
+curl -X PUT http://localhost:8001/api/settings/tradernet_api_key \
+  -H "Content-Type: application/json" \
+  -d '{"value": "your_api_key"}'
 
-# Microservice URLs
-PYPFOPT_SERVICE_URL=http://localhost:9001
-TRADERNET_SERVICE_URL=http://localhost:9002
-
-# Tradernet API
-TRADERNET_API_KEY=your_api_key
-TRADERNET_API_SECRET=your_api_secret
-
-# Server
-GO_PORT=8001
-LOG_LEVEL=info
+curl -X PUT http://localhost:8001/api/settings/tradernet_api_secret \
+  -H "Content-Type: application/json" \
+  -d '{"value": "your_api_secret"}'
 ```
+
+**Legacy: .env file (deprecated)**
+
+The `.env` file is no longer required. If you need to set infrastructure settings (ports, service URLs), you can create a `.env` file, but API credentials should be configured via the Settings UI.
 
 #### 4. Start Microservices
 
@@ -870,30 +870,32 @@ curl -X POST http://localhost:8001/api/settings/trading-mode \
 
 ## Configuration
 
-### Environment Variables
+### API Credentials (Recommended)
 
-**Main Application (.env):**
+**Configure via Settings UI:**
+
+1. Open the Settings modal (gear icon in the header)
+2. Navigate to the **Credentials** tab
+3. Enter your Tradernet API Key and Secret
+4. Credentials are stored securely in the settings database
+
+**Configure via API:**
 
 ```bash
-# Data directory (contains all 7 databases)
-DATA_DIR=../data
+# Set Tradernet API Key
+PUT /api/settings/tradernet_api_key
+{
+  "value": "your_api_key"
+}
 
-# Microservice URLs
-PYPFOPT_SERVICE_URL=http://localhost:9001
-TRADERNET_SERVICE_URL=http://localhost:9002
-
-# Tradernet API
-TRADERNET_API_KEY=your_api_key
-TRADERNET_API_SECRET=your_api_secret
-
-# Server
-GO_PORT=8001
-LOG_LEVEL=info  # debug, info, warn, error
-
-# Display (LED Matrix)
-DISPLAY_HOST=localhost
-DISPLAY_PORT=5555
+# Set Tradernet API Secret
+PUT /api/settings/tradernet_api_secret
+{
+  "value": "your_api_secret"
+}
 ```
+
+**Note:** Credentials stored in the settings database take precedence over environment variables. The `.env` file is no longer required for credentials (see Legacy Configuration below).
 
 ### Settings API
 
@@ -918,10 +920,37 @@ POST /api/settings/{key}
 | Setting | Default | Description |
 |---------|---------|-------------|
 | trading_mode | research | Trading mode (live/research) |
+| tradernet_api_key | "" | Tradernet API key (configure via UI or API) |
+| tradernet_api_secret | "" | Tradernet API secret (configure via UI or API) |
 | buy_cooldown_days | 30 | Days before re-buying same security |
 | min_hold_days | 90 | Minimum hold time before selling |
 | drip_enabled | true | Auto-reinvest dividends ≥3% yield |
 | emergency_rebalancing_enabled | true | Auto-rebalance on negative cash |
+
+### Legacy Configuration (.env file - Deprecated)
+
+**Note:** The `.env` file is **deprecated** for API credentials. Use the Settings UI (Credentials tab) or Settings API instead. The `.env` file is still supported for backwards compatibility but will show a deprecation warning.
+
+**Main Application (.env) - Legacy:**
+
+```bash
+# Data directory (contains all 7 databases)
+DATA_DIR=../data
+
+# Microservice URLs
+PYPFOPT_SERVICE_URL=http://localhost:9001
+TRADERNET_SERVICE_URL=http://localhost:9002
+
+# Tradernet API (DEPRECATED - use Settings UI instead)
+TRADERNET_API_KEY=your_api_key
+TRADERNET_API_SECRET=your_api_secret
+
+# Server
+GO_PORT=8001
+LOG_LEVEL=info  # debug, info, warn, error
+```
+
+**Infrastructure settings** (service URLs, ports, etc.) may still be configured via environment variables as they are deployment-specific and not user-facing.
 
 ---
 

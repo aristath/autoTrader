@@ -3,6 +3,7 @@ package server
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -582,6 +583,31 @@ func (h *SystemHandlers) HandleTradernetStatus(w http.ResponseWriter, r *http.Re
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+// RefreshCredentials refreshes tradernet client credentials from settings database
+func (h *SystemHandlers) RefreshCredentials() error {
+	if h.tradernetClient == nil {
+		return fmt.Errorf("tradernet client not configured")
+	}
+
+	settingsRepo := settings.NewRepository(h.configDB.Conn(), h.log)
+	apiKey, err := settingsRepo.Get("tradernet_api_key")
+	if err != nil {
+		return fmt.Errorf("failed to get tradernet_api_key from settings: %w", err)
+	}
+	apiSecret, err := settingsRepo.Get("tradernet_api_secret")
+	if err != nil {
+		return fmt.Errorf("failed to get tradernet_api_secret from settings: %w", err)
+	}
+
+	if apiKey != nil && apiSecret != nil && *apiKey != "" && *apiSecret != "" {
+		h.tradernetClient.SetCredentials(*apiKey, *apiSecret)
+		h.log.Info().Msg("Tradernet client credentials refreshed from settings database")
+		return nil
+	}
+
+	return fmt.Errorf("credentials not found in settings database")
 }
 
 // HandleJobsStatus returns scheduler job status
