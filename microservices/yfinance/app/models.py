@@ -19,7 +19,9 @@ class ServiceResponse(BaseModel):
 class BatchQuotesRequest(BaseModel):
     """Request model for batch quote retrieval."""
 
-    symbols: list[str] = Field(..., min_items=1, max_items=100, description="List of symbols")
+    symbols: list[str] = Field(
+        ..., min_length=1, max_length=100, description="List of symbols"
+    )
     yahoo_overrides: Optional[dict[str, str]] = Field(
         default=None, description="Symbol to Yahoo symbol overrides"
     )
@@ -30,7 +32,10 @@ class HistoricalPricesRequest(BaseModel):
 
     symbol: str
     yahoo_symbol: Optional[str] = None
-    period: str = Field(default="1y", description="Period: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max")
+    period: str = Field(
+        default="1y",
+        description="Period: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max",
+    )
     interval: str = Field(default="1d", description="Interval: 1d, 1wk, 1mo")
 
 
@@ -96,4 +101,3 @@ class SecurityInfo(BaseModel):
     full_exchange_name: Optional[str] = None
     product_type: Optional[str] = None
     name: Optional[str] = None
-

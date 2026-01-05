@@ -1,2 +1,1 @@
 """Yahoo Finance microservice."""
-

@@ -57,15 +57,15 @@ func setupTagFilterTestDB(t *testing.T) *sql.DB {
 	`)
 	require.NoError(t, err)
 
-	// Create security_tags table
+	// Create security_tags table (after migration 030: uses isin, not symbol)
 	_, err = db.Exec(`
 		CREATE TABLE security_tags (
-			symbol TEXT NOT NULL,
+			isin TEXT NOT NULL,
 			tag_id TEXT NOT NULL,
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL,
-			PRIMARY KEY (symbol, tag_id),
-			FOREIGN KEY (symbol) REFERENCES securities(symbol) ON DELETE CASCADE,
+			PRIMARY KEY (isin, tag_id),
+			FOREIGN KEY (isin) REFERENCES securities(isin) ON DELETE CASCADE,
 			FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 		)
 	`)
@@ -73,7 +73,9 @@ func setupTagFilterTestDB(t *testing.T) *sql.DB {
 
 	// Create indexes
 	_, err = db.Exec(`
-		CREATE INDEX IF NOT EXISTS idx_security_tags_symbol ON security_tags(symbol);
+		CREATE INDEX IF NOT EXISTS idx_securities_symbol ON securities(symbol);
+		CREATE INDEX IF NOT EXISTS idx_securities_active ON securities(active);
+		CREATE INDEX IF NOT EXISTS idx_security_tags_isin ON security_tags(isin);
 		CREATE INDEX IF NOT EXISTS idx_security_tags_tag_id ON security_tags(tag_id);
 	`)
 	require.NoError(t, err)
@@ -113,15 +115,15 @@ func TestTagBasedFilter_GetOpportunityCandidates_WithCash(t *testing.T) {
 	`, now, now, now, now, now, now, now, now)
 	require.NoError(t, err)
 
-	// Insert security tags
+	// Insert security tags using ISINs
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
 		VALUES
-			('AAPL', 'quality-gate-pass', ?, ?),
-			('AAPL', 'high-quality', ?, ?),
-			('AAPL', 'value-opportunity', ?, ?),
-			('MSFT', 'quality-gate-pass', ?, ?),
-			('MSFT', 'high-total-return', ?, ?)
+			('US0378331005', 'quality-gate-pass', ?, ?),
+			('US0378331005', 'high-quality', ?, ?),
+			('US0378331005', 'value-opportunity', ?, ?),
+			('US5949181045', 'quality-gate-pass', ?, ?),
+			('US5949181045', 'high-total-return', ?, ?)
 	`, now, now, now, now, now, now, now, now, now, now)
 	require.NoError(t, err)
 
@@ -175,13 +177,13 @@ func TestTagBasedFilter_GetOpportunityCandidates_NoCash(t *testing.T) {
 	`, now, now, now, now)
 	require.NoError(t, err)
 
-	// Insert security tags (only quality tags, no value tags)
+	// Insert security tags using ISINs (only quality tags, no value tags)
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
 		VALUES
-			('AAPL', 'quality-gate-pass', ?, ?),
-			('AAPL', 'high-quality', ?, ?),
-			('MSFT', 'quality-gate-pass', ?, ?)
+			('US0378331005', 'quality-gate-pass', ?, ?),
+			('US0378331005', 'high-quality', ?, ?),
+			('US5949181045', 'quality-gate-pass', ?, ?)
 	`, now, now, now, now, now, now)
 	require.NoError(t, err)
 
@@ -236,13 +238,13 @@ func TestTagBasedFilter_GetSellCandidates(t *testing.T) {
 	`, now, now, now, now, now, now)
 	require.NoError(t, err)
 
-	// Insert security tags
+	// Insert security tags using ISINs
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
 		VALUES
-			('AAPL', 'overvalued', ?, ?),
-			('AAPL', 'needs-rebalance', ?, ?),
-			('MSFT', 'bubble-risk', ?, ?)
+			('US0378331005', 'overvalued', ?, ?),
+			('US0378331005', 'needs-rebalance', ?, ?),
+			('US5949181045', 'bubble-risk', ?, ?)
 	`, now, now, now, now, now, now)
 	require.NoError(t, err)
 
@@ -335,9 +337,11 @@ func TestTagBasedFilter_isMarketVolatile(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert security tags - 6 securities with volatility-spike (above threshold of 5)
+	// Use ISINs (mapped from symbols: "ISIN" + symbol)
 	tagArgs := []interface{}{}
 	for _, symbol := range symbols {
-		tagArgs = append(tagArgs, symbol, "volatility-spike", now, now)
+		isin := "ISIN" + symbol // Match the ISIN format used in securities insert
+		tagArgs = append(tagArgs, isin, "volatility-spike", now, now)
 	}
 	placeholders = ""
 	for i := 0; i < len(symbols); i++ {
@@ -348,7 +352,7 @@ func TestTagBasedFilter_isMarketVolatile(t *testing.T) {
 	}
 
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
 		VALUES `+placeholders, tagArgs...)
 	require.NoError(t, err)
 
@@ -396,12 +400,12 @@ func TestTagBasedFilter_isMarketVolatile_NotVolatile(t *testing.T) {
 	`, now, now)
 	require.NoError(t, err)
 
-	// Insert security tags - only 2 securities with volatility-spike (below threshold of 5)
+	// Insert security tags using ISINs - only 2 securities with volatility-spike (below threshold of 5)
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
 		VALUES
-			('AAPL', 'volatility-spike', ?, ?),
-			('MSFT', 'volatility-spike', ?, ?)
+			('US0378331005', 'volatility-spike', ?, ?),
+			('US5949181045', 'volatility-spike', ?, ?)
 	`, now, now, now, now)
 	require.NoError(t, err)
 

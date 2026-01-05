@@ -16,11 +16,14 @@ func TestCalculateTransactionCost(t *testing.T) {
 
 	cost := CalculateTransactionCost(sequence, 2.0, 0.002)
 
-	// Expected: 3 trades × 2.0 fixed = 6.0
-	//           + (1000 + 500 + 200) × 0.002 = 3.4
-	//           Total = 9.4
-	expected := 6.0 + (1000.0+500.0+200.0)*0.002
-	assert.InDelta(t, expected, cost, 0.01, "Transaction cost should be calculated correctly")
+	// Expected with enhanced calculation (includes spread and slippage):
+	// 3 trades × 2.0 fixed = 6.0
+	// + (1000 + 500 + 200) × 0.002 = 3.4 (variable cost)
+	// + (1000 + 500 + 200) × 0.001 = 1.7 (spread cost, default 0.1%)
+	// + (1000 + 500 + 200) × 0.0015 = 2.55 (slippage cost, default 0.15%)
+	// Total = 6.0 + 3.4 + 1.7 + 2.55 = 13.65
+	expected := 6.0 + (1000.0+500.0+200.0)*0.002 + (1000.0+500.0+200.0)*0.001 + (1000.0+500.0+200.0)*0.0015
+	assert.InDelta(t, expected, cost, 0.01, "Transaction cost should be calculated correctly with spread and slippage")
 }
 
 func TestCalculateDiversificationScore_EmptyPortfolio(t *testing.T) {

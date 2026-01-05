@@ -90,27 +90,6 @@ func (lts *LongTermScorer) Calculate(
 	}
 }
 
-// scoreCAGR scores CAGR using a bell curve
-// Peak at target (default 11%), uses asymmetric Gaussian
-// DEPRECATED: Use scoreCAGRWithBubbleDetection instead for enhanced scoring
-func scoreCAGR(cagr, target float64) float64 {
-	if cagr <= 0 {
-		return scoring.BellCurveFloor
-	}
-
-	// Use different sigma based on which side of target we're on
-	sigma := scoring.BellCurveSigmaLeft
-	if cagr >= target {
-		sigma = scoring.BellCurveSigmaRight
-	}
-
-	// Gaussian bell curve centered at target
-	rawScore := math.Exp(-math.Pow(cagr-target, 2) / (2 * math.Pow(sigma, 2)))
-
-	// Scale to range [BellCurveFloor, 1.0]
-	return scoring.BellCurveFloor + rawScore*(1-scoring.BellCurveFloor)
-}
-
 // scoreCAGRWithBubbleDetection scores CAGR with risk-adjusted monotonic scoring above target
 // and bubble detection to avoid unsustainable growth.
 //

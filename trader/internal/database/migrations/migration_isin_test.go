@@ -80,7 +80,7 @@ func setupPreMigrationDB(t *testing.T) *sql.DB {
 			last_updated TEXT,
 			first_bought TEXT,
 			last_sold TEXT,
-			isin TEXT,
+			isin TEXT
 		)
 	`)
 	require.NoError(t, err)

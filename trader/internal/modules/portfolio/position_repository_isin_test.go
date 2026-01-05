@@ -31,7 +31,7 @@ func setupTestDBForPositionsWithISIN(t *testing.T) (*sql.DB, *sql.DB) {
 			last_updated TEXT,
 			first_bought TEXT,
 			last_sold TEXT,
-			symbol TEXT,
+			symbol TEXT
 		)
 	`)
 	require.NoError(t, err)

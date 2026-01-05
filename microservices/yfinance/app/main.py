@@ -6,16 +6,13 @@ from typing import Optional
 from app.config import settings
 from app.health import router as health_router
 from app.models import (
-    AnalystData,
     BatchQuotesRequest,
-    FundamentalData,
     HistoricalPricesRequest,
     HistoricalPricesResponse,
-    SecurityInfo,
     ServiceResponse,
 )
 from app.service import get_yahoo_finance_service
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 # Configure logging
@@ -89,9 +86,7 @@ async def get_quote(
 async def get_batch_quotes(request: BatchQuotesRequest) -> ServiceResponse:
     """Get current prices for multiple symbols."""
     try:
-        quotes = service.get_batch_quotes(
-            request.symbols, request.yahoo_overrides
-        )
+        quotes = service.get_batch_quotes(request.symbols, request.yahoo_overrides)
         return ServiceResponse(
             success=True,
             data={"quotes": quotes},
@@ -117,9 +112,7 @@ async def get_historical_prices(request: HistoricalPricesRequest) -> ServiceResp
         )
         return ServiceResponse(
             success=True,
-            data=HistoricalPricesResponse(
-                symbol=request.symbol, prices=prices
-            ).dict(),
+            data=HistoricalPricesResponse(symbol=request.symbol, prices=prices).dict(),
         )
     except Exception as e:
         logger.exception(f"Error getting historical prices for {request.symbol}")
@@ -342,4 +335,3 @@ async def get_quote_type(
             success=False,
             error=str(e),
         )
-

@@ -1,13 +1,13 @@
 """Yahoo Finance microservice - Starlette example (for comparison).
 
-This is an example showing how the service would look using Starlette instead of FastAPI.
-This file is for reference only - not used in production.
+This is an example showing how the service would look using Starlette
+instead of FastAPI. This file is for reference only - not used in production.
 """
 
 import json
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, cast
 
 from app.config import settings
 from app.service import get_yahoo_finance_service
@@ -29,7 +29,7 @@ service = get_yahoo_finance_service()
 
 
 # Helper function for standard responses
-def success_response(data: dict) -> JSONResponse:
+def success_response(data: Dict[str, Any]) -> JSONResponse:
     """Create a success response."""
     return JSONResponse(
         {
@@ -116,7 +116,9 @@ async def get_historical_prices_post(request: Request) -> JSONResponse:
         prices = service.get_historical_prices(symbol, yahoo_symbol, period, interval)
 
         # Convert Pydantic models to dict for JSON serialization
-        prices_dict = [price.dict() if hasattr(price, "dict") else price for price in prices]
+        prices_dict = [
+            price.dict() if hasattr(price, "dict") else price for price in prices
+        ]
 
         return success_response(
             {
@@ -127,7 +129,7 @@ async def get_historical_prices_post(request: Request) -> JSONResponse:
     except json.JSONDecodeError:
         return error_response("Invalid JSON in request body", status_code=400)
     except Exception as e:
-        logger.exception(f"Error getting historical prices")
+        logger.exception("Error getting historical prices")
         return error_response(str(e))
 
 
@@ -142,7 +144,9 @@ async def get_historical_prices_get(request: Request) -> JSONResponse:
         prices = service.get_historical_prices(symbol, yahoo_symbol, period, interval)
 
         # Convert Pydantic models to dict for JSON serialization
-        prices_dict = [price.dict() if hasattr(price, "dict") else price for price in prices]
+        prices_dict = [
+            price.dict() if hasattr(price, "dict") else price for price in prices
+        ]
 
         return success_response(
             {
@@ -164,7 +168,10 @@ async def get_fundamentals(request: Request) -> JSONResponse:
 
         data = service.get_fundamental_data(symbol, yahoo_symbol)
         if data:
-            return success_response(data.dict() if hasattr(data, "dict") else data)
+            data_dict = cast(
+                Dict[str, Any], data.dict() if hasattr(data, "dict") else data
+            )
+            return success_response(data_dict)
         return error_response(f"No fundamental data available for {symbol}")
     except Exception as e:
         logger.exception(f"Error getting fundamentals for {symbol}")
@@ -180,7 +187,10 @@ async def get_analyst_data(request: Request) -> JSONResponse:
 
         data = service.get_analyst_data(symbol, yahoo_symbol)
         if data:
-            return success_response(data.dict() if hasattr(data, "dict") else data)
+            data_dict = cast(
+                Dict[str, Any], data.dict() if hasattr(data, "dict") else data
+            )
+            return success_response(data_dict)
         return error_response(f"No analyst data available for {symbol}")
     except Exception as e:
         logger.exception(f"Error getting analyst data for {symbol}")
@@ -196,7 +206,10 @@ async def get_security_industry(request: Request) -> JSONResponse:
 
         data = service.get_security_industry(symbol, yahoo_symbol)
         if data:
-            return success_response(data.dict() if hasattr(data, "dict") else data)
+            data_dict = cast(
+                Dict[str, Any], data.dict() if hasattr(data, "dict") else data
+            )
+            return success_response(data_dict)
         return error_response(f"No industry data available for {symbol}")
     except Exception as e:
         logger.exception(f"Error getting industry for {symbol}")
@@ -211,7 +224,10 @@ async def get_security_country_exchange(request: Request) -> JSONResponse:
 
         data = service.get_security_country_exchange(symbol, yahoo_symbol)
         if data:
-            return success_response(data.dict() if hasattr(data, "dict") else data)
+            data_dict = cast(
+                Dict[str, Any], data.dict() if hasattr(data, "dict") else data
+            )
+            return success_response(data_dict)
         return error_response(f"No country/exchange data available for {symbol}")
     except Exception as e:
         logger.exception(f"Error getting country/exchange for {symbol}")
@@ -226,7 +242,10 @@ async def get_security_info(request: Request) -> JSONResponse:
 
         data = service.get_security_info(symbol, yahoo_symbol)
         if data:
-            return success_response(data.dict() if hasattr(data, "dict") else data)
+            data_dict = cast(
+                Dict[str, Any], data.dict() if hasattr(data, "dict") else data
+            )
+            return success_response(data_dict)
         return error_response(f"No security info available for {symbol}")
     except Exception as e:
         logger.exception(f"Error getting security info for {symbol}")
@@ -278,4 +297,3 @@ async def startup_event():
 async def shutdown_event():
     """Shutdown event."""
     logger.info(f"{settings.service_name} shutting down...")
-

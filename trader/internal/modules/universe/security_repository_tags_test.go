@@ -16,12 +16,12 @@ func setupSecurityTagsTestDB(t *testing.T) *sql.DB {
 	db, err := sql.Open("sqlite3", ":memory:")
 	require.NoError(t, err)
 
-	// Create securities table
+	// Create securities table (after migration 030: isin is PRIMARY KEY)
 	_, err = db.Exec(`
 		CREATE TABLE securities (
-			symbol TEXT PRIMARY KEY,
+			isin TEXT PRIMARY KEY,
+			symbol TEXT NOT NULL,
 			yahoo_symbol TEXT,
-			isin TEXT,
 			name TEXT NOT NULL,
 			product_type TEXT,
 			industry TEXT,
@@ -36,8 +36,8 @@ func setupSecurityTagsTestDB(t *testing.T) *sql.DB {
 			last_synced TEXT,
 			min_portfolio_target REAL,
 			max_portfolio_target REAL,
-			created_at TEXT,
-			updated_at TEXT
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
 		)
 	`)
 	require.NoError(t, err)
@@ -53,15 +53,15 @@ func setupSecurityTagsTestDB(t *testing.T) *sql.DB {
 	`)
 	require.NoError(t, err)
 
-	// Create security_tags table
+	// Create security_tags table (after migration 030: uses isin, not symbol)
 	_, err = db.Exec(`
 		CREATE TABLE security_tags (
-			symbol TEXT NOT NULL,
+			isin TEXT NOT NULL,
 			tag_id TEXT NOT NULL,
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL,
-			PRIMARY KEY (symbol, tag_id),
-			FOREIGN KEY (symbol) REFERENCES securities(symbol) ON DELETE CASCADE,
+			PRIMARY KEY (isin, tag_id),
+			FOREIGN KEY (isin) REFERENCES securities(isin) ON DELETE CASCADE,
 			FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 		)
 	`)
@@ -69,7 +69,9 @@ func setupSecurityTagsTestDB(t *testing.T) *sql.DB {
 
 	// Create indexes
 	_, err = db.Exec(`
-		CREATE INDEX IF NOT EXISTS idx_security_tags_symbol ON security_tags(symbol);
+		CREATE INDEX IF NOT EXISTS idx_securities_symbol ON securities(symbol);
+		CREATE INDEX IF NOT EXISTS idx_securities_active ON securities(active);
+		CREATE INDEX IF NOT EXISTS idx_security_tags_isin ON security_tags(isin);
 		CREATE INDEX IF NOT EXISTS idx_security_tags_tag_id ON security_tags(tag_id);
 	`)
 	require.NoError(t, err)
@@ -85,15 +87,16 @@ func TestSecurityRepository_getTagsForSecurity_NoTags(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	// Insert test security
+	now := time.Now().Format(time.RFC3339)
+	// Insert test security with ISIN (using symbol as ISIN for test simplicity)
 	_, err := db.Exec(`
-		INSERT INTO securities (symbol, name, active)
-		VALUES ('AAPL', 'Apple Inc', 1)
-	`)
+		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
+		VALUES ('US0378331005', 'AAPL', 'Apple Inc', 1, ?, ?)
+	`, now, now)
 	require.NoError(t, err)
 
-	// Execute
-	tagIDs, err := repo.getTagsForSecurity("AAPL")
+	// Execute - getTagsForSecurity expects ISIN
+	tagIDs, err := repo.getTagsForSecurity("US0378331005")
 
 	// Assert
 	assert.NoError(t, err)
@@ -108,15 +111,15 @@ func TestSecurityRepository_getTagsForSecurity_MultipleTags(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	// Insert test security
+	now := time.Now().Format(time.RFC3339)
+	// Insert test security with ISIN
 	_, err := db.Exec(`
-		INSERT INTO securities (symbol, name, active)
-		VALUES ('AAPL', 'Apple Inc', 1)
-	`)
+		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
+		VALUES ('US0378331005', 'AAPL', 'Apple Inc', 1, ?, ?)
+	`, now, now)
 	require.NoError(t, err)
 
 	// Insert tags
-	now := time.Now().Format(time.RFC3339)
 	_, err = db.Exec(`
 		INSERT INTO tags (id, name, created_at, updated_at)
 		VALUES
@@ -126,18 +129,18 @@ func TestSecurityRepository_getTagsForSecurity_MultipleTags(t *testing.T) {
 	`, now, now, now, now, now, now)
 	require.NoError(t, err)
 
-	// Insert security tags
+	// Insert security tags using ISIN
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
 		VALUES
-			('AAPL', 'value-opportunity', ?, ?),
-			('AAPL', 'stable', ?, ?),
-			('AAPL', 'volatile', ?, ?)
+			('US0378331005', 'value-opportunity', ?, ?),
+			('US0378331005', 'stable', ?, ?),
+			('US0378331005', 'volatile', ?, ?)
 	`, now, now, now, now, now, now)
 	require.NoError(t, err)
 
-	// Execute
-	tagIDs, err := repo.getTagsForSecurity("AAPL")
+	// Execute - getTagsForSecurity expects ISIN
+	tagIDs, err := repo.getTagsForSecurity("US0378331005")
 
 	// Assert
 	assert.NoError(t, err)
@@ -154,7 +157,7 @@ func TestSecurityRepository_getTagsForSecurity_NonExistentSecurity(t *testing.T)
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	// Execute
+	// Execute - getTagsForSecurity expects ISIN, non-existent ISIN returns empty (no error)
 	tagIDs, err := repo.getTagsForSecurity("NONEXISTENT")
 
 	// Assert
@@ -170,14 +173,15 @@ func TestSecurityRepository_setTagsForSecurity_NewTags(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	// Insert test security
+	now := time.Now().Format(time.RFC3339)
+	// Insert test security with ISIN
 	_, err := db.Exec(`
-		INSERT INTO securities (symbol, name, active)
-		VALUES ('AAPL', 'Apple Inc', 1)
-	`)
+		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
+		VALUES ('US0378331005', 'AAPL', 'Apple Inc', 1, ?, ?)
+	`, now, now)
 	require.NoError(t, err)
 
-	// Execute
+	// Execute - SetTagsForSecurity accepts symbol and looks up ISIN internally
 	tagIDs := []string{"value-opportunity", "stable"}
 	err = repo.SetTagsForSecurity("AAPL", tagIDs)
 
@@ -190,14 +194,14 @@ func TestSecurityRepository_setTagsForSecurity_NewTags(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 2, tagCount)
 
-	// Verify security_tags were created
+	// Verify security_tags were created using ISIN
 	var securityTagCount int
-	err = db.QueryRow("SELECT COUNT(*) FROM security_tags WHERE symbol = 'AAPL'").Scan(&securityTagCount)
+	err = db.QueryRow("SELECT COUNT(*) FROM security_tags WHERE isin = 'US0378331005'").Scan(&securityTagCount)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, securityTagCount)
 
-	// Verify tags are correct
-	retrievedTags, err := repo.getTagsForSecurity("AAPL")
+	// Verify tags are correct - use public method that accepts symbol
+	retrievedTags, err := repo.GetTagsForSecurity("AAPL")
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"value-opportunity", "stable"}, retrievedTags)
 }
@@ -210,11 +214,12 @@ func TestSecurityRepository_setTagsForSecurity_ReplaceTags(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	// Insert test security
+	now := time.Now().Format(time.RFC3339)
+	// Insert test security with ISIN
 	_, err := db.Exec(`
-		INSERT INTO securities (symbol, name, active)
-		VALUES ('AAPL', 'Apple Inc', 1)
-	`)
+		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
+		VALUES ('US0378331005', 'AAPL', 'Apple Inc', 1, ?, ?)
+	`, now, now)
 	require.NoError(t, err)
 
 	// Set initial tags
@@ -229,8 +234,8 @@ func TestSecurityRepository_setTagsForSecurity_ReplaceTags(t *testing.T) {
 	// Assert
 	assert.NoError(t, err)
 
-	// Verify old tags are gone, new tags are present
-	retrievedTags, err := repo.getTagsForSecurity("AAPL")
+	// Verify old tags are gone, new tags are present - use public method
+	retrievedTags, err := repo.GetTagsForSecurity("AAPL")
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"volatile", "high-quality"}, retrievedTags)
 	assert.NotContains(t, retrievedTags, "value-opportunity")
@@ -245,11 +250,12 @@ func TestSecurityRepository_setTagsForSecurity_EmptyArray(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	// Insert test security
+	now := time.Now().Format(time.RFC3339)
+	// Insert test security with ISIN
 	_, err := db.Exec(`
-		INSERT INTO securities (symbol, name, active)
-		VALUES ('AAPL', 'Apple Inc', 1)
-	`)
+		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
+		VALUES ('US0378331005', 'AAPL', 'Apple Inc', 1, ?, ?)
+	`, now, now)
 	require.NoError(t, err)
 
 	// Set initial tags
@@ -263,8 +269,8 @@ func TestSecurityRepository_setTagsForSecurity_EmptyArray(t *testing.T) {
 	// Assert
 	assert.NoError(t, err)
 
-	// Verify all tags are removed
-	retrievedTags, err := repo.getTagsForSecurity("AAPL")
+	// Verify all tags are removed - use public method
+	retrievedTags, err := repo.GetTagsForSecurity("AAPL")
 	assert.NoError(t, err)
 	assert.Empty(t, retrievedTags)
 }
@@ -277,11 +283,11 @@ func TestSecurityRepository_scanSecurity_IncludesTags(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	// Insert test security
+	// Insert test security with ISIN
 	now := time.Now().Format(time.RFC3339)
 	_, err := db.Exec(`
-		INSERT INTO securities (symbol, name, active, created_at, updated_at)
-		VALUES ('AAPL', 'Apple Inc', 1, ?, ?)
+		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
+		VALUES ('US0378331005', 'AAPL', 'Apple Inc', 1, ?, ?)
 	`, now, now)
 	require.NoError(t, err)
 
@@ -294,23 +300,23 @@ func TestSecurityRepository_scanSecurity_IncludesTags(t *testing.T) {
 	`, now, now, now, now)
 	require.NoError(t, err)
 
-	// Insert security tags
+	// Insert security tags using ISIN
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
 		VALUES
-			('AAPL', 'value-opportunity', ?, ?),
-			('AAPL', 'stable', ?, ?)
+			('US0378331005', 'value-opportunity', ?, ?),
+			('US0378331005', 'stable', ?, ?)
 	`, now, now, now, now)
 	require.NoError(t, err)
 
 	// Verify tags are in database before calling GetBySymbol
 	var tagCount int
-	err = db.QueryRow("SELECT COUNT(*) FROM security_tags WHERE symbol = 'AAPL'").Scan(&tagCount)
+	err = db.QueryRow("SELECT COUNT(*) FROM security_tags WHERE isin = 'US0378331005'").Scan(&tagCount)
 	require.NoError(t, err)
 	assert.Equal(t, 2, tagCount, "Tags should be in database")
 
-	// Test getTagsForSecurity directly - this should work
-	directTags, err := repo.getTagsForSecurity("AAPL")
+	// Test getTagsForSecurity directly with ISIN - this should work
+	directTags, err := repo.getTagsForSecurity("US0378331005")
 	if err != nil {
 		t.Logf("getTagsForSecurity returned error: %v", err)
 	}
@@ -343,29 +349,29 @@ func TestSecurityRepository_GetTagsForSecurity_Public(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	// Insert test security
+	now := time.Now().Format(time.RFC3339)
+	// Insert test security with ISIN
 	_, err := db.Exec(`
-		INSERT INTO securities (symbol, name, active)
-		VALUES ('AAPL', 'Apple Inc', 1)
-	`)
+		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
+		VALUES ('US0378331005', 'AAPL', 'Apple Inc', 1, ?, ?)
+	`, now, now)
 	require.NoError(t, err)
 
 	// Insert tags
-	now := time.Now().Format(time.RFC3339)
 	_, err = db.Exec(`
 		INSERT INTO tags (id, name, created_at, updated_at)
 		VALUES ('value-opportunity', 'Value Opportunity', ?, ?)
 	`, now, now)
 	require.NoError(t, err)
 
-	// Insert security tags
+	// Insert security tags using ISIN
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
-		VALUES ('AAPL', 'value-opportunity', ?, ?)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
+		VALUES ('US0378331005', 'value-opportunity', ?, ?)
 	`, now, now)
 	require.NoError(t, err)
 
-	// Execute - use public method
+	// Execute - use public method (accepts symbol, looks up ISIN internally)
 	tagIDs, err := repo.GetTagsForSecurity("AAPL")
 
 	// Assert
@@ -383,13 +389,13 @@ func TestSecurityRepository_GetByTags_SingleTag(t *testing.T) {
 
 	now := time.Now().Format(time.RFC3339)
 
-	// Insert test securities
+	// Insert test securities with ISINs
 	_, err := db.Exec(`
-		INSERT INTO securities (symbol, name, active, created_at, updated_at)
+		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
 		VALUES
-			('AAPL', 'Apple Inc', 1, ?, ?),
-			('MSFT', 'Microsoft Corp', 1, ?, ?),
-			('GOOGL', 'Alphabet Inc', 1, ?, ?)
+			('US0378331005', 'AAPL', 'Apple Inc', 1, ?, ?),
+			('US5949181045', 'MSFT', 'Microsoft Corp', 1, ?, ?),
+			('US02079K3059', 'GOOGL', 'Alphabet Inc', 1, ?, ?)
 	`, now, now, now, now, now, now)
 	require.NoError(t, err)
 
@@ -402,24 +408,24 @@ func TestSecurityRepository_GetByTags_SingleTag(t *testing.T) {
 	`, now, now, now, now)
 	require.NoError(t, err)
 
-	// Insert security tags
+	// Insert security tags using ISINs
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
 		VALUES
-			('AAPL', 'value-opportunity', ?, ?),
-			('AAPL', 'high-quality', ?, ?),
-			('MSFT', 'high-quality', ?, ?)
+			('US0378331005', 'value-opportunity', ?, ?),
+			('US0378331005', 'high-quality', ?, ?),
+			('US5949181045', 'high-quality', ?, ?)
 	`, now, now, now, now, now, now)
 	require.NoError(t, err)
 
-	// Verify tags are in database - direct query
+	// Verify tags are in database - direct query using ISIN
 	var tagCount int
-	err = db.QueryRow("SELECT COUNT(*) FROM security_tags WHERE symbol = 'AAPL'").Scan(&tagCount)
+	err = db.QueryRow("SELECT COUNT(*) FROM security_tags WHERE isin = 'US0378331005'").Scan(&tagCount)
 	require.NoError(t, err)
 	require.Equal(t, 2, tagCount, "Tags should be in database")
 
-	// Verify getTagsForSecurity works
-	directTags, err := repo.getTagsForSecurity("AAPL")
+	// Verify getTagsForSecurity works with ISIN
+	directTags, err := repo.getTagsForSecurity("US0378331005")
 	require.NoError(t, err)
 	require.NotEmpty(t, directTags, "getTagsForSecurity should return tags")
 	t.Logf("Direct tags for AAPL: %v", directTags)
@@ -444,10 +450,12 @@ func TestSecurityRepository_GetByTags_SingleTag(t *testing.T) {
 	// Manually reload tags to verify they exist in DB
 	// (This is a workaround for test environment - in production scanSecurity loads them)
 	if len(securities[0].Tags) == 0 {
-		// Tags weren't loaded by scanSecurity, reload them manually
-		reloadedTags, reloadErr := repo.getTagsForSecurity(securities[0].Symbol)
-		if reloadErr == nil {
-			securities[0].Tags = reloadedTags
+		// Tags weren't loaded by scanSecurity, reload them manually using ISIN
+		if securities[0].ISIN != "" {
+			reloadedTags, reloadErr := repo.getTagsForSecurity(securities[0].ISIN)
+			if reloadErr == nil {
+				securities[0].Tags = reloadedTags
+			}
 		}
 	}
 
@@ -464,13 +472,13 @@ func TestSecurityRepository_GetByTags_MultipleTags(t *testing.T) {
 
 	now := time.Now().Format(time.RFC3339)
 
-	// Insert test securities
+	// Insert test securities with ISINs
 	_, err := db.Exec(`
-		INSERT INTO securities (symbol, name, active, created_at, updated_at)
+		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
 		VALUES
-			('AAPL', 'Apple Inc', 1, ?, ?),
-			('MSFT', 'Microsoft Corp', 1, ?, ?),
-			('GOOGL', 'Alphabet Inc', 1, ?, ?)
+			('US0378331005', 'AAPL', 'Apple Inc', 1, ?, ?),
+			('US5949181045', 'MSFT', 'Microsoft Corp', 1, ?, ?),
+			('US02079K3059', 'GOOGL', 'Alphabet Inc', 1, ?, ?)
 	`, now, now, now, now, now, now)
 	require.NoError(t, err)
 
@@ -483,13 +491,13 @@ func TestSecurityRepository_GetByTags_MultipleTags(t *testing.T) {
 	`, now, now, now, now)
 	require.NoError(t, err)
 
-	// Insert security tags
+	// Insert security tags using ISINs
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
 		VALUES
-			('AAPL', 'value-opportunity', ?, ?),
-			('MSFT', 'high-quality', ?, ?),
-			('GOOGL', 'value-opportunity', ?, ?)
+			('US0378331005', 'value-opportunity', ?, ?),
+			('US5949181045', 'high-quality', ?, ?),
+			('US02079K3059', 'value-opportunity', ?, ?)
 	`, now, now, now, now, now, now)
 	require.NoError(t, err)
 
@@ -511,10 +519,10 @@ func TestSecurityRepository_GetByTags_NoMatches(t *testing.T) {
 
 	now := time.Now().Format(time.RFC3339)
 
-	// Insert test security
+	// Insert test security with ISIN
 	_, err := db.Exec(`
-		INSERT INTO securities (symbol, name, active, created_at, updated_at)
-		VALUES ('AAPL', 'Apple Inc', 1, ?, ?)
+		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
+		VALUES ('US0378331005', 'AAPL', 'Apple Inc', 1, ?, ?)
 	`, now, now)
 	require.NoError(t, err)
 
@@ -536,13 +544,13 @@ func TestSecurityRepository_GetPositionsByTags(t *testing.T) {
 
 	now := time.Now().Format(time.RFC3339)
 
-	// Insert test securities
+	// Insert test securities with ISINs
 	_, err := db.Exec(`
-		INSERT INTO securities (symbol, name, active, created_at, updated_at)
+		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
 		VALUES
-			('AAPL', 'Apple Inc', 1, ?, ?),
-			('MSFT', 'Microsoft Corp', 1, ?, ?),
-			('GOOGL', 'Alphabet Inc', 1, ?, ?)
+			('US0378331005', 'AAPL', 'Apple Inc', 1, ?, ?),
+			('US5949181045', 'MSFT', 'Microsoft Corp', 1, ?, ?),
+			('US02079K3059', 'GOOGL', 'Alphabet Inc', 1, ?, ?)
 	`, now, now, now, now, now, now)
 	require.NoError(t, err)
 
@@ -555,24 +563,24 @@ func TestSecurityRepository_GetPositionsByTags(t *testing.T) {
 	`, now, now, now, now)
 	require.NoError(t, err)
 
-	// Insert security tags
+	// Insert security tags using ISINs
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
 		VALUES
-			('AAPL', 'overweight', ?, ?),
-			('MSFT', 'needs-rebalance', ?, ?),
-			('GOOGL', 'overweight', ?, ?)
+			('US0378331005', 'overweight', ?, ?),
+			('US5949181045', 'needs-rebalance', ?, ?),
+			('US02079K3059', 'overweight', ?, ?)
 	`, now, now, now, now, now, now)
 	require.NoError(t, err)
 
-	// Verify tags are in database
+	// Verify tags are in database using ISIN
 	var tagCount int
-	err = db.QueryRow("SELECT COUNT(*) FROM security_tags WHERE symbol = 'AAPL' AND tag_id = 'overweight'").Scan(&tagCount)
+	err = db.QueryRow("SELECT COUNT(*) FROM security_tags WHERE isin = 'US0378331005' AND tag_id = 'overweight'").Scan(&tagCount)
 	require.NoError(t, err)
 	require.Equal(t, 1, tagCount, "AAPL should have overweight tag")
 
-	// Verify getTagsForSecurity works
-	directTags, err := repo.getTagsForSecurity("AAPL")
+	// Verify getTagsForSecurity works with ISIN
+	directTags, err := repo.getTagsForSecurity("US0378331005")
 	require.NoError(t, err)
 	require.Contains(t, directTags, "overweight", "getTagsForSecurity should return overweight tag")
 	t.Logf("Direct tags for AAPL: %v", directTags)
@@ -588,10 +596,12 @@ func TestSecurityRepository_GetPositionsByTags(t *testing.T) {
 	// Manually reload tags to verify they exist in DB
 	// (This is a workaround for test environment - in production scanSecurity loads them)
 	if len(securities[0].Tags) == 0 {
-		// Tags weren't loaded by scanSecurity, reload them manually
-		reloadedTags, reloadErr := repo.getTagsForSecurity(securities[0].Symbol)
-		if reloadErr == nil {
-			securities[0].Tags = reloadedTags
+		// Tags weren't loaded by scanSecurity, reload them manually using ISIN
+		if securities[0].ISIN != "" {
+			reloadedTags, reloadErr := repo.getTagsForSecurity(securities[0].ISIN)
+			if reloadErr == nil {
+				securities[0].Tags = reloadedTags
+			}
 		}
 	}
 

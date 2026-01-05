@@ -17,4 +17,3 @@ async def health_check():
         "version": settings.version,
         "timestamp": datetime.utcnow().isoformat(),
     }
-

@@ -6,14 +6,13 @@ This file is for reference only - not used in production.
 Note: Since yfinance calls are synchronous, Flask works perfectly fine.
 """
 
-import json
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, Tuple, cast
 
 from app.config import settings
 from app.service import get_yahoo_finance_service
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 
 # Configure logging
@@ -34,7 +33,7 @@ service = get_yahoo_finance_service()
 
 
 # Helper function for standard responses
-def success_response(data: dict):
+def success_response(data: Dict[str, Any]) -> Response:
     """Create a success response."""
     return jsonify(
         {
@@ -45,7 +44,7 @@ def success_response(data: dict):
     )
 
 
-def error_response(error: str, status_code: int = 200):
+def error_response(error: str, status_code: int = 200) -> Tuple[Response, int]:
     """Create an error response."""
     return (
         jsonify(
@@ -130,7 +129,9 @@ def get_historical_prices_post():
         prices = service.get_historical_prices(symbol, yahoo_symbol, period, interval)
 
         # Convert Pydantic models to dict for JSON serialization
-        prices_dict = [price.dict() if hasattr(price, "dict") else price for price in prices]
+        prices_dict = [
+            price.dict() if hasattr(price, "dict") else price for price in prices
+        ]
 
         return success_response(
             {
@@ -154,7 +155,9 @@ def get_historical_prices_get(symbol: str):
         prices = service.get_historical_prices(symbol, yahoo_symbol, period, interval)
 
         # Convert Pydantic models to dict for JSON serialization
-        prices_dict = [price.dict() if hasattr(price, "dict") else price for price in prices]
+        prices_dict = [
+            price.dict() if hasattr(price, "dict") else price for price in prices
+        ]
 
         return success_response(
             {
@@ -176,7 +179,10 @@ def get_fundamentals(symbol: str):
 
         data = service.get_fundamental_data(symbol, yahoo_symbol)
         if data:
-            return success_response(data.dict() if hasattr(data, "dict") else data)
+            data_dict = cast(
+                Dict[str, Any], data.dict() if hasattr(data, "dict") else data
+            )
+            return success_response(data_dict)
         return error_response(f"No fundamental data available for {symbol}")
     except Exception as e:
         logger.exception(f"Error getting fundamentals for {symbol}")
@@ -192,7 +198,10 @@ def get_analyst_data(symbol: str):
 
         data = service.get_analyst_data(symbol, yahoo_symbol)
         if data:
-            return success_response(data.dict() if hasattr(data, "dict") else data)
+            data_dict = cast(
+                Dict[str, Any], data.dict() if hasattr(data, "dict") else data
+            )
+            return success_response(data_dict)
         return error_response(f"No analyst data available for {symbol}")
     except Exception as e:
         logger.exception(f"Error getting analyst data for {symbol}")
@@ -208,7 +217,10 @@ def get_security_industry(symbol: str):
 
         data = service.get_security_industry(symbol, yahoo_symbol)
         if data:
-            return success_response(data.dict() if hasattr(data, "dict") else data)
+            data_dict = cast(
+                Dict[str, Any], data.dict() if hasattr(data, "dict") else data
+            )
+            return success_response(data_dict)
         return error_response(f"No industry data available for {symbol}")
     except Exception as e:
         logger.exception(f"Error getting industry for {symbol}")
@@ -223,7 +235,10 @@ def get_security_country_exchange(symbol: str):
 
         data = service.get_security_country_exchange(symbol, yahoo_symbol)
         if data:
-            return success_response(data.dict() if hasattr(data, "dict") else data)
+            data_dict = cast(
+                Dict[str, Any], data.dict() if hasattr(data, "dict") else data
+            )
+            return success_response(data_dict)
         return error_response(f"No country/exchange data available for {symbol}")
     except Exception as e:
         logger.exception(f"Error getting country/exchange for {symbol}")
@@ -238,7 +253,10 @@ def get_security_info(symbol: str):
 
         data = service.get_security_info(symbol, yahoo_symbol)
         if data:
-            return success_response(data.dict() if hasattr(data, "dict") else data)
+            data_dict = cast(
+                Dict[str, Any], data.dict() if hasattr(data, "dict") else data
+            )
+            return success_response(data_dict)
         return error_response(f"No security info available for {symbol}")
     except Exception as e:
         logger.exception(f"Error getting security info for {symbol}")
@@ -250,5 +268,6 @@ def get_security_info(symbol: str):
 
 if __name__ == "__main__":
     # For development only
-    app.run(host="0.0.0.0", port=settings.port, debug=False)
-
+    # Use localhost for security (B104: hardcoded bind to all interfaces)
+    # In production, use a reverse proxy (nginx, etc.) to handle external access
+    app.run(host="127.0.0.1", port=settings.port, debug=False)

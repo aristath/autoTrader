@@ -71,21 +71,25 @@ func setupHybridCalculatorTestDB(t *testing.T) *sql.DB {
 	`)
 	require.NoError(t, err)
 
-	// Create security_tags table
+	// Create security_tags table (after migration 030: uses isin, not symbol)
 	_, err = db.Exec(`
 		CREATE TABLE security_tags (
-			symbol TEXT NOT NULL,
+			isin TEXT NOT NULL,
 			tag_id TEXT NOT NULL,
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL,
-			PRIMARY KEY (symbol, tag_id)
+			PRIMARY KEY (isin, tag_id),
+			FOREIGN KEY (isin) REFERENCES securities(isin) ON DELETE CASCADE,
+			FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 		)
 	`)
 	require.NoError(t, err)
 
 	// Create indexes
 	_, err = db.Exec(`
-		CREATE INDEX IF NOT EXISTS idx_security_tags_symbol ON security_tags(symbol);
+		CREATE INDEX IF NOT EXISTS idx_securities_symbol ON securities(symbol);
+		CREATE INDEX IF NOT EXISTS idx_securities_active ON securities(active);
+		CREATE INDEX IF NOT EXISTS idx_security_tags_isin ON security_tags(isin);
 		CREATE INDEX IF NOT EXISTS idx_security_tags_tag_id ON security_tags(tag_id);
 	`)
 	require.NoError(t, err)
@@ -128,13 +132,13 @@ func TestHybridOpportunityBuysCalculator_Calculate_WithTagFiltering(t *testing.T
 	`, now, now, now, now)
 	require.NoError(t, err)
 
-	// Insert security tags
+	// Insert security tags using ISINs
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
 		VALUES
-			('AAPL', 'quality-gate-pass', ?, ?),
-			('AAPL', 'high-quality', ?, ?),
-			('MSFT', 'quality-gate-pass', ?, ?)
+			('US0378331005', 'quality-gate-pass', ?, ?),
+			('US0378331005', 'high-quality', ?, ?),
+			('US5949181045', 'quality-gate-pass', ?, ?)
 	`, now, now, now, now, now, now)
 	require.NoError(t, err)
 
@@ -205,8 +209,8 @@ func TestHybridOpportunityBuysCalculator_Calculate_ExcludesValueTraps(t *testing
 
 	// Insert security tag
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
-		VALUES ('TRAP', 'value-trap', ?, ?)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
+		VALUES ('TRAP001', 'value-trap', ?, ?)
 	`, now, now)
 	require.NoError(t, err)
 
@@ -272,8 +276,8 @@ func TestHybridOpportunityBuysCalculator_Calculate_ExcludesBubbleRisks(t *testin
 
 	// Insert security tag
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
-		VALUES ('BUBBLE', 'bubble-risk', ?, ?)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
+		VALUES ('BUBBLE001', 'bubble-risk', ?, ?)
 	`, now, now)
 	require.NoError(t, err)
 
@@ -339,12 +343,12 @@ func TestHybridOpportunityBuysCalculator_Calculate_PriorityBoosting(t *testing.T
 	`, now, now, now, now)
 	require.NoError(t, err)
 
-	// Insert security tags
+	// Insert security tags using ISIN
 	_, err = db.Exec(`
-		INSERT INTO security_tags (symbol, tag_id, created_at, updated_at)
+		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
 		VALUES
-			('QUALITY', 'quality-gate-pass', ?, ?),
-			('QUALITY', 'quality-value', ?, ?)
+			('QUALITY001', 'quality-gate-pass', ?, ?),
+			('QUALITY001', 'quality-value', ?, ?)
 	`, now, now, now, now)
 	require.NoError(t, err)
 

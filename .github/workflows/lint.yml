@@ -65,6 +65,6 @@ jobs:
           for dir in microservices/*/; do
             if [ -f "$dir/requirements.txt" ]; then
               echo "Linting $dir with flake8..."
-              flake8 "$dir" || exit 1
+              flake8 "$dir" --max-line-length=88 --extend-ignore=E203,W503 || exit 1
             fi
           done
