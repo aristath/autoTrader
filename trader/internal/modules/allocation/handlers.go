@@ -42,8 +42,22 @@ func NewHandler(
 }
 
 // HandleGetTargets returns allocation targets for country and industry groups
-// Faithful translation of Python: @router.get("/targets")
+// Returns all groups from grouping tables, with target_pct from allocation_targets if set, otherwise 0.0
 func (h *Handler) HandleGetTargets(w http.ResponseWriter, r *http.Request) {
+	// Get all groups from grouping tables
+	countryGroups, err := h.groupingRepo.GetCountryGroups()
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	industryGroups, err := h.groupingRepo.GetIndustryGroups()
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Get allocation targets (may be empty)
 	countryTargets, err := h.allocRepo.GetCountryGroupTargets()
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, err.Error())
@@ -56,9 +70,28 @@ func (h *Handler) HandleGetTargets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Merge: Use target from allocation_targets if exists, otherwise default to 0.0
+	mergedCountryTargets := make(map[string]float64)
+	for groupName := range countryGroups {
+		if targetPct, exists := countryTargets[groupName]; exists {
+			mergedCountryTargets[groupName] = targetPct
+		} else {
+			mergedCountryTargets[groupName] = 0.0
+		}
+	}
+
+	mergedIndustryTargets := make(map[string]float64)
+	for groupName := range industryGroups {
+		if targetPct, exists := industryTargets[groupName]; exists {
+			mergedIndustryTargets[groupName] = targetPct
+		} else {
+			mergedIndustryTargets[groupName] = 0.0
+		}
+	}
+
 	h.writeJSON(w, http.StatusOK, map[string]interface{}{
-		"country":  countryTargets,
-		"industry": industryTargets,
+		"country":  mergedCountryTargets,
+		"industry": mergedIndustryTargets,
 	})
 }
 
