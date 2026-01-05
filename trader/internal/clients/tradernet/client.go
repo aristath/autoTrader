@@ -107,6 +107,16 @@ func (c *Client) get(endpoint string) (*ServiceResponse, error) {
 	c.log.Debug().Int("status_code", resp.StatusCode).Msg("Got response")
 	defer resp.Body.Close()
 
+	// Handle non-200 status codes before parsing
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		c.log.Error().
+			Int("status_code", resp.StatusCode).
+			Str("body", string(bodyBytes)).
+			Msg("Non-200 response from microservice")
+		return nil, fmt.Errorf("microservice returned status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
 	return c.parseResponse(resp)
 }
 
