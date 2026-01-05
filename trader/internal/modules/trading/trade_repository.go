@@ -35,6 +35,11 @@ func NewTradeRepository(ledgerDB *sql.DB, log zerolog.Logger) *TradeRepository {
 // Create inserts a new trade record
 // Faithful translation of Python: async def create(self, trade: Trade) -> None
 func (r *TradeRepository) Create(trade Trade) error {
+	// Validate trade before database insertion to prevent constraint violations
+	if err := trade.Validate(); err != nil {
+		return fmt.Errorf("failed to create trade: %w", err)
+	}
+
 	now := time.Now().Format(time.RFC3339)
 	executedAt := trade.ExecutedAt.Format(time.RFC3339)
 

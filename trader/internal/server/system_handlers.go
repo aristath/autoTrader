@@ -76,7 +76,7 @@ func NewSystemHandlers(
 		configDB:                configDB,
 		universeDB:              universeDB,
 		historyDB:               historyDB,
-		marketHours:             scheduler.NewMarketHoursService(log),
+		marketHours:             scheduler.NewMarketHoursService(nil, log), // cacheDB not available in SystemHandlers
 		scheduler:               sched,
 		portfolioDisplayCalc:    portfolioDisplayCalc,
 		displayManager:          displayManager,

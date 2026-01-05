@@ -9,26 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockArtifactTracker is a mock tracker that records when MarkDeployed is called
-// This will be used when the skipped tests are implemented
-//
-//nolint:unused // Reserved for future test implementation
-type mockArtifactTracker struct {
-	lastDeployedRunID string
-	markDeployedCalls []string
-}
-
-//nolint:unused // Reserved for future test implementation
-func (m *mockArtifactTracker) GetLastDeployedRunID() (string, error) {
-	return m.lastDeployedRunID, nil
-}
-
-//nolint:unused // Reserved for future test implementation
-func (m *mockArtifactTracker) MarkDeployed(runID string) error {
-	m.markDeployedCalls = append(m.markDeployedCalls, runID)
-	return nil
-}
-
 // TestDeployLatest_WithRunID_SkipsCheckForNewBuild documents expected behavior:
 // When runID is provided, CheckForNewBuild should not be called.
 // This test will be implemented after DeployLatest accepts runID parameter.

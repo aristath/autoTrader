@@ -112,7 +112,7 @@ func (s *Server) setupSettingsRoutes(r chi.Router) {
 	// Initialize trading service for onboarding
 	tradingRepo := trading.NewTradeRepository(s.ledgerDB.Conn(), s.log)
 	settingsServiceForTrading := settings.NewService(settingsRepo, s.log)
-	marketHoursService := scheduler.NewMarketHoursService(s.log)
+	marketHoursService := scheduler.NewMarketHoursService(s.cacheDB.Conn(), s.log)
 
 	tradeSafetyService := trading.NewTradeSafetyService(
 		tradingRepo,

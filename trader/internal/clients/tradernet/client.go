@@ -561,7 +561,7 @@ type PendingOrdersResponse struct {
 
 // GetPendingOrders retrieves all pending orders from the broker
 func (c *Client) GetPendingOrders() ([]PendingOrder, error) {
-	resp, err := c.get("/api/orders/pending")
+	resp, err := c.get("/api/trading/pending-orders")
 	if err != nil {
 		return nil, err
 	}

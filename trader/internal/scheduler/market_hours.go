@@ -1,6 +1,12 @@
 package scheduler
 
 import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -27,15 +33,95 @@ type ExchangeCalendar struct {
 
 // MarketHoursService provides market status information
 type MarketHoursService struct {
-	calendars map[string]*ExchangeCalendar
-	log       zerolog.Logger
+	calendars  map[string]*ExchangeCalendar
+	cacheDB    *sql.DB
+	httpClient *http.Client
+	apiURL     string
+	log        zerolog.Logger
+}
+
+// MarketHoursAPIResponse represents the API response structure
+type MarketHoursAPIResponse struct {
+	Success bool `json:"success"`
+	Data    struct {
+		Markets []struct {
+			ID     string `json:"id"`
+			IsOpen bool   `json:"isOpen"`
+			Status struct {
+				IsOpen bool   `json:"isOpen"`
+				Status string `json:"status"`
+			} `json:"status"`
+		} `json:"markets"`
+	} `json:"data"`
+}
+
+// exchangeNameToAPIID maps Yahoo Finance fullExchangeName to MarketHours.io API IDs
+// Comprehensive mapping covering all common exchange name variations
+// Maps various exchange name formats (Yahoo Finance codes, common names, etc.) to API IDs
+// Case-insensitive lookup is also supported in IsMarketOpen() for additional flexibility
+var exchangeNameToAPIID = map[string]string{
+	// US Markets - NYSE
+	"NYSE": "nyse", "XNYS": "nyse", "nyse": "nyse", "New York Stock Exchange": "nyse",
+	// US Markets - NASDAQ
+	"NASDAQ": "nasdaq", "NasdaqGS": "nasdaq", "NasdaqCM": "nasdaq", "XNAS": "nasdaq",
+	"nasdaq": "nasdaq", "Nasdaq Global Select": "nasdaq", "Nasdaq Capital Market": "nasdaq",
+	// Canada
+	"TSX": "tsx", "tsx": "tsx", "Toronto Stock Exchange": "tsx",
+	// Europe - UK
+	"LSE": "lse", "XLON": "lse", "lse": "lse", "London Stock Exchange": "lse",
+	// Europe - Germany
+	"XETRA": "xetra", "XETR": "xetra", "xetra": "xetra", "Xetra": "xetra",
+	// Europe - France
+	"Paris": "epa", "XPAR": "epa", "EPA": "epa", "epa": "epa", "PARIS": "epa",
+	"Euronext Paris": "epa", "Euronext": "epa",
+	// Europe - Netherlands
+	"Amsterdam": "ams", "XAMS": "ams", "ams": "ams", "AMSTERDAM": "ams",
+	"Euronext Amsterdam": "ams",
+	// Europe - Italy
+	"Milan": "mil", "XMIL": "mil", "mil": "mil", "MILAN": "mil",
+	"Borsa Italiana": "mil",
+	// Europe - Switzerland
+	"SIX": "six", "XSWX": "six", "six": "six", "SIX Swiss Exchange": "six",
+	// Europe - Greece
+	"Athens": "athex", "ASEX": "athex", "ATHEX": "athex", "athex": "athex", "ATHENS": "athex",
+	"Athens Stock Exchange": "athex",
+	// Europe - Denmark
+	"Copenhagen": "cph", "XCSE": "cph", "CPH": "cph", "cph": "cph", "COPENHAGEN": "cph",
+	"Copenhagen Stock Exchange": "cph",
+	// Europe - Belgium
+	"Brussels": "bru", "XBRU": "bru", "BRU": "bru", "bru": "bru", "BRUSSELS": "bru",
+	"Euronext Brussels": "bru",
+	// Asia-Pacific - Hong Kong
+	"HKSE": "hkex", "HKEX": "hkex", "XHKG": "hkex", "hkex": "hkex",
+	"Hong Kong Stock Exchange": "hkex", "Hong Kong": "hkex",
+	// Asia-Pacific - China - Shenzhen
+	"Shenzhen": "szse", "XSHG": "szse", "szse": "szse", "SHENZHEN": "szse",
+	"Shenzhen Stock Exchange": "szse",
+	// Asia-Pacific - China - Shanghai
+	"Shanghai": "sse", "SSE": "sse", "sse": "sse", "SHANGHAI": "sse",
+	"Shanghai Stock Exchange": "sse",
+	// Asia-Pacific - Japan
+	"TSE": "tse", "XTSE": "tse", "tse": "tse", "Tokyo Stock Exchange": "tse",
+	// Asia-Pacific - Singapore
+	"SGX": "sgx", "XSES": "sgx", "sgx": "sgx", "Singapore Exchange": "sgx",
+	// Asia-Pacific - South Korea
+	"KRX": "krx", "XKRX": "krx", "krx": "krx", "Korea Exchange": "krx",
+	// Asia-Pacific - Taiwan
+	"TWSE": "twse", "XTAI": "twse", "twse": "twse", "Taiwan Stock Exchange": "twse",
+	// Asia-Pacific - Australia
+	"ASX": "asx", "XASX": "asx", "asx": "asx", "Australian Securities Exchange": "asx",
+	// Asia-Pacific - India
+	"NSE": "nse", "XNSE": "nse", "nse": "nse", "National Stock Exchange of India": "nse",
 }
 
 // NewMarketHoursService creates a new market hours service
-func NewMarketHoursService(log zerolog.Logger) *MarketHoursService {
+func NewMarketHoursService(cacheDB *sql.DB, log zerolog.Logger) *MarketHoursService {
 	service := &MarketHoursService{
-		calendars: make(map[string]*ExchangeCalendar),
-		log:       log.With().Str("component", "market_hours").Logger(),
+		calendars:  make(map[string]*ExchangeCalendar),
+		cacheDB:    cacheDB,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
+		apiURL:     "https://api.markethours.io/v1/markets/status",
+		log:        log.With().Str("component", "market_hours").Logger(),
 	}
 
 	service.initializeCalendars()
@@ -593,16 +679,154 @@ func (s *MarketHoursService) GetCalendar(exchangeName string) *ExchangeCalendar 
 	return s.calendars["NYSE"]
 }
 
+// getCacheKey returns the cache key for a market status
+func (s *MarketHoursService) getCacheKey(apiID string) string {
+	return fmt.Sprintf("market_hours:%s", apiID)
+}
+
+// getCachedMarketStatus retrieves cached market status if valid (6 hours)
+func (s *MarketHoursService) getCachedMarketStatus(apiID string) (bool, bool) {
+	if s.cacheDB == nil {
+		return false, false
+	}
+
+	cacheKey := s.getCacheKey(apiID)
+	var cacheValue string
+	var expiresAt sql.NullInt64
+
+	err := s.cacheDB.QueryRow(
+		"SELECT cache_value, expires_at FROM cache_data WHERE cache_key = ?",
+		cacheKey,
+	).Scan(&cacheValue, &expiresAt)
+
+	if err == sql.ErrNoRows {
+		return false, false
+	}
+	if err != nil {
+		s.log.Warn().Err(err).Str("api_id", apiID).Msg("Failed to read cache")
+		return false, false
+	}
+
+	// Check if cache is expired
+	if expiresAt.Valid {
+		if time.Now().Unix() > expiresAt.Int64 {
+			return false, false
+		}
+	}
+
+	// Parse cached value (stored as "true" or "false")
+	isOpen := cacheValue == "true"
+	return isOpen, true
+}
+
+// setCachedMarketStatus stores market status in cache with 6-hour expiration
+func (s *MarketHoursService) setCachedMarketStatus(apiID string, isOpen bool) {
+	if s.cacheDB == nil {
+		return
+	}
+
+	cacheKey := s.getCacheKey(apiID)
+	cacheValue := "false"
+	if isOpen {
+		cacheValue = "true"
+	}
+	expiresAt := time.Now().Add(6 * time.Hour).Unix()
+	createdAt := time.Now().Unix()
+
+	_, err := s.cacheDB.Exec(
+		`INSERT OR REPLACE INTO cache_data (cache_key, cache_value, expires_at, created_at)
+		 VALUES (?, ?, ?, ?)`,
+		cacheKey, cacheValue, expiresAt, createdAt,
+	)
+	if err != nil {
+		s.log.Warn().Err(err).Str("api_id", apiID).Msg("Failed to write cache")
+	}
+}
+
+// fetchMarketStatusFromAPI fetches market status from MarketHours.io API
+func (s *MarketHoursService) fetchMarketStatusFromAPI(apiID string) (bool, error) {
+	resp, err := s.httpClient.Get(s.apiURL)
+	if err != nil {
+		return false, fmt.Errorf("failed to fetch market status: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var apiResp MarketHoursAPIResponse
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return false, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	if !apiResp.Success {
+		return false, fmt.Errorf("API returned success=false")
+	}
+
+	// Find the market in the response
+	for _, market := range apiResp.Data.Markets {
+		if market.ID == apiID {
+			// Use status.isOpen if available, otherwise fallback to isOpen
+			if market.Status.IsOpen {
+				return true, nil
+			}
+			return market.IsOpen, nil
+		}
+	}
+
+	return false, fmt.Errorf("market %s not found in API response", apiID)
+}
+
 // IsMarketOpen checks if a market is currently open for trading
+// Uses API with 6-hour caching, falls back to hardcoded logic on failure
 func (s *MarketHoursService) IsMarketOpen(exchangeName string) bool {
 	cal := s.GetCalendar(exchangeName)
 	now := time.Now().In(cal.Timezone)
 
-	// Check if it's a weekend
+	// Hardcoded weekend check - don't even attempt API call on weekends
 	if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
 		return false
 	}
 
+	// Try to get API ID for this exchange
+	apiID, hasMapping := exchangeNameToAPIID[exchangeName]
+	if !hasMapping {
+		// Try case-insensitive lookup
+		for key, val := range exchangeNameToAPIID {
+			if strings.EqualFold(key, exchangeName) {
+				apiID = val
+				hasMapping = true
+				break
+			}
+		}
+	}
+
+	// If we have API mapping and cache DB, try API with caching
+	// Note: We already checked for weekend above, so we won't reach here on weekends
+	if hasMapping && s.cacheDB != nil {
+		// Check cache first
+		if cachedIsOpen, found := s.getCachedMarketStatus(apiID); found {
+			return cachedIsOpen
+		}
+
+		// Cache miss - fetch from API (weekend check already done above)
+		isOpen, err := s.fetchMarketStatusFromAPI(apiID)
+		if err == nil {
+			// Only update cache on successful API response
+			s.setCachedMarketStatus(apiID, isOpen)
+			return isOpen
+		}
+		s.log.Warn().Err(err).Str("exchange", exchangeName).Str("api_id", apiID).
+			Msg("Failed to fetch market status from API, falling back to hardcoded logic")
+	}
+
+	// Fallback to hardcoded logic (holidays + trading windows)
 	// Check if it's a holiday
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, cal.Timezone)
 	for _, holiday := range cal.Holidays2026 {

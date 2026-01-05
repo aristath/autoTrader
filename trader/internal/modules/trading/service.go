@@ -89,6 +89,17 @@ func (s *TradingService) SyncFromTradernet() error {
 			}
 		}
 
+		// Validate price before creating trade record
+		// Skip trades with invalid prices (<= 0) to prevent database constraint violations
+		if trade.Price <= 0 {
+			s.log.Warn().
+				Str("order_id", trade.OrderID).
+				Str("symbol", trade.Symbol).
+				Float64("price", trade.Price).
+				Msg("Skipping trade with invalid price")
+			continue
+		}
+
 		// Calculate value in EUR (quantity * price)
 		// Note: This assumes price is already in EUR. If currency conversion is needed,
 		// it should be handled by looking up the security's currency and exchange rate.

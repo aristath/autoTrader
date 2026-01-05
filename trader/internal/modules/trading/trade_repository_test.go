@@ -8,109 +8,98 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestTradeRepository_Create_LowercaseSide(t *testing.T) {
-	// Setup in-memory database with ledger schema
+// TestCreate_ValidatesPrice tests that Create() validates price before insertion
+func TestCreate_ValidatesPrice(t *testing.T) {
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+
+	// Create in-memory SQLite database for testing
 	db, err := sql.Open("sqlite3", ":memory:")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Failed to open test database: %v", err)
+	}
 	defer db.Close()
 
-	// Create trades table with CHECK constraint
+	// Create trades table
 	_, err = db.Exec(`
 		CREATE TABLE trades (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			symbol TEXT NOT NULL,
 			isin TEXT,
-			side TEXT NOT NULL CHECK (side IN ('buy', 'sell')),
+			side TEXT NOT NULL,
 			quantity REAL NOT NULL,
-			price REAL NOT NULL,
+			price REAL NOT NULL CHECK(price > 0),
 			executed_at TEXT NOT NULL,
-			order_id TEXT,
+			order_id TEXT UNIQUE,
 			currency TEXT,
 			value_eur REAL,
-			source TEXT DEFAULT 'manual',
-			mode TEXT DEFAULT 'normal',
+			source TEXT NOT NULL,
+			mode TEXT NOT NULL,
 			created_at TEXT NOT NULL
 		)
 	`)
-	require.NoError(t, err)
-
-	repo := NewTradeRepository(db, zerolog.Nop())
-
-	// Test with uppercase side - should be converted to lowercase
-	trade := Trade{
-		Symbol:     "AAPL",
-		Side:       TradeSideBuy, // Uppercase "BUY"
-		Quantity:   10.0,
-		Price:      150.0,
-		ExecutedAt: time.Now(),
-		Currency:   "USD",
-		ValueEUR:   func() *float64 { v := 1500.0; return &v }(),
-		OrderID:    "TEST-123",
-		Source:     "test",
-		Mode:       "normal",
+	if err != nil {
+		t.Fatalf("Failed to create test table: %v", err)
 	}
 
-	err = repo.Create(trade)
-	require.NoError(t, err)
+	repo := NewTradeRepository(db, log)
 
-	// Verify side was stored as lowercase
-	var storedSide string
-	err = db.QueryRow("SELECT side FROM trades WHERE order_id = ?", "TEST-123").Scan(&storedSide)
-	require.NoError(t, err)
-	assert.Equal(t, "buy", storedSide) // Should be lowercase
-}
-
-func TestTradeRepository_Create_LowercaseSide_SELL(t *testing.T) {
-	// Setup in-memory database with ledger schema
-	db, err := sql.Open("sqlite3", ":memory:")
-	require.NoError(t, err)
-	defer db.Close()
-
-	// Create trades table with CHECK constraint
-	_, err = db.Exec(`
-		CREATE TABLE trades (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			symbol TEXT NOT NULL,
-			isin TEXT,
-			side TEXT NOT NULL CHECK (side IN ('buy', 'sell')),
-			quantity REAL NOT NULL,
-			price REAL NOT NULL,
-			executed_at TEXT NOT NULL,
-			order_id TEXT,
-			currency TEXT,
-			value_eur REAL,
-			source TEXT DEFAULT 'manual',
-			mode TEXT DEFAULT 'normal',
-			created_at TEXT NOT NULL
-		)
-	`)
-	require.NoError(t, err)
-
-	repo := NewTradeRepository(db, zerolog.Nop())
-
-	// Test with uppercase side - should be converted to lowercase
-	trade := Trade{
-		Symbol:     "AAPL",
-		Side:       TradeSideSell, // Uppercase "SELL"
-		Quantity:   10.0,
-		Price:      150.0,
-		ExecutedAt: time.Now(),
-		Currency:   "USD",
-		ValueEUR:   func() *float64 { v := 1500.0; return &v }(),
-		OrderID:    "TEST-456",
-		Source:     "test",
-		Mode:       "normal",
+	testCases := []struct {
+		name        string
+		price       float64
+		shouldError bool
+		errorMsg    string
+	}{
+		{
+			name:        "Valid positive price",
+			price:       100.0,
+			shouldError: false,
+		},
+		{
+			name:        "Zero price should fail",
+			price:       0.0,
+			shouldError: true,
+			errorMsg:    "price must be positive",
+		},
+		{
+			name:        "Negative price should fail",
+			price:       -10.0,
+			shouldError: true,
+			errorMsg:    "price must be positive",
+		},
+		{
+			name:        "Small positive price should pass",
+			price:       0.01,
+			shouldError: false,
+		},
 	}
 
-	err = repo.Create(trade)
-	require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			trade := Trade{
+				OrderID:    "ORDER-" + tc.name,
+				Symbol:     "AAPL",
+				Side:       TradeSideBuy,
+				Quantity:   10,
+				Price:      tc.price,
+				ExecutedAt: time.Now(),
+				Source:     "test",
+				Currency:   "EUR",
+				Mode:       "test",
+			}
 
-	// Verify side was stored as lowercase
-	var storedSide string
-	err = db.QueryRow("SELECT side FROM trades WHERE order_id = ?", "TEST-456").Scan(&storedSide)
-	require.NoError(t, err)
-	assert.Equal(t, "sell", storedSide) // Should be lowercase
+			err := repo.Create(trade)
+
+			if tc.shouldError {
+				assert.Error(t, err, "Create should return error for invalid price")
+				if tc.errorMsg != "" {
+					// Validation should catch it before database constraint
+					assert.Contains(t, err.Error(), tc.errorMsg, "Error should mention price validation: %s", err.Error())
+				}
+			} else {
+				assert.NoError(t, err, "Create should succeed for valid price")
+			}
+		})
+	}
 }

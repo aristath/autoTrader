@@ -315,7 +315,7 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 	currencyExchangeService := services.NewCurrencyExchangeService(tradernetClient, log)
 
 	// Market hours service
-	marketHours := scheduler.NewMarketHoursService(log)
+	marketHours := scheduler.NewMarketHoursService(cacheDB.Conn(), log)
 
 	// Cash repository and manager (cash-as-balances architecture)
 	cashRepo := cash_flows.NewCashRepository(portfolioDB.Conn(), log)
@@ -499,13 +499,15 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 	}
 
 	// Register Job 2: Sync Cycle (every 5 minutes)
+	// Create balance adapter to enable negative balance checks
+	balanceAdapter := scheduler.NewBalanceAdapter(cashManager, log)
 	syncCycle := scheduler.NewSyncCycleJob(scheduler.SyncCycleConfig{
 		Log:                 log,
 		PortfolioService:    portfolioService,
 		CashFlowsService:    cashFlowsService,
 		TradingService:      tradingService,
 		UniverseService:     universeService,
-		BalanceService:      nil, // TODO: implement adapter for scheduler.BalanceServiceInterface
+		BalanceService:      balanceAdapter,
 		DisplayManager:      displayManager,
 		MarketHours:         marketHours,
 		EmergencyRebalance:  emergencyRebalance,

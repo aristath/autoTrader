@@ -598,3 +598,48 @@ func TestSyncFromTradernet_ZeroQuantity(t *testing.T) {
 	assert.Equal(t, 1, len(mockRepo.trades))
 	assert.Equal(t, 0.0, mockRepo.trades[0].Quantity)
 }
+
+// TestSyncFromTradernet_SkipsInvalidPrice tests that trades with invalid prices are skipped
+func TestSyncFromTradernet_SkipsInvalidPrice(t *testing.T) {
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+
+	mockClient := &mockTradernetClient{
+		trades: []tradernet.Trade{
+			{
+				OrderID:    "ORDER-1",
+				Symbol:     "AAPL",
+				Side:       "BUY",
+				Quantity:   10,
+				Price:      0.0, // Invalid - should skip
+				ExecutedAt: "2024-01-15T10:30:00Z",
+			},
+			{
+				OrderID:    "ORDER-2",
+				Symbol:     "MSFT",
+				Side:       "SELL",
+				Quantity:   5,
+				Price:      -10.0, // Invalid - should skip
+				ExecutedAt: "2024-01-15T11:00:00Z",
+			},
+			{
+				OrderID:    "ORDER-3",
+				Symbol:     "GOOGL",
+				Side:       "BUY",
+				Quantity:   3,
+				Price:      100.0, // Valid - should insert
+				ExecutedAt: "2024-01-15T12:00:00Z",
+			},
+		},
+	}
+
+	mockRepo := newMockTradeRepository()
+	service := NewTradingService(mockRepo, mockClient, nil, log)
+
+	err := service.SyncFromTradernet()
+
+	assert.NoError(t, err)
+	// Only valid trade should be inserted
+	assert.Equal(t, 1, len(mockRepo.trades))
+	assert.Equal(t, "ORDER-3", mockRepo.trades[0].OrderID)
+	assert.Equal(t, 100.0, mockRepo.trades[0].Price)
+}
