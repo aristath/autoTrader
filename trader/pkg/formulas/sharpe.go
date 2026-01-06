@@ -1,3 +1,4 @@
+// Package formulas provides financial formula calculations including Sharpe ratio and risk-adjusted return metrics.
 package formulas
 
 import (

@@ -1,3 +1,4 @@
+// Package formulas provides financial formula calculations including Exponential Moving Averages (EMA).
 package formulas
 
 import (

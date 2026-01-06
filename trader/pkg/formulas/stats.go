@@ -1,3 +1,4 @@
+// Package formulas provides financial formula calculations including statistical measures and metrics.
 package formulas
 
 import (

@@ -1,3 +1,4 @@
+// Package formulas provides financial formula calculations including Bollinger Bands, RSI, EMA, and other technical indicators.
 package formulas
 
 import (

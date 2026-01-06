@@ -1,3 +1,4 @@
+// Package formulas provides financial formula calculations including CAGR, returns, and volatility metrics.
 package formulas
 
 import "math"

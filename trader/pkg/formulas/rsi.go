@@ -1,3 +1,4 @@
+// Package formulas provides financial formula calculations including Relative Strength Index (RSI).
 package formulas
 
 import (

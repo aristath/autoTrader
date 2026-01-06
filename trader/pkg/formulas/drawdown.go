@@ -1,3 +1,4 @@
+// Package formulas provides financial formula calculations including drawdown analysis and risk metrics.
 package formulas
 
 import "math"
@@ -230,7 +231,7 @@ func CalculateVolatilityRatio(prices []float64) *float64 {
 	return &ratio
 }
 
-// CalcluateUlcerIndex calculates the Ulcer Index (downside risk measure)
+// CalculateUlcerIndex calculates the Ulcer Index (downside risk measure)
 // Measures depth and duration of drawdowns
 func CalculateUlcerIndex(prices []float64, period int) *float64 {
 	if len(prices) < period {

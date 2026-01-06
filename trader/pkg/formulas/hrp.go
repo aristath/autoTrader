@@ -1,3 +1,4 @@
+// Package formulas provides financial formula calculations including Hierarchical Risk Parity (HRP) portfolio optimization.
 package formulas
 
 import (
