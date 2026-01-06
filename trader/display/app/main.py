@@ -8,7 +8,7 @@ import json
 
 logger = Logger("trader-display")
 
-API_URL = "http://localhost:8001"
+API_URL = "http://172.17.0.1:8001"  # Docker gateway IP - Python app runs in container
 
 # Persistent HTTP session for connection pooling (reuses TCP connections)
 _http_session = requests.Session()

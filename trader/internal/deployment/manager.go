@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -210,14 +212,25 @@ func (m *Manager) Deploy() (*DeploymentResult, error) {
 		deploymentErrors["display-app"] = err
 	}
 
-	// Extract and deploy embedded sketch files (compile and upload)
+	// Extract and deploy embedded sketch files to ArduinoApps directory
+	// The Arduino App Framework will automatically rebuild and upload on app restart
 	sketchPaths := []string{"display/sketch/sketch.ino"}
+	sketchDeployed := false
 	for _, sketchPath := range sketchPaths {
 		if err := m.sketchDeployer.DeploySketch(sketchPath); err != nil {
 			m.log.Warn().Err(err).Str("sketch", sketchPath).Msg("Failed to deploy sketch (non-fatal)")
 		} else {
+			sketchDeployed = true
 			result.SketchDeployed = true
 			break // Only deploy first found sketch
+		}
+	}
+
+	// Restart the display app to trigger automatic sketch rebuild/upload by Arduino App Framework
+	if sketchDeployed {
+		m.log.Info().Msg("Restarting display app to trigger sketch rebuild/upload")
+		if err := m.restartDisplayApp(); err != nil {
+			m.log.Warn().Err(err).Msg("Failed to restart display app (sketch files deployed, manual restart may be needed)")
 		}
 	}
 
@@ -314,12 +327,22 @@ func (m *Manager) HardUpdate() (*DeploymentResult, error) {
 
 	// Extract and deploy embedded sketch files (always, non-fatal)
 	sketchPaths := []string{"display/sketch/sketch.ino"}
+	sketchDeployed := false
 	for _, sketchPath := range sketchPaths {
 		if err := m.sketchDeployer.DeploySketch(sketchPath); err != nil {
 			m.log.Warn().Err(err).Str("sketch", sketchPath).Msg("Failed to deploy sketch (non-fatal)")
 		} else {
+			sketchDeployed = true
 			result.SketchDeployed = true
 			break // Only deploy first found sketch
+		}
+	}
+
+	// Restart the display app to trigger automatic sketch rebuild/upload by Arduino App Framework
+	if sketchDeployed {
+		m.log.Info().Msg("Restarting display app to trigger sketch rebuild/upload")
+		if err := m.restartDisplayApp(); err != nil {
+			m.log.Warn().Err(err).Msg("Failed to restart display app (sketch files deployed, manual restart may be needed)")
 		}
 	}
 
@@ -594,6 +617,34 @@ func (e *logEventAdapter) Err(err error) LogEvent {
 
 func (e *logEventAdapter) Msg(msg string) {
 	e.event.Msg(msg)
+}
+
+// restartDisplayApp restarts the Arduino display app using arduino-app-cli
+// This triggers the Arduino App Framework to automatically rebuild and upload the sketch
+func (m *Manager) restartDisplayApp() error {
+	cmd := exec.Command("arduino-app-cli", "app", "restart", "user:trader-display")
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		// If restart fails, try start instead (app may not be running)
+		output := stdout.String() + stderr.String()
+		m.log.Debug().Str("output", output).Msg("Restart failed, trying start instead")
+
+		cmd = exec.Command("arduino-app-cli", "app", "start", "user:trader-display")
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		if err := cmd.Run(); err != nil {
+			output := stdout.String() + stderr.String()
+			return fmt.Errorf("failed to restart/start display app: %w\nOutput: %s", err, output)
+		}
+	}
+
+	m.log.Info().Msg("Display app restarted - sketch rebuild/upload triggered by Arduino App Framework")
+	return nil
 }
 
 func (e *logEventAdapter) Dur(key string, value time.Duration) LogEvent {
