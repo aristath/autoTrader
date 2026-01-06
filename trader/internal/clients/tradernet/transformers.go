@@ -137,9 +137,16 @@ func transformPendingOrders(sdkResult interface{}) ([]PendingOrder, error) {
 		return nil, fmt.Errorf("invalid SDK result format: expected map[string]interface{}")
 	}
 
-	resultArray, ok := resultMap["result"].([]interface{})
+	// Handle empty or null result
+	result, ok := resultMap["result"]
+	if !ok || result == nil {
+		// Empty result - return empty array
+		return []PendingOrder{}, nil
+	}
+
+	resultArray, ok := result.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("invalid SDK result format: missing or invalid 'result' array")
+		return nil, fmt.Errorf("invalid SDK result format: 'result' must be array, got %T", result)
 	}
 
 	orders := make([]PendingOrder, 0, len(resultArray))
@@ -180,9 +187,18 @@ func transformCashMovements(sdkResult interface{}) (*CashMovementsResponse, erro
 		return nil, fmt.Errorf("invalid SDK result format: expected map[string]interface{}")
 	}
 
-	resultArray, ok := resultMap["result"].([]interface{})
+	// Handle empty or null result
+	result, ok := resultMap["result"]
+	if !ok || result == nil {
+		// Empty result - return empty response
+		return &CashMovementsResponse{
+			Withdrawals: []map[string]interface{}{},
+		}, nil
+	}
+
+	resultArray, ok := result.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("invalid SDK result format: missing or invalid 'result' array")
+		return nil, fmt.Errorf("invalid SDK result format: 'result' must be array, got %T", result)
 	}
 
 	withdrawals := make([]map[string]interface{}, 0, len(resultArray))
@@ -218,9 +234,16 @@ func transformCashFlows(sdkResult interface{}) ([]CashFlowTransaction, error) {
 		return nil, fmt.Errorf("invalid SDK result format: expected map[string]interface{}")
 	}
 
-	resultArray, ok := resultMap["result"].([]interface{})
+	// Handle empty or null result
+	result, ok := resultMap["result"]
+	if !ok || result == nil {
+		// Empty result - return empty array
+		return []CashFlowTransaction{}, nil
+	}
+
+	resultArray, ok := result.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("invalid SDK result format: missing or invalid 'result' array")
+		return nil, fmt.Errorf("invalid SDK result format: 'result' must be array, got %T", result)
 	}
 
 	transactions := make([]CashFlowTransaction, 0, len(resultArray))
@@ -273,9 +296,16 @@ func transformTrades(sdkResult interface{}) ([]Trade, error) {
 		return nil, fmt.Errorf("invalid SDK result format: expected map[string]interface{}")
 	}
 
-	resultArray, ok := resultMap["result"].([]interface{})
+	// Handle empty or null result
+	result, ok := resultMap["result"]
+	if !ok || result == nil {
+		// Empty result - return empty array
+		return []Trade{}, nil
+	}
+
+	resultArray, ok := result.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("invalid SDK result format: missing or invalid 'result' array")
+		return nil, fmt.Errorf("invalid SDK result format: 'result' must be array, got %T", result)
 	}
 
 	trades := make([]Trade, 0, len(resultArray))
@@ -317,9 +347,16 @@ func transformSecurityInfo(sdkResult interface{}) ([]SecurityInfo, error) {
 		return nil, fmt.Errorf("invalid SDK result format: expected map[string]interface{}")
 	}
 
-	resultArray, ok := resultMap["result"].([]interface{})
+	// Handle empty or null result
+	result, ok := resultMap["result"]
+	if !ok || result == nil {
+		// Empty result - return empty array
+		return []SecurityInfo{}, nil
+	}
+
+	resultArray, ok := result.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("invalid SDK result format: missing or invalid 'result' array")
+		return nil, fmt.Errorf("invalid SDK result format: 'result' must be array, got %T", result)
 	}
 
 	securities := make([]SecurityInfo, 0, len(resultArray))
