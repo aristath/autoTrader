@@ -45,4 +45,6 @@ data/
 tmp/
 
 # Embedded files (copied during build)
-pkg/embedded/
+# Allow embedded.go to be committed, but ignore the copied directories
+pkg/embedded/frontend/
+pkg/embedded/display/
