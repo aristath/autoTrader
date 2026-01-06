@@ -43,3 +43,6 @@ data/
 
 # Air (live reload)
 tmp/
+
+# Embedded files (copied during build)
+pkg/embedded/

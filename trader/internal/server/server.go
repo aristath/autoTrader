@@ -3,9 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
+	"io/fs"
 	"mime"
 	"net/http"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -41,6 +42,7 @@ import (
 	"github.com/aristath/arduino-trader/internal/modules/universe"
 	"github.com/aristath/arduino-trader/internal/scheduler"
 	"github.com/aristath/arduino-trader/internal/services"
+	"github.com/aristath/arduino-trader/pkg/embedded"
 )
 
 // Config holds server configuration - NEW 7-database architecture
@@ -253,28 +255,53 @@ func (s *Server) setupRoutes() {
 	// Mounted directly under /api/v1 for Python client compatibility
 	s.setupEvaluationRoutes(s.router)
 
-	// Serve built frontend files (from frontend/dist)
-	frontendDir := "./frontend/dist"
-	if _, err := os.Stat(frontendDir); err != nil {
-		s.log.Warn().Err(err).Msg("Frontend directory not found, frontend may not be built yet")
-	}
-	// Serve built frontend assets (Vite outputs to /assets/)
-	// Files are at frontend/dist/assets/, so serve from frontendDir/assets and strip /assets/ prefix
-	assetsDir := filepath.Join(frontendDir, "assets")
-	fileServer := http.FileServer(http.Dir(assetsDir))
-	// Wrap file server with MIME type handler to ensure correct Content-Type headers
-	assetsHandler := s.assetsHandler(fileServer, assetsDir)
-	s.router.Handle("/assets/*", http.StripPrefix("/assets/", assetsHandler))
-
-	// Serve index.html for root and all non-API routes (SPA routing)
-	s.router.Get("/", s.handleDashboard)
-	s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api") && !strings.HasPrefix(r.URL.Path, "/health") {
-			http.ServeFile(w, r, filepath.Join(frontendDir, "index.html"))
+	// Serve built frontend files from embedded filesystem
+	// Frontend files are embedded in the binary at frontend/dist
+	// Create a sub-FS for the frontend directory
+	frontendFS, err := fs.Sub(embedded.Files, "frontend/dist")
+	if err != nil {
+		s.log.Error().Err(err).Msg("Failed to create frontend filesystem from embedded files")
+	} else {
+		// Serve built frontend assets (Vite outputs to /assets/)
+		// Files are at frontend/dist/assets/, so serve from assets subdirectory
+		assetsFS, err := fs.Sub(frontendFS, "assets")
+		if err != nil {
+			s.log.Warn().Err(err).Msg("Frontend assets directory not found in embedded files")
 		} else {
-			http.NotFound(w, r)
+			fileServer := http.FileServer(http.FS(assetsFS))
+			// Wrap file server with MIME type handler to ensure correct Content-Type headers
+			assetsHandler := s.assetsHandler(fileServer)
+			s.router.Handle("/assets/*", http.StripPrefix("/assets/", assetsHandler))
 		}
-	})
+
+		// Serve index.html for root and all non-API routes (SPA routing)
+		s.router.Get("/", s.handleDashboard)
+		s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {
+			if !strings.HasPrefix(r.URL.Path, "/api") && !strings.HasPrefix(r.URL.Path, "/health") {
+				// Serve index.html from embedded filesystem
+				indexFile, err := frontendFS.Open("index.html")
+				if err != nil {
+					s.log.Error().Err(err).Msg("Failed to open embedded index.html")
+					http.NotFound(w, r)
+					return
+				}
+				defer indexFile.Close()
+				// Read file content and serve it
+				data, err := io.ReadAll(indexFile)
+				if err != nil {
+					s.log.Error().Err(err).Msg("Failed to read embedded index.html")
+					http.NotFound(w, r)
+					return
+				}
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				if _, err := w.Write(data); err != nil {
+					s.log.Error().Err(err).Msg("Failed to write index.html response")
+				}
+			} else {
+				http.NotFound(w, r)
+			}
+		})
+	}
 }
 
 // setupSystemRoutes configures system monitoring and operations routes
@@ -969,7 +996,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 }
 
 // assetsHandler wraps the file server to set correct MIME types
-func (s *Server) assetsHandler(next http.Handler, baseDir string) http.Handler {
+func (s *Server) assetsHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get the file path from the request
 		filePath := r.URL.Path
@@ -1011,10 +1038,39 @@ func (s *Server) assetsHandler(next http.Handler, baseDir string) http.Handler {
 	})
 }
 
-// handleDashboard serves the main dashboard HTML
+// handleDashboard serves the main dashboard HTML from embedded filesystem
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
-	frontendIndex := "./frontend/dist/index.html"
-	http.ServeFile(w, r, frontendIndex)
+	// Get frontend filesystem from embedded files
+	// The embed path is frontend/dist relative to the embedded package
+	frontendFS, err := fs.Sub(embedded.Files, "frontend/dist")
+	if err != nil {
+		s.log.Error().Err(err).Msg("Failed to create frontend filesystem from embedded files")
+		http.Error(w, "Frontend not available", http.StatusInternalServerError)
+		return
+	}
+
+	// Open and serve index.html from embedded filesystem
+	indexFile, err := frontendFS.Open("index.html")
+	if err != nil {
+		s.log.Error().Err(err).Msg("Failed to open embedded index.html")
+		http.Error(w, "Frontend not available", http.StatusInternalServerError)
+		return
+	}
+	defer indexFile.Close()
+
+	// Read file content and serve it
+	data, err := io.ReadAll(indexFile)
+	if err != nil {
+		s.log.Error().Err(err).Msg("Failed to read embedded index.html")
+		http.Error(w, "Frontend not available", http.StatusInternalServerError)
+		return
+	}
+
+	// Set content type
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := w.Write(data); err != nil {
+		s.log.Error().Err(err).Msg("Failed to write index.html response")
+	}
 }
 
 // loggingMiddleware logs HTTP requests

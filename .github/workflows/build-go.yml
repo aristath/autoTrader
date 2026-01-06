@@ -4,12 +4,14 @@ on:
   push:
     paths:
       - 'trader/**'
+      - 'display/**'
       - '.github/workflows/build-go.yml'
     branches:
       - main
   pull_request:
     paths:
       - 'trader/**'
+      - 'display/**'
       - '.github/workflows/build-go.yml'
     branches:
       - main
@@ -39,6 +41,17 @@ jobs:
       - name: Run tests
         working-directory: trader
         run: go test ./... -v
+
+      - name: Copy files for embedding
+        working-directory: trader
+        run: |
+          # Copy frontend/dist, display/app, and display/sketch into pkg/embedded/ for embedding
+          # This allows embed directive to access all files without using .. paths
+          mkdir -p pkg/embedded/frontend pkg/embedded/display
+          cp -r frontend/dist pkg/embedded/frontend/
+          cp -r ../display/app pkg/embedded/display/
+          cp -r ../display/sketch pkg/embedded/display/
+          echo "✓ Copied files for embedding"
 
       - name: Build ARM64 binary for Arduino Uno Q
         working-directory: trader

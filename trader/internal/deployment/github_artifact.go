@@ -1,9 +1,11 @@
 package deployment
 
 import (
-	"context"
+	"archive/zip"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -100,23 +102,25 @@ type GitHubArtifactDeployer struct {
 	workflowName string
 	artifactName string
 	branch       string
-	repoDir      string
+	githubRepo   string // GitHub repository in format "owner/repo"
 	tracker      *ArtifactTracker
+	httpClient   *http.Client
 }
 
 // NewGitHubArtifactDeployer creates a new GitHub artifact deployer
-func NewGitHubArtifactDeployer(workflowName, artifactName, branch, repoDir string, tracker *ArtifactTracker, log Logger) *GitHubArtifactDeployer {
+func NewGitHubArtifactDeployer(workflowName, artifactName, branch, githubRepo string, tracker *ArtifactTracker, log Logger) *GitHubArtifactDeployer {
 	return &GitHubArtifactDeployer{
 		log:          log,
 		workflowName: workflowName,
 		artifactName: artifactName,
 		branch:       branch,
-		repoDir:      repoDir,
+		githubRepo:   githubRepo,
 		tracker:      tracker,
+		httpClient:   &http.Client{Timeout: 60 * time.Second},
 	}
 }
 
-// CheckForNewBuild checks if a new successful build is available
+// CheckForNewBuild checks if a new successful build is available using GitHub REST API
 // Returns the run ID if a new build is available, empty string otherwise
 func (g *GitHubArtifactDeployer) CheckForNewBuild() (string, error) {
 	// Get last deployed run ID
@@ -125,34 +129,61 @@ func (g *GitHubArtifactDeployer) CheckForNewBuild() (string, error) {
 		return "", fmt.Errorf("failed to get last deployed run ID: %w", err)
 	}
 
-	// Get latest successful run
-	// gh CLI needs to run from within a git repository to determine the repo context
-	cmd := exec.Command("gh", "run", "list",
-		"--workflow", g.workflowName,
-		"--branch", g.branch,
-		"--status", "success",
-		"--limit", "1",
-		"--json", "databaseId,status,conclusion,headSha,createdAt",
-	)
-	cmd.Dir = g.repoDir
+	// Get GitHub token from environment
+	githubToken := os.Getenv("GITHUB_TOKEN")
+	if githubToken == "" {
+		return "", fmt.Errorf("GITHUB_TOKEN environment variable is required")
+	}
 
-	output, err := cmd.Output()
+	// Get workflow ID first
+	workflowID, err := g.getWorkflowID(githubToken)
+	if err != nil {
+		return "", fmt.Errorf("failed to get workflow ID: %w", err)
+	}
+
+	// Get latest successful run using GitHub API
+	url := fmt.Sprintf("https://api.github.com/repos/%s/actions/workflows/%s/runs?branch=%s&status=success&per_page=1", g.githubRepo, workflowID, g.branch)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+githubToken)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err := g.httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to list workflow runs: %w", err)
 	}
+	defer resp.Body.Close()
 
-	var runs []GitHubRun
-	if err := json.Unmarshal(output, &runs); err != nil {
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("GitHub API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var runsResponse struct {
+		WorkflowRuns []struct {
+			ID         int64  `json:"id"`
+			Status     string `json:"status"`
+			Conclusion string `json:"conclusion"`
+			HeadSHA    string `json:"head_sha"`
+			CreatedAt  string `json:"created_at"`
+		} `json:"workflow_runs"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&runsResponse); err != nil {
 		return "", fmt.Errorf("failed to parse workflow runs: %w", err)
 	}
 
-	if len(runs) == 0 {
+	if len(runsResponse.WorkflowRuns) == 0 {
 		g.log.Debug().Msg("No successful workflow runs found")
 		return "", nil
 	}
 
-	latestRun := runs[0]
-	latestRunID := string(latestRun.DatabaseID)
+	latestRun := runsResponse.WorkflowRuns[0]
+	latestRunID := fmt.Sprintf("%d", latestRun.ID)
 
 	// Check if this is a new build
 	if lastRunID == "" {
@@ -177,6 +208,51 @@ func (g *GitHubArtifactDeployer) CheckForNewBuild() (string, error) {
 		Msg("No new build available (already deployed)")
 
 	return "", nil
+}
+
+// getWorkflowID gets the workflow ID by name
+func (g *GitHubArtifactDeployer) getWorkflowID(githubToken string) (string, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/actions/workflows", g.githubRepo)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+githubToken)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to list workflows: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("GitHub API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var workflowsResponse struct {
+		Workflows []struct {
+			ID   int64  `json:"id"`
+			Name string `json:"name"`
+			Path string `json:"path"`
+		} `json:"workflows"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&workflowsResponse); err != nil {
+		return "", fmt.Errorf("failed to parse workflows: %w", err)
+	}
+
+	// Find workflow by name (match either name or path)
+	for _, workflow := range workflowsResponse.Workflows {
+		if workflow.Name == g.workflowName || workflow.Path == g.workflowName {
+			return fmt.Sprintf("%d", workflow.ID), nil
+		}
+	}
+
+	return "", fmt.Errorf("workflow %s not found", g.workflowName)
 }
 
 // VerifyBinaryArchitecture verifies that a binary is built for linux/arm64
@@ -211,7 +287,7 @@ func (g *GitHubArtifactDeployer) VerifyBinaryArchitecture(binaryPath string) err
 	return nil
 }
 
-// DownloadArtifact downloads the artifact for a specific run ID
+// DownloadArtifact downloads the artifact for a specific run ID using GitHub REST API
 // Returns the path to the downloaded binary
 // Verifies that the binary is built for linux/arm64
 func (g *GitHubArtifactDeployer) DownloadArtifact(runID string, outputDir string) (string, error) {
@@ -226,44 +302,47 @@ func (g *GitHubArtifactDeployer) DownloadArtifact(runID string, outputDir string
 		Str("output_dir", outputDir).
 		Msg("Downloading artifact from GitHub Actions")
 
-	// Download artifact using gh CLI
-	// gh CLI needs to run from within a git repository to determine the repo context
-	// Use context with timeout to prevent hanging (60 seconds should be enough for artifact download)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "gh", "run", "download",
-		runID,
-		"--name", g.artifactName,
-		"--dir", outputDir,
-	)
-	cmd.Dir = g.repoDir
-
-	var stderr strings.Builder
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return "", fmt.Errorf("download timeout after 60s: %w (stderr: %s)", err, stderr.String())
-		}
-		return "", fmt.Errorf("failed to download artifact: %w (stderr: %s)", err, stderr.String())
+	// Get GitHub token from environment
+	githubToken := os.Getenv("GITHUB_TOKEN")
+	if githubToken == "" {
+		return "", fmt.Errorf("GITHUB_TOKEN environment variable is required")
 	}
 
-	// Find the downloaded binary
-	// gh run download extracts artifacts, so we need to find the binary
-	// The artifact name might be the directory or the file itself
-	artifactPath := filepath.Join(outputDir, g.artifactName)
+	// Get artifacts for the run
+	artifactID, err := g.getArtifactIDForRun(runID, githubToken)
+	if err != nil {
+		return "", fmt.Errorf("failed to get artifact ID: %w", err)
+	}
 
+	// Download artifact zip file
+	zipPath := filepath.Join(outputDir, "artifact.zip")
+	if err := g.downloadArtifactZip(artifactID, zipPath, githubToken); err != nil {
+		return "", fmt.Errorf("failed to download artifact zip: %w", err)
+	}
+	defer os.Remove(zipPath) // Clean up zip file
+
+	// Extract zip file
+	extractDir := filepath.Join(outputDir, "extracted")
+	if err := os.MkdirAll(extractDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create extract directory: %w", err)
+	}
+
+	if err := g.extractZip(zipPath, extractDir); err != nil {
+		return "", fmt.Errorf("failed to extract artifact: %w", err)
+	}
+
+	// Find the downloaded binary in extracted directory
 	var binaryPath string
 
-	// Check if it's a file
+	// Check if artifact name is a file or directory in extracted dir
+	artifactPath := filepath.Join(extractDir, g.artifactName)
 	if info, err := os.Stat(artifactPath); err == nil && !info.IsDir() {
 		binaryPath = artifactPath
 	} else if err == nil && info.IsDir() {
 		// Check if it's a directory with the binary inside
 		binaryPath = filepath.Join(artifactPath, g.artifactName)
 		if _, err := os.Stat(binaryPath); err != nil {
-			// Try to find any executable file in the directory
+			// Try to find any file in the directory
 			entries, err := os.ReadDir(artifactPath)
 			if err == nil {
 				for _, entry := range entries {
@@ -275,16 +354,16 @@ func (g *GitHubArtifactDeployer) DownloadArtifact(runID string, outputDir string
 			}
 		}
 	} else {
-		// Try to find any executable file in the output directory
-		entries, err := os.ReadDir(outputDir)
+		// Try to find any file matching artifact name in extracted directory
+		entries, err := os.ReadDir(extractDir)
 		if err != nil {
-			return "", fmt.Errorf("failed to read output directory: %w", err)
+			return "", fmt.Errorf("failed to read extract directory: %w", err)
 		}
 
 		for _, entry := range entries {
 			if !entry.IsDir() {
-				path := filepath.Join(outputDir, entry.Name())
-				// Check if it's executable or matches our artifact name
+				path := filepath.Join(extractDir, entry.Name())
+				// Check if it matches our artifact name
 				if strings.Contains(entry.Name(), g.artifactName) || strings.HasSuffix(entry.Name(), "-arm64") {
 					binaryPath = path
 					break
@@ -294,7 +373,7 @@ func (g *GitHubArtifactDeployer) DownloadArtifact(runID string, outputDir string
 	}
 
 	if binaryPath == "" {
-		return "", fmt.Errorf("downloaded artifact not found in %s", outputDir)
+		return "", fmt.Errorf("downloaded artifact not found in %s", extractDir)
 	}
 
 	// Verify binary architecture (CRITICAL: must be linux/arm64)
@@ -309,6 +388,138 @@ func (g *GitHubArtifactDeployer) DownloadArtifact(runID string, outputDir string
 		Msg("Downloaded and verified linux/arm64 binary")
 
 	return binaryPath, nil
+}
+
+// getArtifactIDForRun gets the artifact ID for a specific run
+func (g *GitHubArtifactDeployer) getArtifactIDForRun(runID string, githubToken string) (int64, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/actions/runs/%s/artifacts", g.githubRepo, runID)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+githubToken)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("failed to list artifacts: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return 0, fmt.Errorf("GitHub API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var artifactsResponse struct {
+		Artifacts []struct {
+			ID   int64  `json:"id"`
+			Name string `json:"name"`
+		} `json:"artifacts"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&artifactsResponse); err != nil {
+		return 0, fmt.Errorf("failed to parse artifacts: %w", err)
+	}
+
+	// Find artifact by name
+	for _, artifact := range artifactsResponse.Artifacts {
+		if artifact.Name == g.artifactName {
+			return artifact.ID, nil
+		}
+	}
+
+	return 0, fmt.Errorf("artifact %s not found in run %s", g.artifactName, runID)
+}
+
+// downloadArtifactZip downloads the artifact zip file
+func (g *GitHubArtifactDeployer) downloadArtifactZip(artifactID int64, zipPath string, githubToken string) error {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/actions/artifacts/%d/zip", g.githubRepo, artifactID)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+githubToken)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to download artifact: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("GitHub API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Create zip file
+	zipFile, err := os.Create(zipPath)
+	if err != nil {
+		return fmt.Errorf("failed to create zip file: %w", err)
+	}
+	defer zipFile.Close()
+
+	// Copy response body to file
+	if _, err := io.Copy(zipFile, resp.Body); err != nil {
+		return fmt.Errorf("failed to write zip file: %w", err)
+	}
+
+	return nil
+}
+
+// extractZip extracts a zip file to a directory
+func (g *GitHubArtifactDeployer) extractZip(zipPath string, extractDir string) error {
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return fmt.Errorf("failed to open zip file: %w", err)
+	}
+	defer r.Close()
+
+	for _, f := range r.File {
+		path := filepath.Join(extractDir, f.Name)
+
+		// Check for ZipSlip vulnerability
+		if !strings.HasPrefix(path, filepath.Clean(extractDir)+string(os.PathSeparator)) {
+			return fmt.Errorf("invalid file path: %s", f.Name)
+		}
+
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(path, f.FileInfo().Mode()); err != nil {
+				return fmt.Errorf("failed to create directory for extracted file: %w", err)
+			}
+			continue
+		}
+
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+
+		rc, err := f.Open()
+		if err != nil {
+			return fmt.Errorf("failed to open file in zip: %w", err)
+		}
+
+		outFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.FileInfo().Mode())
+		if err != nil {
+			rc.Close()
+			return fmt.Errorf("failed to create file: %w", err)
+		}
+
+		_, err = io.Copy(outFile, rc)
+		outFile.Close()
+		rc.Close()
+
+		if err != nil {
+			return fmt.Errorf("failed to extract file: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // DeployLatest checks for a new build and deploys it if available

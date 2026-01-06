@@ -26,7 +26,6 @@ type Config struct {
 // DeploymentConfig holds deployment automation configuration (config package version)
 type DeploymentConfig struct {
 	Enabled                bool
-	RepoDir                string
 	DeployDir              string
 	APIPort                int
 	APIHost                string
@@ -42,6 +41,7 @@ type DeploymentConfig struct {
 	GitHubWorkflowName string // e.g., "build-go.yml"
 	GitHubArtifactName string // e.g., "trader-arm64"
 	GitHubBranch       string // Branch to check for builds (defaults to GitBranch if empty)
+	GitHubRepo         string // GitHub repository in format "owner/repo" (e.g., "aristath/arduino-trader")
 }
 
 // ToDeploymentConfig converts config.DeploymentConfig to deployment.DeploymentConfig
@@ -54,7 +54,6 @@ func (c *DeploymentConfig) ToDeploymentConfig() *deployment.DeploymentConfig {
 
 	return &deployment.DeploymentConfig{
 		Enabled:                c.Enabled,
-		RepoDir:                c.RepoDir,
 		DeployDir:              c.DeployDir,
 		APIPort:                c.APIPort,
 		APIHost:                c.APIHost,
@@ -73,6 +72,7 @@ func (c *DeploymentConfig) ToDeploymentConfig() *deployment.DeploymentConfig {
 		GitHubWorkflowName: c.GitHubWorkflowName,
 		GitHubArtifactName: c.GitHubArtifactName,
 		GitHubBranch:       githubBranch,
+		GitHubRepo:         c.GitHubRepo,
 	}
 }
 
@@ -182,9 +182,8 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 // loadDeploymentConfig loads deployment configuration with hardcoded defaults
 func loadDeploymentConfig() *DeploymentConfig {
 	return &DeploymentConfig{
-		Enabled:                true,                     // Enabled by default
-		RepoDir:                "/home/arduino/app/repo", // Absolute path to repo
-		DeployDir:              ".",                      // Current directory (resolved to WorkingDirectory)
+		Enabled:                true, // Enabled by default
+		DeployDir:              ".",  // Current directory (resolved to WorkingDirectory)
 		APIPort:                8001,
 		APIHost:                "localhost",
 		LockTimeout:            120, // 2 minutes
@@ -199,6 +198,7 @@ func loadDeploymentConfig() *DeploymentConfig {
 		UseGitHubArtifacts: true, // Always true - artifact deployment is required
 		GitHubWorkflowName: getEnv("GITHUB_WORKFLOW_NAME", "build-go.yml"),
 		GitHubArtifactName: getEnv("GITHUB_ARTIFACT_NAME", "trader-arm64"),
-		GitHubBranch:       getEnv("GITHUB_BRANCH", ""), // Defaults to GitBranch if empty
+		GitHubBranch:       getEnv("GITHUB_BRANCH", ""),                      // Defaults to GitBranch if empty
+		GitHubRepo:         getEnv("GITHUB_REPO", "aristath/arduino-trader"), // GitHub repository
 	}
 }

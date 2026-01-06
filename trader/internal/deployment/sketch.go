@@ -2,10 +2,14 @@ package deployment
 
 import (
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/aristath/arduino-trader/pkg/embedded"
 )
 
 // SketchDeployer handles Arduino sketch compilation and upload
@@ -20,22 +24,44 @@ func NewSketchDeployer(log Logger) *SketchDeployer {
 	}
 }
 
-// DeploySketch compiles and uploads an Arduino sketch
-func (d *SketchDeployer) DeploySketch(sketchPath string, repoDir string) error {
-	fullSketchPath := filepath.Join(repoDir, sketchPath)
-
-	// Check if sketch exists
-	if _, err := os.Stat(fullSketchPath); os.IsNotExist(err) {
-		return fmt.Errorf("sketch file does not exist: %s", fullSketchPath)
-	}
-
-	sketchDir := filepath.Dir(fullSketchPath)
+// DeploySketch extracts sketch from embedded files, compiles and uploads it
+// sketchPath is the relative path within display/sketch (e.g., "display/sketch/sketch.ino")
+func (d *SketchDeployer) DeploySketch(sketchPath string) error {
 	fqbn := "arduino:zephyr:unoq" // Arduino Uno Q FQBN
 
 	d.log.Info().
 		Str("sketch", sketchPath).
 		Str("fqbn", fqbn).
-		Msg("Compiling and uploading Arduino sketch")
+		Msg("Extracting, compiling and uploading Arduino sketch from embedded files")
+
+	// Create temp directory for sketch extraction
+	tempDir, err := os.MkdirTemp("", "sketch-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir) // Clean up temp directory
+
+	// Extract sketch directory from embedded files
+	// sketchPath is like "display/sketch/sketch.ino", we need "display/sketch"
+	// The embed path is display/sketch relative to the embedded package
+	sketchDirPath := filepath.Dir(sketchPath)
+	sketchFS, err := fs.Sub(embedded.Files, sketchDirPath)
+	if err != nil {
+		return fmt.Errorf("failed to get sketch directory from embedded files: %w", err)
+	}
+
+	// Extract all sketch files to temp directory
+	if err := d.extractSketchFiles(sketchFS, tempDir); err != nil {
+		return fmt.Errorf("failed to extract sketch files: %w", err)
+	}
+
+	// Verify sketch.ino exists in temp directory (required for compilation)
+	sketchFile := filepath.Join(tempDir, "sketch.ino")
+	if _, err := os.Stat(sketchFile); os.IsNotExist(err) {
+		return fmt.Errorf("sketch file not found after extraction: %s", sketchFile)
+	}
+
+	sketchDir := tempDir
 
 	// Install arduino-cli if not present
 	if err := d.ensureArduinoCLI(); err != nil {
@@ -257,6 +283,65 @@ func (d *SketchDeployer) uploadSketch(sketchDir string, fqbn string, serialPort 
 		Str("sketch_dir", sketchDir).
 		Str("port", serialPort).
 		Msg("Upload successful")
+
+	return nil
+}
+
+// extractSketchFiles extracts all files from embed.FS to target directory
+func (d *SketchDeployer) extractSketchFiles(sourceFS fs.FS, targetDir string) error {
+	return fs.WalkDir(sourceFS, ".", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip the root directory itself if it's just "."
+		if path == "." && entry.IsDir() {
+			return nil
+		}
+
+		targetPath := filepath.Join(targetDir, path)
+
+		if entry.IsDir() {
+			// Create directory
+			return os.MkdirAll(targetPath, 0755)
+		}
+
+		// Extract file
+		return d.extractSketchFile(sourceFS, path, targetPath)
+	})
+}
+
+// extractSketchFile extracts a single file from embed.FS to target path
+func (d *SketchDeployer) extractSketchFile(sourceFS fs.FS, sourcePath string, targetPath string) error {
+	// Open source file from embedded filesystem
+	sourceFile, err := sourceFS.Open(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to open embedded file %s: %w", sourcePath, err)
+	}
+	defer sourceFile.Close()
+
+	// Create target directory if needed
+	targetDir := filepath.Dir(targetPath)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return err
+	}
+
+	// Create target file
+	targetFile, err := os.Create(targetPath)
+	if err != nil {
+		return fmt.Errorf("failed to create target file %s: %w", targetPath, err)
+	}
+	defer targetFile.Close()
+
+	// Copy file contents
+	if _, err := io.Copy(targetFile, sourceFile); err != nil {
+		return fmt.Errorf("failed to copy file contents: %w", err)
+	}
+
+	// Set file permissions
+	if err := os.Chmod(targetPath, 0644); err != nil {
+		return fmt.Errorf("failed to set file permissions: %w", err)
+	}
 
 	return nil
 }

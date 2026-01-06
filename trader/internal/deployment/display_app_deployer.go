@@ -2,11 +2,16 @@ package deployment
 
 import (
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/aristath/arduino-trader/pkg/embedded"
 )
 
-// DisplayAppDeployer handles Python display app deployment (copy-only, no building)
+// DisplayAppDeployer handles Python display app deployment (extracts from embedded files)
 type DisplayAppDeployer struct {
 	log Logger
 }
@@ -18,33 +23,30 @@ func NewDisplayAppDeployer(log Logger) *DisplayAppDeployer {
 	}
 }
 
-// DeployDisplayApp copies the Python app files from display/app/ to ArduinoApps/trader-display/python/
+// DeployDisplayApp extracts the Python app files from embedded filesystem to ArduinoApps/trader-display/python/
 // The Python app files are managed by Arduino App Framework and do not require building.
-func (d *DisplayAppDeployer) DeployDisplayApp(repoDir string) error {
-	sourceDir := filepath.Join(repoDir, "display/app")
+func (d *DisplayAppDeployer) DeployDisplayApp() error {
 	targetDir := "/home/arduino/ArduinoApps/trader-display/python"
 
-	// Check if source exists
-	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
-		d.log.Warn().
-			Str("source", sourceDir).
-			Msg("Display app directory not found in repo")
-		return nil // Non-fatal - just log warning
-	}
-
 	d.log.Info().
-		Str("source", sourceDir).
 		Str("target", targetDir).
-		Msg("Deploying display app (Python files)")
+		Msg("Deploying display app (extracting from embedded files)")
+
+	// Get display/app subdirectory from embedded files
+	// The embed path is display/app relative to the embedded package
+	displayAppFS, err := fs.Sub(embedded.Files, "display/app")
+	if err != nil {
+		return fmt.Errorf("failed to get display/app from embedded files: %w", err)
+	}
 
 	// Create target directory
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return fmt.Errorf("failed to create target directory: %w", err)
 	}
 
-	// Copy files recursively
-	if err := d.copyDirectory(sourceDir, targetDir); err != nil {
-		return fmt.Errorf("failed to copy display app files: %w", err)
+	// Extract files from embedded filesystem to target directory
+	if err := d.extractDirectory(displayAppFS, ".", targetDir); err != nil {
+		return fmt.Errorf("failed to extract display app files: %w", err)
 	}
 
 	d.log.Info().
@@ -54,44 +56,53 @@ func (d *DisplayAppDeployer) DeployDisplayApp(repoDir string) error {
 	return nil
 }
 
-// copyDirectory recursively copies a directory
-func (d *DisplayAppDeployer) copyDirectory(sourceDir string, targetDir string) error {
-	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+// extractDirectory recursively extracts files from embed.FS to target directory
+func (d *DisplayAppDeployer) extractDirectory(sourceFS fs.FS, sourcePath string, targetDir string) error {
+	return fs.WalkDir(sourceFS, sourcePath, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		// Calculate relative path
-		relPath, err := filepath.Rel(sourceDir, path)
-		if err != nil {
-			return err
+		// Skip the root directory itself if it's just "."
+		if path == "." && entry.IsDir() {
+			return nil
+		}
+
+		// Calculate relative path from source root
+		relPath := path
+		if sourcePath != "." {
+			relPath, err = filepath.Rel(sourcePath, path)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Remove leading "./" if present
+		relPath = strings.TrimPrefix(relPath, "./")
+		if relPath == "" {
+			return nil
 		}
 
 		targetPath := filepath.Join(targetDir, relPath)
 
-		// Re-stat to get current file info
-		fileInfo, err := os.Stat(path)
-		if err != nil {
-			return err
-		}
-
-		if fileInfo.IsDir() {
+		if entry.IsDir() {
 			// Create directory
-			return os.MkdirAll(targetPath, fileInfo.Mode())
+			return os.MkdirAll(targetPath, 0755)
 		}
 
-		// Copy file
-		return d.copyFile(path, targetPath, fileInfo.Mode())
+		// Extract file
+		return d.extractFile(sourceFS, path, targetPath)
 	})
 }
 
-// copyFile copies a single file
-func (d *DisplayAppDeployer) copyFile(sourcePath string, targetPath string, mode os.FileMode) error {
-	// Read source file
-	data, err := os.ReadFile(sourcePath)
+// extractFile extracts a single file from embed.FS to target path
+func (d *DisplayAppDeployer) extractFile(sourceFS fs.FS, sourcePath string, targetPath string) error {
+	// Open source file from embedded filesystem
+	sourceFile, err := sourceFS.Open(sourcePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open embedded file %s: %w", sourcePath, err)
 	}
+	defer sourceFile.Close()
 
 	// Create target directory if needed
 	targetDir := filepath.Dir(targetPath)
@@ -99,9 +110,21 @@ func (d *DisplayAppDeployer) copyFile(sourcePath string, targetPath string, mode
 		return err
 	}
 
-	// Write target file
-	if err := os.WriteFile(targetPath, data, mode); err != nil {
-		return err
+	// Create target file
+	targetFile, err := os.Create(targetPath)
+	if err != nil {
+		return fmt.Errorf("failed to create target file %s: %w", targetPath, err)
+	}
+	defer targetFile.Close()
+
+	// Copy file contents
+	if _, err := io.Copy(targetFile, sourceFile); err != nil {
+		return fmt.Errorf("failed to copy file contents: %w", err)
+	}
+
+	// Set file permissions (executable for Python files)
+	if err := os.Chmod(targetPath, 0644); err != nil {
+		return fmt.Errorf("failed to set file permissions: %w", err)
 	}
 
 	return nil

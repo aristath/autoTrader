@@ -13,7 +13,6 @@ import (
 
 // DeploymentConfig holds deployment configuration
 type DeploymentConfig struct {
-	RepoDir                string
 	DeployDir              string
 	APIPort                int
 	APIHost                string
@@ -29,6 +28,7 @@ type DeploymentConfig struct {
 	GitHubWorkflowName string
 	GitHubArtifactName string
 	GitHubBranch       string
+	GitHubRepo         string // GitHub repository in format "owner/repo" (e.g., "aristath/arduino-trader")
 }
 
 // Manager handles deployment orchestration
@@ -41,11 +41,8 @@ type Manager struct {
 	gitBranch  string
 
 	// Components
-	lock       *DeploymentLock
-	gitChecker *GitChecker
-	// goBuilder removed - we use GitHub artifacts exclusively (saves 1GB+ disk space)
+	lock                   *DeploymentLock
 	binaryDeployer         *BinaryDeployer
-	frontendDeployer       *FrontendDeployer
 	displayAppDeployer     *DisplayAppDeployer
 	serviceManager         *ServiceManager
 	dockerManager          *DockerManager
@@ -56,21 +53,14 @@ type Manager struct {
 
 // NewManager creates a new deployment manager
 func NewManager(config *DeploymentConfig, version string, log zerolog.Logger) *Manager {
-	// Resolve paths to absolute (required for reliable path operations)
-	absRepoDir, err := filepath.Abs(config.RepoDir)
-	if err != nil {
-		log.Warn().Err(err).Str("repo_dir", config.RepoDir).Msg("Failed to resolve RepoDir to absolute path, using as-is")
-		absRepoDir = config.RepoDir
-	}
-
+	// Resolve deploy directory to absolute (required for reliable path operations)
 	absDeployDir, err := filepath.Abs(config.DeployDir)
 	if err != nil {
 		log.Warn().Err(err).Str("deploy_dir", config.DeployDir).Msg("Failed to resolve DeployDir to absolute path, using as-is")
 		absDeployDir = config.DeployDir
 	}
 
-	// Update config with absolute paths
-	config.RepoDir = absRepoDir
+	// Update config with absolute path
 	config.DeployDir = absDeployDir
 
 	// Create components
@@ -79,20 +69,8 @@ func NewManager(config *DeploymentConfig, version string, log zerolog.Logger) *M
 		&logAdapter{log: log.With().Str("component", "lock").Logger()},
 	)
 
-	gitChecker := NewGitChecker(
-		config.RepoDir,
-		&logAdapter{log: log.With().Str("component", "git").Logger()},
-	)
-
-	// Go builder is NOT initialized - we use GitHub artifacts exclusively
-	// This saves 1GB+ disk space on the Arduino device by not requiring Go toolchain
-
 	binaryDeployer := NewBinaryDeployer(
 		&logAdapter{log: log.With().Str("component", "binary").Logger()},
-	)
-
-	frontendDeployer := NewFrontendDeployer(
-		&logAdapter{log: log.With().Str("component", "frontend").Logger()},
 	)
 
 	serviceManager := NewServiceManager(
@@ -120,6 +98,11 @@ func NewManager(config *DeploymentConfig, version string, log zerolog.Logger) *M
 			Msg("GitHub artifact deployment is REQUIRED but configuration is missing. Set GITHUB_WORKFLOW_NAME and GITHUB_ARTIFACT_NAME")
 	}
 
+	if config.GitHubRepo == "" {
+		log.Fatal().
+			Msg("GitHub repository is REQUIRED but configuration is missing. Set GITHUB_REPO (e.g., 'aristath/arduino-trader')")
+	}
+
 	trackerFile := filepath.Join(config.DeployDir, "github-artifact-id.txt")
 	artifactTracker = NewArtifactTracker(
 		trackerFile,
@@ -138,7 +121,7 @@ func NewManager(config *DeploymentConfig, version string, log zerolog.Logger) *M
 		config.GitHubWorkflowName,
 		config.GitHubArtifactName,
 		githubBranch,
-		config.RepoDir,
+		config.GitHubRepo,
 		artifactTracker,
 		&logAdapter{log: log.With().Str("component", "github-artifact").Logger()},
 	)
@@ -147,20 +130,18 @@ func NewManager(config *DeploymentConfig, version string, log zerolog.Logger) *M
 		Str("workflow", config.GitHubWorkflowName).
 		Str("artifact", config.GitHubArtifactName).
 		Str("branch", githubBranch).
+		Str("repo", config.GitHubRepo).
 		Msg("GitHub artifact deployment enabled (REQUIRED - no on-device building)")
 
 	return &Manager{
-		config:     config,
-		log:        log.With().Str("component", "deployment").Logger(),
-		statusFile: filepath.Join(config.DeployDir, "deployment_status.json"),
-		version:    version,
-		gitCommit:  getEnv("GIT_COMMIT", "unknown"),
-		gitBranch:  config.GitBranch,
-		lock:       lock,
-		gitChecker: gitChecker,
-		// goBuilder removed - using GitHub artifacts exclusively
-		binaryDeployer:   binaryDeployer,
-		frontendDeployer: frontendDeployer,
+		config:         config,
+		log:            log.With().Str("component", "deployment").Logger(),
+		statusFile:     filepath.Join(config.DeployDir, "deployment_status.json"),
+		version:        version,
+		gitCommit:      getEnv("GIT_COMMIT", "unknown"),
+		gitBranch:      config.GitBranch,
+		lock:           lock,
+		binaryDeployer: binaryDeployer,
 		displayAppDeployer: NewDisplayAppDeployer(
 			&logAdapter{log: log.With().Str("component", "display-app").Logger()},
 		),
@@ -181,11 +162,6 @@ func (m *Manager) Deploy() (*DeploymentResult, error) {
 		ServicesDeployed: []ServiceDeployment{},
 	}
 
-	// Ensure safe directory
-	if err := m.gitChecker.EnsureSafeDirectory(); err != nil {
-		m.log.Warn().Err(err).Msg("Failed to ensure git safe directory")
-	}
-
 	// Acquire lock
 	if err := m.lock.AcquireLock(m.config.LockTimeout); err != nil {
 		result.Error = fmt.Sprintf("failed to acquire lock: %v", err)
@@ -198,147 +174,50 @@ func (m *Manager) Deploy() (*DeploymentResult, error) {
 		}
 	}()
 
-	// Get current commit
-	currentBranch := m.config.GitBranch
-	if currentBranch == "" {
-		var err error
-		currentBranch, err = m.gitChecker.GetCurrentBranch()
-		if err != nil {
-			currentBranch = "main"
-		}
-	}
-
 	result.CommitBefore = m.gitCommit
 
-	// Fetch updates
-	if err := m.gitChecker.FetchUpdates(3); err != nil {
-		result.Error = fmt.Sprintf("failed to fetch updates: %v", err)
-		result.Duration = time.Since(startTime)
-		return result, err
-	}
-
-	// Check for changes
-	hasChanges, localCommit, remoteCommit, err := m.gitChecker.HasChanges(currentBranch)
-	if err != nil {
-		result.Error = fmt.Sprintf("failed to check for changes: %v", err)
-		result.Duration = time.Since(startTime)
-		return result, err
-	}
-
-	result.CommitBefore = localCommit
-
-	// Check for GitHub artifacts if enabled (for Go services)
+	// Check for new GitHub artifact (Go binary)
 	var hasNewArtifact bool
-	var artifactRunID string // Store runID to pass through call chain
+	var artifactRunID string
 	if m.githubArtifactDeployer != nil {
 		runID, err := m.githubArtifactDeployer.CheckForNewBuild()
 		if err != nil {
-			m.log.Warn().Err(err).Msg("Failed to check for GitHub artifacts, falling back to git check")
+			m.log.Warn().Err(err).Msg("Failed to check for GitHub artifacts")
 		} else if runID != "" {
 			hasNewArtifact = true
-			artifactRunID = runID // Store runID to pass to deployServices
+			artifactRunID = runID
 			m.log.Info().
 				Str("run_id", runID).
 				Msg("New GitHub artifact available")
 		}
 	}
 
-	// If using artifacts and no new artifact, and no git changes, skip deployment
-	if m.config.UseGitHubArtifacts && !hasNewArtifact && !hasChanges {
-		m.log.Info().Msg("No new artifacts and no git changes detected, skipping deployment")
+	// If no new artifact, skip deployment
+	if !hasNewArtifact {
+		m.log.Info().Msg("No new artifacts detected, skipping deployment")
 		result.Success = true
 		result.Deployed = false
 		result.Duration = time.Since(startTime)
 		return result, nil
 	}
 
-	// If not using artifacts, check git changes as before
-	if !m.config.UseGitHubArtifacts {
-		if !hasChanges {
-			m.log.Info().Msg("No changes detected, skipping deployment")
-			result.Success = true
-			result.Deployed = false
-			result.Duration = time.Since(startTime)
-			return result, nil
-		}
+	// Deploy Go binary (only artifact needed - frontend, display app, sketch are embedded)
+	deploymentErrors := m.deployServices(result, artifactRunID)
+
+	// Extract and deploy embedded display app files
+	if err := m.displayAppDeployer.DeployDisplayApp(); err != nil {
+		m.log.Error().Err(err).Msg("Failed to deploy display app")
+		deploymentErrors["display-app"] = err
 	}
 
-	// Get changed files (for non-Go components)
-	var categories *ChangeCategories
-	var deploymentErrors map[string]error
-
-	if hasChanges {
-		// Get changed files
-		changedFiles, err := m.gitChecker.GetChangedFiles(localCommit, remoteCommit)
-		if err != nil {
-			result.Error = fmt.Sprintf("failed to get changed files: %v", err)
-			result.Duration = time.Since(startTime)
-			return result, err
-		}
-
-		// Categorize changes
-		categories = m.gitChecker.CategorizeChanges(changedFiles)
-
-		// Pull changes
-		if err := m.gitChecker.PullChanges(currentBranch); err != nil {
-			result.Error = fmt.Sprintf("failed to pull changes: %v", err)
-			result.Duration = time.Since(startTime)
-			return result, err
-		}
-
-		result.CommitAfter = remoteCommit
-
-		m.log.Info().
-			Interface("categories", categories).
-			Msg("Git changes detected, starting deployment")
-	} else {
-		// No git changes, create empty categories
-		categories = &ChangeCategories{}
-	}
-
-	// If using artifacts and new artifact available, mark MainApp for deployment
-	if m.config.UseGitHubArtifacts && hasNewArtifact {
-		categories.MainApp = true
-		m.log.Info().Msg("New artifact available, will deploy Go service")
-	}
-
-	// Check if we have anything to deploy
-	if !categories.HasAnyChanges() && !hasNewArtifact {
-		m.log.Info().Msg("No relevant changes detected, skipping deployment")
-		result.Success = true
-		result.Deployed = false
-		result.Duration = time.Since(startTime)
-		return result, nil
-	}
-
-	// Deploy based on categories
-	// Pass artifactRunID to deployServices to eliminate duplicate CheckForNewBuild() call
-	deploymentErrors = m.deployServices(categories, result, artifactRunID)
-
-	// Deploy frontend (pre-built, committed to git)
-	if categories.Frontend {
-		if err := m.frontendDeployer.DeployFrontend(m.config.RepoDir, m.config.DeployDir); err != nil {
-			m.log.Error().Err(err).Msg("Failed to deploy frontend")
-		}
-	}
-
-	// Deploy display app (Python files for Arduino App Framework)
-	if categories.DisplayApp {
-		if err := m.displayAppDeployer.DeployDisplayApp(m.config.RepoDir); err != nil {
-			m.log.Error().Err(err).Msg("Failed to deploy display app")
-		}
-	}
-
-	// Deploy sketch (non-fatal)
-	if categories.Sketch {
-		sketchPaths := []string{"display/sketch/sketch.ino", "arduino-app/sketch/sketch.ino"}
-		for _, sketchPath := range sketchPaths {
-			if err := m.sketchDeployer.DeploySketch(sketchPath, m.config.RepoDir); err != nil {
-				m.log.Warn().Err(err).Str("sketch", sketchPath).Msg("Failed to deploy sketch (non-fatal)")
-			} else {
-				result.SketchDeployed = true
-				break // Only deploy first found sketch
-			}
+	// Extract and deploy embedded sketch files (compile and upload)
+	sketchPaths := []string{"display/sketch/sketch.ino"}
+	for _, sketchPath := range sketchPaths {
+		if err := m.sketchDeployer.DeploySketch(sketchPath); err != nil {
+			m.log.Warn().Err(err).Str("sketch", sketchPath).Msg("Failed to deploy sketch (non-fatal)")
+		} else {
+			result.SketchDeployed = true
+			break // Only deploy first found sketch
 		}
 	}
 
@@ -350,7 +229,7 @@ func (m *Manager) Deploy() (*DeploymentResult, error) {
 		}
 	}
 
-	if successCount > 0 || categories.Frontend {
+	if successCount > 0 {
 		result.Deployed = true
 		if err := m.MarkDeployed(); err != nil {
 			m.log.Warn().Err(err).Msg("Failed to mark deployment")
@@ -393,11 +272,6 @@ func (m *Manager) HardUpdate() (*DeploymentResult, error) {
 
 	m.log.Info().Msg("Starting hard update - forcing all deployments")
 
-	// Ensure safe directory
-	if err := m.gitChecker.EnsureSafeDirectory(); err != nil {
-		m.log.Warn().Err(err).Msg("Failed to ensure git safe directory")
-	}
-
 	// Acquire lock
 	if err := m.lock.AcquireLock(m.config.LockTimeout); err != nil {
 		result.Error = fmt.Sprintf("failed to acquire lock: %v", err)
@@ -410,54 +284,14 @@ func (m *Manager) HardUpdate() (*DeploymentResult, error) {
 		}
 	}()
 
-	// Get current commit
-	currentBranch := m.config.GitBranch
-	if currentBranch == "" {
-		var err error
-		currentBranch, err = m.gitChecker.GetCurrentBranch()
-		if err != nil {
-			currentBranch = "main"
-		}
-	}
+	result.CommitBefore = m.gitCommit
 
-	// Get current commit before update
-	_, localCommit, remoteCommit, err := m.gitChecker.HasChanges(currentBranch)
-	if err != nil {
-		m.log.Warn().Err(err).Msg("Failed to get current commits")
-		localCommit = "unknown"
-		remoteCommit = "unknown"
-	}
-	result.CommitBefore = localCommit
-
-	// Fetch updates
-	if err := m.gitChecker.FetchUpdates(3); err != nil {
-		result.Error = fmt.Sprintf("failed to fetch updates: %v", err)
-		result.Duration = time.Since(startTime)
-		return result, err
-	}
-
-	// Pull changes (skip change detection - always pull)
-	if err := m.gitChecker.PullChanges(currentBranch); err != nil {
-		result.Error = fmt.Sprintf("failed to pull changes: %v", err)
-		result.Duration = time.Since(startTime)
-		return result, err
-	}
-
-	// Get commit after update (should be same as remote now)
-	_, _, newRemoteCommit, err := m.gitChecker.HasChanges(currentBranch)
-	if err != nil {
-		m.log.Warn().Err(err).Msg("Failed to get commit after pull")
-		result.CommitAfter = remoteCommit // Use the remote commit we got earlier
-	} else {
-		result.CommitAfter = newRemoteCommit
-	}
-
+	// Force download of latest Go binary artifact (empty runID will trigger CheckForNewBuild)
 	deploymentErrors := make(map[string]error)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	// Deploy trader service (always)
-	// Pass empty runID - DeployLatest will call CheckForNewBuild() for HardUpdate
+	// Deploy trader service (always - force download latest)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -470,27 +304,18 @@ func (m *Manager) HardUpdate() (*DeploymentResult, error) {
 		mu.Unlock()
 	}()
 
-	// Display bridge service is deprecated (replaced by Python app managed by Arduino App Framework)
-	// No longer deploying Go display-bridge binary
-
 	wg.Wait()
 
-	// Deploy frontend (always)
-	if err := m.frontendDeployer.DeployFrontend(m.config.RepoDir, m.config.DeployDir); err != nil {
-		m.log.Error().Err(err).Msg("Failed to deploy frontend")
-		deploymentErrors["frontend"] = err
-	}
-
-	// Deploy display app (always, Python files for Arduino App Framework)
-	if err := m.displayAppDeployer.DeployDisplayApp(m.config.RepoDir); err != nil {
+	// Extract and deploy embedded display app files (always)
+	if err := m.displayAppDeployer.DeployDisplayApp(); err != nil {
 		m.log.Error().Err(err).Msg("Failed to deploy display app")
 		deploymentErrors["display-app"] = err
 	}
 
-	// Deploy sketch (always, non-fatal)
-	sketchPaths := []string{"display/sketch/sketch.ino", "arduino-app/sketch/sketch.ino"}
+	// Extract and deploy embedded sketch files (always, non-fatal)
+	sketchPaths := []string{"display/sketch/sketch.ino"}
 	for _, sketchPath := range sketchPaths {
-		if err := m.sketchDeployer.DeploySketch(sketchPath, m.config.RepoDir); err != nil {
+		if err := m.sketchDeployer.DeploySketch(sketchPath); err != nil {
 			m.log.Warn().Err(err).Str("sketch", sketchPath).Msg("Failed to deploy sketch (non-fatal)")
 		} else {
 			result.SketchDeployed = true
@@ -537,30 +362,25 @@ func (m *Manager) HardUpdate() (*DeploymentResult, error) {
 	return result, nil
 }
 
-// deployServices deploys services based on change categories
+// deployServices deploys the Go binary service
 // runID is the GitHub Actions run ID to deploy. If empty, deployGoService will check for new builds.
-func (m *Manager) deployServices(categories *ChangeCategories, result *DeploymentResult, runID string) map[string]error {
+func (m *Manager) deployServices(result *DeploymentResult, runID string) map[string]error {
 	errors := make(map[string]error)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	// Deploy trader service
-	if categories.MainApp {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			deployment := m.deployGoService(m.config.TraderConfig, "trader", runID)
-			mu.Lock()
-			result.ServicesDeployed = append(result.ServicesDeployed, deployment)
-			if !deployment.Success {
-				errors[deployment.ServiceName] = fmt.Errorf(deployment.Error)
-			}
-			mu.Unlock()
-		}()
-	}
-
-	// Display bridge service is deprecated (replaced by Python app managed by Arduino App Framework)
-	// No longer deploying Go display-bridge binary
+	// Deploy trader service (always deploy if artifact is available)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		deployment := m.deployGoService(m.config.TraderConfig, "trader", runID)
+		mu.Lock()
+		result.ServicesDeployed = append(result.ServicesDeployed, deployment)
+		if !deployment.Success {
+			errors[deployment.ServiceName] = fmt.Errorf(deployment.Error)
+		}
+		mu.Unlock()
+	}()
 
 	wg.Wait()
 
