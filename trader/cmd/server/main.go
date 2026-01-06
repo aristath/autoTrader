@@ -31,6 +31,7 @@ import (
 	"github.com/aristath/arduino-trader/internal/modules/rebalancing"
 	"github.com/aristath/arduino-trader/internal/modules/sequences"
 	"github.com/aristath/arduino-trader/internal/modules/settings"
+	"github.com/aristath/arduino-trader/internal/modules/symbolic_regression"
 	"github.com/aristath/arduino-trader/internal/modules/trading"
 	"github.com/aristath/arduino-trader/internal/modules/universe"
 	"github.com/aristath/arduino-trader/internal/reliability"
@@ -296,6 +297,9 @@ type JobInstances struct {
 	WeeklyMaintenance  scheduler.Job
 	MonthlyBackup      scheduler.Job
 	MonthlyMaintenance scheduler.Job
+
+	// Symbolic Regression jobs
+	FormulaDiscovery scheduler.Job
 }
 
 // qualityGatesAdapter adapts adaptation.AdaptiveMarketService to universe.AdaptiveQualityGatesProvider
@@ -790,7 +794,29 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 		return nil, fmt.Errorf("failed to register monthly_maintenance job: %w", err)
 	}
 
-	log.Info().Int("jobs", 15).Msg("Background jobs registered successfully")
+	// Register Job 17: Formula Discovery (1st day of each month at 5:00 AM)
+	// Initialize symbolic regression components
+	formulaStorage := symbolic_regression.NewFormulaStorage(configDB.Conn(), log)
+	dataPrep := symbolic_regression.NewDataPrep(
+		historyDB.Conn(),
+		portfolioDB.Conn(),
+		configDB.Conn(),
+		universeDB.Conn(),
+		log,
+	)
+	discoveryService := symbolic_regression.NewDiscoveryService(dataPrep, formulaStorage, log)
+	formulaScheduler := symbolic_regression.NewScheduler(discoveryService, dataPrep, formulaStorage, log)
+	formulaDiscovery := scheduler.NewFormulaDiscoveryJob(scheduler.FormulaDiscoveryConfig{
+		Scheduler:      formulaScheduler,
+		Log:            log,
+		IntervalMonths: 1, // Monthly
+		ForwardMonths:  6, // 6-month forward returns
+	})
+	if err := sched.AddJob("0 0 5 1 * *", formulaDiscovery); err != nil {
+		return nil, fmt.Errorf("failed to register formula_discovery job: %w", err)
+	}
+
+	log.Info().Int("jobs", 16).Msg("Background jobs registered successfully")
 
 	return &JobInstances{
 		// Original jobs
@@ -810,5 +836,6 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 		WeeklyMaintenance:  weeklyMaintenance,
 		MonthlyBackup:      monthlyBackup,
 		MonthlyMaintenance: monthlyMaintenance,
+		FormulaDiscovery:   formulaDiscovery,
 	}, nil
 }

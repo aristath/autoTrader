@@ -261,6 +261,9 @@ func (s *Server) setupRoutes() {
 
 		// Settings module (MIGRATED TO GO!)
 		s.setupSettingsRoutes(r)
+
+		// Symbolic Regression module (MIGRATED TO GO!)
+		s.setupSymbolicRegressionRoutes(r)
 	})
 
 	// Evaluation module routes (MIGRATED TO GO!)

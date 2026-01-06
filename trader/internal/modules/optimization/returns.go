@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"github.com/aristath/arduino-trader/internal/clients/yahoo"
+	"github.com/aristath/arduino-trader/internal/modules/symbolic_regression"
 	"github.com/rs/zerolog"
 )
 
@@ -34,17 +35,20 @@ const (
 
 // ReturnsCalculator calculates expected returns for portfolio optimization.
 type ReturnsCalculator struct {
-	db          *sql.DB
-	yahooClient yahoo.FullClientInterface
-	log         zerolog.Logger
+	db             *sql.DB
+	yahooClient    yahoo.FullClientInterface
+	formulaStorage *symbolic_regression.FormulaStorage
+	log            zerolog.Logger
 }
 
 // NewReturnsCalculator creates a new returns calculator.
 func NewReturnsCalculator(db *sql.DB, yahooClient yahoo.FullClientInterface, log zerolog.Logger) *ReturnsCalculator {
+	formulaStorage := symbolic_regression.NewFormulaStorage(db, log)
 	return &ReturnsCalculator{
-		db:          db,
-		yahooClient: yahooClient,
-		log:         log.With().Str("component", "returns").Logger(),
+		db:             db,
+		yahooClient:    yahooClient,
+		formulaStorage: formulaStorage,
+		log:            log.With().Str("component", "returns").Logger(),
 	}
 }
 
@@ -222,29 +226,71 @@ func (rc *ReturnsCalculator) calculateSingle(
 		scoreFactor = score / 0.5
 	}
 
-	// Adjust weights based on market regime
-	regime := math.Max(-1.0, math.Min(1.0, regimeScore))
+	// Try to use discovered formula first
+	securityType := symbolic_regression.SecurityTypeStock
+	if security.ProductType == "ETF" || security.ProductType == "MUTUALFUND" {
+		securityType = symbolic_regression.SecurityTypeETF
+	}
 
-	// Continuous regime adjustment:
-	// - Bull (score→+1): tilt more toward CAGR (0.80/0.20)
-	// - Neutral (score=0): baseline (0.70/0.30)
-	// - Bear (score→-1): keep weights, but apply a continuous reduction up to 25%
-	cagrWeight := ExpectedReturnsCAGRWeight   // 0.70 baseline
-	scoreWeight := ExpectedReturnsScoreWeight // 0.30 baseline
-	regimeReduction := 1.0
+	regimePtr := &regimeScore
+	discoveredFormula, err := rc.formulaStorage.GetActiveFormula(
+		symbolic_regression.FormulaTypeExpectedReturn,
+		securityType,
+		regimePtr,
+	)
 
-	if regime >= 0 {
-		// interpolate 0.70 -> 0.80 as score goes 0 -> 1
-		cagrWeight = ExpectedReturnsCAGRWeight + (0.80-ExpectedReturnsCAGRWeight)*regime
-		scoreWeight = 1.0 - cagrWeight
-		regimeReduction = 1.0
+	var baseReturn float64
+	if err == nil && discoveredFormula != nil {
+		// Use discovered formula
+		parsedFormula, parseErr := symbolic_regression.ParseFormula(discoveredFormula.FormulaExpression)
+		if parseErr == nil {
+			// Build training inputs for formula evaluation
+			inputs := symbolic_regression.TrainingInputs{
+				CAGR:          totalReturnCAGR,
+				TotalScore:    score,
+				RegimeScore:   regimeScore,
+				DividendYield: dividendYield,
+			}
+
+			// Evaluate formula
+			formulaFn := symbolic_regression.FormulaToFunction(parsedFormula)
+			baseReturn = formulaFn(inputs)
+
+			rc.log.Debug().
+				Str("symbol", symbol).
+				Str("formula", discoveredFormula.FormulaExpression).
+				Float64("base_return", baseReturn).
+				Msg("Used discovered formula for expected return")
+		} else {
+			rc.log.Warn().
+				Str("symbol", symbol).
+				Err(parseErr).
+				Msg("Failed to parse discovered formula, falling back to static formula")
+			// Fall through to static formula
+			baseReturn = rc.calculateStaticExpectedReturn(
+				totalReturnCAGR,
+				targetReturn,
+				scoreFactor,
+				regimeScore,
+			)
+		}
 	} else {
+		// No discovered formula, use static formula
+		baseReturn = rc.calculateStaticExpectedReturn(
+			totalReturnCAGR,
+			targetReturn,
+			scoreFactor,
+			regimeScore,
+		)
+	}
+
+	// Apply regime reduction (for bear markets) - keep this logic
+	regime := math.Max(-1.0, math.Min(1.0, regimeScore))
+	regimeReduction := 1.0
+	if regime < 0 {
 		// reduction 1.00 -> 0.75 as score goes 0 -> -1
 		regimeReduction = 1.0 - 0.25*math.Abs(regime)
 	}
-
-	// Calculate base expected return
-	baseReturn := (totalReturnCAGR * cagrWeight) + (targetReturn * scoreFactor * scoreWeight)
 
 	// Apply regime reduction (for bear markets)
 	baseReturn = baseReturn * regimeReduction
@@ -327,8 +373,6 @@ func (rc *ReturnsCalculator) calculateSingle(
 		Float64("multiplier", multiplier).
 		Float64("regime_score", regimeScore).
 		Float64("regime_reduction", regimeReduction).
-		Float64("cagr_weight", cagrWeight).
-		Float64("score_weight", scoreWeight).
 		Float64("forward_adjustment", forwardAdjustment).
 		Float64("dividend_bonus", dividendBonus).
 		Float64("expected_return", clamped).
@@ -458,6 +502,33 @@ func (rc *ReturnsCalculator) getQualityScores(isin string, symbol string) (*floa
 	}
 
 	return longTermPtr, fundamentalsPtr
+}
+
+// calculateStaticExpectedReturn calculates expected return using the static formula
+// This is the fallback when no discovered formula is available
+func (rc *ReturnsCalculator) calculateStaticExpectedReturn(
+	totalReturnCAGR float64,
+	targetReturn float64,
+	scoreFactor float64,
+	regimeScore float64,
+) float64 {
+	regime := math.Max(-1.0, math.Min(1.0, regimeScore))
+
+	// Continuous regime adjustment:
+	// - Bull (score→+1): tilt more toward CAGR (0.80/0.20)
+	// - Neutral (score=0): baseline (0.70/0.30)
+	// - Bear (score→-1): keep weights, but apply a continuous reduction up to 25%
+	cagrWeight := ExpectedReturnsCAGRWeight   // 0.70 baseline
+	scoreWeight := ExpectedReturnsScoreWeight // 0.30 baseline
+
+	if regime >= 0 {
+		// interpolate 0.70 -> 0.80 as score goes 0 -> 1
+		cagrWeight = ExpectedReturnsCAGRWeight + (0.80-ExpectedReturnsCAGRWeight)*regime
+		scoreWeight = 1.0 - cagrWeight
+	}
+
+	// Calculate base expected return using static formula
+	return (totalReturnCAGR * cagrWeight) + (targetReturn * scoreFactor * scoreWeight)
 }
 
 // Helper functions

@@ -162,6 +162,8 @@ func (j *TagUpdateJob) updateTagsForSecurity(security universe.Security) error {
 				groupScores["long_term"] = derivedLongTerm
 			} else {
 				// Fallback: use QualityScore if derivation gives invalid result
+				// NOTE: This is a conservative fallback - QualityScore is an average, so it's typically lower than actual long_term
+				// This may cause some securities to fail the quality gate even if they should pass
 				groupScores["long_term"] = score.QualityScore
 			}
 		} else {

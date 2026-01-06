@@ -6,6 +6,7 @@ import (
 
 	"github.com/aristath/arduino-trader/internal/modules/scoring"
 	"github.com/aristath/arduino-trader/internal/modules/scoring/domain"
+	"github.com/aristath/arduino-trader/internal/modules/symbolic_regression"
 	"github.com/aristath/arduino-trader/pkg/formulas"
 )
 
@@ -25,8 +26,9 @@ type SecurityScorer struct {
 	shortTerm           *ShortTermScorer
 	opinion             *OpinionScorer
 	diversification     *DiversificationScorer
-	adaptiveService     AdaptiveWeightsProvider // Optional: adaptive market service
-	regimeScoreProvider RegimeScoreProvider     // Optional: regime score provider
+	adaptiveService     AdaptiveWeightsProvider             // Optional: adaptive market service
+	regimeScoreProvider RegimeScoreProvider                 // Optional: regime score provider
+	formulaStorage      *symbolic_regression.FormulaStorage // Optional: discovered formula storage
 }
 
 // ScoreWeights defines the weight for each scoring group
@@ -73,6 +75,11 @@ func (ss *SecurityScorer) SetAdaptiveService(service AdaptiveWeightsProvider) {
 // SetRegimeScoreProvider sets the regime score provider for getting current regime
 func (ss *SecurityScorer) SetRegimeScoreProvider(provider RegimeScoreProvider) {
 	ss.regimeScoreProvider = provider
+}
+
+// SetFormulaStorage sets the formula storage for discovered scoring formulas
+func (ss *SecurityScorer) SetFormulaStorage(storage *symbolic_regression.FormulaStorage) {
+	ss.formulaStorage = storage
 }
 
 // ScoreSecurityInput contains all data needed to score a security
@@ -211,17 +218,76 @@ func (ss *SecurityScorer) ScoreSecurity(input ScoreSecurityInput) *domain.Calcul
 		}
 	}
 
-	// Get product-type-aware weights
-	weights := ss.getScoreWeights(input.ProductType)
+	// Try to use discovered formula first
+	var totalScore float64
+	useDiscoveredFormula := false
 
-	// Normalize weights
-	normalizedWeights := normalizeWeights(weights)
+	if ss.formulaStorage != nil {
+		// Determine security type
+		securityType := symbolic_regression.SecurityTypeStock
+		if input.ProductType == "ETF" || input.ProductType == "MUTUALFUND" {
+			securityType = symbolic_regression.SecurityTypeETF
+		}
 
-	// Calculate weighted total
-	totalScore := 0.0
-	for group, score := range groupScores {
-		weight := normalizedWeights[group]
-		totalScore += score * weight
+		// Get regime score if available
+		var regimePtr *float64
+		if ss.regimeScoreProvider != nil {
+			regimeScore, err := ss.regimeScoreProvider.GetCurrentRegimeScore()
+			if err == nil {
+				regimePtr = &regimeScore
+			}
+		}
+
+		// Try to get discovered formula
+		discoveredFormula, err := ss.formulaStorage.GetActiveFormula(
+			symbolic_regression.FormulaTypeScoring,
+			securityType,
+			regimePtr,
+		)
+
+		if err == nil && discoveredFormula != nil {
+			// Parse and evaluate discovered formula
+			parsedFormula, parseErr := symbolic_regression.ParseFormula(discoveredFormula.FormulaExpression)
+			if parseErr == nil {
+				// Build training inputs with group scores
+				inputs := symbolic_regression.TrainingInputs{
+					LongTermScore:        groupScores["long_term"],
+					FundamentalsScore:    groupScores["fundamentals"],
+					DividendsScore:       groupScores["dividends"],
+					OpportunityScore:     groupScores["opportunity"],
+					ShortTermScore:       groupScores["short_term"],
+					TechnicalsScore:      groupScores["technicals"],
+					OpinionScore:         groupScores["opinion"],
+					DiversificationScore: groupScores["diversification"],
+				}
+
+				// Add regime score if available
+				if regimePtr != nil {
+					inputs.RegimeScore = *regimePtr
+				}
+
+				// Evaluate formula
+				formulaFn := symbolic_regression.FormulaToFunction(parsedFormula)
+				totalScore = formulaFn(inputs)
+				useDiscoveredFormula = true
+			}
+		}
+	}
+
+	// Fall back to static weighted sum if no discovered formula
+	if !useDiscoveredFormula {
+		// Get product-type-aware weights
+		weights := ss.getScoreWeights(input.ProductType)
+
+		// Normalize weights
+		normalizedWeights := normalizeWeights(weights)
+
+		// Calculate weighted total using static formula
+		totalScore = 0.0
+		for group, score := range groupScores {
+			weight := normalizedWeights[group]
+			totalScore += score * weight
+		}
 	}
 
 	// Calculate volatility
