@@ -422,14 +422,13 @@ func (r *SecurityRepository) GetWithScores(portfolioDB *sql.DB) ([]SecurityWithS
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan score: %w", err)
 		}
-		// Convert symbol to ISIN for map key
-		// Lookup ISIN from securities table using symbol
-		security, err := r.GetBySymbol(score.Symbol)
-		if err == nil && security != nil && security.ISIN != "" {
-			scoresMap[security.ISIN] = score
+		// After migration: scores table uses ISIN as PRIMARY KEY
+		// Use ISIN directly as map key (no lookup needed)
+		if score.ISIN != "" {
+			scoresMap[score.ISIN] = score
 		} else {
-			// Fallback to symbol if ISIN lookup fails (shouldn't happen after migration)
-			scoresMap[score.Symbol] = score
+			// Fallback: if ISIN is missing (shouldn't happen), skip this score
+			r.log.Warn().Str("score_data", fmt.Sprintf("%+v", score)).Msg("Score missing ISIN, skipping")
 		}
 	}
 
