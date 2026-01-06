@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -302,4 +303,222 @@ func TestLoad_DataDir_WithTemporaryDirectory(t *testing.T) {
 	absPath, err := filepath.Abs(tmpDir)
 	require.NoError(t, err)
 	assert.Equal(t, absPath, cfg.DataDir)
+}
+
+// TestToDeploymentConfig tests the ToDeploymentConfig conversion
+func TestToDeploymentConfig(t *testing.T) {
+	tests := []struct {
+		name           string
+		config         *DeploymentConfig
+		expectedBranch string
+	}{
+		{
+			name: "with GitHubBranch set",
+			config: &DeploymentConfig{
+				Enabled:                true,
+				GitBranch:              "main",
+				GitHubBranch:           "develop",
+				TraderBinaryName:       "trader",
+				TraderServiceName:      "trader",
+				LockTimeout:            120,
+				HealthCheckTimeout:     10,
+				HealthCheckMaxAttempts: 3,
+			},
+			expectedBranch: "develop",
+		},
+		{
+			name: "without GitHubBranch uses GitBranch",
+			config: &DeploymentConfig{
+				Enabled:                true,
+				GitBranch:              "main",
+				GitHubBranch:           "",
+				TraderBinaryName:       "trader",
+				TraderServiceName:      "trader",
+				LockTimeout:            120,
+				HealthCheckTimeout:     10,
+				HealthCheckMaxAttempts: 3,
+			},
+			expectedBranch: "main",
+		},
+		{
+			name: "GitHub artifact settings",
+			config: &DeploymentConfig{
+				Enabled:                true,
+				UseGitHubArtifacts:     true,
+				GitHubWorkflowName:     "build-go.yml",
+				GitHubArtifactName:     "trader-arm64",
+				GitHubBranch:           "release",
+				GitHubRepo:             "test/repo",
+				TraderBinaryName:       "trader",
+				TraderServiceName:      "trader",
+				LockTimeout:            60,
+				HealthCheckTimeout:     5,
+				HealthCheckMaxAttempts: 5,
+			},
+			expectedBranch: "release",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.config.ToDeploymentConfig()
+
+			assert.NotNil(t, result)
+			assert.Equal(t, tt.config.Enabled, result.Enabled)
+			assert.Equal(t, tt.config.DeployDir, result.DeployDir)
+			assert.Equal(t, tt.config.APIPort, result.APIPort)
+			assert.Equal(t, tt.config.APIHost, result.APIHost)
+			assert.Equal(t, time.Duration(tt.config.LockTimeout)*time.Second, result.LockTimeout)
+			assert.Equal(t, time.Duration(tt.config.HealthCheckTimeout)*time.Second, result.HealthCheckTimeout)
+			assert.Equal(t, tt.config.HealthCheckMaxAttempts, result.HealthCheckMaxAttempts)
+			assert.Equal(t, tt.config.GitBranch, result.GitBranch)
+			assert.Equal(t, tt.expectedBranch, result.GitHubBranch)
+			assert.Equal(t, tt.config.TraderBinaryName, result.TraderConfig.BinaryName)
+			assert.Equal(t, tt.config.TraderServiceName, result.TraderConfig.ServiceName)
+			assert.Equal(t, tt.config.UseGitHubArtifacts, result.UseGitHubArtifacts)
+			assert.Equal(t, tt.config.GitHubWorkflowName, result.GitHubWorkflowName)
+			assert.Equal(t, tt.config.GitHubArtifactName, result.GitHubArtifactName)
+			assert.Equal(t, tt.config.GitHubRepo, result.GitHubRepo)
+		})
+	}
+}
+
+// TestGetEnv tests the getEnv helper function indirectly through Load
+// Since getEnv is package-private, we test it indirectly
+func TestConfig_EnvironmentVariables(t *testing.T) {
+	// Save original environment
+	originalPort := os.Getenv("GO_PORT")
+	originalDevMode := os.Getenv("DEV_MODE")
+	originalLogLevel := os.Getenv("LOG_LEVEL")
+	originalEvalURL := os.Getenv("EVALUATOR_SERVICE_URL")
+	originalTraderDataDir := os.Getenv("TRADER_DATA_DIR")
+	defer func() {
+		if originalPort != "" {
+			os.Setenv("GO_PORT", originalPort)
+		} else {
+			os.Unsetenv("GO_PORT")
+		}
+		if originalDevMode != "" {
+			os.Setenv("DEV_MODE", originalDevMode)
+		} else {
+			os.Unsetenv("DEV_MODE")
+		}
+		if originalLogLevel != "" {
+			os.Setenv("LOG_LEVEL", originalLogLevel)
+		} else {
+			os.Unsetenv("LOG_LEVEL")
+		}
+		if originalEvalURL != "" {
+			os.Setenv("EVALUATOR_SERVICE_URL", originalEvalURL)
+		} else {
+			os.Unsetenv("EVALUATOR_SERVICE_URL")
+		}
+		if originalTraderDataDir != "" {
+			os.Setenv("TRADER_DATA_DIR", originalTraderDataDir)
+		} else {
+			os.Unsetenv("TRADER_DATA_DIR")
+		}
+	}()
+
+	tmpDir := t.TempDir()
+	os.Setenv("TRADER_DATA_DIR", tmpDir)
+
+	t.Run("GO_PORT as int", func(t *testing.T) {
+		os.Setenv("GO_PORT", "9000")
+		os.Unsetenv("DEV_MODE")
+		os.Unsetenv("LOG_LEVEL")
+		os.Unsetenv("EVALUATOR_SERVICE_URL")
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.Equal(t, 9000, cfg.Port)
+	})
+
+	t.Run("GO_PORT invalid defaults", func(t *testing.T) {
+		os.Setenv("GO_PORT", "invalid")
+		os.Unsetenv("DEV_MODE")
+		os.Unsetenv("LOG_LEVEL")
+		os.Unsetenv("EVALUATOR_SERVICE_URL")
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.Equal(t, 8001, cfg.Port) // Should default to 8001
+	})
+
+	t.Run("DEV_MODE as bool", func(t *testing.T) {
+		os.Unsetenv("GO_PORT")
+		os.Setenv("DEV_MODE", "true")
+		os.Unsetenv("LOG_LEVEL")
+		os.Unsetenv("EVALUATOR_SERVICE_URL")
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.True(t, cfg.DevMode)
+	})
+
+	t.Run("DEV_MODE false", func(t *testing.T) {
+		os.Unsetenv("GO_PORT")
+		os.Setenv("DEV_MODE", "false")
+		os.Unsetenv("LOG_LEVEL")
+		os.Unsetenv("EVALUATOR_SERVICE_URL")
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.False(t, cfg.DevMode)
+	})
+
+	t.Run("DEV_MODE invalid defaults to false", func(t *testing.T) {
+		os.Unsetenv("GO_PORT")
+		os.Setenv("DEV_MODE", "invalid")
+		os.Unsetenv("LOG_LEVEL")
+		os.Unsetenv("EVALUATOR_SERVICE_URL")
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.False(t, cfg.DevMode) // Should default to false
+	})
+
+	t.Run("LOG_LEVEL from env", func(t *testing.T) {
+		os.Unsetenv("GO_PORT")
+		os.Unsetenv("DEV_MODE")
+		os.Setenv("LOG_LEVEL", "debug")
+		os.Unsetenv("EVALUATOR_SERVICE_URL")
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.Equal(t, "debug", cfg.LogLevel)
+	})
+
+	t.Run("LOG_LEVEL defaults to info", func(t *testing.T) {
+		os.Unsetenv("GO_PORT")
+		os.Unsetenv("DEV_MODE")
+		os.Unsetenv("LOG_LEVEL")
+		os.Unsetenv("EVALUATOR_SERVICE_URL")
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.Equal(t, "info", cfg.LogLevel) // Should default to "info"
+	})
+
+	t.Run("EVALUATOR_SERVICE_URL from env", func(t *testing.T) {
+		os.Unsetenv("GO_PORT")
+		os.Unsetenv("DEV_MODE")
+		os.Unsetenv("LOG_LEVEL")
+		os.Setenv("EVALUATOR_SERVICE_URL", "http://custom:9999")
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.Equal(t, "http://custom:9999", cfg.EvaluatorServiceURL)
+	})
+
+	t.Run("EVALUATOR_SERVICE_URL defaults", func(t *testing.T) {
+		os.Unsetenv("GO_PORT")
+		os.Unsetenv("DEV_MODE")
+		os.Unsetenv("LOG_LEVEL")
+		os.Unsetenv("EVALUATOR_SERVICE_URL")
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.Equal(t, "http://localhost:9000", cfg.EvaluatorServiceURL) // Should default
+	})
 }
