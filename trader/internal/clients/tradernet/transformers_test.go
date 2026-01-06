@@ -443,3 +443,38 @@ func TestTransformQuote_MissingSymbol(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, quote)
 }
+
+// TestTransformQuote_ArrayFormat tests transformation when API returns array format
+func TestTransformQuote_ArrayFormat(t *testing.T) {
+	sdkResult := map[string]interface{}{
+		"result": []interface{}{
+			map[string]interface{}{
+				"symbol":     "EURUSD_T0.ITS",
+				"p":          float64(1.085),
+				"change":     float64(0.001),
+				"change_pct": float64(0.09),
+				"volume":     float64(1000000),
+				"timestamp":  "2024-01-15T10:00:00Z",
+			},
+			map[string]interface{}{
+				"symbol":     "EURGBP_T0.ITS",
+				"p":          float64(0.85),
+				"change":     float64(0.002),
+				"change_pct": float64(0.24),
+				"volume":     float64(500000),
+				"timestamp":  "2024-01-15T10:00:00Z",
+			},
+		},
+	}
+
+	quote, err := transformQuote(sdkResult, "EURUSD_T0.ITS")
+
+	assert.NoError(t, err)
+	assert.NotNil(t, quote)
+	assert.Equal(t, "EURUSD_T0.ITS", quote.Symbol)
+	assert.Equal(t, float64(1.085), quote.Price)
+	assert.Equal(t, float64(0.001), quote.Change)
+	assert.Equal(t, float64(0.09), quote.ChangePct)
+	assert.Equal(t, int64(1000000), quote.Volume)
+	assert.Equal(t, "2024-01-15T10:00:00Z", quote.Timestamp)
+}

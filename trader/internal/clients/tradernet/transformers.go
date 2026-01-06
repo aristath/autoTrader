@@ -371,20 +371,56 @@ func transformSecurityInfo(sdkResult interface{}) ([]SecurityInfo, error) {
 }
 
 // transformQuote transforms SDK GetQuotes to Quote
+// Handles both array and map response formats from getStockQuotesJson
 func transformQuote(sdkResult interface{}, symbol string) (*Quote, error) {
 	resultMap, ok := sdkResult.(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("invalid SDK result format: expected map[string]interface{}")
 	}
 
-	result, ok := resultMap["result"].(map[string]interface{})
+	result, ok := resultMap["result"]
 	if !ok {
 		return nil, fmt.Errorf("invalid SDK result format: missing 'result' field")
 	}
 
-	symbolData, ok := result[symbol].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("quote not found for symbol: %s", symbol)
+	var symbolData map[string]interface{}
+
+	// Handle array format: result is an array of quote objects
+	if resultArray, ok := result.([]interface{}); ok {
+		// Search for the quote with matching symbol
+		found := false
+		for _, item := range resultArray {
+			itemMap, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			// Check if this item matches the symbol
+			// The symbol might be in different fields: "symbol", "i", "ticker", etc.
+			itemSymbol := getString(itemMap, "symbol")
+			if itemSymbol == "" {
+				itemSymbol = getString(itemMap, "i")
+			}
+			if itemSymbol == "" {
+				itemSymbol = getString(itemMap, "ticker")
+			}
+			if itemSymbol == symbol {
+				symbolData = itemMap
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("quote not found for symbol: %s", symbol)
+		}
+	} else if resultMapData, ok := result.(map[string]interface{}); ok {
+		// Handle map format: result is a map keyed by symbol
+		var found bool
+		symbolData, found = resultMapData[symbol].(map[string]interface{})
+		if !found {
+			return nil, fmt.Errorf("quote not found for symbol: %s", symbol)
+		}
+	} else {
+		return nil, fmt.Errorf("invalid SDK result format: 'result' must be array or map, got %T", result)
 	}
 
 	quote := &Quote{
@@ -394,6 +430,23 @@ func transformQuote(sdkResult interface{}, symbol string) (*Quote, error) {
 		ChangePct: getFloat64(symbolData, "change_pct"),
 		Volume:    int64(getFloat64(symbolData, "volume")),
 		Timestamp: getString(symbolData, "timestamp"),
+	}
+
+	// Handle alternative field names (fallback)
+	if quote.Price == 0 {
+		quote.Price = getFloat64(symbolData, "ltp")
+	}
+	if quote.Price == 0 {
+		quote.Price = getFloat64(symbolData, "last_price")
+	}
+	if quote.Change == 0 {
+		quote.Change = getFloat64(symbolData, "chg")
+	}
+	if quote.ChangePct == 0 {
+		quote.ChangePct = getFloat64(symbolData, "chg_pc")
+	}
+	if quote.Volume == 0 {
+		quote.Volume = int64(getFloat64(symbolData, "v"))
 	}
 
 	return quote, nil
