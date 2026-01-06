@@ -95,8 +95,9 @@ jobs:
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       if: always()
+      continue-on-error: true
       with:
-        file: trader/coverage.out
+        file: ./trader/coverage.out
         flags: go
         name: go-coverage
         fail_ci_if_error: false

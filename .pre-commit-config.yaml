@@ -56,6 +56,20 @@ repos:
         files: ^(legacy/app|legacy/tests|microservices)/
         exclude: ^(venv|\.venv|node_modules|build|dist)/
 
+  # golangci-lint - comprehensive linter
+  - repo: local
+    hooks:
+      # Copy embedded files before any Go operations
+      # This must run before go-build-mod and go-test-mod
+      - id: copy-embedded-files
+        name: Copy files for embedding
+        entry: bash -c 'cd trader && mkdir -p pkg/embedded/frontend pkg/embedded/display && cp -r frontend/dist pkg/embedded/frontend/ 2>/dev/null || true && cp -r ../display/app pkg/embedded/display/ 2>/dev/null || true && cp -r ../display/sketch pkg/embedded/display/ 2>/dev/null || true && echo "✓ Copied files for embedding"'
+        language: system
+        files: ^trader/.*\.go$
+        pass_filenames: false
+        always_run: false
+        stages: [commit]
+
   # Go hooks - using TekWizely's pre-commit-golang which is actively maintained
   - repo: https://github.com/TekWizely/pre-commit-golang
     rev: v1.0.0-rc.1
