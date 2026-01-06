@@ -549,6 +549,14 @@ func (r *SecurityRepository) GetWithScores(portfolioDB *sql.DB) ([]SecurityWithS
 			sws.HistoryYears = &score.HistoryYears
 			sws.TechnicalScore = &score.TechnicalScore
 			sws.FundamentalScore = &score.FundamentalScore
+		} else {
+			// Debug: Log when score not found for a security
+			r.log.Debug().
+				Str("isin", isin).
+				Str("normalized_isin", normalizedISIN).
+				Str("symbol", sws.Symbol).
+				Int("scores_map_size", len(scoresMap)).
+				Msg("Score not found for security in scoresMap")
 		}
 
 		// Add position data (positionsMap now uses ISIN as key)
