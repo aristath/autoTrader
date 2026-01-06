@@ -14,6 +14,7 @@ import (
 	"github.com/aristath/arduino-trader/internal/database"
 	"github.com/aristath/arduino-trader/internal/deployment"
 	"github.com/aristath/arduino-trader/internal/events"
+	"github.com/aristath/arduino-trader/internal/modules/adaptation"
 	"github.com/aristath/arduino-trader/internal/modules/allocation"
 	"github.com/aristath/arduino-trader/internal/modules/cash_flows"
 	"github.com/aristath/arduino-trader/internal/modules/cleanup"
@@ -303,7 +304,8 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 	// Repositories - NEW 7-database architecture
 	positionRepo := portfolio.NewPositionRepository(portfolioDB.Conn(), universeDB.Conn(), log)
 	securityRepo := universe.NewSecurityRepository(universeDB.Conn(), log)
-	scoreRepo := universe.NewScoreRepository(portfolioDB.Conn(), log)
+	// ScoreRepository needs universeDB for GetBySymbol to lookup ISIN from symbol
+	scoreRepo := universe.NewScoreRepositoryWithUniverse(portfolioDB.Conn(), universeDB.Conn(), log)
 	dividendRepo := dividends.NewDividendRepository(ledgerDB.Conn(), log)
 
 	// Clients
@@ -552,6 +554,8 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 		riskBuilder,
 		log,
 	)
+	
+	// Note: Adaptive service will be wired to optimizerService after it's created
 
 	sequencesService := sequences.NewService(log, riskBuilder)
 	evaluationService := planningevaluation.NewService(4, log) // 4 workers
@@ -649,6 +653,67 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 		return nil, fmt.Errorf("failed to register daily_maintenance job: %w", err)
 	}
 
+	// ==========================================
+	// ADAPTIVE MARKET HYPOTHESIS (AMH) SYSTEM
+	// ==========================================
+	
+	// Initialize market index service for market-wide regime detection
+	marketIndexService := portfolio.NewMarketIndexService(
+		universeDB.Conn(),
+		historyDB.Conn(),
+		tradernetClient,
+		log,
+	)
+	
+	// Initialize regime persistence for smoothing and history
+	regimePersistence := portfolio.NewRegimePersistence(configDB.Conn(), log)
+	
+	// Initialize market regime detector
+	regimeDetector := portfolio.NewMarketRegimeDetector(log)
+	regimeDetector.SetMarketIndexService(marketIndexService)
+	regimeDetector.SetRegimePersistence(regimePersistence)
+	
+	// Initialize adaptive market service
+	// Note: Using nil for optional components (performanceTracker, weightsCalculator, repository)
+	// These can be added later if needed for more advanced adaptation
+	adaptiveMarketService := adaptation.NewAdaptiveMarketService(
+		regimeDetector,
+		nil, // performanceTracker - optional
+		nil, // weightsCalculator - optional
+		nil, // repository - optional
+		log,
+	)
+	
+	// Wire up adaptive services to integration points
+	// OptimizerService: adaptive blend (available in registerJobs)
+	optimizerService.SetAdaptiveService(adaptiveMarketService)
+	log.Info().Msg("Adaptive service wired to OptimizerService")
+	
+	// TagAssigner: adaptive quality gates (available in registerJobs)
+	tagAssigner.SetAdaptiveService(adaptiveMarketService)
+	log.Info().Msg("Adaptive service wired to TagAssigner")
+	
+	// Note: SecurityScorer is created in multiple handlers (server.go, settings_routes.go)
+	// To wire it up, we would need to:
+	// 1. Add adaptive service to Server struct/config
+	// 2. Pass it to handlers when creating SecurityScorer
+	// 3. Call securityScorer.SetAdaptiveService(adaptiveMarketService) in each handler
+	// For now, this is documented as a future enhancement
+	// The adaptive weights will work when GetScoreWeightsWithRegime() is called with regime score
+	
+	// Register Adaptive Market Check Job (daily at 6:00 AM, after market data sync)
+	adaptiveMarketJob := scheduler.NewAdaptiveMarketJob(scheduler.AdaptiveMarketJobConfig{
+		Log:                log,
+		RegimeDetector:     regimeDetector,
+		RegimePersistence:  regimePersistence,
+		AdaptiveService:    adaptiveMarketService,
+		AdaptationThreshold: 0.1, // 10% change threshold
+	})
+	if err := sched.AddJob("0 0 6 * * *", adaptiveMarketJob); err != nil {
+		return nil, fmt.Errorf("failed to register adaptive_market_check job: %w", err)
+	}
+	log.Info().Msg("Adaptive market check job registered (daily at 6:00 AM)")
+
 	// Register Tag Update Jobs with per-tag update frequencies
 	// The job intelligently updates only tags that need updating based on their frequency
 	tagUpdateJob := scheduler.NewTagUpdateJob(scheduler.TagUpdateConfig{
@@ -708,7 +773,7 @@ func registerJobs(sched *scheduler.Scheduler, universeDB, configDB, ledgerDB, po
 		return nil, fmt.Errorf("failed to register monthly_maintenance job: %w", err)
 	}
 
-	log.Info().Int("jobs", 14).Msg("Background jobs registered successfully")
+	log.Info().Int("jobs", 15).Msg("Background jobs registered successfully")
 
 	return &JobInstances{
 		// Original jobs
