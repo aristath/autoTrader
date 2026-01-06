@@ -270,7 +270,8 @@ func (c *WeightBasedCalculator) Calculate(
 					}
 					// Add optimizer-aligned tag if underweight
 					if contains(securityTags, "underweight") || contains(securityTags, "slightly-underweight") {
-						// Already underweight - this is optimizer-aligned
+						// Already underweight - this is optimizer-aligned, no action needed
+						_ = securityTags // Explicitly acknowledge we're checking but not modifying
 					}
 				}
 			}

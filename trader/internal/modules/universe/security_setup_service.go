@@ -250,7 +250,7 @@ func (s *SecuritySetupService) AddSecurityByIdentifier(
 	var tradernetSymbol string
 	var tradernetName *string
 	var currency *string
-	var isin *string = symbolInfo.ISIN // Use ISIN from resolver if available
+	isin := symbolInfo.ISIN // Use ISIN from resolver if available
 
 	if idType == IdentifierTypeTradernet {
 		// Already have Tradernet symbol

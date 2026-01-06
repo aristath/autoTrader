@@ -1,3 +1,4 @@
+// Package services provides core business services.
 package services
 
 import (
@@ -36,7 +37,7 @@ type CurrencyExchangeService struct {
 	log    zerolog.Logger
 }
 
-// Direct currency pairs available on Tradernet
+// DirectPairs contains direct currency pairs available on Tradernet
 // Format: (from_currency, to_currency) -> (symbol, action)
 var DirectPairs = map[string]struct {
 	Symbol string
@@ -59,7 +60,7 @@ var DirectPairs = map[string]struct {
 	"HKD:USD": {"HKD/USD", "SELL"},
 }
 
-// Symbols for rate lookups (base_currency -> quote_currency)
+// RateSymbols contains symbols for rate lookups (base_currency -> quote_currency)
 var RateSymbols = map[string]string{
 	"EUR:USD": "EURUSD_T0.ITS",
 	"EUR:GBP": "EURGBP_T0.ITS",

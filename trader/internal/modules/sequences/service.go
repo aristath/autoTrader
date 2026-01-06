@@ -1,3 +1,4 @@
+// Package sequences provides trading sequence generation functionality.
 package sequences
 
 import (

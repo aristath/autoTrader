@@ -1,3 +1,4 @@
+// Package adaptation provides portfolio adaptation and rebalancing functionality.
 package adaptation
 
 import (

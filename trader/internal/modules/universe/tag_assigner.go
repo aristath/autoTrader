@@ -334,6 +334,7 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 			tags = append(tags, "needs-rebalance")
 			if deviation > 0.02 {
 				// Keep existing overweight tag logic (already added above)
+				_ = deviation // Explicitly acknowledge we're checking but not modifying
 			}
 		} else if deviation < -0.03 {
 			tags = append(tags, "needs-rebalance")

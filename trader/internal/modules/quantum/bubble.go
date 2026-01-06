@@ -1,3 +1,4 @@
+// Package quantum provides quantum probability models for asset returns.
 package quantum
 
 import (

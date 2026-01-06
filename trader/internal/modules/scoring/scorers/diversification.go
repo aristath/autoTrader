@@ -1,3 +1,4 @@
+// Package scorers provides security scoring implementations.
 package scorers
 
 import (

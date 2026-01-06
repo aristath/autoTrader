@@ -1,3 +1,4 @@
+// Package models provides evaluation-related domain models.
 package models
 
 // TradeSide represents the direction of a trade (BUY or SELL)

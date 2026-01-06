@@ -1,3 +1,4 @@
+// Package allocation provides portfolio allocation functionality.
 package allocation
 
 import (

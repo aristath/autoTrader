@@ -1,3 +1,4 @@
+// Package generators provides sequence generation functionality.
 package generators
 
 import (

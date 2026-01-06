@@ -1,3 +1,4 @@
+// Package workers provides worker pool functionality for concurrent evaluation tasks.
 package workers
 
 import (

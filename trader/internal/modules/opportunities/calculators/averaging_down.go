@@ -1,3 +1,4 @@
+// Package calculators provides trading opportunity calculation functionality.
 package calculators
 
 import (

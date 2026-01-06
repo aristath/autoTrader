@@ -1,3 +1,4 @@
+// Package domain provides planning domain models.
 package domain
 
 // PlannerConfiguration represents the complete configuration for a planner instance.

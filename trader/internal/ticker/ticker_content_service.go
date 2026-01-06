@@ -1,3 +1,4 @@
+// Package ticker provides ticker and streaming functionality.
 package ticker
 
 import (

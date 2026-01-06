@@ -1,3 +1,4 @@
+// Package api provides scoring API handlers.
 package api
 
 import (

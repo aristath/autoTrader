@@ -1,3 +1,4 @@
+// Package display provides display and monitoring functionality.
 package display
 
 import (

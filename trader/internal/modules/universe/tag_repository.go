@@ -39,7 +39,7 @@ func (r *TagRepository) GetByID(id string) (*Tag, error) {
 
 	var tag Tag
 	var createdAt, updatedAt sql.NullString
-	err = rows.Scan(&tag.Id, &tag.Name, &createdAt, &updatedAt)
+	err = rows.Scan(&tag.ID, &tag.Name, &createdAt, &updatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan tag: %w", err)
 	}
@@ -61,7 +61,7 @@ func (r *TagRepository) GetAll() ([]Tag, error) {
 	for rows.Next() {
 		var tag Tag
 		var createdAt, updatedAt sql.NullString
-		err := rows.Scan(&tag.Id, &tag.Name, &createdAt, &updatedAt)
+		err := rows.Scan(&tag.ID, &tag.Name, &createdAt, &updatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan tag: %w", err)
 		}
@@ -78,13 +78,13 @@ func (r *TagRepository) GetAll() ([]Tag, error) {
 // CreateOrGet creates a tag if it doesn't exist, or returns existing tag
 func (r *TagRepository) CreateOrGet(tag Tag) (*Tag, error) {
 	// Normalize tag ID
-	tag.Id = strings.ToLower(strings.TrimSpace(tag.Id))
-	if tag.Id == "" {
+	tag.ID = strings.ToLower(strings.TrimSpace(tag.ID))
+	if tag.ID == "" {
 		return nil, fmt.Errorf("tag ID cannot be empty")
 	}
 
 	// Check if tag exists
-	existing, err := r.GetByID(tag.Id)
+	existing, err := r.GetByID(tag.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check if tag exists: %w", err)
 	}
@@ -97,7 +97,7 @@ func (r *TagRepository) CreateOrGet(tag Tag) (*Tag, error) {
 
 	// If name is empty, generate default name from ID
 	if tag.Name == "" {
-		tag.Name = generateDefaultTagName(tag.Id)
+		tag.Name = generateDefaultTagName(tag.ID)
 	}
 
 	query := `
@@ -105,12 +105,12 @@ func (r *TagRepository) CreateOrGet(tag Tag) (*Tag, error) {
 		VALUES (?, ?, ?, ?)
 	`
 
-	_, err = r.universeDB.Exec(query, tag.Id, tag.Name, now, now)
+	_, err = r.universeDB.Exec(query, tag.ID, tag.Name, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert tag: %w", err)
 	}
 
-	r.log.Info().Str("tag_id", tag.Id).Str("tag_name", tag.Name).Msg("Tag created")
+	r.log.Info().Str("tag_id", tag.ID).Str("tag_name", tag.Name).Msg("Tag created")
 
 	return &tag, nil
 }

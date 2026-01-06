@@ -1,3 +1,4 @@
+// Package cash_flows provides cash flow management functionality including deposits, dividends, and cash security management.
 package cash_flows
 
 import (

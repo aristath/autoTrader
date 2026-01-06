@@ -1,3 +1,4 @@
+// Package planning provides portfolio planning and strategy generation functionality.
 package planning
 
 import (

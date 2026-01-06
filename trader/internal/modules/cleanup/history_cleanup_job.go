@@ -1,3 +1,4 @@
+// Package cleanup provides data cleanup and maintenance functionality.
 package cleanup
 
 import (

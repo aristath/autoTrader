@@ -4,7 +4,7 @@ import "time"
 
 // Tag represents a tag definition with ID and human-readable name
 type Tag struct {
-	Id   string `json:"id"`   // Code-friendly ID (e.g., 'value-opportunity')
+	ID   string `json:"id"`   // Code-friendly ID (e.g., 'value-opportunity')
 	Name string `json:"name"` // Human-readable name (e.g., 'Value Opportunity')
 }
 

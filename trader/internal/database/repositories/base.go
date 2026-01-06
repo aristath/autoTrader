@@ -1,3 +1,4 @@
+// Package repositories provides base repository functionality for database operations.
 package repositories
 
 import (

@@ -1,3 +1,4 @@
+// Package domain provides core domain models and types.
 package domain
 
 import "time"

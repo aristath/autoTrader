@@ -1,3 +1,4 @@
+// Package repository provides planning data repository functionality.
 package repository
 
 import (

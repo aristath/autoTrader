@@ -1,3 +1,4 @@
+// Package trading provides trade execution functionality.
 package trading
 
 import (

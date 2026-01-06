@@ -646,7 +646,7 @@ func applyLedoitWolfShrinkage(sampleCov [][]float64) ([][]float64, error) {
 	// This is a simplified version - full Ledoit-Wolf requires more complex calculation
 	// For now, use a reasonable shrinkage parameter
 	// In practice, the shrinkage intensity should be calculated based on the data
-	var shrinkage float64 = 0.2 // Default shrinkage (20% towards target)
+	shrinkage := 0.2 // Default shrinkage (20% towards target)
 
 	// Try to estimate optimal shrinkage if we have enough structure
 	if n > 2 && avgVar > 0 {

@@ -1,3 +1,4 @@
+// Package reliability provides reliability and monitoring functionality.
 package reliability
 
 import (

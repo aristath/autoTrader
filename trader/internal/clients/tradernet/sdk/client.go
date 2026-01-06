@@ -1,3 +1,4 @@
+// Package sdk provides the Tradernet SDK client implementation.
 package sdk
 
 import (

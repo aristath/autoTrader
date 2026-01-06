@@ -1,3 +1,4 @@
+// Package embedded provides embedded static assets for the application.
 package embedded
 
 import (

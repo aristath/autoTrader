@@ -1,3 +1,4 @@
+// Package patterns provides trading pattern implementations.
 package patterns
 
 import (

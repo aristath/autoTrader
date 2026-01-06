@@ -1,3 +1,4 @@
+// Package opportunities provides trading opportunity identification functionality.
 package opportunities
 
 import (

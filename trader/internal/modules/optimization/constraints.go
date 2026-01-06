@@ -1,3 +1,4 @@
+// Package optimization provides portfolio optimization functionality.
 package optimization
 
 import (

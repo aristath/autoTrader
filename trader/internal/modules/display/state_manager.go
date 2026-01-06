@@ -291,7 +291,7 @@ func (sm *StateManager) GetState() DisplayState {
 	}
 }
 
-// GetLED3BlinkState returns LED3 blink state info for display bridge
+// GetLED3BlinkStateInfo returns LED3 blink state info for display bridge
 func (sm *StateManager) GetLED3BlinkStateInfo() (isBlinking bool, color LEDColor, intervalMs int, isOn bool) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
@@ -299,7 +299,7 @@ func (sm *StateManager) GetLED3BlinkStateInfo() (isBlinking bool, color LEDColor
 	return sm.led3Blink.IsBlinking, sm.led3Blink.Color, sm.led3Blink.IntervalMs, sm.led3Blink.IsOn
 }
 
-// GetLED4State returns LED4 state info for display bridge
+// GetLED4StateInfo returns LED4 state info for display bridge
 func (sm *StateManager) GetLED4StateInfo() (mode LEDMode, color LEDColor, altColor1 LEDColor, altColor2 LEDColor, intervalMs int, coordinatedWith bool) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()

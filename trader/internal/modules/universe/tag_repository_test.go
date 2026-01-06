@@ -52,7 +52,7 @@ func TestTagRepository_GetByID_Existing(t *testing.T) {
 	// Assert
 	assert.NoError(t, err)
 	require.NotNil(t, tag)
-	assert.Equal(t, "value-opportunity", tag.Id)
+	assert.Equal(t, "value-opportunity", tag.ID)
 	assert.Equal(t, "Value Opportunity", tag.Name)
 }
 
@@ -117,7 +117,7 @@ func TestTagRepository_GetAll_Multiple(t *testing.T) {
 	// Verify tags are sorted by ID
 	tagIDs := make([]string, len(tags))
 	for i, tag := range tags {
-		tagIDs[i] = tag.Id
+		tagIDs[i] = tag.ID
 	}
 	assert.Equal(t, []string{"stable", "value-opportunity", "volatile"}, tagIDs)
 }
@@ -132,7 +132,7 @@ func TestTagRepository_CreateOrGet_New(t *testing.T) {
 
 	// Execute
 	tag := Tag{
-		Id:   "value-opportunity",
+		ID:   "value-opportunity",
 		Name: "Value Opportunity",
 	}
 	result, err := repo.CreateOrGet(tag)
@@ -140,14 +140,14 @@ func TestTagRepository_CreateOrGet_New(t *testing.T) {
 	// Assert
 	assert.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, "value-opportunity", result.Id)
+	assert.Equal(t, "value-opportunity", result.ID)
 	assert.Equal(t, "Value Opportunity", result.Name)
 
 	// Verify tag was created in database
 	dbTag, err := repo.GetByID("value-opportunity")
 	assert.NoError(t, err)
 	require.NotNil(t, dbTag)
-	assert.Equal(t, "value-opportunity", dbTag.Id)
+	assert.Equal(t, "value-opportunity", dbTag.ID)
 	assert.Equal(t, "Value Opportunity", dbTag.Name)
 }
 
@@ -169,7 +169,7 @@ func TestTagRepository_CreateOrGet_Existing(t *testing.T) {
 
 	// Execute
 	tag := Tag{
-		Id:   "value-opportunity",
+		ID:   "value-opportunity",
 		Name: "Value Opportunity",
 	}
 	result, err := repo.CreateOrGet(tag)
@@ -177,7 +177,7 @@ func TestTagRepository_CreateOrGet_Existing(t *testing.T) {
 	// Assert
 	assert.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, "value-opportunity", result.Id)
+	assert.Equal(t, "value-opportunity", result.ID)
 	assert.Equal(t, "Value Opportunity", result.Name)
 }
 
@@ -206,7 +206,7 @@ func TestTagRepository_EnsureTagsExist_NewTags(t *testing.T) {
 		tag, err := repo.GetByID(tagID)
 		assert.NoError(t, err)
 		require.NotNil(t, tag)
-		assert.Equal(t, tagID, tag.Id)
+		assert.Equal(t, tagID, tag.ID)
 		// Verify default name generation
 		expectedName, ok := expectedNames[tagID]
 		require.True(t, ok, "Expected name not defined for tag: %s", tagID)
@@ -247,7 +247,7 @@ func TestTagRepository_EnsureTagsExist_ExistingTags(t *testing.T) {
 	newTag, err := repo.GetByID("volatile")
 	assert.NoError(t, err)
 	require.NotNil(t, newTag)
-	assert.Equal(t, "volatile", newTag.Id)
+	assert.Equal(t, "volatile", newTag.ID)
 }
 
 func TestTagRepository_EnsureTagsExist_EmptyArray(t *testing.T) {

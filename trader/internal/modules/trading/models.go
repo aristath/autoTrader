@@ -30,7 +30,7 @@ func (ts TradeSide) IsSell() bool {
 	return ts == TradeSideSell
 }
 
-// FromString creates TradeSide from string (case-insensitive)
+// TradeSideFromString creates TradeSide from string (case-insensitive)
 // Faithful translation from Python: @classmethod def from_string(cls, value: str) -> "TradeSide"
 func TradeSideFromString(value string) (TradeSide, error) {
 	if value == "" {

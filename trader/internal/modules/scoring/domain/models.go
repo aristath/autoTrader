@@ -1,3 +1,4 @@
+// Package domain provides scoring domain models.
 package domain
 
 import "time"

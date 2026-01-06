@@ -1,3 +1,4 @@
+// Package market_hours provides market hours and trading schedule functionality.
 package market_hours
 
 import (

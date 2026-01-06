@@ -1,3 +1,4 @@
+// Package filters provides sequence filtering functionality.
 package filters
 
 import (

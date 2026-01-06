@@ -1,3 +1,4 @@
+// Package tradernet provides client functionality for interacting with the Tradernet API.
 package tradernet
 
 import (

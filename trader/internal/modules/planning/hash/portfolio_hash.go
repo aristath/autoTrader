@@ -1,3 +1,4 @@
+// Package hash provides portfolio hashing functionality.
 package hash
 
 import (

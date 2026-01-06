@@ -184,7 +184,7 @@ func (v *ISINValidator) ValidateAll() (*ValidationResult, error) {
 	return result, nil
 }
 
-// FormatValidationErrors formats validation errors for display
+// FormatErrors formats validation errors for display
 func (r *ValidationResult) FormatErrors() string {
 	if r.IsValid {
 		return "All validations passed"

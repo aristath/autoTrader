@@ -1,3 +1,4 @@
+// Package settings provides application settings management functionality.
 package settings
 
 import (

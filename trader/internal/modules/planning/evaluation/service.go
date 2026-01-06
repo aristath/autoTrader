@@ -1,3 +1,4 @@
+// Package evaluation provides plan evaluation functionality.
 package evaluation
 
 import (

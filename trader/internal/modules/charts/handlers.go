@@ -1,3 +1,4 @@
+// Package charts provides charting and visualization functionality.
 package charts
 
 import (

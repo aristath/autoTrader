@@ -84,7 +84,7 @@ func (c *Client) UserInfo() (interface{}, error) {
 //	summaryMap := summary.(map[string]interface{})
 //	positions := summaryMap["result"].(map[string]interface{})["ps"].(map[string]interface{})["pos"]
 func (c *Client) AccountSummary() (interface{}, error) {
-	params := GetPositionJsonParams{}
+	params := GetPositionJSONParams{}
 	return c.authorizedRequest("getPositionJson", params)
 }
 
@@ -255,7 +255,7 @@ func (c *Client) GetPlaced(active bool) (interface{}, error) {
 	if active {
 		activeOnly = 1
 	}
-	params := GetNotifyOrderJsonParams{
+	params := GetNotifyOrderJSONParams{
 		ActiveOnly: activeOnly,
 	}
 	return c.authorizedRequest("getNotifyOrderJson", params)
@@ -280,7 +280,7 @@ func (c *Client) GetTradesHistory(start, end string, tradeID, limit *int, symbol
 func (c *Client) GetQuotes(symbols []string) (interface{}, error) {
 	// Comma-separated string
 	tickers := strings.Join(symbols, ",")
-	params := GetStockQuotesJsonParams{
+	params := GetStockQuotesJSONParams{
 		Tickers: tickers,
 	}
 	return c.authorizedRequest("getStockQuotesJson", params)

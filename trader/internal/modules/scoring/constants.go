@@ -1,3 +1,4 @@
+// Package scoring provides security scoring functionality.
 package scoring
 
 // Scoring Constants - All thresholds and weights for scoring calculations

@@ -1,3 +1,4 @@
+// Package dividends provides dividend tracking and management functionality.
 package dividends
 
 import (

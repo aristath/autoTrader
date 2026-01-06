@@ -6,9 +6,9 @@ type GetAllUserTexInfoParams struct {
 	// Empty - no params needed
 }
 
-// GetPositionJsonParams represents parameters for getPositionJson command
+// GetPositionJSONParams represents parameters for getPositionJSON command
 // This command requires no parameters
-type GetPositionJsonParams struct {
+type GetPositionJSONParams struct {
 	// Empty - no params needed
 }
 
@@ -25,9 +25,9 @@ type PutTradeOrderParams struct {
 	UserOrderID  *int    `json:"user_order_id,omitempty"` // Field 7
 }
 
-// GetNotifyOrderJsonParams represents parameters for getNotifyOrderJson command
+// GetNotifyOrderJSONParams represents parameters for getNotifyOrderJSON command
 // CRITICAL: Field order MUST match Python's dict insertion order exactly!
-type GetNotifyOrderJsonParams struct {
+type GetNotifyOrderJSONParams struct {
 	ActiveOnly int `json:"active_only"` // Boolean converted to int: True=1, False=0
 }
 
@@ -43,9 +43,9 @@ type GetTradesHistoryParams struct {
 	Curr      *string `json:"curr,omitempty"`      // Field 6 - optional
 }
 
-// GetStockQuotesJsonParams represents parameters for getStockQuotesJson command
+// GetStockQuotesJSONParams represents parameters for getStockQuotesJSON command
 // CRITICAL: Field order MUST match Python's dict insertion order exactly!
-type GetStockQuotesJsonParams struct {
+type GetStockQuotesJSONParams struct {
 	Tickers string `json:"tickers"` // Comma-separated string: "AAPL.US,MSFT.US"
 }
 

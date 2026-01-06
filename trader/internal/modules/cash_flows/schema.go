@@ -2,7 +2,7 @@ package cash_flows
 
 import "database/sql"
 
-// InitSchema ensures cash_flows table exists in ledger.db
+// CashFlowsSchema ensures cash_flows table exists in ledger.db
 // Faithful translation from Python: app/core/database/schemas.py (LEDGER_SCHEMA)
 const CashFlowsSchema = `
 CREATE TABLE IF NOT EXISTS cash_flows (

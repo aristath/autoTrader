@@ -1,3 +1,4 @@
+// Package narrative provides plan narrative generation functionality.
 package narrative
 
 import (

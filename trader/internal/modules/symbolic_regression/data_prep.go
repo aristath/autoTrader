@@ -1,3 +1,4 @@
+// Package symbolic_regression provides symbolic regression for formula discovery.
 package symbolic_regression
 
 import (

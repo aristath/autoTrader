@@ -1,3 +1,4 @@
+// Package portfolio provides portfolio management functionality.
 package portfolio
 
 import (

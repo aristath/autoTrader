@@ -215,7 +215,7 @@ func (r *SecurityRepository) GetAll() ([]Security, error) {
 	return securities, nil
 }
 
-// GetDistinctExchanges returns a list of distinct exchange names from active securities
+// Create creates a new security in the repository
 func (r *SecurityRepository) Create(security Security) error {
 	now := time.Now().Format(time.RFC3339)
 

@@ -1,3 +1,4 @@
+// Package yahoo provides client functionality for fetching data from Yahoo Finance API.
 package yahoo
 
 // FullClientInterface defines all methods that a Yahoo Finance client must implement

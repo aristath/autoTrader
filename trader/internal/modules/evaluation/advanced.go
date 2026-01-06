@@ -1,3 +1,4 @@
+// Package evaluation provides evaluation functionality for portfolio analysis.
 package evaluation
 
 import (

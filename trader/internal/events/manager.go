@@ -1,3 +1,4 @@
+// Package events provides event management functionality.
 package events
 
 import (

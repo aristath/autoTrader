@@ -1,3 +1,4 @@
+// Package universe provides security universe management functionality.
 package universe
 
 import (
@@ -1016,9 +1017,13 @@ func (h *UniverseHandlers) calculateAndSaveScore(isin string, yahooSymbol string
 	}
 
 	// Convert monthly prices to formulas.MonthlyPrice format
+	// GetMonthlyPrices returns DESC order (newest first), but CalculateCAGR expects ASC (oldest first)
+	// Reverse the slice to fix the order
 	monthlyPricesConverted := make([]formulas.MonthlyPrice, len(monthlyPrices))
 	for i, mp := range monthlyPrices {
-		monthlyPricesConverted[i] = formulas.MonthlyPrice{
+		// Reverse index: newest first -> oldest first
+		reversedIdx := len(monthlyPrices) - 1 - i
+		monthlyPricesConverted[reversedIdx] = formulas.MonthlyPrice{
 			YearMonth:   mp.YearMonth,
 			AvgAdjClose: mp.AvgAdjClose,
 		}

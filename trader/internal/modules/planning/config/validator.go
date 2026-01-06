@@ -1,3 +1,4 @@
+// Package config provides planning configuration functionality.
 package config
 
 import (

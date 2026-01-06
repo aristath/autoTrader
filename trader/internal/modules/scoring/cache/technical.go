@@ -1,3 +1,4 @@
+// Package cache provides scoring cache functionality.
 package cache
 
 import (

@@ -1,3 +1,4 @@
+// Package planner provides portfolio planning algorithms.
 package planner
 
 import (
