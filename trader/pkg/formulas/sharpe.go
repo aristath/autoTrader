@@ -69,6 +69,13 @@ func CalculateSharpeFromPrices(prices []float64, riskFreeRate float64) *float64 
 //	Sortino = (Portfolio Return - Risk-free Rate) / Downside Deviation
 //	Downside Deviation = sqrt(mean of squared deviations below MAR)
 //
+// Note on Downside Deviation Calculation:
+// This implementation divides by downsideCount (number of periods below MAR),
+// which is the industry-standard approach used by most financial platforms.
+// This gives higher Sortino ratios than the academic definition (dividing by total N),
+// but is more commonly used in practice and provides better differentiation
+// between securities with different downside risk profiles.
+//
 // Args:
 //
 //	returns: Array of periodic returns
@@ -91,6 +98,7 @@ func CalculateSortinoRatio(returns []float64, riskFreeRate float64, targetReturn
 	periodicMAR := targetReturn / float64(periodsPerYear)
 
 	// Calculate downside deviation (returns below MAR)
+	// Industry standard: divide by downsideCount (not total N)
 	var downsideSquaredSum float64
 	downsideCount := 0
 
@@ -107,6 +115,8 @@ func CalculateSortinoRatio(returns []float64, riskFreeRate float64, targetReturn
 		return nil
 	}
 
+	// Industry-standard: divide by downsideCount (not total periods)
+	// This provides better differentiation and is more commonly used in practice
 	downsideDeviation := math.Sqrt(downsideSquaredSum / float64(downsideCount))
 	if downsideDeviation == 0 {
 		return nil

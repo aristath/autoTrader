@@ -173,7 +173,9 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 		tags = append(tags, "stable")
 	}
 
-	if consistencyScore > 0.8 && cagrRaw > 0.08 {
+	// Consistent grower: requires both consistency and meaningful growth
+	// 10% CAGR threshold ensures meaningful growth for a retirement fund targeting 11%
+	if consistencyScore > 0.8 && cagrRaw > 0.10 {
 		tags = append(tags, "consistent-grower")
 	}
 
@@ -382,18 +384,19 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 
 	sharpeRatio := getSubScore(input.SubScores, "long_term", "sharpe_raw")
 	sortinoRatioRaw := getSubScore(input.SubScores, "long_term", "sortino_raw") // Raw Sortino ratio
-	sortinoRatioScored := getSubScore(input.SubScores, "long_term", "sortino")  // Scored value (0-1) for fallback
 
 	// Bubble risk: High CAGR with poor risk metrics
-	if cagrRaw > 0.165 { // 16.5% for 11% target
+	// Only use raw values for accurate risk assessment - no fallback approximations
+	if cagrRaw > 0.165 { // 16.5% for 11% target (1.5x target)
 		isBubble := false
-		// Use raw sortino if available, otherwise fall back to scored (but threshold adjusted)
-		sortinoCheck := sortinoRatioRaw
-		if sortinoCheck == 0 && sortinoRatioScored > 0 {
-			// Fallback: approximate raw from scored (rough conversion)
-			sortinoCheck = sortinoRatioScored * 2.0 // Rough approximation
+		// Check risk metrics - require raw Sortino for accurate assessment
+		// If sortino_raw is not available (0), we can't accurately assess bubble risk
+		hasPoorRisk := sharpeRatio < 0.5 || volatility > 0.40 || fundamentalsScore < 0.6
+		if sortinoRatioRaw > 0 {
+			hasPoorRisk = hasPoorRisk || sortinoRatioRaw < 0.5
 		}
-		if sharpeRatio < 0.5 || sortinoCheck < 0.5 || volatility > 0.40 || fundamentalsScore < 0.6 {
+		// Only flag as bubble if we have sufficient risk data
+		if hasPoorRisk && (sortinoRatioRaw > 0 || sharpeRatio > 0) {
 			isBubble = true
 		}
 
@@ -407,11 +410,8 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 		}
 	} else if cagrRaw > 0.15 {
 		// High CAGR (15-16.5%) with good risk metrics
-		sortinoCheck := sortinoRatioRaw
-		if sortinoCheck == 0 && sortinoRatioScored > 0 {
-			sortinoCheck = sortinoRatioScored * 2.0 // Rough approximation
-		}
-		if sharpeRatio >= 0.5 && sortinoCheck >= 0.5 && volatility <= 0.40 && fundamentalsScore >= 0.6 {
+		// Require both Sharpe and Sortino for quality-high-cagr tag
+		if sharpeRatio >= 0.5 && sortinoRatioRaw >= 0.5 && volatility <= 0.40 && fundamentalsScore >= 0.6 {
 			tags = append(tags, "quality-high-cagr")
 		}
 	}
@@ -423,7 +423,8 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 	if sortinoRatioRaw >= 1.5 {
 		tags = append(tags, "high-sortino")
 	}
-	if sharpeRatio < 0.5 || (sortinoRatioRaw > 0 && sortinoRatioRaw < 0.5) || (sortinoRatioRaw == 0 && sortinoRatioScored < 0.5) {
+	// Poor risk-adjusted: only tag if we have raw risk metrics available
+	if isPoorRiskAdjusted(sharpeRatio, sortinoRatioRaw) {
 		tags = append(tags, "poor-risk-adjusted")
 	}
 
@@ -573,6 +574,21 @@ func calculateBelow52wHighPct(currentPrice, price52wHigh *float64) float64 {
 		return 0.0
 	}
 	return ((*price52wHigh - *currentPrice) / *price52wHigh) * 100.0
+}
+
+// isPoorRiskAdjusted checks if a security has poor risk-adjusted returns
+// Only uses raw risk metrics for accurate assessment - no fallback approximations
+func isPoorRiskAdjusted(sharpeRatio, sortinoRatioRaw float64) bool {
+	// If we have Sharpe ratio, check it
+	if sharpeRatio > 0 && sharpeRatio < 0.5 {
+		return true
+	}
+	// If we have Sortino ratio, check it
+	if sortinoRatioRaw > 0 && sortinoRatioRaw < 0.5 {
+		return true
+	}
+	// If we have neither, can't assess - don't tag as poor
+	return false
 }
 
 func removeDuplicates(tags []string) []string {
