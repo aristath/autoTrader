@@ -18,7 +18,7 @@ type IncrementalPlanner struct {
 
 // Repository interface defines operations needed for persistence.
 type Repository interface {
-	InsertSequence(portfolioHash string, sequence domain.ActionSequence) (int, error)
+	InsertSequence(portfolioHash string, sequence domain.ActionSequence) error
 	InsertEvaluation(result domain.EvaluationResult) error
 	UpsertBestResult(portfolioHash string, result domain.EvaluationResult, sequence domain.ActionSequence) error
 }
@@ -97,10 +97,11 @@ func (ip *IncrementalPlanner) GenerateBatch(
 	// Persist all sequences to database for tracking
 	if batchConfig.SaveProgress && ip.repository != nil {
 		for _, seq := range sequences {
-			if _, err := ip.repository.InsertSequence(result.PortfolioHash, seq); err != nil {
+			if err := ip.repository.InsertSequence(result.PortfolioHash, seq); err != nil {
 				ip.log.Warn().
 					Err(err).
 					Str("pattern", seq.PatternType).
+					Str("sequence_hash", seq.SequenceHash).
 					Msg("Failed to persist sequence")
 			}
 		}

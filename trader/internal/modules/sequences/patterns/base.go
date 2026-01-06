@@ -1,6 +1,10 @@
 package patterns
 
 import (
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
+
 	"github.com/aristath/arduino-trader/internal/modules/planning/domain"
 	"github.com/rs/zerolog"
 )
@@ -97,13 +101,35 @@ func CreateSequence(actions []domain.ActionCandidate, patternType string) domain
 	}
 }
 
-// generateSequenceHash creates a hash for the sequence (simplified).
-// In production, this would use MD5 or similar.
+// generateSequenceHash creates a deterministic MD5 hash for a sequence.
+// Matches evaluation service hashSequence() and legacy Python implementation.
+// Based on: (symbol, side, quantity) tuples, order-dependent
 func generateSequenceHash(actions []domain.ActionCandidate) string {
-	// For now, just concatenate symbol-side-quantity
-	hash := ""
-	for _, action := range actions {
-		hash += action.Symbol + "-" + action.Side + "-"
+	// Import crypto/md5 and encoding/hex at package level
+	type tuple struct {
+		Symbol   string `json:"symbol"`
+		Side     string `json:"side"`
+		Quantity int    `json:"quantity"`
 	}
-	return hash
+
+	// Create tuples matching Python: [(c.symbol, c.side, c.quantity) for c in sequence]
+	tuples := make([]tuple, len(actions))
+	for i, action := range actions {
+		tuples[i] = tuple{
+			Symbol:   action.Symbol,
+			Side:     action.Side,
+			Quantity: action.Quantity,
+		}
+	}
+
+	// JSON marshal (Go's json.Marshal preserves order by default, like sort_keys=False)
+	jsonBytes, err := json.Marshal(tuples)
+	if err != nil {
+		// Fallback: should not happen, but handle gracefully
+		return ""
+	}
+
+	// MD5 hash and return hex digest (matches hashlib.md5().hexdigest())
+	hash := md5.Sum(jsonBytes)
+	return hex.EncodeToString(hash[:])
 }
