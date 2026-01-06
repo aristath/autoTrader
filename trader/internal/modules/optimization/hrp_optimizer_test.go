@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/aristath/arduino-trader/pkg/formulas"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +17,7 @@ func TestHRPOptimizer_DistanceMatrix(t *testing.T) {
 		{0.6, 0.7, 1.0},
 	}
 
-	distMatrix := correlationToDistance(corrMatrix)
+	distMatrix := formulas.CorrelationToDistance(corrMatrix)
 
 	// Distance should be symmetric
 	for i := 0; i < len(distMatrix); i++ {

@@ -306,9 +306,9 @@ func TestTagAssigner_BubbleRisk(t *testing.T) {
 		},
 		SubScores: map[string]map[string]float64{
 			"long_term": {
-				"cagr":       0.18, // > 16.5%
-				"sharpe_raw": 0.3,  // < 0.5
-				"sortino":    0.4,  // < 0.5
+				"cagr_raw":    0.18, // > 16.5%
+				"sharpe_raw":  0.3,  // < 0.5
+				"sortino_raw": 0.4,  // < 0.5
 			},
 		},
 	}
@@ -333,9 +333,9 @@ func TestTagAssigner_QualityHighCAGR(t *testing.T) {
 		},
 		SubScores: map[string]map[string]float64{
 			"long_term": {
-				"cagr":       0.17, // > 15%
-				"sharpe_raw": 0.6,  // >= 0.5
-				"sortino":    0.6,  // >= 0.5
+				"cagr_raw":    0.17, // > 15%
+				"sharpe_raw":  0.6,  // >= 0.5
+				"sortino_raw": 0.6,  // >= 0.5
 			},
 		},
 	}
@@ -372,7 +372,7 @@ func TestTagAssigner_HighSortino(t *testing.T) {
 		Symbol: "TEST",
 		SubScores: map[string]map[string]float64{
 			"long_term": {
-				"sortino": 1.8, // >= 1.5
+				"sortino_raw": 1.8, // >= 1.5
 			},
 		},
 	}
@@ -391,8 +391,8 @@ func TestTagAssigner_PoorRiskAdjusted(t *testing.T) {
 		Symbol: "TEST",
 		SubScores: map[string]map[string]float64{
 			"long_term": {
-				"sharpe_raw": 0.3, // < 0.5
-				"sortino":    0.6, // >= 0.5
+				"sharpe_raw":  0.3, // < 0.5
+				"sortino_raw": 0.6, // >= 0.5
 			},
 		},
 	}
@@ -406,8 +406,8 @@ func TestTagAssigner_PoorRiskAdjusted(t *testing.T) {
 		Symbol: "TEST",
 		SubScores: map[string]map[string]float64{
 			"long_term": {
-				"sharpe_raw": 0.6, // >= 0.5
-				"sortino":    0.3, // < 0.5
+				"sharpe_raw":  0.6, // >= 0.5
+				"sortino_raw": 0.3, // < 0.5
 			},
 		},
 	}
@@ -489,7 +489,7 @@ func TestTagAssigner_ExcellentTotalReturn(t *testing.T) {
 		DividendYield: &dividendYield,
 		SubScores: map[string]map[string]float64{
 			"long_term": {
-				"cagr": cagrValue,
+				"cagr_raw": cagrValue,
 			},
 		},
 	}
@@ -511,7 +511,7 @@ func TestTagAssigner_HighTotalReturn(t *testing.T) {
 		DividendYield: &dividendYield,
 		SubScores: map[string]map[string]float64{
 			"long_term": {
-				"cagr": cagrValue,
+				"cagr_raw": cagrValue,
 			},
 		},
 	}
@@ -534,7 +534,7 @@ func TestTagAssigner_ModerateTotalReturn(t *testing.T) {
 		DividendYield: &dividendYield,
 		SubScores: map[string]map[string]float64{
 			"long_term": {
-				"cagr": cagrValue,
+				"cagr_raw": cagrValue,
 			},
 		},
 	}
@@ -557,7 +557,7 @@ func TestTagAssigner_DividendTotalReturn(t *testing.T) {
 		DividendYield: &dividendYield,
 		SubScores: map[string]map[string]float64{
 			"long_term": {
-				"cagr": cagrValue,
+				"cagr_raw": cagrValue,
 			},
 		},
 	}
@@ -706,7 +706,7 @@ func TestTagAssigner_RegimeBullGrowth(t *testing.T) {
 		},
 		SubScores: map[string]map[string]float64{
 			"long_term": {
-				"cagr": cagrValue,
+				"cagr_raw": cagrValue,
 			},
 			"short_term": {
 				"momentum": 0.05, // > 0
@@ -817,9 +817,9 @@ func TestTagAssigner_AllEnhancedTags(t *testing.T) {
 		},
 		SubScores: map[string]map[string]float64{
 			"long_term": {
-				"cagr":       0.17, // > 15% for quality-high-cagr
-				"sharpe_raw": 1.8,  // >= 1.5 for high-sharpe
-				"sortino":    1.8,  // >= 1.5 for high-sortino (if available)
+				"cagr_raw":    0.17, // > 15% for quality-high-cagr
+				"sharpe_raw":  1.8,  // >= 1.5 for high-sharpe
+				"sortino_raw": 1.8,  // >= 1.5 for high-sortino
 			},
 			"short_term": {
 				"momentum": 0.05, // > 0 for regime-bull-growth

@@ -81,6 +81,13 @@ func (lts *LongTermScorer) Calculate(
 		components["sharpe_raw"] = 0.0
 	}
 
+	// Store raw Sortino ratio for database storage (similar to sharpe_raw)
+	if sortinoRatio != nil {
+		components["sortino_raw"] = *sortinoRatio
+	} else {
+		components["sortino_raw"] = 0.0
+	}
+
 	// Store raw CAGR value for total return calculation (growth + dividend)
 	components["cagr_raw"] = round3(cagrValue)
 

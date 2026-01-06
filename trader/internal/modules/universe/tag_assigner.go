@@ -65,7 +65,7 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 
 	// Extract sub-scores
 	consistencyScore := getSubScore(input.SubScores, "fundamentals", "consistency")
-	cagrScore := getSubScore(input.SubScores, "long_term", "cagr")
+	cagrRaw := getSubScore(input.SubScores, "long_term", "cagr_raw") // Raw CAGR (e.g., 0.15 = 15%)
 	momentumScore := getSubScore(input.SubScores, "short_term", "momentum")
 	dividendConsistencyScore := getSubScore(input.SubScores, "dividends", "consistency")
 
@@ -173,7 +173,7 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 		tags = append(tags, "stable")
 	}
 
-	if consistencyScore > 0.8 && cagrScore > 8.0 {
+	if consistencyScore > 0.8 && cagrRaw > 0.08 {
 		tags = append(tags, "consistent-grower")
 	}
 
@@ -195,11 +195,11 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 	}
 
 	// Dividend Opportunities
-	if dividendYield > 6.0 {
+	if dividendYield > 0.06 {
 		tags = append(tags, "high-dividend")
 	}
 
-	if dividendScore > 0.7 && dividendYield > 3.0 {
+	if dividendScore > 0.7 && dividendYield > 0.03 {
 		tags = append(tags, "dividend-opportunity")
 	}
 
@@ -264,7 +264,7 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 	// Instability Warnings
 	// Note: Instability score from sell scorer not available in current input
 	// Would need to be added if available
-	if annualizedReturn > 50.0 && volatilitySpike {
+	if annualizedReturn > 0.50 && volatilitySpike {
 		tags = append(tags, "unsustainable-gains")
 	}
 
@@ -277,7 +277,7 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 		tags = append(tags, "underperforming")
 	}
 
-	if annualizedReturn < 5.0 && daysHeld > 365 {
+	if annualizedReturn < 0.05 && daysHeld > 365 {
 		tags = append(tags, "stagnant")
 	}
 
@@ -332,7 +332,7 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 	}
 
 	// Growth Profile
-	if cagrScore > 15.0 && fundamentalsScore > 0.7 {
+	if cagrRaw > 0.15 && fundamentalsScore > 0.7 {
 		tags = append(tags, "growth")
 	}
 
@@ -340,7 +340,7 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 		tags = append(tags, "value")
 	}
 
-	if dividendYield > 4.0 && dividendScore > 0.7 {
+	if dividendYield > 0.04 && dividendScore > 0.7 {
 		tags = append(tags, "dividend-focused")
 	}
 
@@ -380,22 +380,20 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 
 	// === NEW: BUBBLE DETECTION TAGS ===
 
-	cagrValue := getSubScore(input.SubScores, "long_term", "cagr")
 	sharpeRatio := getSubScore(input.SubScores, "long_term", "sharpe_raw")
-	// Note: Sortino ratio is not currently stored in sub-scores as "sortino_raw".
-	// The LongTermScorer stores "sortino" (scored value 0-1) but not the raw ratio.
-	// This means:
-	// - high-sortino tag (>= 1.5) will not work correctly (scored values are 0-1)
-	// - poor-risk-adjusted and bubble detection using sortino < 0.5 will work but use scored value
-	// - When not available, sortinoRatio will be 0.0
-	// Bubble detection will rely more on Sharpe ratio, which is acceptable as Sharpe alone is sufficient.
-	// TODO: Store sortino_raw in LongTermScorer similar to sharpe_raw for accurate tag assignment.
-	sortinoRatio := getSubScore(input.SubScores, "long_term", "sortino") // Scored value (0-1), not raw ratio
+	sortinoRatioRaw := getSubScore(input.SubScores, "long_term", "sortino_raw") // Raw Sortino ratio
+	sortinoRatioScored := getSubScore(input.SubScores, "long_term", "sortino")  // Scored value (0-1) for fallback
 
 	// Bubble risk: High CAGR with poor risk metrics
-	if cagrValue > 0.165 { // 16.5% for 11% target
+	if cagrRaw > 0.165 { // 16.5% for 11% target
 		isBubble := false
-		if sharpeRatio < 0.5 || sortinoRatio < 0.5 || volatility > 0.40 || fundamentalsScore < 0.6 {
+		// Use raw sortino if available, otherwise fall back to scored (but threshold adjusted)
+		sortinoCheck := sortinoRatioRaw
+		if sortinoCheck == 0 && sortinoRatioScored > 0 {
+			// Fallback: approximate raw from scored (rough conversion)
+			sortinoCheck = sortinoRatioScored * 2.0 // Rough approximation
+		}
+		if sharpeRatio < 0.5 || sortinoCheck < 0.5 || volatility > 0.40 || fundamentalsScore < 0.6 {
 			isBubble = true
 		}
 
@@ -403,13 +401,17 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 			tags = append(tags, "bubble-risk")
 		} else {
 			// Only tag as quality-high-cagr if CAGR > 15% (not just > 16.5%)
-			if cagrValue > 0.15 {
+			if cagrRaw > 0.15 {
 				tags = append(tags, "quality-high-cagr")
 			}
 		}
-	} else if cagrValue > 0.15 {
+	} else if cagrRaw > 0.15 {
 		// High CAGR (15-16.5%) with good risk metrics
-		if sharpeRatio >= 0.5 && sortinoRatio >= 0.5 && volatility <= 0.40 && fundamentalsScore >= 0.6 {
+		sortinoCheck := sortinoRatioRaw
+		if sortinoCheck == 0 && sortinoRatioScored > 0 {
+			sortinoCheck = sortinoRatioScored * 2.0 // Rough approximation
+		}
+		if sharpeRatio >= 0.5 && sortinoCheck >= 0.5 && volatility <= 0.40 && fundamentalsScore >= 0.6 {
 			tags = append(tags, "quality-high-cagr")
 		}
 	}
@@ -418,10 +420,10 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 	if sharpeRatio >= 1.5 {
 		tags = append(tags, "high-sharpe")
 	}
-	if sortinoRatio >= 1.5 {
+	if sortinoRatioRaw >= 1.5 {
 		tags = append(tags, "high-sortino")
 	}
-	if sharpeRatio < 0.5 || sortinoRatio < 0.5 {
+	if sharpeRatio < 0.5 || (sortinoRatioRaw > 0 && sortinoRatioRaw < 0.5) || (sortinoRatioRaw == 0 && sortinoRatioScored < 0.5) {
 		tags = append(tags, "poor-risk-adjusted")
 	}
 
@@ -441,9 +443,8 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 
 	// === NEW: TOTAL RETURN TAGS ===
 
-	// Note: dividendYield is in percentage (e.g., 0.10 = 10%), cagrValue is in decimal (e.g., 0.15 = 15%)
-	// Both are already in the same format, so we can add them directly
-	totalReturn := cagrScore + dividendYield
+	// Calculate total return using raw CAGR and dividend yield (both in decimal format: 0.15 = 15%)
+	totalReturn := cagrRaw + dividendYield
 
 	if totalReturn >= 0.18 {
 		tags = append(tags, "excellent-total-return")
@@ -453,8 +454,8 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 		tags = append(tags, "moderate-total-return")
 	}
 
-	// Dividend total return (5% growth + 10% dividend example)
-	if dividendYield >= 0.08 && cagrScore >= 0.05 {
+	// Dividend total return (5% growth + 8% dividend example)
+	if dividendYield >= 0.08 && cagrRaw >= 0.05 {
 		tags = append(tags, "dividend-total-return")
 	}
 
@@ -466,7 +467,7 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 	}
 
 	// Bull market growth
-	if cagrScore > 0.12 && fundamentalsScore > 0.7 && momentumScore > 0 {
+	if cagrRaw > 0.12 && fundamentalsScore > 0.7 && momentumScore > 0 {
 		tags = append(tags, "regime-bull-growth")
 	}
 
@@ -506,8 +507,8 @@ func (ta *TagAssigner) AssignTagsForSecurity(input AssignTagsInput) ([]string, e
 	absoluteMinCAGR := math.Max(0.06, targetReturn*0.50)
 
 	// Get raw CAGR value (from sub-scores "cagr_raw", in decimal: e.g., 0.15 = 15%)
-	// Note: cagr_raw is stored in components, not sub-scores, so we need to check components
-	cagrRaw := getSubScore(input.SubScores, "long_term", "cagr_raw")
+	// Note: cagr_raw is already extracted at the top of the function
+	// If not available, use the value we already extracted
 
 	// If cagr_raw not available, try to get from scored CAGR (but this is less accurate)
 	// The scored CAGR is 0-1, so we can't reliably convert it back to raw CAGR
