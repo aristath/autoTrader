@@ -136,8 +136,11 @@ func (h *Handler) HandleGetCashBreakdown(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Add virtual test cash if in research mode
+	h.log.Debug().Bool("configDB_nil", h.configDB == nil).Msg("About to add virtual test cash")
 	if err := h.addVirtualTestCash(cashBalancesMap); err != nil {
 		h.log.Warn().Err(err).Msg("Failed to add virtual test cash to cash breakdown, continuing without it")
+	} else {
+		h.log.Debug().Int("currencies_count", len(cashBalancesMap)).Msg("After addVirtualTestCash")
 	}
 
 	// Convert map to slice format for response (matching Tradernet API format)
@@ -251,6 +254,7 @@ func (h *Handler) writeError(w http.ResponseWriter, status int, message string) 
 // This matches the implementation in scheduler/planner_batch.go and rebalancing/service.go
 func (h *Handler) addVirtualTestCash(cashBalances map[string]float64) error {
 	if h.configDB == nil {
+		h.log.Debug().Msg("configDB is nil, skipping virtual test cash")
 		return nil // No config DB available, skip
 	}
 

@@ -25,5 +25,5 @@ type FullClientInterface interface {
 	LookupTickerFromISIN(isin string) (string, error)
 }
 
-// Ensure MicroserviceClient implements FullClientInterface
-var _ FullClientInterface = (*MicroserviceClient)(nil)
+// Ensure NativeClient implements FullClientInterface
+var _ FullClientInterface = (*NativeClient)(nil)

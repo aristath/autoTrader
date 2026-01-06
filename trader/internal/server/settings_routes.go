@@ -55,7 +55,7 @@ func (s *Server) setupSettingsRoutes(r chi.Router) {
 
 	// Initialize universe sync service for onboarding
 	scoreRepo := universe.NewScoreRepository(s.portfolioDB.Conn(), s.log)
-	yahooClient := yahoo.NewMicroserviceClient(s.cfg.UnifiedServiceURL, s.log)
+	yahooClient := yahoo.NewNativeClient(s.log)
 	historyDB := universe.NewHistoryDB(s.historyDB.Conn(), s.log)
 	symbolResolver := universe.NewSymbolResolver(tradernetClient, securityRepo, s.log)
 	historicalSync := universe.NewHistoricalSyncService(yahooClient, securityRepo, historyDB, 2*time.Second, s.log)
