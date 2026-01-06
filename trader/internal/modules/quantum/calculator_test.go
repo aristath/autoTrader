@@ -308,3 +308,162 @@ func BenchmarkCalculateValueTrapProbability(b *testing.B) {
 		calc.CalculateValueTrapProbability(peVsMarket, fundamentals, longTerm, momentum, volatility, regimeScore)
 	}
 }
+
+func TestQuantumProbabilityCalculator_SetTimeParameter(t *testing.T) {
+	calc := NewQuantumProbabilityCalculator()
+
+	// Default time parameter should be 1.0
+	calc.SetTimeParameter(2.0)
+	// Verify it affects interference calculation
+	result1 := calc.CalculateInterference(0.5, 0.5, 0.0, math.Pi/2.0)
+
+	calc.SetTimeParameter(0.5)
+	result2 := calc.CalculateInterference(0.5, 0.5, 0.0, math.Pi/2.0)
+
+	// Different time parameters should produce different interference values
+	if math.Abs(result1-result2) < 0.01 {
+		t.Errorf("SetTimeParameter() should affect interference calculation, got same results: %v", result1)
+	}
+}
+
+func TestQuantumProbabilityCalculator_CalculateMultimodalCorrection(t *testing.T) {
+	calc := NewQuantumProbabilityCalculator()
+
+	tests := []struct {
+		name        string
+		volatility  float64
+		kurtosis    *float64
+		wantRange   [2]float64
+		description string
+	}{
+		{
+			name:        "low volatility, no kurtosis",
+			volatility:  0.1,
+			kurtosis:    nil,
+			wantRange:   [2]float64{0.0, 0.02},
+			description: "Should be small correction",
+		},
+		{
+			name:        "high volatility, no kurtosis",
+			volatility:  0.5,
+			kurtosis:    nil,
+			wantRange:   [2]float64{0.04, 0.06},
+			description: "Should be larger correction",
+		},
+		{
+			name:        "low volatility, high kurtosis",
+			volatility:  0.1,
+			kurtosis:    floatPtr(10.0),
+			wantRange:   [2]float64{0.03, 0.05},
+			description: "Kurtosis should increase correction",
+		},
+		{
+			name:        "high volatility, high kurtosis",
+			volatility:  0.5,
+			kurtosis:    floatPtr(10.0),
+			wantRange:   [2]float64{0.15, 0.21}, // Should be capped at 0.2
+			description: "Should be capped at 0.2",
+		},
+		{
+			name:        "negative kurtosis normalized to 0",
+			volatility:  0.3,
+			kurtosis:    floatPtr(-5.0),
+			wantRange:   [2]float64{0.02, 0.04},
+			description: "Negative kurtosis should be normalized",
+		},
+		{
+			name:        "very high kurtosis normalized",
+			volatility:  0.3,
+			kurtosis:    floatPtr(20.0),
+			wantRange:   [2]float64{0.12, 0.14}, // 0.1 * 0.3 * (1.0 + 10.0/3.0) = 0.13
+			description: "Very high kurtosis should be normalized to 10",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := calc.CalculateMultimodalCorrection(tt.volatility, tt.kurtosis)
+			if result < tt.wantRange[0] || result > tt.wantRange[1] {
+				t.Errorf("CalculateMultimodalCorrection() = %v, want in range %v - %s", result, tt.wantRange, tt.description)
+			}
+			// Verify it's capped at 0.2
+			if result > 0.2 {
+				t.Errorf("CalculateMultimodalCorrection() = %v, should be capped at 0.2", result)
+			}
+		})
+	}
+}
+
+func TestQuantumProbabilityCalculator_CalculateQuantumAmplitude(t *testing.T) {
+	calc := NewQuantumProbabilityCalculator()
+
+	tests := []struct {
+		name        string
+		probability float64
+		energy      float64
+		wantReal    float64
+		wantImag    float64
+		tolerance   float64
+	}{
+		{
+			name:        "probability 1.0, energy 0",
+			probability: 1.0,
+			energy:      0.0,
+			wantReal:    1.0,
+			wantImag:    0.0,
+			tolerance:   0.01,
+		},
+		{
+			name:        "probability 0.25, energy 0",
+			probability: 0.25,
+			energy:      0.0,
+			wantReal:    0.5, // sqrt(0.25) = 0.5
+			wantImag:    0.0,
+			tolerance:   0.01,
+		},
+		{
+			name:        "probability 0.5, energy π/2",
+			probability: 0.5,
+			energy:      math.Pi / 2.0,
+			wantReal:    0.0,   // cos(π/2) = 0
+			wantImag:    0.707, // sin(π/2) = 1, sqrt(0.5) * 1 ≈ 0.707
+			tolerance:   0.01,
+		},
+		{
+			name:        "probability out of range (clamped)",
+			probability: 1.5, // > 1.0, should be clamped
+			energy:      0.0,
+			wantReal:    1.0, // sqrt(1.0) = 1.0
+			wantImag:    0.0,
+			tolerance:   0.01,
+		},
+		{
+			name:        "negative probability (clamped)",
+			probability: -0.5, // < 0.0, should be clamped
+			energy:      0.0,
+			wantReal:    0.0, // sqrt(0.0) = 0.0
+			wantImag:    0.0,
+			tolerance:   0.01,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := calc.CalculateQuantumAmplitude(tt.probability, tt.energy)
+			realDiff := math.Abs(real(result) - tt.wantReal)
+			imagDiff := math.Abs(imag(result) - tt.wantImag)
+
+			if realDiff > tt.tolerance {
+				t.Errorf("CalculateQuantumAmplitude() real part = %v, want %v (diff: %v)", real(result), tt.wantReal, realDiff)
+			}
+			if imagDiff > tt.tolerance {
+				t.Errorf("CalculateQuantumAmplitude() imag part = %v, want %v (diff: %v)", imag(result), tt.wantImag, imagDiff)
+			}
+		})
+	}
+}
+
+// Helper function to create float pointer
+func floatPtr(f float64) *float64 {
+	return &f
+}
