@@ -76,7 +76,7 @@ func (j *CheckDividendYieldsJob) Name() string {
 
 // Run executes the check dividend yields job
 func (j *CheckDividendYieldsJob) Run() error {
-	if j.groupedDividends == nil || len(j.groupedDividends) == 0 {
+	if len(j.groupedDividends) == 0 {
 		j.log.Info().Msg("No grouped dividends to check")
 		return nil
 	}
