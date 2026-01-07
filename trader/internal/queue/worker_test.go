@@ -3,6 +3,7 @@ package queue
 import (
 	"database/sql"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -39,8 +40,15 @@ func TestWorkerPool_ProcessJob(t *testing.T) {
 	defer db.Close()
 
 	var executed bool
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	wg.Add(1)
+
 	registry.Register(JobTypePlannerBatch, func(job *Job) error {
+		mu.Lock()
 		executed = true
+		mu.Unlock()
+		wg.Done()
 		return nil
 	})
 
@@ -54,11 +62,15 @@ func TestWorkerPool_ProcessJob(t *testing.T) {
 	manager.Enqueue(job)
 	pool.Start()
 
-	// Give worker time to process
-	time.Sleep(200 * time.Millisecond)
+	// Wait for handler to complete
+	wg.Wait()
+	// Give a bit more time for RecordExecution to complete
+	time.Sleep(50 * time.Millisecond)
 	pool.Stop()
 
+	mu.Lock()
 	assert.True(t, executed)
+	mu.Unlock()
 
 	// Verify execution was recorded
 	var lastStatus string
@@ -104,12 +116,22 @@ func TestWorkerPool_RetryOnFailure(t *testing.T) {
 	pool, manager, registry, db := setupWorkerTest(t)
 	defer db.Close()
 
-	attempts := 0
+	var attempts int
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	wg.Add(1) // We'll wait for the final successful attempt
+
 	registry.Register(JobTypePlannerBatch, func(job *Job) error {
+		mu.Lock()
 		attempts++
-		if attempts < 2 {
+		currentAttempt := attempts
+		mu.Unlock()
+
+		if currentAttempt < 2 {
 			return errors.New("temporary error")
 		}
+		// Final successful attempt
+		wg.Done()
 		return nil
 	})
 
@@ -125,12 +147,16 @@ func TestWorkerPool_RetryOnFailure(t *testing.T) {
 	manager.Enqueue(job)
 	pool.Start()
 
-	// Give worker time to process, retry, and succeed
-	time.Sleep(2 * time.Second)
+	// Wait for final successful attempt
+	wg.Wait()
+	// Give a bit more time for retry logic to complete
+	time.Sleep(100 * time.Millisecond)
 	pool.Stop()
 
 	// Should have retried and eventually succeeded
+	mu.Lock()
 	assert.GreaterOrEqual(t, attempts, 2)
+	mu.Unlock()
 
 	// Verify success was recorded
 	var lastStatus string
