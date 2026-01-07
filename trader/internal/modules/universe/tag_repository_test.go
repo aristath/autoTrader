@@ -37,6 +37,7 @@ func TestTagRepository_GetByID_Existing(t *testing.T) {
 
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewTagRepository(db, log)
+	var _ TagRepositoryInterface = repo // Verify interface implementation
 
 	// Insert test tag
 	now := time.Now().Unix()
@@ -63,6 +64,7 @@ func TestTagRepository_GetByID_NonExistent(t *testing.T) {
 
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewTagRepository(db, log)
+	var _ TagRepositoryInterface = repo // Verify interface implementation
 
 	// Execute
 	tag, err := repo.GetByID("non-existent")
@@ -79,6 +81,7 @@ func TestTagRepository_GetAll_Empty(t *testing.T) {
 
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewTagRepository(db, log)
+	var _ TagRepositoryInterface = repo // Verify interface implementation
 
 	// Execute
 	tags, err := repo.GetAll()
@@ -95,6 +98,7 @@ func TestTagRepository_GetAll_Multiple(t *testing.T) {
 
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewTagRepository(db, log)
+	var _ TagRepositoryInterface = repo // Verify interface implementation
 
 	// Insert test tags
 	now := time.Now().Unix()
@@ -129,6 +133,7 @@ func TestTagRepository_CreateOrGet_New(t *testing.T) {
 
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewTagRepository(db, log)
+	var _ TagRepositoryInterface = repo // Verify interface implementation
 
 	// Execute
 	tag := Tag{
@@ -158,6 +163,7 @@ func TestTagRepository_CreateOrGet_Existing(t *testing.T) {
 
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewTagRepository(db, log)
+	var _ TagRepositoryInterface = repo // Verify interface implementation
 
 	// Insert existing tag
 	now := time.Now().Unix()
@@ -188,6 +194,7 @@ func TestTagRepository_EnsureTagsExist_NewTags(t *testing.T) {
 
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewTagRepository(db, log)
+	var _ TagRepositoryInterface = repo // Verify interface implementation
 
 	// Execute
 	tagIDs := []string{"value-opportunity", "volatile", "stable"}
@@ -221,6 +228,7 @@ func TestTagRepository_EnsureTagsExist_ExistingTags(t *testing.T) {
 
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewTagRepository(db, log)
+	var _ TagRepositoryInterface = repo // Verify interface implementation
 
 	// Insert existing tag
 	now := time.Now().Unix()
@@ -257,6 +265,7 @@ func TestTagRepository_EnsureTagsExist_EmptyArray(t *testing.T) {
 
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewTagRepository(db, log)
+	var _ TagRepositoryInterface = repo // Verify interface implementation
 
 	// Execute
 	err := repo.EnsureTagsExist([]string{})
@@ -272,6 +281,7 @@ func TestTagRepository_EnsureTagsExist_EmptyTagID(t *testing.T) {
 
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewTagRepository(db, log)
+	var _ TagRepositoryInterface = repo // Verify interface implementation
 
 	// Execute - empty string should be skipped
 	err := repo.EnsureTagsExist([]string{"value-opportunity", "", "volatile"})
