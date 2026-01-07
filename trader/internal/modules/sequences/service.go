@@ -2,6 +2,8 @@
 package sequences
 
 import (
+	"fmt"
+
 	"github.com/aristath/sentinel/internal/modules/optimization"
 	"github.com/aristath/sentinel/internal/modules/planning/domain"
 	"github.com/aristath/sentinel/internal/modules/sequences/filters"
@@ -33,19 +35,19 @@ func (s *Service) GenerateSequences(
 	// Generate from patterns
 	sequences, err := s.patternRegistry.GenerateSequences(opportunities, config)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to generate sequences from patterns: %w", err)
 	}
 
 	// Apply generators
 	sequences, err = s.generatorRegistry.ApplyGenerators(sequences, config)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to apply generators: %w", err)
 	}
 
 	// Apply filters
 	sequences, err = s.filterRegistry.ApplyFilters(sequences, config)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to apply filters: %w", err)
 	}
 
 	s.log.Info().Int("final_sequences", len(sequences)).Msg("Sequence generation complete")
