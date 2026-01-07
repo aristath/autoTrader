@@ -6,6 +6,45 @@ Portfolio Manager is a production-ready autonomous trading system that manages a
 
 **This manages real money. Every line of code matters. Every decision has consequences.**
 
+## Overview
+
+Portfolio Manager is an autonomous retirement fund management system that combines modern portfolio theory with adaptive market strategies. The system operates on a **slow-growth, long-term philosophy** (2-3 trades per week), prioritizing quality, diversification, and risk-adjusted returns over speculative gains.
+
+### Economic Theories & Models
+
+The system implements a comprehensive suite of financial theories:
+
+- **Modern Portfolio Theory (Markowitz)**: Mean-variance optimization for efficient frontier construction
+- **Hierarchical Risk Parity (HRP)**: Risk-based portfolio construction using correlation clustering
+- **Adaptive Market Hypothesis (AMH)**: Dynamic adaptation of scoring weights and optimization strategies as markets evolve
+- **Quantum Probability Models**: Advanced bubble detection and value trap identification using quantum-inspired probability distributions
+- **Regime-Aware Risk Management**: Market regime detection (bull/bear/sideways) with adaptive correlation matrices and multi-scale optimization
+- **Symbolic Regression**: Formula discovery for optimal scoring combinations across different market conditions
+- **Risk-Adjusted Metrics**: Sharpe ratio, Sortino ratio, and volatility-adjusted returns
+- **Total Return Focus**: Combined growth (CAGR) and dividend yield for comprehensive return measurement
+
+### Investment Philosophy
+
+**What the System Favors:**
+- **Quality over quantity**: 45% of security scoring emphasizes long-term fundamentals and financial strength
+- **Dividend income**: 18% weight on dividend yield, consistency, and growth (total return = growth + dividends)
+- **Diversification**: Geographic, sector, and position-level diversification with optimizer alignment
+- **Risk-adjusted performance**: Sharpe and Sortino ratios prioritized over raw returns
+- **Gradual rebalancing**: Avoids large portfolio shifts, preferring incremental adjustments
+- **Dynamic adaptation**: Scoring weights and optimization strategies evolve with market conditions over months/years
+- **Regime awareness**: Different strategies for bull, bear, and sideways markets
+
+**What the System Avoids:**
+- **Value traps**: Cheap securities with declining fundamentals or negative momentum
+- **Bubbles**: High CAGR securities with poor risk metrics (low Sharpe/Sortino, high volatility, weak fundamentals)
+- **Low-quality securities**: Quality gates filter out securities below minimum thresholds (fundamentals < 0.6, long-term < 0.5)
+- **Excessive transaction costs**: Evaluates and minimizes trading costs in sequence planning
+- **Large rebalancing moves**: Gradual adjustment prevents sudden portfolio shifts (>30% imbalance threshold)
+- **Static strategies**: Continuously adapts to changing market conditions rather than fixed allocations
+- **Speculative trading**: Focuses on 2-3 trades per week, not high-frequency strategies
+
+The optimizer blends Mean-Variance (return-focused) and HRP (risk-focused) strategies, while the planner identifies opportunities through value, quality, dividend, and technical analysis. All decisions are evaluated through a multi-factor scoring system that balances expected returns, risk, quality, and transaction costs.
+
 ## Table of Contents
 
 - [Architecture](#architecture)
@@ -115,7 +154,6 @@ Note: All functionality has been migrated to Go - Tradernet API is integrated di
 - Go 1.22+ (for building trader)
 - Existing SQLite databases (7-database architecture)
 - Tradernet API credentials
-- Docker (optional, for containerized deployment)
 
 ### Installation
 
@@ -252,11 +290,18 @@ The planner configuration is stored in `config.db` and managed through the UI wi
 ### Planning & Recommendations
 
 - `GET /api/planning/recommendations` - Current recommendations
-- `POST /api/planning/generate` - Generate new recommendations
+- `POST /api/planning/recommendations` - Generate new recommendations
 - `GET /api/planning/status` - Planning job status
-- `GET /api/planning/config` - Planner configuration
-- `POST /api/planning/config` - Update planner config
-- `POST /api/planning/recommendations/dismiss/{id}` - Dismiss recommendation
+- `GET /api/planning/configs` - List planner configurations
+- `POST /api/planning/configs` - Create planner configuration
+- `GET /api/planning/configs/{id}` - Get planner configuration
+- `PUT /api/planning/configs/{id}` - Update planner configuration
+- `DELETE /api/planning/configs/{id}` - Delete planner configuration
+- `POST /api/planning/configs/validate` - Validate planner configuration
+- `GET /api/planning/configs/{id}/history` - Configuration history
+- `POST /api/planning/batch` - Batch plan generation
+- `POST /api/planning/execute` - Execute plan
+- `GET /api/planning/stream` - SSE stream for planning events
 
 ### Allocation
 
@@ -313,7 +358,7 @@ The system runs scheduled background jobs for autonomous operation:
 
 ### Operational Jobs
 
-**sync_cycle** (Every 5 minutes)
+**sync_cycle** (Every 30 minutes)
 - Sync portfolio positions from broker
 - Sync cash balances
 - Sync executed trades
@@ -321,13 +366,15 @@ The system runs scheduled background jobs for autonomous operation:
 - Process cash flows (deposits, dividends, fees)
 - Update LED display ticker
 
-**planner_batch** (Every 15 minutes)
+**planner_batch** (Event-driven)
+- Triggered by planning requests or recommendations refresh
 - Generate trading recommendations
 - Evaluate sequences using built-in evaluation service
 - Score opportunities
 - Create optimal trade plans
 
-**event_based_trading** (Every 5 minutes)
+**event_based_trading** (Event-driven)
+- Triggered when new recommendations are available
 - Monitor for planning completion
 - Execute approved trades
 - Enforces minimum execution intervals (30 minutes)
@@ -337,6 +384,16 @@ The system runs scheduled background jobs for autonomous operation:
 - Classify high-yield (≥3%) vs low-yield (<3%)
 - Auto-reinvest high-yield dividends (DRIP)
 - Accumulate low-yield as pending bonuses
+
+**tag_update** (Daily at 3:00 AM)
+- Re-evaluate and update tags for all securities
+- Update quality, opportunity, and risk tags
+- Support fast filtering and quality gates
+
+**adaptive_market** (Daily at 6:00 AM)
+- Monitor market conditions and adapt portfolio strategy
+- Update scoring weights based on market regime
+- Adjust optimizer blend (MV/HRP) dynamically
 
 **health_check** (Daily at 4:00 AM)
 - Database integrity checks
@@ -372,6 +429,11 @@ The system runs scheduled background jobs for autonomous operation:
 **monthly_maintenance** (1st day at 4:00 AM)
 - Monthly maintenance tasks
 
+**formula_discovery** (1st day at 5:00 AM)
+- Run symbolic regression to discover optimal formulas
+- Update scoring formulas based on historical performance
+- Regime-specific formula optimization
+
 ### Manual Triggers
 
 Operational jobs can be manually triggered via API:
@@ -382,6 +444,7 @@ POST /api/system/jobs/sync-cycle
 POST /api/system/jobs/dividend-reinvestment
 POST /api/system/jobs/planner-batch
 POST /api/system/jobs/event-based-trading
+POST /api/system/jobs/tag-update
 ```
 
 Note: Reliability jobs (backups, maintenance, cleanup) run automatically on schedule and are not exposed for manual triggering.
@@ -393,8 +456,6 @@ Note: Reliability jobs (backups, maintenance, cleanup) run automatically on sche
 ### Prerequisites
 
 - Go 1.22+
-- Python 3.10+
-- Docker (optional)
 - golangci-lint (for linting)
 - air (for auto-reload during development)
 
@@ -417,14 +478,18 @@ arduino-trader/
 │   │   │   ├── display/      # LED display management
 │   │   │   ├── dividends/    # Dividend processing
 │   │   │   ├── evaluation/   # Sequence evaluation (built-in)
+│   │   │   │   ├── adaptation/   # Adaptive Market Hypothesis
+│   │   │   ├── market_hours/  # Market hours & holidays
 │   │   │   ├── opportunities/# Opportunity identification
 │   │   │   ├── optimization/ # Portfolio optimization
 │   │   │   ├── planning/     # Planning & recommendations
 │   │   │   ├── portfolio/    # Portfolio management
+│   │   │   ├── quantum/     # Quantum probability models
 │   │   │   ├── rebalancing/  # Rebalancing logic
 │   │   │   ├── scoring/      # Security scoring
 │   │   │   ├── sequences/    # Trade sequence generation
 │   │   │   ├── settings/     # Settings management
+│   │   │   ├── symbolic_regression/ # Formula discovery
 │   │   │   ├── trading/      # Trade execution
 │   │   │   └── universe/     # Security universe
 │   │   ├── services/         # External service clients
@@ -438,7 +503,7 @@ arduino-trader/
 │   └── static/              # Static web assets
 ├── display/                  # Display system (LED matrix)
 │   ├── sketch/              # Arduino C++ sketch
-│   └── app/                 # Python display app (Arduino App Framework)
+│   └── app/                 # Python display app (Arduino App Framework - separate from main Go app)
 ├── scripts/                 # Utility scripts (status, logs, restart, build)
 └── README.md                # This file
 ```
@@ -619,19 +684,9 @@ RestartSec=10
 WantedBy=multi-user.target
 ```
 
-#### Microservices
+#### Additional Services
 
-Create systemd services for each microservice or use docker-compose.
-
-**Using Docker Compose (Recommended):**
-
-```bash
-# Start all microservices
-docker-compose up -d
-
-# Enable auto-start on boot
-sudo systemctl enable docker
-```
+The system is self-contained and runs as a single Go application. No additional microservices or Docker containers are required.
 
 ### Initial Setup
 
@@ -640,7 +695,6 @@ For the first-time setup on a new device:
 1. **Install systemd service** (see Systemd Services section below)
 2. **Start the trader service**: `sudo systemctl start trader`
 3. **Configure credentials** via Settings UI or API
-4. **Start microservices**: `docker-compose up -d`
 
 After initial setup, deployment is fully automated. The service will:
 - Automatically detect code changes
@@ -653,16 +707,14 @@ After initial setup, deployment is fully automated. The service will:
 - [ ] Backup all databases (if upgrading existing installation)
 - [ ] Verify schema migrations applied
 - [ ] Test in research mode
-- [ ] Verify microservices running
 - [ ] Check Tradernet credentials
 - [ ] Review settings and targets
 
 **Deployment:**
 1. Install systemd service (first time only)
 2. Start the trader service: `sudo systemctl start trader`
-3. Start microservices: `docker-compose up -d`
-4. Verify health endpoints
-5. Monitor logs for 24 hours
+3. Verify health endpoints
+4. Monitor logs for 24 hours
 
 **Post-Deployment:**
 - [ ] Verify first sync cycle completes
@@ -696,9 +748,6 @@ curl http://localhost:8001/api/system/jobs
 ```bash
 # Systemd logs
 journalctl -u trader -f
-
-# Docker logs
-docker-compose logs -f
 ```
 
 ### Rollback Plan
@@ -859,17 +908,14 @@ go build -o trader ./cmd/server
 # Build for Arduino Uno Q
 GOOS=linux GOARCH=arm64 go build -o trader-arm64 ./cmd/server
 
-# Start services
+# Start service
 sudo systemctl start trader
-docker-compose up -d
 
-# Stop services
+# Stop service
 sudo systemctl stop trader
-docker-compose down
 
 # View logs
 journalctl -u trader -f
-docker-compose logs -f
 
 # Health checks
 curl http://localhost:8001/health
@@ -924,7 +970,7 @@ This system manages real retirement funds. All code is proprietary and confident
 
 Built for autonomous portfolio management on Arduino Uno Q hardware.
 
-**Technology:** Go, Python, SQLite, FastAPI, Docker
+**Technology:** Go, SQLite
 **Hardware:** Arduino Uno Q (ARM64)
 **Purpose:** Retirement fund management with zero human intervention
 
