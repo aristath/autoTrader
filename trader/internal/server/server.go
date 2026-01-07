@@ -31,6 +31,7 @@ import (
 	displayhandlers "github.com/aristath/sentinel/internal/modules/display/handlers"
 	dividendhandlers "github.com/aristath/sentinel/internal/modules/dividends/handlers"
 	"github.com/aristath/sentinel/internal/modules/evaluation"
+	evaluationhandlers "github.com/aristath/sentinel/internal/evaluation/handlers"
 	optimizationhandlers "github.com/aristath/sentinel/internal/modules/optimization/handlers"
 	planningconfig "github.com/aristath/sentinel/internal/modules/planning/config"
 	planninghandlers "github.com/aristath/sentinel/internal/modules/planning/handlers"
@@ -473,7 +474,9 @@ func (s *Server) setupRoutes() {
 
 	// Evaluation module routes (MIGRATED TO GO!)
 	// Mounted directly under /api/v1 for Python client compatibility
-	s.setupEvaluationRoutes(s.router)
+	evalService := s.container.EvalService
+	evalHandler := evaluationhandlers.NewHandler(evalService, s.log)
+	evalHandler.RegisterRoutes(s.router)
 
 	// Serve built frontend files from embedded filesystem
 	// Frontend files are embedded in the binary at frontend/dist
