@@ -624,10 +624,10 @@ func (h *UniverseHandlers) HandleAddStockByIdentifier(w http.ResponseWriter, r *
 
 		// Return 503 Service Unavailable if Tradernet is not connected
 		// This is more appropriate than 500 Internal Server Error
-		errorMsg := err.Error()
-		if strings.Contains(errorMsg, "Tradernet client is not connected") ||
-			strings.Contains(errorMsg, "not connected") {
-			http.Error(w, errorMsg, http.StatusServiceUnavailable)
+		errorMsg := strings.ToLower(err.Error())
+		if strings.Contains(errorMsg, "tradernet") && strings.Contains(errorMsg, "not connected") {
+			// Return a user-friendly error message
+			http.Error(w, "Tradernet client is not connected. Please connect to Tradernet first to add securities.", http.StatusServiceUnavailable)
 		} else {
 			http.Error(w, fmt.Sprintf("Failed to add security: %v", err), http.StatusInternalServerError)
 		}

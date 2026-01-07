@@ -283,6 +283,11 @@ func (s *SecuritySetupService) AddSecurityByIdentifier(
 
 		lookupResult, err := s.getTradernetSymbolFromISIN(isinVal)
 		if err != nil {
+			// Check if error is about Tradernet not being connected - return it directly
+			// instead of wrapping it, so handler can detect it properly
+			if strings.Contains(err.Error(), "not connected") {
+				return nil, fmt.Errorf("Tradernet client is not connected. Cannot lookup Tradernet symbol for ISIN: %s. Please connect to Tradernet first", isinVal)
+			}
 			return nil, fmt.Errorf("failed to lookup Tradernet symbol for ISIN: %w", err)
 		}
 		if lookupResult == nil {
