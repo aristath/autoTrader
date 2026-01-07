@@ -24,19 +24,24 @@ func getEnv(key, fallback string) string {
 }
 
 func main() {
-	// Initialize logger
+	// Load configuration first to get log level
+	cfg, err := config.Load()
+	if err != nil {
+		// Use fallback logger if config fails
+		fallbackLog := logger.New(logger.Config{
+			Level:  "info",
+			Pretty: true,
+		})
+		fallbackLog.Fatal().Err(err).Msg("Failed to load configuration")
+	}
+
+	// Initialize logger with config level
 	log := logger.New(logger.Config{
-		Level:  "info",
+		Level:  cfg.LogLevel,
 		Pretty: true,
 	})
 
 	log.Info().Msg("Starting Sentinel")
-
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to load configuration")
-	}
 
 	// Display manager (state holder for LED display) - must be initialized before server.New()
 	displayManager := display.NewStateManager(log)
