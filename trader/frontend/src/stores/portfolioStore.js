@@ -127,4 +127,17 @@ export const usePortfolioStore = create((set, get) => ({
       set({ loading: { ...get().loading, industrySave: false } });
     }
   },
+
+  updateTestCash: async (amount) => {
+    try {
+      await api.updateSetting('virtual_test_cash', amount);
+      // Refresh cash breakdown to reflect the updated value
+      await get().fetchCashBreakdown();
+      // Also refresh allocation to update total cash balance
+      await get().fetchAllocation();
+    } catch (e) {
+      console.error('Failed to update TEST cash:', e);
+      throw e; // Re-throw so components can handle it
+    }
+  },
 }));

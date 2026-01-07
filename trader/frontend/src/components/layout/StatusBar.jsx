@@ -1,11 +1,14 @@
-import { Paper, Group, Text } from '@mantine/core';
+import { Paper, Group, Text, NumberInput } from '@mantine/core';
+import { useState } from 'react';
 import { useAppStore } from '../../stores/appStore';
 import { usePortfolioStore } from '../../stores/portfolioStore';
 import { formatCurrency, formatNumber } from '../../utils/formatters';
 
 export function StatusBar() {
-  const { status } = useAppStore();
-  const { allocation, cashBreakdown } = usePortfolioStore();
+  const { status, showMessage } = useAppStore();
+  const { allocation, cashBreakdown, updateTestCash } = usePortfolioStore();
+  const [editingTestCash, setEditingTestCash] = useState(false);
+  const [testCashValue, setTestCashValue] = useState(null);
 
   return (
     <Paper
@@ -55,23 +58,92 @@ export function StatusBar() {
           {cashBreakdown && cashBreakdown.length > 0 && (
             <>
               <Text size="xs" c="dimmed" ff="var(--mantine-font-family)">
-                ({cashBreakdown.map((cb, index) => (
-                  <span key={cb.currency}>
-                    {cb.currency === 'TEST' ? (
-                      <span style={{ backgroundColor: 'rgba(166, 227, 161, 0.15)', padding: '2px 4px', borderRadius: '2px', border: '1px solid rgba(166, 227, 161, 0.3)' }}>
-                        <span style={{ color: 'var(--mantine-color-green-0)' }}>{cb.currency}</span>:
-                        <span style={{ color: 'var(--mantine-color-green-0)' }}>
-                          {formatNumber(cb.amount, 2)}
+                ({cashBreakdown.map((cb, index) => {
+                  if (cb.currency === 'TEST') {
+                    const displayAmount = cb.amount ?? 0;
+                    const isEditing = editingTestCash;
+                    const currentValue = testCashValue !== null ? testCashValue : displayAmount;
+
+                    return (
+                      <span key={cb.currency}>
+                        <span style={{ backgroundColor: 'rgba(166, 227, 161, 0.15)', padding: '2px 4px', borderRadius: '2px', border: '1px solid rgba(166, 227, 161, 0.3)' }}>
+                          <span style={{ color: 'var(--mantine-color-green-0)' }}>{cb.currency}</span>:
+                          {isEditing ? (
+                            <NumberInput
+                              value={currentValue}
+                              onChange={(val) => setTestCashValue(val ?? 0)}
+                              onBlur={async () => {
+                                try {
+                                  await updateTestCash(currentValue);
+                                  setEditingTestCash(false);
+                                  setTestCashValue(null);
+                                  showMessage('TEST cash updated', 'success');
+                                } catch (error) {
+                                  showMessage(`Failed to update TEST cash: ${error.message}`, 'error');
+                                  setEditingTestCash(false);
+                                  setTestCashValue(null);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.currentTarget.blur();
+                                } else if (e.key === 'Escape') {
+                                  setEditingTestCash(false);
+                                  setTestCashValue(null);
+                                }
+                              }}
+                              size="xs"
+                              min={0}
+                              step={0.01}
+                              precision={2}
+                              style={{
+                                display: 'inline-block',
+                                width: '80px',
+                                marginLeft: '4px',
+                              }}
+                              styles={{
+                                input: {
+                                  color: 'var(--mantine-color-green-0)',
+                                  backgroundColor: 'rgba(166, 227, 161, 0.2)',
+                                  border: '1px solid rgba(166, 227, 161, 0.5)',
+                                  fontSize: 'var(--mantine-font-size-xs)',
+                                  padding: '2px 4px',
+                                  height: 'auto',
+                                  minHeight: 'unset',
+                                },
+                              }}
+                              autoFocus
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                color: 'var(--mantine-color-green-0)',
+                                cursor: 'pointer',
+                                textDecoration: 'underline',
+                                textDecorationStyle: 'dotted',
+                              }}
+                              onClick={() => {
+                                setEditingTestCash(true);
+                                setTestCashValue(displayAmount);
+                              }}
+                              title="Click to edit"
+                            >
+                              {formatNumber(displayAmount, 2)}
+                            </span>
+                          )}
                         </span>
                       </span>
-                    ) : (
+                    );
+                  }
+                  return (
+                    <span key={cb.currency}>
                       <span>
-                        {cb.currency}: <span>{formatNumber(cb.amount, 2)}</span>
+                        {cb.currency}: <span>{formatNumber(cb.amount ?? 0, 2)}</span>
                       </span>
-                    )}
-                    {index < cashBreakdown.length - 1 && ', '}
-                  </span>
-                ))})
+                      {index < cashBreakdown.length - 1 && ', '}
+                    </span>
+                  );
+                })})
               </Text>
             </>
           )}

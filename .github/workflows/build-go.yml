@@ -1,4 +1,4 @@
-name: Build Go Trader
+name: Build Sentinel
 
 on:
   push:
@@ -73,16 +73,16 @@ jobs:
           export GOOS=linux
           export GOARCH=arm64
           echo "Building for GOOS=${GOOS} GOARCH=${GOARCH}"
-          go build -o trader-arm64 ./cmd/server
-          chmod +x trader-arm64
+          go build -o sentinel-arm64 ./cmd/server
+          chmod +x sentinel-arm64
 
           # Quick sanity check - verify binary exists and is executable
-          if [ ! -f trader-arm64 ]; then
+          if [ ! -f sentinel-arm64 ]; then
             echo "ERROR: Binary was not created"
             exit 1
           fi
 
-          if [ ! -x trader-arm64 ]; then
+          if [ ! -x sentinel-arm64 ]; then
             echo "ERROR: Binary is not executable"
             exit 1
           fi
@@ -99,7 +99,7 @@ jobs:
             exit 1
           fi
 
-          file_output=$(file trader-arm64)
+          file_output=$(file sentinel-arm64)
           echo "Binary architecture check: $file_output"
 
           # Verify Linux (ELF format indicates Linux)
@@ -127,17 +127,17 @@ jobs:
       - name: Upload ARM64 binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: trader-arm64
-          path: trader/trader-arm64
+          name: sentinel-arm64
+          path: trader/sentinel-arm64
           retention-days: 30
           if-no-files-found: error
 
       - name: Create build summary
         run: |
-          echo "### Go Trader Build Summary :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "### Sentinel Build Summary :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Platform:** Linux ARM64 (Arduino Uno Q)" >> $GITHUB_STEP_SUMMARY
-          echo "**Binary:** \`trader-arm64\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Size:** $(du -h trader/trader-arm64 | cut -f1)" >> $GITHUB_STEP_SUMMARY
+          echo "**Binary:** \`sentinel-arm64\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Size:** $(du -h trader/sentinel-arm64 | cut -f1)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Download artifact from Actions tab to deploy to Arduino Uno Q" >> $GITHUB_STEP_SUMMARY

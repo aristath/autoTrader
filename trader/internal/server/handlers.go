@@ -10,7 +10,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{}{
 		"status":  "healthy",
 		"version": "1.0.0",
-		"service": "portfolio-manager",
+		"service": "sentinel",
 	}
 
 	s.writeJSON(w, http.StatusOK, response)

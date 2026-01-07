@@ -35,7 +35,7 @@ sudo systemctl restart sentinel
 
 ### Option 2: Configure Polkit Permissions
 
-Create `/etc/polkit-1/rules.d/50-portfolio-manager.rules`:
+Create `/etc/polkit-1/rules.d/50-sentinel.rules`:
 ```javascript
 polkit.addRule(function(action, subject) {
     if (action.id == "org.freedesktop.systemd1.manage-units" &&

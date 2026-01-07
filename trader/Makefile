@@ -36,10 +36,10 @@ lint: ## Run linter
 	golangci-lint run
 
 clean: ## Clean build artifacts
-	rm -f trader-go trader-go-arm64 coverage.out
+	rm -f sentinel sentinel-go sentinel-arm64 sentinel-go-arm64 coverage.out
 	go clean
 
 docker-build: ## Build Docker image
-	docker build -t portfolio-manager:latest .
+	docker build -t sentinel:latest .
 
 .DEFAULT_GOAL := help

@@ -3,7 +3,7 @@ import { api } from '../api/client';
 
 export const useLogsStore = create((set, get) => ({
   entries: [],
-  selectedLogFile: 'portfolio-manager.log',
+  selectedLogFile: 'sentinel.log',
   availableLogFiles: [],
   filterLevel: null,
   searchQuery: '',

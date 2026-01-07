@@ -787,27 +787,29 @@ func (s *Service) addVirtualTestCash(cashBalances map[string]float64) error {
 
 	// Get virtual_test_cash setting
 	var virtualTestCashStr string
+	var virtualTestCash float64
 	err = s.configDB.QueryRow("SELECT value FROM settings WHERE key = 'virtual_test_cash'").Scan(&virtualTestCashStr)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// No virtual test cash set, that's fine
-			return nil
+			// No virtual test cash set, default to 0 so it can be edited in UI
+			virtualTestCash = 0
+		} else {
+			return fmt.Errorf("failed to get virtual_test_cash: %w", err)
 		}
-		return fmt.Errorf("failed to get virtual_test_cash: %w", err)
+	} else {
+		// Parse virtual test cash amount
+		virtualTestCash, err = parseFloatRebalancing(virtualTestCashStr)
+		if err != nil {
+			return fmt.Errorf("failed to parse virtual_test_cash: %w", err)
+		}
 	}
 
-	// Parse virtual test cash amount
-	virtualTestCash, err := parseFloatRebalancing(virtualTestCashStr)
-	if err != nil {
-		return fmt.Errorf("failed to parse virtual_test_cash: %w", err)
-	}
+	// Always add TEST currency to cashBalances, even if 0 (so it can be edited in UI)
+	cashBalances["TEST"] = virtualTestCash
 
-	// Only add if > 0
+	// Also add to EUR for AvailableCashEUR calculation (TEST is treated as EUR-equivalent)
+	// Only add to EUR if > 0 to avoid reducing EUR balance when TEST is 0
 	if virtualTestCash > 0 {
-		// Add TEST currency to cashBalances
-		cashBalances["TEST"] = virtualTestCash
-
-		// Also add to EUR for AvailableCashEUR calculation (TEST is treated as EUR-equivalent)
 		// Get current EUR balance (default to 0 if not present)
 		currentEUR := cashBalances["EUR"]
 		cashBalances["EUR"] = currentEUR + virtualTestCash
@@ -818,6 +820,11 @@ func (s *Service) addVirtualTestCash(cashBalances map[string]float64) error {
 			Float64("eur_after", cashBalances["EUR"]).
 			Str("trading_mode", tradingMode).
 			Msg("Added virtual test cash to cash balances")
+	} else {
+		s.log.Debug().
+			Float64("virtual_test_cash", virtualTestCash).
+			Str("trading_mode", tradingMode).
+			Msg("Added virtual test cash (0) to cash balances for UI editing")
 	}
 
 	return nil
