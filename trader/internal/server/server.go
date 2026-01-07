@@ -292,7 +292,7 @@ func (s *Server) setupRoutes() {
 		syncService1 := s.container.SyncService
 		currencyExchangeService1 := s.container.CurrencyExchangeService
 
-		universeHandlers := universehandlers.NewUniverseHandlers(
+		systemUniverseHandlers := universehandlers.NewUniverseHandlers(
 			securityRepo,
 			scoreRepo,
 			s.portfolioDB.Conn(),
@@ -307,35 +307,75 @@ func (s *Server) setupRoutes() {
 			s.log,
 		)
 
+		// Wire score calculator
+		setupService1.SetScoreCalculator(systemUniverseHandlers)
+		syncService1.SetScoreCalculator(systemUniverseHandlers)
+
+		// System routes (complete Phase 1 implementation)
 		r.Route("/system", func(r chi.Router) {
+			// Status and monitoring
 			r.Get("/status", systemHandlers.HandleSystemStatus)
 			r.Get("/led/display", systemHandlers.HandleLEDDisplay)
+			r.Get("/tradernet", systemHandlers.HandleTradernetStatus)
+			r.Get("/jobs", systemHandlers.HandleJobsStatus)
+			r.Get("/markets", systemHandlers.HandleMarketsStatus)
+			r.Get("/database/stats", systemHandlers.HandleDatabaseStats)
+			r.Get("/disk", systemHandlers.HandleDiskUsage)
+
+			// Log access
+			r.Get("/logs/list", logHandlers.HandleListLogs)
 			r.Get("/logs", logHandlers.HandleGetLogs)
-			r.Get("/logs/{filename}", logHandlers.HandleGetLogFile)
-			r.Post("/logs/{filename}/clear", logHandlers.HandleClearLogFile)
-			r.Post("/sync-prices", systemHandlers.HandleTriggerSyncPrices)
-			r.Post("/check-negative-balances", systemHandlers.HandleTriggerCheckNegativeBalances)
-			r.Post("/update-display-ticker", systemHandlers.HandleTriggerUpdateDisplayTicker)
+			r.Get("/logs/errors", logHandlers.HandleGetErrors)
 
-			// Individual planning jobs
-			r.Post("/generate-portfolio-hash", systemHandlers.HandleTriggerGeneratePortfolioHash)
-			r.Post("/get-optimizer-weights", systemHandlers.HandleTriggerGetOptimizerWeights)
-			r.Post("/build-opportunity-context", systemHandlers.HandleTriggerBuildOpportunityContext)
-			r.Post("/create-trade-plan", systemHandlers.HandleTriggerCreateTradePlan)
-			r.Post("/store-recommendations", systemHandlers.HandleTriggerStoreRecommendations)
+			// Sync operation triggers
+			r.Route("/sync", func(r chi.Router) {
+				r.Post("/prices", systemUniverseHandlers.HandleSyncPrices)
+				r.Post("/historical", systemUniverseHandlers.HandleSyncHistorical)
+				r.Post("/rebuild-universe", systemUniverseHandlers.HandleRebuildUniverse)
+				r.Post("/securities-data", systemUniverseHandlers.HandleSyncSecuritiesData)
+				r.Post("/portfolio", systemHandlers.HandleSyncPortfolio)
+				r.Post("/daily-pipeline", systemHandlers.HandleSyncDailyPipeline)
+				r.Post("/recommendations", systemHandlers.HandleSyncRecommendations)
+			})
 
-			// Individual dividend jobs
-			r.Post("/get-unreinvested-dividends", systemHandlers.HandleTriggerGetUnreinvestedDividends)
-			r.Post("/group-dividends-by-symbol", systemHandlers.HandleTriggerGroupDividendsBySymbol)
-			r.Post("/check-dividend-yields", systemHandlers.HandleTriggerCheckDividendYields)
-			r.Post("/create-dividend-recommendations", systemHandlers.HandleTriggerCreateDividendRecommendations)
-			r.Post("/set-pending-bonuses", systemHandlers.HandleTriggerSetPendingBonuses)
-			r.Post("/execute-dividend-trades", systemHandlers.HandleTriggerExecuteDividendTrades)
+			// Job triggers (manual operation triggers)
+			r.Route("/jobs", func(r chi.Router) {
+				// Original composite jobs
+				r.Post("/health-check", systemHandlers.HandleTriggerHealthCheck)
+				r.Post("/sync-cycle", systemHandlers.HandleTriggerSyncCycle)
+				r.Post("/dividend-reinvestment", systemHandlers.HandleTriggerDividendReinvestment)
+				r.Post("/planner-batch", systemHandlers.HandleTriggerPlannerBatch)
+				r.Post("/event-based-trading", systemHandlers.HandleTriggerEventBasedTrading)
+				r.Post("/tag-update", systemHandlers.HandleTriggerTagUpdate)
 
-			// Individual health check jobs
-			r.Post("/check-core-databases", systemHandlers.HandleTriggerCheckCoreDatabases)
-			r.Post("/check-history-databases", systemHandlers.HandleTriggerCheckHistoryDatabases)
-			r.Post("/check-wal-checkpoints", systemHandlers.HandleTriggerCheckWALCheckpoints)
+				// Individual sync jobs
+				r.Post("/sync-trades", systemHandlers.HandleTriggerSyncTrades)
+				r.Post("/sync-cash-flows", systemHandlers.HandleTriggerSyncCashFlows)
+				r.Post("/sync-portfolio", systemHandlers.HandleTriggerSyncPortfolio)
+				r.Post("/sync-prices", systemHandlers.HandleTriggerSyncPrices)
+				r.Post("/check-negative-balances", systemHandlers.HandleTriggerCheckNegativeBalances)
+				r.Post("/update-display-ticker", systemHandlers.HandleTriggerUpdateDisplayTicker)
+
+				// Individual planning jobs
+				r.Post("/generate-portfolio-hash", systemHandlers.HandleTriggerGeneratePortfolioHash)
+				r.Post("/get-optimizer-weights", systemHandlers.HandleTriggerGetOptimizerWeights)
+				r.Post("/build-opportunity-context", systemHandlers.HandleTriggerBuildOpportunityContext)
+				r.Post("/create-trade-plan", systemHandlers.HandleTriggerCreateTradePlan)
+				r.Post("/store-recommendations", systemHandlers.HandleTriggerStoreRecommendations)
+
+				// Individual dividend jobs
+				r.Post("/get-unreinvested-dividends", systemHandlers.HandleTriggerGetUnreinvestedDividends)
+				r.Post("/group-dividends-by-symbol", systemHandlers.HandleTriggerGroupDividendsBySymbol)
+				r.Post("/check-dividend-yields", systemHandlers.HandleTriggerCheckDividendYields)
+				r.Post("/create-dividend-recommendations", systemHandlers.HandleTriggerCreateDividendRecommendations)
+				r.Post("/set-pending-bonuses", systemHandlers.HandleTriggerSetPendingBonuses)
+				r.Post("/execute-dividend-trades", systemHandlers.HandleTriggerExecuteDividendTrades)
+
+				// Individual health check jobs
+				r.Post("/check-core-databases", systemHandlers.HandleTriggerCheckCoreDatabases)
+				r.Post("/check-history-databases", systemHandlers.HandleTriggerCheckHistoryDatabases)
+				r.Post("/check-wal-checkpoints", systemHandlers.HandleTriggerCheckWALCheckpoints)
+			})
 		})
 
 		// Allocation module (MIGRATED TO GO!)
