@@ -2,6 +2,7 @@ package di
 
 import (
 	"testing"
+	"time"
 
 	"github.com/aristath/sentinel/internal/config"
 	"github.com/aristath/sentinel/internal/modules/display"
@@ -39,12 +40,27 @@ func TestWire(t *testing.T) {
 	assert.NotNil(t, jobs.SyncCycle)
 	assert.NotNil(t, jobs.DividendReinvest)
 
-	// Cleanup
-	container.UniverseDB.Close()
-	container.ConfigDB.Close()
-	container.LedgerDB.Close()
-	container.PortfolioDB.Close()
-	container.AgentsDB.Close()
-	container.HistoryDB.Close()
-	container.CacheDB.Close()
+	// Cleanup - stop background services first
+	t.Cleanup(func() {
+		if container != nil {
+			// Stop background services first to prevent temp directory cleanup issues
+			if container.WorkerPool != nil {
+				container.WorkerPool.Stop()
+			}
+			if container.TimeScheduler != nil {
+				container.TimeScheduler.Stop()
+			}
+			// Give goroutines time to stop before closing databases
+			time.Sleep(50 * time.Millisecond)
+
+			// Close databases
+			container.UniverseDB.Close()
+			container.ConfigDB.Close()
+			container.LedgerDB.Close()
+			container.PortfolioDB.Close()
+			container.AgentsDB.Close()
+			container.HistoryDB.Close()
+			container.CacheDB.Close()
+		}
+	})
 }
