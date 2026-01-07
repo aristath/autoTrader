@@ -120,6 +120,55 @@ func (m *MockPositionRepository) Delete(symbol string) error {
 	return args.Error(0)
 }
 
+// Additional methods required by PositionRepositoryInterface
+
+func (m *MockPositionRepository) GetByISIN(isin string) (*Position, error) {
+	args := m.Called(isin)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	if pos, ok := args.Get(0).(*Position); ok {
+		return pos, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockPositionRepository) GetByIdentifier(identifier string) (*Position, error) {
+	args := m.Called(identifier)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	if pos, ok := args.Get(0).(*Position); ok {
+		return pos, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockPositionRepository) GetCount() (int, error) {
+	args := m.Called()
+	return args.Int(0), args.Error(1)
+}
+
+func (m *MockPositionRepository) GetTotalValue() (float64, error) {
+	args := m.Called()
+	return args.Get(0).(float64), args.Error(1)
+}
+
+func (m *MockPositionRepository) DeleteAll() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *MockPositionRepository) UpdatePrice(isin string, price float64, currencyRate float64) error {
+	args := m.Called(isin, price, currencyRate)
+	return args.Error(0)
+}
+
+func (m *MockPositionRepository) UpdateLastSoldAt(isin string) error {
+	args := m.Called(isin)
+	return args.Error(0)
+}
+
 func TestSyncFromTradernet_Success(t *testing.T) {
 	// Setup
 	mockTradernetClient := new(MockTradernetClient)

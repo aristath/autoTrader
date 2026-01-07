@@ -80,6 +80,205 @@ func (m *mockTradeRepository) Create(trade Trade) error {
 	return nil
 }
 
+// Additional methods required by TradeRepositoryInterface (stub implementations for tests)
+
+func (m *mockTradeRepository) GetByOrderID(orderID string) (*Trade, error) {
+	for _, trade := range m.trades {
+		if trade.OrderID == orderID {
+			return &trade, nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *mockTradeRepository) Exists(orderID string) (bool, error) {
+	return m.duplicates[orderID], nil
+}
+
+func (m *mockTradeRepository) GetHistory(limit int) ([]Trade, error) {
+	if limit > 0 && limit < len(m.trades) {
+		return m.trades[:limit], nil
+	}
+	return m.trades, nil
+}
+
+func (m *mockTradeRepository) GetAllInRange(startDate, endDate string) ([]Trade, error) {
+	return m.trades, nil
+}
+
+func (m *mockTradeRepository) GetBySymbol(symbol string, limit int) ([]Trade, error) {
+	var result []Trade
+	for _, trade := range m.trades {
+		if trade.Symbol == symbol {
+			result = append(result, trade)
+			if limit > 0 && len(result) >= limit {
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
+func (m *mockTradeRepository) GetByISIN(isin string, limit int) ([]Trade, error) {
+	var result []Trade
+	for _, trade := range m.trades {
+		if trade.ISIN == isin {
+			result = append(result, trade)
+			if limit > 0 && len(result) >= limit {
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
+func (m *mockTradeRepository) GetByIdentifier(identifier string, limit int) ([]Trade, error) {
+	// Try ISIN first, then symbol
+	if len(identifier) == 12 {
+		return m.GetByISIN(identifier, limit)
+	}
+	return m.GetBySymbol(identifier, limit)
+}
+
+func (m *mockTradeRepository) GetRecentlyBoughtSymbols(days int) (map[string]bool, error) {
+	result := make(map[string]bool)
+	for _, trade := range m.trades {
+		if trade.Side == TradeSideBuy {
+			result[trade.Symbol] = true
+		}
+	}
+	return result, nil
+}
+
+func (m *mockTradeRepository) GetRecentlySoldSymbols(days int) (map[string]bool, error) {
+	result := make(map[string]bool)
+	for _, trade := range m.trades {
+		if trade.Side == TradeSideSell {
+			result[trade.Symbol] = true
+		}
+	}
+	return result, nil
+}
+
+func (m *mockTradeRepository) HasRecentSellOrder(symbol string, hours float64) (bool, error) {
+	for _, trade := range m.trades {
+		if trade.Symbol == symbol && trade.Side == TradeSideSell {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *mockTradeRepository) GetFirstBuyDate(symbol string) (*string, error) {
+	var firstDate *string
+	for _, trade := range m.trades {
+		if trade.Symbol == symbol && trade.Side == TradeSideBuy {
+			dateStr := trade.ExecutedAt.Format("2006-01-02")
+			if firstDate == nil || *firstDate > dateStr {
+				firstDate = &dateStr
+			}
+		}
+	}
+	return firstDate, nil
+}
+
+func (m *mockTradeRepository) GetLastBuyDate(symbol string) (*string, error) {
+	var lastDate *string
+	for _, trade := range m.trades {
+		if trade.Symbol == symbol && trade.Side == TradeSideBuy {
+			dateStr := trade.ExecutedAt.Format("2006-01-02")
+			if lastDate == nil || *lastDate < dateStr {
+				lastDate = &dateStr
+			}
+		}
+	}
+	return lastDate, nil
+}
+
+func (m *mockTradeRepository) GetLastSellDate(symbol string) (*string, error) {
+	var lastDate *string
+	for _, trade := range m.trades {
+		if trade.Symbol == symbol && trade.Side == TradeSideSell {
+			dateStr := trade.ExecutedAt.Format("2006-01-02")
+			if lastDate == nil || *lastDate < dateStr {
+				lastDate = &dateStr
+			}
+		}
+	}
+	return lastDate, nil
+}
+
+func (m *mockTradeRepository) GetLastTransactionDate(symbol string) (*string, error) {
+	var lastDate *string
+	for _, trade := range m.trades {
+		if trade.Symbol == symbol {
+			dateStr := trade.ExecutedAt.Format("2006-01-02")
+			if lastDate == nil || *lastDate < dateStr {
+				lastDate = &dateStr
+			}
+		}
+	}
+	return lastDate, nil
+}
+
+func (m *mockTradeRepository) GetTradeDates() (map[string]map[string]*string, error) {
+	result := make(map[string]map[string]*string)
+	for _, trade := range m.trades {
+		if result[trade.Symbol] == nil {
+			result[trade.Symbol] = make(map[string]*string)
+		}
+		dateStr := trade.ExecutedAt.Format("2006-01-02")
+		if trade.Side == TradeSideBuy {
+			result[trade.Symbol]["last_buy"] = &dateStr
+		} else if trade.Side == TradeSideSell {
+			result[trade.Symbol]["last_sell"] = &dateStr
+		}
+	}
+	return result, nil
+}
+
+func (m *mockTradeRepository) GetRecentTrades(symbol string, days int) ([]Trade, error) {
+	return m.GetBySymbol(symbol, 0)
+}
+
+func (m *mockTradeRepository) GetLastTradeTimestamp() (*time.Time, error) {
+	if len(m.trades) == 0 {
+		return nil, nil
+	}
+	var latest *time.Time
+	for _, trade := range m.trades {
+		if latest == nil || trade.ExecutedAt.After(*latest) {
+			latest = &trade.ExecutedAt
+		}
+	}
+	return latest, nil
+}
+
+func (m *mockTradeRepository) GetTradeCountToday() (int, error) {
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	count := 0
+	for _, trade := range m.trades {
+		if trade.ExecutedAt.After(today) {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (m *mockTradeRepository) GetTradeCountThisWeek() (int, error) {
+	now := time.Now()
+	weekStart := now.AddDate(0, 0, -int(now.Weekday()))
+	weekStart = time.Date(weekStart.Year(), weekStart.Month(), weekStart.Day(), 0, 0, 0, 0, weekStart.Location())
+	count := 0
+	for _, trade := range m.trades {
+		if trade.ExecutedAt.After(weekStart) {
+			count++
+		}
+	}
+	return count, nil
+}
+
 // TestSyncFromTradernet_Success tests successful trade sync
 func TestSyncFromTradernet_Success(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
