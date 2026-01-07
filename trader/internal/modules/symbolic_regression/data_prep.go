@@ -335,39 +335,95 @@ func (dp *DataPrep) extractInputs(isin string, date time.Time) (*TrainingInputs,
 }
 
 // extractMetrics extracts calculated metrics for a security
-// Uses symbol since calculated_metrics table uses symbol as identifier
+// Note: calculated_metrics table doesn't exist, so we extract from scores table instead
+// Uses positions table to map symbol -> ISIN, then queries scores table
 func (dp *DataPrep) extractMetrics(symbol string, date time.Time) (map[string]float64, error) {
 	if symbol == "" {
 		return make(map[string]float64), nil // Return empty map if no symbol
 	}
 
+	// Query metrics from scores table via positions table (symbol -> ISIN mapping)
 	query := `
-		SELECT metric_name, metric_value
-		FROM calculated_metrics
-		WHERE symbol = ? AND calculated_at <= ?
-		ORDER BY calculated_at DESC
+		SELECT
+			s.cagr_score,
+			s.dividend_bonus,
+			s.volatility,
+			s.rsi,
+			s.drawdown_score,
+			s.sharpe_score
+		FROM scores s
+		INNER JOIN positions p ON s.isin = p.isin
+		WHERE p.symbol = ? AND s.last_updated <= ?
+		ORDER BY s.last_updated DESC
+		LIMIT 1
 	`
 
 	rows, err := dp.portfolioDB.Query(query, symbol, date.Format("2006-01-02"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to query metrics: %w", err)
+		// Table might not exist or no data - return empty map gracefully
+		dp.log.Debug().Str("symbol", symbol).Err(err).Msg("Failed to query metrics from scores table")
+		return make(map[string]float64), nil
 	}
 	defer rows.Close()
 
 	metrics := make(map[string]float64)
-	for rows.Next() {
-		var name string
-		var value float64
-		if err := rows.Scan(&name, &value); err != nil {
-			return nil, fmt.Errorf("failed to scan metric: %w", err)
+	if rows.Next() {
+		var cagrScore, dividendBonus, volatility, rsi, drawdownScore, sharpeScore sql.NullFloat64
+		if err := rows.Scan(&cagrScore, &dividendBonus, &volatility, &rsi, &drawdownScore, &sharpeScore); err != nil {
+			dp.log.Debug().Str("symbol", symbol).Err(err).Msg("Failed to scan metrics")
+			return metrics, nil
 		}
-		// Take most recent value for each metric
-		if _, exists := metrics[name]; !exists {
-			metrics[name] = value
+
+		// Convert normalized scores to approximate raw values
+		if cagrScore.Valid && cagrScore.Float64 > 0 {
+			// Convert cagr_score (0-1) to approximate CAGR percentage
+			cagrValue := convertCAGRScoreToCAGR(cagrScore.Float64)
+			if cagrValue > 0 {
+				metrics["CAGR_5Y"] = cagrValue  // Use as 5Y approximation
+				metrics["CAGR_10Y"] = cagrValue // Use as 10Y approximation
+			}
+		}
+		if dividendBonus.Valid {
+			metrics["DIVIDEND_YIELD"] = dividendBonus.Float64
+		}
+		if volatility.Valid {
+			metrics["VOLATILITY"] = volatility.Float64
+		}
+		if rsi.Valid {
+			metrics["RSI_14"] = rsi.Float64
+		}
+		if drawdownScore.Valid {
+			// drawdown_score is normalized, approximate as percentage
+			metrics["MAX_DRAWDOWN"] = drawdownScore.Float64 * 0.5 // Rough approximation
+		}
+		if sharpeScore.Valid {
+			// sharpe_score is normalized, approximate as ratio
+			metrics["SHARPE_RATIO"] = sharpeScore.Float64 * 2.0 // Rough approximation
 		}
 	}
 
 	return metrics, nil
+}
+
+// convertCAGRScoreToCAGR converts normalized cagr_score (0-1) back to approximate CAGR percentage.
+func convertCAGRScoreToCAGR(cagrScore float64) float64 {
+	if cagrScore <= 0 {
+		return 0.0
+	}
+
+	var cagrValue float64
+	if cagrScore >= 0.8 {
+		// Above target: 0.8 (11%) to 1.0 (20%)
+		cagrValue = 0.11 + (cagrScore-0.8)*(0.20-0.11)/(1.0-0.8)
+	} else if cagrScore >= 0.15 {
+		// Below target: 0.15 (0%) to 0.8 (11%)
+		cagrValue = 0.0 + (cagrScore-0.15)*(0.11-0.0)/(0.8-0.15)
+	} else {
+		// At or below floor
+		cagrValue = 0.0
+	}
+
+	return cagrValue
 }
 
 // calculateTargetReturn calculates the actual return from startDate to endDate

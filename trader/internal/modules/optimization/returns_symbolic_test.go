@@ -19,12 +19,11 @@ func TestReturnsCalculator_WithDiscoveredFormula(t *testing.T) {
 
 	// Create schema
 	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS calculated_metrics (
-			symbol TEXT NOT NULL,
-			metric_name TEXT NOT NULL,
-			metric_value REAL NOT NULL,
-			calculated_at TEXT NOT NULL,
-			PRIMARY KEY (symbol, metric_name)
+		CREATE TABLE IF NOT EXISTS positions (
+			isin TEXT PRIMARY KEY,
+			symbol TEXT,
+			quantity REAL NOT NULL,
+			avg_price REAL NOT NULL
 		);
 
 		CREATE TABLE IF NOT EXISTS scores (
@@ -32,6 +31,7 @@ func TestReturnsCalculator_WithDiscoveredFormula(t *testing.T) {
 			total_score REAL NOT NULL,
 			cagr_score REAL,
 			fundamental_score REAL,
+			dividend_bonus REAL,
 			last_updated TEXT NOT NULL
 		);
 
@@ -55,12 +55,11 @@ func TestReturnsCalculator_WithDiscoveredFormula(t *testing.T) {
 
 	// Insert test data
 	_, err = db.Exec(`
-		INSERT INTO calculated_metrics (symbol, metric_name, metric_value, calculated_at)
-		VALUES ('AAPL', 'CAGR_5Y', 0.12, '2024-01-01'),
-		       ('AAPL', 'DIVIDEND_YIELD', 0.02, '2024-01-01');
+		INSERT INTO positions (isin, symbol, quantity, avg_price)
+		VALUES ('US0378331005', 'AAPL', 10.0, 150.0);
 
-		INSERT INTO scores (isin, total_score, cagr_score, fundamental_score, last_updated)
-		VALUES ('US0378331005', 0.75, 0.80, 0.70, '2024-01-01');
+		INSERT INTO scores (isin, total_score, cagr_score, fundamental_score, dividend_bonus, last_updated)
+		VALUES ('US0378331005', 0.75, 0.80, 0.70, 0.02, '2024-01-01');
 
 		INSERT INTO discovered_formulas (
 			formula_type, security_type, formula_expression, validation_metrics,
@@ -121,28 +120,29 @@ func TestReturnsCalculator_FallbackWhenNoFormula(t *testing.T) {
 	defer db.Close()
 
 	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS calculated_metrics (
-			symbol TEXT NOT NULL,
-			metric_name TEXT NOT NULL,
-			metric_value REAL NOT NULL,
-			calculated_at TEXT NOT NULL,
-			PRIMARY KEY (symbol, metric_name)
+		CREATE TABLE IF NOT EXISTS positions (
+			isin TEXT PRIMARY KEY,
+			symbol TEXT,
+			quantity REAL NOT NULL,
+			avg_price REAL NOT NULL
 		);
 
 		CREATE TABLE IF NOT EXISTS scores (
 			isin TEXT PRIMARY KEY,
 			total_score REAL NOT NULL,
+			cagr_score REAL,
+			dividend_bonus REAL,
 			last_updated TEXT NOT NULL
 		);
 	`)
 	require.NoError(t, err)
 
 	_, err = db.Exec(`
-		INSERT INTO calculated_metrics (symbol, metric_name, metric_value, calculated_at)
-		VALUES ('AAPL', 'CAGR_5Y', 0.12, '2024-01-01');
+		INSERT INTO positions (isin, symbol, quantity, avg_price)
+		VALUES ('US0378331005', 'AAPL', 10.0, 150.0);
 
-		INSERT INTO scores (isin, total_score, last_updated)
-		VALUES ('US0378331005', 0.75, '2024-01-01');
+		INSERT INTO scores (isin, total_score, cagr_score, dividend_bonus, last_updated)
+		VALUES ('US0378331005', 0.75, 0.80, 0.02, '2024-01-01');
 	`)
 	require.NoError(t, err)
 

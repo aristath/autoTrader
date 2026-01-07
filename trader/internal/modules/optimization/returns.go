@@ -382,15 +382,22 @@ func (rc *ReturnsCalculator) calculateSingle(
 }
 
 // getCAGRAndDividend fetches CAGR and dividend yield from database.
+// CAGR is stored in scores.cagr_score (normalized 0-1), dividend yield in scores.dividend_bonus.
+// Uses positions table to map symbol -> ISIN, then queries scores table.
 func (rc *ReturnsCalculator) getCAGRAndDividend(symbol string) (*float64, float64, error) {
+	// Query CAGR from scores table via positions table (symbol -> ISIN mapping)
+	// cagr_score is normalized 0-1, we need to convert it back to actual CAGR
+	// For now, we'll use cagr_score as-is (it's already a normalized score)
+	// TODO: If we need actual CAGR values, we may need to store them separately
 	query := `
 		SELECT
-			COALESCE(MAX(CASE WHEN metric_name = 'CAGR_5Y' THEN metric_value END),
-			         MAX(CASE WHEN metric_name = 'CAGR_10Y' THEN metric_value END)) as cagr,
-			COALESCE(MAX(CASE WHEN metric_name = 'DIVIDEND_YIELD' THEN metric_value END), 0.0) as dividend_yield
-		FROM calculated_metrics
-		WHERE symbol = ?
-			AND metric_name IN ('CAGR_5Y', 'CAGR_10Y', 'DIVIDEND_YIELD')
+			s.cagr_score,
+			COALESCE(s.dividend_bonus, 0.0) as dividend_yield
+		FROM scores s
+		INNER JOIN positions p ON s.isin = p.isin
+		WHERE p.symbol = ?
+		ORDER BY s.last_updated DESC
+		LIMIT 1
 	`
 
 	var cagr sql.NullFloat64
@@ -404,12 +411,59 @@ func (rc *ReturnsCalculator) getCAGRAndDividend(symbol string) (*float64, float6
 		return nil, 0.0, fmt.Errorf("failed to query CAGR: %w", err)
 	}
 
-	if !cagr.Valid {
-		return nil, 0.0, nil
+	if !cagr.Valid || cagr.Float64 <= 0 {
+		return nil, dividendYield, nil
 	}
 
-	cagrValue := cagr.Float64
+	// cagr_score is normalized 0-1, convert back to approximate CAGR percentage
+	// Reverse mapping based on scoreCAGRWithBubbleDetection logic:
+	// - cagr_score 1.0 → ~20% CAGR (excellent)
+	// - cagr_score 0.8 → ~11% CAGR (target)
+	// - cagr_score 0.5 → ~6-8% CAGR (below target)
+	// - cagr_score 0.15 → 0% CAGR (floor)
+	// Linear interpolation between key points
+	cagrScore := cagr.Float64
+	var cagrValue float64
+
+	if cagrScore >= 0.8 {
+		// Above target: 0.8 (11%) to 1.0 (20%)
+		cagrValue = 0.11 + (cagrScore-0.8)*(0.20-0.11)/(1.0-0.8)
+	} else if cagrScore >= 0.15 {
+		// Below target: 0.15 (0%) to 0.8 (11%)
+		cagrValue = 0.0 + (cagrScore-0.15)*(0.11-0.0)/(0.8-0.15)
+	} else {
+		// At or below floor
+		cagrValue = 0.0
+	}
+
 	return &cagrValue, dividendYield, nil
+}
+
+// convertCAGRScoreToCAGR converts normalized cagr_score (0-1) back to approximate CAGR percentage.
+// Reverse mapping based on scoreCAGRWithBubbleDetection logic:
+// - cagr_score 1.0 → ~20% CAGR (excellent)
+// - cagr_score 0.8 → ~11% CAGR (target)
+// - cagr_score 0.5 → ~6-8% CAGR (below target)
+// - cagr_score 0.15 → 0% CAGR (floor)
+// Linear interpolation between key points
+func convertCAGRScoreToCAGR(cagrScore float64) float64 {
+	if cagrScore <= 0 {
+		return 0.0
+	}
+
+	var cagrValue float64
+	if cagrScore >= 0.8 {
+		// Above target: 0.8 (11%) to 1.0 (20%)
+		cagrValue = 0.11 + (cagrScore-0.8)*(0.20-0.11)/(1.0-0.8)
+	} else if cagrScore >= 0.15 {
+		// Below target: 0.15 (0%) to 0.8 (11%)
+		cagrValue = 0.0 + (cagrScore-0.15)*(0.11-0.0)/(0.8-0.15)
+	} else {
+		// At or below floor
+		cagrValue = 0.0
+	}
+
+	return cagrValue
 }
 
 // getScore fetches security score from database.

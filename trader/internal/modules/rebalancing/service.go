@@ -393,22 +393,21 @@ func (s *Service) populateCAGRs(securities []universe.Security) map[string]float
 		return cagrs
 	}
 
-	// Query CAGR for all securities (prefer 5Y, fallback to 10Y)
+	// Query CAGR from scores table via positions table (symbol -> ISIN mapping)
+	// cagr_score is normalized 0-1, convert back to approximate CAGR percentage
 	query := `
 		SELECT
-			symbol,
-			COALESCE(
-				MAX(CASE WHEN metric_name = 'CAGR_5Y' THEN metric_value END),
-				MAX(CASE WHEN metric_name = 'CAGR_10Y' THEN metric_value END)
-			) as cagr
-		FROM calculated_metrics
-		WHERE metric_name IN ('CAGR_5Y', 'CAGR_10Y')
-		GROUP BY symbol
+			p.symbol,
+			s.cagr_score
+		FROM scores s
+		INNER JOIN positions p ON s.isin = p.isin
+		WHERE s.cagr_score IS NOT NULL AND s.cagr_score > 0
+		ORDER BY s.last_updated DESC
 	`
 
 	rows, err := s.portfolioDB.Query(query)
 	if err != nil {
-		s.log.Warn().Err(err).Msg("Failed to query CAGR from calculated_metrics table")
+		s.log.Warn().Err(err).Msg("Failed to query CAGR from scores table")
 		return cagrs
 	}
 	defer rows.Close()
@@ -423,24 +422,55 @@ func (s *Service) populateCAGRs(securities []universe.Security) map[string]float
 
 	for rows.Next() {
 		var symbol string
-		var cagr sql.NullFloat64
-		if err := rows.Scan(&symbol, &cagr); err != nil {
+		var cagrScore sql.NullFloat64
+		if err := rows.Scan(&symbol, &cagrScore); err != nil {
 			s.log.Warn().Err(err).Str("symbol", symbol).Msg("Failed to scan CAGR")
 			continue
 		}
 
-		if cagr.Valid && cagr.Float64 > 0 {
-			// Store by symbol
-			cagrs[symbol] = cagr.Float64
-			// Also store by ISIN if available
-			if isin, ok := symbolToISIN[symbol]; ok {
-				cagrs[isin] = cagr.Float64
+		if cagrScore.Valid && cagrScore.Float64 > 0 {
+			// Convert normalized cagr_score (0-1) back to approximate CAGR percentage
+			cagrValue := convertCAGRScoreToCAGR(cagrScore.Float64)
+			if cagrValue > 0 {
+				// Store by symbol
+				cagrs[symbol] = cagrValue
+				// Also store by ISIN if available
+				if isin, ok := symbolToISIN[symbol]; ok {
+					cagrs[isin] = cagrValue
+				}
 			}
 		}
 	}
 
 	s.log.Debug().Int("cagr_count", len(cagrs)).Msg("Populated CAGRs for target return filtering")
 	return cagrs
+}
+
+// convertCAGRScoreToCAGR converts normalized cagr_score (0-1) back to approximate CAGR percentage.
+// Reverse mapping based on scoreCAGRWithBubbleDetection logic:
+// - cagr_score 1.0 → ~20% CAGR (excellent)
+// - cagr_score 0.8 → ~11% CAGR (target)
+// - cagr_score 0.5 → ~6-8% CAGR (below target)
+// - cagr_score 0.15 → 0% CAGR (floor)
+// Linear interpolation between key points
+func convertCAGRScoreToCAGR(cagrScore float64) float64 {
+	if cagrScore <= 0 {
+		return 0.0
+	}
+
+	var cagrValue float64
+	if cagrScore >= 0.8 {
+		// Above target: 0.8 (11%) to 1.0 (20%)
+		cagrValue = 0.11 + (cagrScore-0.8)*(0.20-0.11)/(1.0-0.8)
+	} else if cagrScore >= 0.15 {
+		// Below target: 0.15 (0%) to 0.8 (11%)
+		cagrValue = 0.0 + (cagrScore-0.15)*(0.11-0.0)/(0.8-0.15)
+	} else {
+		// At or below floor
+		cagrValue = 0.0
+	}
+
+	return cagrValue
 }
 
 // populateQualityScores fetches quality scores (long-term and fundamentals) from scores table
