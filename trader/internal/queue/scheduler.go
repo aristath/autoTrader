@@ -193,10 +193,15 @@ func (s *Scheduler) Stop() {
 func (s *Scheduler) enqueueTimeBasedJob(jobType JobType, priority Priority, interval time.Duration) bool {
 	enqueued := s.manager.EnqueueIfShouldRun(jobType, priority, interval, map[string]interface{}{})
 	if enqueued {
-		s.log.Debug().
+		s.log.Info().
 			Str("job_type", string(jobType)).
 			Dur("interval", interval).
 			Msg("Enqueued time-based job")
+	} else {
+		s.log.Debug().
+			Str("job_type", string(jobType)).
+			Dur("interval", interval).
+			Msg("Skipped time-based job (interval not yet passed)")
 	}
 	return enqueued
 }
