@@ -21,6 +21,11 @@ type SecurityFetcher interface {
 	GetSecurityName(symbol string) (string, error)
 }
 
+// PlannerRepositoryInterface defines the interface for planner repository
+type PlannerRepositoryInterface interface {
+	CountEvaluations(portfolioHash string) (int, error)
+}
+
 // TradingHandlers contains HTTP handlers for trading API
 type TradingHandlers struct {
 	log                        zerolog.Logger
@@ -32,11 +37,12 @@ type TradingHandlers struct {
 	safetyService              *TradeSafetyService
 	settingsService            *settings.Service
 	recommendationRepo         RecommendationRepositoryInterface
+	plannerRepo                PlannerRepositoryInterface
 }
 
 // RecommendationRepositoryInterface defines the interface for recommendation repository
 type RecommendationRepositoryInterface interface {
-	GetRecommendationsAsPlan() (map[string]interface{}, error)
+	GetRecommendationsAsPlan(getEvaluatedCount func(portfolioHash string) (int, error)) (map[string]interface{}, error)
 }
 
 // NewTradingHandlers creates a new trading handlers instance
@@ -49,6 +55,7 @@ func NewTradingHandlers(
 	safetyService *TradeSafetyService,
 	settingsService *settings.Service,
 	recommendationRepo RecommendationRepositoryInterface,
+	plannerRepo PlannerRepositoryInterface,
 	log zerolog.Logger,
 ) *TradingHandlers {
 	return &TradingHandlers{
@@ -60,6 +67,7 @@ func NewTradingHandlers(
 		safetyService:              safetyService,
 		settingsService:            settingsService,
 		recommendationRepo:         recommendationRepo,
+		plannerRepo:                plannerRepo,
 		log:                        log.With().Str("handler", "trading").Logger(),
 	}
 }
@@ -284,7 +292,15 @@ func (h *TradingHandlers) HandleGetRecommendations(w http.ResponseWriter, r *htt
 		return
 	}
 
-	plan, err := h.recommendationRepo.GetRecommendationsAsPlan()
+	// Create function to get evaluated count if planner repository is available
+	var getEvaluatedCount func(portfolioHash string) (int, error)
+	if h.plannerRepo != nil {
+		getEvaluatedCount = func(portfolioHash string) (int, error) {
+			return h.plannerRepo.CountEvaluations(portfolioHash)
+		}
+	}
+
+	plan, err := h.recommendationRepo.GetRecommendationsAsPlan(getEvaluatedCount)
 	if err != nil {
 		h.log.Error().Err(err).Msg("Failed to get recommendations")
 		h.writeError(w, http.StatusInternalServerError, "Failed to get recommendations")

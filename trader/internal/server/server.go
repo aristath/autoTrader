@@ -26,6 +26,7 @@ import (
 	"github.com/aristath/portfolioManager/internal/modules/dividends"
 	"github.com/aristath/portfolioManager/internal/modules/evaluation"
 	"github.com/aristath/portfolioManager/internal/modules/optimization"
+	"github.com/aristath/portfolioManager/internal/modules/planning/repository"
 	"github.com/aristath/portfolioManager/internal/modules/portfolio"
 	"github.com/aristath/portfolioManager/internal/modules/rebalancing"
 	"github.com/aristath/portfolioManager/internal/modules/scoring/api"
@@ -529,6 +530,9 @@ func (s *Server) setupTradingRoutes(r chi.Router) {
 	safetyService := s.container.TradeSafetyService
 	recommendationRepo := s.container.RecommendationRepo
 
+	// Initialize planner repository for getting evaluated count
+	plannerRepo := repository.NewPlannerRepository(s.agentsDB, s.log)
+
 	handler := trading.NewTradingHandlers(
 		tradeRepo,
 		securityFetcher,
@@ -538,6 +542,7 @@ func (s *Server) setupTradingRoutes(r chi.Router) {
 		safetyService,
 		settingsService,
 		recommendationRepo,
+		plannerRepo,
 		s.log,
 	)
 

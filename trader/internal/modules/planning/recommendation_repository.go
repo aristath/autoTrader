@@ -410,7 +410,8 @@ func (r *RecommendationRepository) GetPendingRecommendations(limit int) ([]Recom
 
 // GetRecommendationsAsPlan retrieves pending recommendations and formats them as a plan structure
 // Returns a plan-like structure with steps array for frontend consumption
-func (r *RecommendationRepository) GetRecommendationsAsPlan() (map[string]interface{}, error) {
+// getEvaluatedCount is an optional function to retrieve the evaluated count for a portfolio hash
+func (r *RecommendationRepository) GetRecommendationsAsPlan(getEvaluatedCount func(portfolioHash string) (int, error)) (map[string]interface{}, error) {
 	recs, err := r.GetPendingRecommendations(0) // Get all pending
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pending recommendations: %w", err)
@@ -428,6 +429,7 @@ func (r *RecommendationRepository) GetRecommendationsAsPlan() (map[string]interf
 	var currentScore float64
 	var endScore float64
 	var finalCash float64
+	var portfolioHash string
 
 	for i, rec := range recs {
 		// Use priority as step number (1-based)
@@ -441,6 +443,7 @@ func (r *RecommendationRepository) GetRecommendationsAsPlan() (map[string]interf
 			currentScore = rec.CurrentPortfolioScore
 			endScore = rec.NewPortfolioScore
 			totalScoreImprovement = rec.ScoreChange
+			portfolioHash = rec.PortfolioHash
 		}
 
 		step := map[string]interface{}{
@@ -464,6 +467,17 @@ func (r *RecommendationRepository) GetRecommendationsAsPlan() (map[string]interf
 		steps = append(steps, step)
 	}
 
+	// Get evaluated count if function is provided
+	var evaluatedCount interface{} = nil
+	if getEvaluatedCount != nil && portfolioHash != "" {
+		count, err := getEvaluatedCount(portfolioHash)
+		if err != nil {
+			r.log.Warn().Err(err).Str("portfolio_hash", portfolioHash).Msg("Failed to get evaluated count")
+		} else {
+			evaluatedCount = count
+		}
+	}
+
 	// Build response matching frontend expectations
 	response := map[string]interface{}{
 		"steps":                   steps,
@@ -471,7 +485,7 @@ func (r *RecommendationRepository) GetRecommendationsAsPlan() (map[string]interf
 		"end_state_score":         endScore,
 		"total_score_improvement": totalScoreImprovement,
 		"final_available_cash":    finalCash,
-		"evaluated_count":         nil, // TODO: Get from planner status if available
+		"evaluated_count":         evaluatedCount,
 	}
 
 	return response, nil
