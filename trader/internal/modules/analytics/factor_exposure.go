@@ -1,3 +1,4 @@
+// Package analytics provides portfolio analytics including factor exposure tracking.
 package analytics
 
 import (

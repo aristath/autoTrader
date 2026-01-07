@@ -2,6 +2,7 @@ package di
 
 import (
 	"testing"
+	"time"
 
 	"github.com/aristath/portfolioManager/internal/config"
 	"github.com/aristath/portfolioManager/internal/modules/display"
@@ -26,6 +27,18 @@ func TestRegisterJobs(t *testing.T) {
 	// Ensure databases are closed before temp directory cleanup
 	t.Cleanup(func() {
 		if container != nil {
+			// Stop background services first to prevent temp directory cleanup issues
+			if container.WorkerPool != nil {
+				container.WorkerPool.Stop()
+			}
+			if container.TimeScheduler != nil {
+				container.TimeScheduler.Stop()
+			}
+			// Give goroutines time to stop before closing databases
+			// This prevents "directory not empty" errors during temp cleanup
+			time.Sleep(50 * time.Millisecond)
+
+			// Close databases
 			container.UniverseDB.Close()
 			container.ConfigDB.Close()
 			container.LedgerDB.Close()

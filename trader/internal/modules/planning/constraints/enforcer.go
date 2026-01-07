@@ -1,3 +1,4 @@
+// Package constraints provides portfolio constraint enforcement for planning.
 package constraints
 
 import (
