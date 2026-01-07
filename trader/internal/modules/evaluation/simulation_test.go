@@ -256,3 +256,146 @@ func TestCalculateSequenceCashFlow(t *testing.T) {
 func stringPtr(s string) *string {
 	return &s
 }
+
+func TestCopyMap(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    map[string]float64
+		expected map[string]float64
+		desc     string
+	}{
+		{
+			name:     "nil map",
+			input:    nil,
+			expected: make(map[string]float64),
+			desc:     "Nil map should return empty map",
+		},
+		{
+			name:     "empty map",
+			input:    make(map[string]float64),
+			expected: make(map[string]float64),
+			desc:     "Empty map should return empty map",
+		},
+		{
+			name:     "map with values",
+			input:    map[string]float64{"AAPL": 1000.0, "MSFT": 500.0},
+			expected: map[string]float64{"AAPL": 1000.0, "MSFT": 500.0},
+			desc:     "Map with values should be copied",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := copyMap(tt.input)
+			assert.Equal(t, tt.expected, result, tt.desc)
+
+			// Verify it's a deep copy (modifying result shouldn't affect input)
+			if tt.input != nil && len(tt.input) > 0 {
+				result["NEW_KEY"] = 999.0
+				_, exists := tt.input["NEW_KEY"]
+				assert.False(t, exists, "Modifying copy should not affect original")
+			}
+		})
+	}
+}
+
+func TestCopyStringMap(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    map[string]string
+		expected map[string]string
+		desc     string
+	}{
+		{
+			name:     "nil map",
+			input:    nil,
+			expected: make(map[string]string),
+			desc:     "Nil map should return empty map",
+		},
+		{
+			name:     "empty map",
+			input:    make(map[string]string),
+			expected: make(map[string]string),
+			desc:     "Empty map should return empty map",
+		},
+		{
+			name:     "map with values",
+			input:    map[string]string{"AAPL": "US", "MSFT": "US"},
+			expected: map[string]string{"AAPL": "US", "MSFT": "US"},
+			desc:     "Map with values should be copied",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := copyStringMap(tt.input)
+			assert.Equal(t, tt.expected, result, tt.desc)
+
+			// Verify it's a deep copy (modifying result shouldn't affect input)
+			if tt.input != nil && len(tt.input) > 0 {
+				result["NEW_KEY"] = "NEW_VALUE"
+				_, exists := tt.input["NEW_KEY"]
+				assert.False(t, exists, "Modifying copy should not affect original")
+			}
+		})
+	}
+}
+
+func TestMaxFloat64(t *testing.T) {
+	tests := []struct {
+		name     string
+		a        float64
+		b        float64
+		expected float64
+	}{
+		{
+			name:     "a greater than b",
+			a:        10.0,
+			b:        5.0,
+			expected: 10.0,
+		},
+		{
+			name:     "b greater than a",
+			a:        5.0,
+			b:        10.0,
+			expected: 10.0,
+		},
+		{
+			name:     "equal values",
+			a:        5.0,
+			b:        5.0,
+			expected: 5.0,
+		},
+		{
+			name:     "negative values",
+			a:        -5.0,
+			b:        -10.0,
+			expected: -5.0,
+		},
+		{
+			name:     "one negative",
+			a:        -5.0,
+			b:        10.0,
+			expected: 10.0,
+		},
+		{
+			name:     "zero values",
+			a:        0.0,
+			b:        0.0,
+			expected: 0.0,
+		},
+		{
+			name:     "decimal values",
+			a:        3.14,
+			b:        2.71,
+			expected: 3.14,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := maxFloat64(tt.a, tt.b)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
