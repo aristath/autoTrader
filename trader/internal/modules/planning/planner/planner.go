@@ -93,26 +93,77 @@ func (p *Planner) CreatePlan(ctx *domain.OpportunityContext, config *domain.Plan
 	if err != nil {
 		p.log.Error().Err(err).Msg("Evaluation failed, falling back to priority-based selection")
 		// Fallback: use priority-based selection if evaluation fails
+		// Try up to MaxSequenceAttempts sequences until one passes constraints
 		bestSequence := p.selectByPriority(sequences)
 		plan := p.convertToPlan(bestSequence, ctx, 0.0, 0.0)
+		if len(plan.Steps) == 0 {
+			// If the best sequence by priority was filtered out, return empty plan
+			return &domain.HolisticPlan{
+				Steps:         []domain.HolisticStep{},
+				CurrentScore:  0.0,
+				EndStateScore: 0.0,
+				Feasible:      true,
+			}, nil
+		}
 		return plan, nil
 	}
 
-	// Step 4: Select best sequence based on evaluation scores
-	bestSequence, bestResult := p.selectBestSequence(sequences, results)
-	if bestSequence == nil {
+	// Step 4: Select best sequences based on evaluation scores (try top N until one passes constraints)
+	bestSequences := p.selectBestSequences(sequences, results, config.MaxSequenceAttempts)
+	if len(bestSequences) == 0 {
 		return nil, fmt.Errorf("no valid sequence found")
 	}
 
-	// Step 5: Convert to HolisticPlan (with constraint enforcement)
-	plan := p.convertToPlan(*bestSequence, ctx, 0.0, bestResult.EndScore)
+	// Step 5: Try each sequence until we find one that passes constraints (has at least 1 step)
+	var bestPlan *domain.HolisticPlan
+	var bestScore float64
+	var bestSequenceIdx int
+
+	for idx, seqResult := range bestSequences {
+		plan := p.convertToPlan(seqResult.Sequence, ctx, 0.0, seqResult.Result.EndScore)
+
+		// If this plan has at least one step after constraint enforcement, use it
+		if len(plan.Steps) > 0 {
+			bestPlan = plan
+			bestScore = seqResult.Result.EndScore
+			bestSequenceIdx = idx
+			p.log.Info().
+				Int("sequence_index", idx+1).
+				Int("total_attempted", len(bestSequences)).
+				Int("steps", len(plan.Steps)).
+				Float64("end_score", seqResult.Result.EndScore).
+				Msg("Found valid sequence that passes constraints")
+			break
+		} else {
+			p.log.Debug().
+				Int("sequence_index", idx+1).
+				Int("actions", len(seqResult.Sequence.Actions)).
+				Float64("score", seqResult.Result.EndScore).
+				Msg("Sequence filtered out by constraints, trying next")
+		}
+	}
+
+	// If no sequence passed constraints, return empty plan
+	if bestPlan == nil {
+		p.log.Info().
+			Int("attempted_sequences", len(bestSequences)).
+			Msg("No sequences passed constraints after enforcement")
+		return &domain.HolisticPlan{
+			Steps:         []domain.HolisticStep{},
+			CurrentScore:  0.0,
+			EndStateScore: bestSequences[0].Result.EndScore,
+			Feasible:      true,
+		}, nil
+	}
 
 	p.log.Info().
-		Int("steps", len(plan.Steps)).
-		Float64("end_score", bestResult.EndScore).
+		Int("sequence_index", bestSequenceIdx+1).
+		Int("total_attempted", len(bestSequences)).
+		Int("steps", len(bestPlan.Steps)).
+		Float64("end_score", bestScore).
 		Msg("Plan created")
 
-	return plan, nil
+	return bestPlan, nil
 }
 
 func (p *Planner) convertToPlan(sequence domain.ActionSequence, ctx *domain.OpportunityContext, currentScore float64, endScore float64) *domain.HolisticPlan {
@@ -234,10 +285,17 @@ func (p *Planner) selectByPriority(sequences []domain.ActionSequence) domain.Act
 	return best
 }
 
-// selectBestSequence finds the sequence with the highest evaluation score.
-func (p *Planner) selectBestSequence(sequences []domain.ActionSequence, results []domain.EvaluationResult) (*domain.ActionSequence, *domain.EvaluationResult) {
+// SequenceWithResult pairs a sequence with its evaluation result
+type SequenceWithResult struct {
+	Sequence domain.ActionSequence
+	Result   *domain.EvaluationResult
+}
+
+// selectBestSequences finds the top N sequences sorted by evaluation score (descending)
+// Returns up to maxAttempts sequences (or all if maxAttempts is 0)
+func (p *Planner) selectBestSequences(sequences []domain.ActionSequence, results []domain.EvaluationResult, maxAttempts int) []SequenceWithResult {
 	if len(sequences) == 0 || len(results) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	// Create a map from sequence hash to evaluation result
@@ -246,9 +304,7 @@ func (p *Planner) selectBestSequence(sequences []domain.ActionSequence, results 
 		resultsByHash[results[i].SequenceHash] = &results[i]
 	}
 
-	var bestSequence *domain.ActionSequence
-	var bestResult *domain.EvaluationResult
-	bestScore := -999999.0
+	var validSequences []SequenceWithResult
 
 	for i := range sequences {
 		result, ok := resultsByHash[sequences[i].SequenceHash]
@@ -264,20 +320,34 @@ func (p *Planner) selectBestSequence(sequences []domain.ActionSequence, results 
 			continue
 		}
 
-		if result.EndScore > bestScore {
-			bestScore = result.EndScore
-			bestSequence = &sequences[i]
-			bestResult = result
+		validSequences = append(validSequences, SequenceWithResult{
+			Sequence: sequences[i],
+			Result:   result,
+		})
+	}
+
+	// Sort by score descending
+	for i := 0; i < len(validSequences)-1; i++ {
+		for j := i + 1; j < len(validSequences); j++ {
+			if validSequences[i].Result.EndScore < validSequences[j].Result.EndScore {
+				validSequences[i], validSequences[j] = validSequences[j], validSequences[i]
+			}
 		}
 	}
 
-	if bestSequence != nil {
-		p.log.Info().
-			Float64("score", bestScore).
-			Str("pattern", bestSequence.PatternType).
-			Int("actions", len(bestSequence.Actions)).
-			Msg("Selected best sequence by evaluation score")
+	// Limit to maxAttempts if specified
+	if maxAttempts > 0 && len(validSequences) > maxAttempts {
+		validSequences = validSequences[:maxAttempts]
 	}
 
-	return bestSequence, bestResult
+	if len(validSequences) > 0 {
+		p.log.Info().
+			Int("total_valid", len(validSequences)).
+			Int("selected", len(validSequences)).
+			Float64("top_score", validSequences[0].Result.EndScore).
+			Float64("bottom_score", validSequences[len(validSequences)-1].Result.EndScore).
+			Msg("Selected top sequences by evaluation score")
+	}
+
+	return validSequences
 }

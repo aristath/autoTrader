@@ -76,3 +76,33 @@ func GetBoolParam(params map[string]interface{}, key string, defaultValue bool) 
 	}
 	return defaultValue
 }
+
+// RoundToLotSize intelligently rounds quantity to lot size
+// Strategy:
+//  1. Try rounding down: floor(quantity/lotSize) * lotSize
+//  2. If result is 0 or invalid, try rounding up: ceil(quantity/lotSize) * lotSize
+//  3. Return the valid rounded quantity, or 0 if both fail
+func RoundToLotSize(quantity int, lotSize int) int {
+	if lotSize <= 0 {
+		return quantity // No rounding needed
+	}
+
+	// Strategy 1: Round down
+	roundedDown := (quantity / lotSize) * lotSize
+
+	// If rounding down gives valid result (>= lotSize), use it
+	if roundedDown >= lotSize {
+		return roundedDown
+	}
+
+	// Strategy 2: Round up (only if rounding down failed)
+	// Using ceiling: (quantity + lotSize - 1) / lotSize * lotSize
+	roundedUp := ((quantity + lotSize - 1) / lotSize) * lotSize
+
+	// Use rounded up if it's valid, otherwise return 0
+	if roundedUp >= lotSize {
+		return roundedUp
+	}
+
+	return 0 // Cannot make valid
+}

@@ -77,6 +77,14 @@ func (c *ProfitTakingCalculator) Calculate(
 			continue
 		}
 
+		// Check per-security constraint: AllowSell must be true
+		if !security.AllowSell {
+			c.log.Debug().
+				Str("symbol", position.Symbol).
+				Msg("Skipping security: allow_sell=false")
+			continue
+		}
+
 		// Get current price (try ISIN first, fallback to symbol)
 		currentPrice, ok := ctx.GetPriceByISINOrSymbol(isin, position.Symbol)
 		if !ok || currentPrice <= 0 {
@@ -111,6 +119,18 @@ func (c *ProfitTakingCalculator) Calculate(
 				quantity = 1
 			}
 		}
+
+		// Round quantity to lot size and validate
+		quantityInt := int(quantity)
+		quantityInt = RoundToLotSize(quantityInt, security.MinLot)
+		if quantityInt <= 0 {
+			c.log.Debug().
+				Str("symbol", position.Symbol).
+				Int("min_lot", security.MinLot).
+				Msg("Skipping security: quantity below minimum lot size after rounding")
+			continue
+		}
+		quantity = float64(quantityInt)
 
 		// Calculate value
 		valueEUR := quantity * currentPrice

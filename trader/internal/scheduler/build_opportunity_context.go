@@ -177,11 +177,14 @@ func (j *BuildOpportunityContextJob) buildOpportunityContext(
 	securityIndustries := make(map[string]string)
 	for _, sec := range securities {
 		domainSec := domain.Security{
-			Symbol:  sec.Symbol,
-			ISIN:    sec.ISIN,
-			Active:  sec.Active,
-			Country: sec.Country,
-			Name:    sec.Name,
+			Symbol:    sec.Symbol,
+			ISIN:      sec.ISIN,
+			Active:    sec.Active,
+			Country:   sec.Country,
+			Name:      sec.Name,
+			AllowSell: sec.AllowSell,
+			AllowBuy:  sec.AllowBuy,
+			MinLot:    sec.MinLot,
 		}
 		domainSecurities = append(domainSecurities, domainSec)
 		stocksBySymbol[sec.Symbol] = domainSec

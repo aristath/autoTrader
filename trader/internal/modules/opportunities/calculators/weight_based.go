@@ -167,6 +167,14 @@ func (c *WeightBasedCalculator) Calculate(
 				continue
 			}
 
+			// Check per-security constraint: AllowBuy must be true
+			if !security.AllowBuy {
+				c.log.Debug().
+					Str("symbol", symbol).
+					Msg("Skipping security: allow_buy=false")
+				continue
+			}
+
 			// CRITICAL: Quality gate filtering (if securityRepo is available)
 			// Get config from params
 			var config *planningdomain.PlannerConfiguration
@@ -301,9 +309,30 @@ func (c *WeightBasedCalculator) Calculate(
 				quantity = 1
 			}
 
+			// Round quantity to lot size and validate
+			quantity = RoundToLotSize(quantity, security.MinLot)
+			if quantity <= 0 {
+				c.log.Debug().
+					Str("symbol", symbol).
+					Int("min_lot", security.MinLot).
+					Msg("Skipping security: quantity below minimum lot size after rounding")
+				continue
+			}
+
+			// Recalculate value based on rounded quantity
 			valueEUR := float64(quantity) * currentPrice
 			transactionCost := ctx.TransactionCostFixed + (valueEUR * ctx.TransactionCostPercent)
 			totalCostEUR := valueEUR + transactionCost
+
+			// Check if rounded quantity still meets minimum trade amount
+			if valueEUR < minTradeAmount {
+				c.log.Debug().
+					Str("symbol", symbol).
+					Float64("trade_value", valueEUR).
+					Float64("min_trade_amount", minTradeAmount).
+					Msg("Skipping trade below minimum trade amount after lot size rounding")
+				continue
+			}
 
 			// Check if trade meets minimum trade amount (transaction cost efficiency)
 			if valueEUR < minTradeAmount {
@@ -378,6 +407,14 @@ func (c *WeightBasedCalculator) Calculate(
 				continue
 			}
 
+			// Check per-security constraint: AllowSell must be true
+			if !security.AllowSell {
+				c.log.Debug().
+					Str("symbol", symbol).
+					Msg("Skipping security: allow_sell=false")
+				continue
+			}
+
 			// Find position
 			var foundPosition *domain.Position
 			for i := range ctx.Positions {
@@ -403,6 +440,31 @@ func (c *WeightBasedCalculator) Calculate(
 			}
 			if float64(quantity) > foundPosition.Quantity {
 				quantity = int(foundPosition.Quantity)
+			}
+
+			// Round quantity to lot size and validate
+			quantity = RoundToLotSize(quantity, security.MinLot)
+			if quantity <= 0 {
+				c.log.Debug().
+					Str("symbol", symbol).
+					Int("min_lot", security.MinLot).
+					Msg("Skipping security: quantity below minimum lot size after rounding")
+				continue
+			}
+
+			// Ensure we don't exceed position quantity after rounding
+			if float64(quantity) > foundPosition.Quantity {
+				quantity = int(foundPosition.Quantity)
+				// Re-round after limiting to position quantity
+				quantity = RoundToLotSize(quantity, security.MinLot)
+				if quantity <= 0 {
+					c.log.Debug().
+						Str("symbol", symbol).
+						Int("min_lot", security.MinLot).
+						Float64("position_quantity", foundPosition.Quantity).
+						Msg("Skipping security: position quantity too small for minimum lot size")
+					continue
+				}
 			}
 
 			valueEUR := float64(quantity) * currentPrice

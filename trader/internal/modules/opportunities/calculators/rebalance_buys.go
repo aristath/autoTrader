@@ -111,6 +111,14 @@ func (c *RebalanceBuysCalculator) Calculate(
 			continue // Skip securities without country
 		}
 
+		// Check per-security constraint: AllowBuy must be true
+		if !security.AllowBuy {
+			c.log.Debug().
+				Str("symbol", symbol).
+				Msg("Skipping security: allow_buy=false")
+			continue
+		}
+
 		// Map country to group
 		group := country
 		if ctx.CountryToGroup != nil {
@@ -195,8 +203,28 @@ func (c *RebalanceBuysCalculator) Calculate(
 			quantity = 1
 		}
 
-		// Calculate value
+		// Round quantity to lot size and validate
+		quantity = RoundToLotSize(quantity, security.MinLot)
+		if quantity <= 0 {
+			c.log.Debug().
+				Str("symbol", symbol).
+				Int("min_lot", security.MinLot).
+				Msg("Skipping security: quantity below minimum lot size after rounding")
+			continue
+		}
+
+		// Recalculate value based on rounded quantity
 		valueEUR := float64(quantity) * currentPrice
+
+		// Check if rounded quantity still meets minimum trade amount
+		if valueEUR < minTradeAmount {
+			c.log.Debug().
+				Str("symbol", symbol).
+				Float64("trade_value", valueEUR).
+				Float64("min_trade_amount", minTradeAmount).
+				Msg("Skipping trade below minimum trade amount after lot size rounding")
+			continue
+		}
 
 		// Apply transaction costs
 		transactionCost := ctx.TransactionCostFixed + (valueEUR * ctx.TransactionCostPercent)

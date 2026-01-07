@@ -15,6 +15,7 @@ type PlannerConfiguration struct {
 	MaxOpportunitiesPerCategory int     `json:"max_opportunities_per_category"`
 	EnableDiverseSelection      bool    `json:"enable_diverse_selection"`
 	DiversityWeight             float64 `json:"diversity_weight"`
+	MaxSequenceAttempts         int     `json:"max_sequence_attempts"` // Maximum number of sequences to try until one passes constraints
 
 	// Transaction costs
 	TransactionCostFixed   float64 `json:"transaction_cost_fixed"`
@@ -79,6 +80,7 @@ func NewDefaultConfiguration() *PlannerConfiguration {
 		EnableBatchGeneration:       true,
 		MaxDepth:                    5,
 		MaxOpportunitiesPerCategory: 5,
+		MaxSequenceAttempts:         20, // Try top 20 sequences until one passes constraints
 		EnableDiverseSelection:      true,
 		DiversityWeight:             0.3,
 		TransactionCostFixed:        5.0,

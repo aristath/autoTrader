@@ -24,6 +24,10 @@ type Security struct {
 	ISIN        string    `json:"isin"`
 	ID          int64     `json:"id"`
 	Active      bool      `json:"active"`
+	// Constraint fields for opportunity filtering
+	AllowSell bool `json:"allow_sell"` // Whether selling is allowed for this security
+	AllowBuy  bool `json:"allow_buy"`  // Whether buying is allowed for this security
+	MinLot    int  `json:"min_lot"`    // Minimum lot size for trading
 }
 
 // Position represents a portfolio position

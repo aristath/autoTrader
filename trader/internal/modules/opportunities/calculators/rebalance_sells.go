@@ -108,6 +108,14 @@ func (c *RebalanceSellsCalculator) Calculate(
 			continue
 		}
 
+		// Check per-security constraint: AllowSell must be true
+		if !security.AllowSell {
+			c.log.Debug().
+				Str("symbol", position.Symbol).
+				Msg("Skipping security: allow_sell=false")
+			continue
+		}
+
 		// Get country from security
 		country := security.Country
 		if country == "" {
@@ -150,6 +158,16 @@ func (c *RebalanceSellsCalculator) Calculate(
 		quantity := int(float64(position.Quantity) * sellPercentage)
 		if quantity == 0 {
 			quantity = 1
+		}
+
+		// Round quantity to lot size and validate
+		quantity = RoundToLotSize(quantity, security.MinLot)
+		if quantity <= 0 {
+			c.log.Debug().
+				Str("symbol", position.Symbol).
+				Int("min_lot", security.MinLot).
+				Msg("Skipping security: quantity below minimum lot size after rounding")
+			continue
 		}
 
 		// Calculate value
