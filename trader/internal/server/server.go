@@ -31,6 +31,9 @@ import (
 	dividendhandlers "github.com/aristath/sentinel/internal/modules/dividends/handlers"
 	"github.com/aristath/sentinel/internal/modules/evaluation"
 	optimizationhandlers "github.com/aristath/sentinel/internal/modules/optimization/handlers"
+	"github.com/aristath/sentinel/internal/modules/planning/config"
+	planninghandlers "github.com/aristath/sentinel/internal/modules/planning/handlers"
+	"github.com/aristath/sentinel/internal/modules/planning/planner"
 	"github.com/aristath/sentinel/internal/modules/planning/repository"
 	"github.com/aristath/sentinel/internal/modules/portfolio"
 	portfoliohandlers "github.com/aristath/sentinel/internal/modules/portfolio/handlers"
@@ -404,7 +407,30 @@ func (s *Server) setupRoutes() {
 		s.setupRebalancingRoutes(r)
 
 		// Planning module (MIGRATED TO GO!)
-		s.setupPlanningRoutes(r)
+		planningService := s.container.PlanningService
+		planningConfigRepo := s.container.PlannerConfigRepo
+		planningCorePlanner := s.container.PlannerService
+		planningPlannerRepo := repository.NewPlannerRepository(s.agentsDB, s.log)
+		planningValidator := config.NewValidator()
+		planningIncrementalPlanner := planner.NewIncrementalPlanner(
+			planningCorePlanner,
+			planningPlannerRepo,
+			s.log,
+		)
+		planningEventBroadcaster := planninghandlers.NewEventBroadcaster(s.log)
+		planningHandler := planninghandlers.NewHandler(
+			planningService,
+			planningConfigRepo,
+			planningCorePlanner,
+			planningPlannerRepo,
+			planningValidator,
+			planningIncrementalPlanner,
+			planningEventBroadcaster,
+			s.container.EventManager,
+			nil, // TODO: Pass trade executor
+			s.log,
+		)
+		planningHandler.RegisterRoutes(r)
 
 		// Charts module (MIGRATED TO GO!)
 		chartsSecurityRepo := s.container.SecurityRepo
