@@ -100,7 +100,7 @@ func (r *GroupingRepository) GetIndustryGroups() (map[string][]string, error) {
 // SetCountryGroup sets countries for a country group (replaces existing)
 // Faithful translation of Python: async def set_country_group(self, group_name: str, country_names: List[str])
 func (r *GroupingRepository) SetCountryGroup(groupName string, countryNames []string) error {
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Start transaction
 	tx, err := r.db.Begin()
@@ -153,7 +153,7 @@ func (r *GroupingRepository) SetCountryGroup(groupName string, countryNames []st
 // SetIndustryGroup sets industries for an industry group (replaces existing)
 // Faithful translation of Python: async def set_industry_group(self, group_name: str, industry_names: List[str])
 func (r *GroupingRepository) SetIndustryGroup(groupName string, industryNames []string) error {
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Start transaction
 	tx, err := r.db.Begin()

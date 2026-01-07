@@ -191,7 +191,7 @@ func TestGetRegimeHistory(t *testing.T) {
 			_, err := db.Exec(`
 				INSERT INTO market_regime_history (recorded_at, raw_score, smoothed_score, discrete_regime)
 				VALUES (?, ?, ?, ?)
-			`, now.Add(time.Duration(i)*time.Hour).Format(time.RFC3339),
+			`, now.Add(time.Duration(i)*time.Hour).Unix(),
 				float64(i)*0.1, float64(i)*0.1, "n/a")
 			require.NoError(t, err)
 		}

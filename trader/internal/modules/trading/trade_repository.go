@@ -55,10 +55,10 @@ func (r *TradeRepository) Create(trade Trade) error {
 		}
 	}
 
-	now := time.Now().Format(time.RFC3339)
-	executedAt := trade.ExecutedAt.Format(time.RFC3339)
+	now := time.Now().Unix()
+	executedAt := trade.ExecutedAt.Unix()
 
-	// Table schema (after migration 017): id, symbol, isin, side, quantity, price, executed_at, order_id, currency, value_eur, source, mode, created_at
+	// Table schema: id, symbol, isin, side, quantity, price, executed_at, order_id, currency, value_eur, source, mode, created_at
 	query := `
 		INSERT INTO trades
 		(symbol, isin, side, quantity, price, executed_at, order_id,
@@ -172,14 +172,29 @@ func (r *TradeRepository) GetHistory(limit int) ([]Trade, error) {
 
 // GetAllInRange retrieves all trades within a date range
 // Faithful translation of Python: async def get_all_in_range(self, start_date: str, end_date: str) -> List[Trade]
+// startDate and endDate are in YYYY-MM-DD format, converted to Unix timestamps at midnight UTC
 func (r *TradeRepository) GetAllInRange(startDate, endDate string) ([]Trade, error) {
+	// Convert YYYY-MM-DD to Unix timestamps at midnight UTC
+	startTime, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid start_date format (expected YYYY-MM-DD): %w", err)
+	}
+	startUnix := time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, time.UTC).Unix()
+
+	endTime, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid end_date format (expected YYYY-MM-DD): %w", err)
+	}
+	// End date should be end of day (23:59:59)
+	endUnix := time.Date(endTime.Year(), endTime.Month(), endTime.Day(), 23, 59, 59, 0, time.UTC).Unix()
+
 	query := `
 		SELECT ` + tradesColumns + ` FROM trades
 		WHERE executed_at >= ? AND executed_at <= ?
 		ORDER BY executed_at ASC
 	`
 
-	rows, err := r.ledgerDB.Query(query, startDate, endDate)
+	rows, err := r.ledgerDB.Query(query, startUnix, endUnix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get trades in range: %w", err)
 	}
@@ -303,7 +318,7 @@ func (r *TradeRepository) GetByIdentifier(identifier string, limit int) ([]Trade
 // GetRecentlyBoughtSymbols returns symbols bought in the last N days (excluding RESEARCH trades)
 // Faithful translation of Python: async def get_recently_bought_symbols(self, days: int = 30) -> Set[str]
 func (r *TradeRepository) GetRecentlyBoughtSymbols(days int) (map[string]bool, error) {
-	cutoff := time.Now().AddDate(0, 0, -days).Format(time.RFC3339)
+	cutoff := time.Now().AddDate(0, 0, -days).Unix()
 
 	query := `
 		SELECT DISTINCT symbol FROM trades
@@ -335,7 +350,7 @@ func (r *TradeRepository) GetRecentlyBoughtSymbols(days int) (map[string]bool, e
 // GetRecentlySoldSymbols returns symbols sold in the last N days (excluding RESEARCH trades)
 // Faithful translation of Python: async def get_recently_sold_symbols(self, days: int = 30) -> Set[str]
 func (r *TradeRepository) GetRecentlySoldSymbols(days int) (map[string]bool, error) {
-	cutoff := time.Now().AddDate(0, 0, -days).Format(time.RFC3339)
+	cutoff := time.Now().AddDate(0, 0, -days).Unix()
 
 	query := `
 		SELECT DISTINCT symbol FROM trades
@@ -365,7 +380,7 @@ func (r *TradeRepository) GetRecentlySoldSymbols(days int) (map[string]bool, err
 // HasRecentSellOrder checks if there's a recent SELL order for the symbol
 // Faithful translation of Python: async def has_recent_sell_order(self, symbol: str, hours: float = 2.0) -> bool
 func (r *TradeRepository) HasRecentSellOrder(symbol string, hours float64) (bool, error) {
-	cutoff := time.Now().Add(-time.Duration(hours * float64(time.Hour))).Format(time.RFC3339)
+	cutoff := time.Now().Add(-time.Duration(hours * float64(time.Hour))).Unix()
 
 	query := `
 		SELECT 1 FROM trades
@@ -396,7 +411,7 @@ func (r *TradeRepository) GetFirstBuyDate(symbol string) (*string, error) {
 		WHERE symbol = ? AND side = 'BUY'
 	`
 
-	var firstBuy sql.NullString
+	var firstBuy sql.NullInt64
 	err := r.ledgerDB.QueryRow(query, strings.ToUpper(symbol)).Scan(&firstBuy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get first buy date: %w", err)
@@ -406,7 +421,8 @@ func (r *TradeRepository) GetFirstBuyDate(symbol string) (*string, error) {
 		return nil, nil
 	}
 
-	return &firstBuy.String, nil
+	dateStr := time.Unix(firstBuy.Int64, 0).UTC().Format("2006-01-02")
+	return &dateStr, nil
 }
 
 // GetLastBuyDate returns the date of most recent buy for a symbol
@@ -417,7 +433,7 @@ func (r *TradeRepository) GetLastBuyDate(symbol string) (*string, error) {
 		WHERE symbol = ? AND side = 'BUY'
 	`
 
-	var lastBuy sql.NullString
+	var lastBuy sql.NullInt64
 	err := r.ledgerDB.QueryRow(query, strings.ToUpper(symbol)).Scan(&lastBuy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get last buy date: %w", err)
@@ -427,7 +443,8 @@ func (r *TradeRepository) GetLastBuyDate(symbol string) (*string, error) {
 		return nil, nil
 	}
 
-	return &lastBuy.String, nil
+	dateStr := time.Unix(lastBuy.Int64, 0).UTC().Format("2006-01-02")
+	return &dateStr, nil
 }
 
 // GetLastSellDate returns the date of last sell for a symbol
@@ -438,7 +455,7 @@ func (r *TradeRepository) GetLastSellDate(symbol string) (*string, error) {
 		WHERE symbol = ? AND side = 'SELL'
 	`
 
-	var lastSell sql.NullString
+	var lastSell sql.NullInt64
 	err := r.ledgerDB.QueryRow(query, strings.ToUpper(symbol)).Scan(&lastSell)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get last sell date: %w", err)
@@ -448,7 +465,8 @@ func (r *TradeRepository) GetLastSellDate(symbol string) (*string, error) {
 		return nil, nil
 	}
 
-	return &lastSell.String, nil
+	dateStr := time.Unix(lastSell.Int64, 0).UTC().Format("2006-01-02")
+	return &dateStr, nil
 }
 
 // GetLastTransactionDate returns the date of most recent transaction (BUY or SELL)
@@ -459,7 +477,7 @@ func (r *TradeRepository) GetLastTransactionDate(symbol string) (*string, error)
 		WHERE symbol = ?
 	`
 
-	var lastTransaction sql.NullString
+	var lastTransaction sql.NullInt64
 	err := r.ledgerDB.QueryRow(query, strings.ToUpper(symbol)).Scan(&lastTransaction)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get last transaction date: %w", err)
@@ -469,7 +487,8 @@ func (r *TradeRepository) GetLastTransactionDate(symbol string) (*string, error)
 		return nil, nil
 	}
 
-	return &lastTransaction.String, nil
+	dateStr := time.Unix(lastTransaction.Int64, 0).UTC().Format("2006-01-02")
+	return &dateStr, nil
 }
 
 // GetTradeDates returns first_buy and last_sell dates for all symbols
@@ -493,7 +512,7 @@ func (r *TradeRepository) GetTradeDates() (map[string]map[string]*string, error)
 	result := make(map[string]map[string]*string)
 	for rows.Next() {
 		var symbol string
-		var firstBuy, lastSell sql.NullString
+		var firstBuy, lastSell sql.NullInt64
 
 		if err := rows.Scan(&symbol, &firstBuy, &lastSell); err != nil {
 			return nil, fmt.Errorf("failed to scan trade dates: %w", err)
@@ -501,12 +520,14 @@ func (r *TradeRepository) GetTradeDates() (map[string]map[string]*string, error)
 
 		dates := make(map[string]*string)
 		if firstBuy.Valid {
-			dates["first_bought_at"] = &firstBuy.String
+			dateStr := time.Unix(firstBuy.Int64, 0).UTC().Format("2006-01-02")
+			dates["first_bought_at"] = &dateStr
 		} else {
 			dates["first_bought_at"] = nil
 		}
 		if lastSell.Valid {
-			dates["last_sold_at"] = &lastSell.String
+			dateStr := time.Unix(lastSell.Int64, 0).UTC().Format("2006-01-02")
+			dates["last_sold_at"] = &dateStr
 		} else {
 			dates["last_sold_at"] = nil
 		}
@@ -520,7 +541,7 @@ func (r *TradeRepository) GetTradeDates() (map[string]map[string]*string, error)
 // GetRecentTrades returns recent trades for a symbol within N days
 // Faithful translation of Python: async def get_recent_trades(self, symbol: str, days: int = 30) -> List[Trade]
 func (r *TradeRepository) GetRecentTrades(symbol string, days int) ([]Trade, error) {
-	cutoff := time.Now().AddDate(0, 0, -days).Format(time.RFC3339)
+	cutoff := time.Now().AddDate(0, 0, -days).Unix()
 
 	query := `
 		SELECT ` + tradesColumns + ` FROM trades
@@ -556,7 +577,7 @@ func (r *TradeRepository) GetLastTradeTimestamp() (*time.Time, error) {
 		LIMIT 1
 	`
 
-	var executedAt sql.NullString
+	var executedAt sql.NullInt64
 	err := r.ledgerDB.QueryRow(query).Scan(&executedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -569,27 +590,27 @@ func (r *TradeRepository) GetLastTradeTimestamp() (*time.Time, error) {
 		return nil, nil
 	}
 
-	t, err := time.Parse(time.RFC3339, executedAt.String)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse timestamp: %w", err)
-	}
-
+	t := time.Unix(executedAt.Int64, 0).UTC()
 	return &t, nil
 }
 
 // GetTradeCountToday counts trades executed today
 // Faithful translation of Python: async def get_trade_count_today(self) -> int
 func (r *TradeRepository) GetTradeCountToday() (int, error) {
-	today := time.Now().Format("2006-01-02")
+	now := time.Now().UTC()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	endOfDay := startOfDay.Add(24 * time.Hour)
+	startUnix := startOfDay.Unix()
+	endUnix := endOfDay.Unix()
 
 	query := `
 		SELECT COUNT(*) as cnt
 		FROM trades
-		WHERE DATE(executed_at) = ?
+		WHERE executed_at >= ? AND executed_at < ?
 	`
 
 	var count int
-	err := r.ledgerDB.QueryRow(query, today).Scan(&count)
+	err := r.ledgerDB.QueryRow(query, startUnix, endUnix).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get trade count today: %w", err)
 	}
@@ -600,7 +621,7 @@ func (r *TradeRepository) GetTradeCountToday() (int, error) {
 // GetTradeCountThisWeek counts trades executed in the last 7 days
 // Faithful translation of Python: async def get_trade_count_this_week(self) -> int
 func (r *TradeRepository) GetTradeCountThisWeek() (int, error) {
-	sevenDaysAgo := time.Now().AddDate(0, 0, -7).Format("2006-01-02")
+	sevenDaysAgo := time.Now().AddDate(0, 0, -7).Unix()
 
 	query := `
 		SELECT COUNT(*) as cnt
@@ -621,11 +642,11 @@ func (r *TradeRepository) GetTradeCountThisWeek() (int, error) {
 
 func (r *TradeRepository) scanTrade(row *sql.Row) (Trade, error) {
 	var trade Trade
-	var executedAt, createdAt sql.NullString
+	var executedAt, createdAt sql.NullInt64
 	var isin, orderID, currency sql.NullString
 	var valueEUR sql.NullFloat64
 
-	// Table schema (after migration 017): id, symbol, isin, side, quantity, price, executed_at, order_id, currency, value_eur, source, mode, created_at
+	// Table schema: id, symbol, isin, side, quantity, price, executed_at, order_id, currency, value_eur, source, mode, created_at
 	err := row.Scan(
 		&trade.ID,       // 0: id
 		&trade.Symbol,   // 1: symbol
@@ -633,53 +654,27 @@ func (r *TradeRepository) scanTrade(row *sql.Row) (Trade, error) {
 		&trade.Side,     // 3: side
 		&trade.Quantity, // 4: quantity
 		&trade.Price,    // 5: price
-		&executedAt,     // 6: executed_at
+		&executedAt,     // 6: executed_at (Unix timestamp)
 		&orderID,        // 7: order_id
 		&currency,       // 8: currency
 		&valueEUR,       // 9: value_eur
 		&trade.Source,   // 10: source
 		&trade.Mode,     // 11: mode
-		&createdAt,      // 12: created_at
+		&createdAt,      // 12: created_at (Unix timestamp)
 	)
 
 	if err != nil {
 		return trade, err
 	}
 
-	// Parse timestamps
-	// Database stores timestamps in two possible formats:
-	// 1. "2024-05-14T16:30:06.000" (ISO8601 without timezone)
-	// 2. "2025-12-24 16:16:23" (datetime format)
+	// Convert Unix timestamps to time.Time
 	if executedAt.Valid {
-		// Try RFC3339 first
-		t, err := time.Parse(time.RFC3339, executedAt.String)
-		if err != nil {
-			// Try without timezone (add Z suffix)
-			t, err = time.Parse(time.RFC3339, executedAt.String+"Z")
-		}
-		if err != nil {
-			// Try datetime format
-			t, err = time.Parse("2006-01-02 15:04:05", executedAt.String)
-		}
-		if err == nil {
-			trade.ExecutedAt = t
-		}
+		trade.ExecutedAt = time.Unix(executedAt.Int64, 0).UTC()
 	}
 
 	if createdAt.Valid {
-		// Try RFC3339 first
-		t, err := time.Parse(time.RFC3339, createdAt.String)
-		if err != nil {
-			// Try datetime format
-			t, err = time.Parse("2006-01-02 15:04:05", createdAt.String)
-		}
-		if err != nil {
-			// Try with milliseconds
-			t, err = time.Parse("2006-01-02 15:04:05.999", createdAt.String)
-		}
-		if err == nil {
-			trade.CreatedAt = &t
-		}
+		t := time.Unix(createdAt.Int64, 0).UTC()
+		trade.CreatedAt = &t
 	}
 
 	// Handle optional fields
@@ -704,11 +699,11 @@ func (r *TradeRepository) scanTrade(row *sql.Row) (Trade, error) {
 
 func (r *TradeRepository) scanTradeFromRows(rows *sql.Rows) (Trade, error) {
 	var trade Trade
-	var executedAt, createdAt sql.NullString
+	var executedAt, createdAt sql.NullInt64
 	var isin, orderID, currency sql.NullString
 	var valueEUR sql.NullFloat64
 
-	// Table schema (after migration 017): id, symbol, isin, side, quantity, price, executed_at, order_id, currency, value_eur, source, mode, created_at
+	// Table schema: id, symbol, isin, side, quantity, price, executed_at, order_id, currency, value_eur, source, mode, created_at
 	err := rows.Scan(
 		&trade.ID,       // 0: id
 		&trade.Symbol,   // 1: symbol
@@ -716,53 +711,27 @@ func (r *TradeRepository) scanTradeFromRows(rows *sql.Rows) (Trade, error) {
 		&trade.Side,     // 3: side
 		&trade.Quantity, // 4: quantity
 		&trade.Price,    // 5: price
-		&executedAt,     // 6: executed_at
+		&executedAt,     // 6: executed_at (Unix timestamp)
 		&orderID,        // 7: order_id
 		&currency,       // 8: currency
 		&valueEUR,       // 9: value_eur
 		&trade.Source,   // 10: source
 		&trade.Mode,     // 11: mode
-		&createdAt,      // 12: created_at
+		&createdAt,      // 12: created_at (Unix timestamp)
 	)
 
 	if err != nil {
 		return trade, err
 	}
 
-	// Parse timestamps
-	// Database stores timestamps in two possible formats:
-	// 1. "2024-05-14T16:30:06.000" (ISO8601 without timezone)
-	// 2. "2025-12-24 16:16:23" (datetime format)
+	// Convert Unix timestamps to time.Time
 	if executedAt.Valid {
-		// Try RFC3339 first
-		t, err := time.Parse(time.RFC3339, executedAt.String)
-		if err != nil {
-			// Try without timezone (add Z suffix)
-			t, err = time.Parse(time.RFC3339, executedAt.String+"Z")
-		}
-		if err != nil {
-			// Try datetime format
-			t, err = time.Parse("2006-01-02 15:04:05", executedAt.String)
-		}
-		if err == nil {
-			trade.ExecutedAt = t
-		}
+		trade.ExecutedAt = time.Unix(executedAt.Int64, 0).UTC()
 	}
 
 	if createdAt.Valid {
-		// Try RFC3339 first
-		t, err := time.Parse(time.RFC3339, createdAt.String)
-		if err != nil {
-			// Try datetime format
-			t, err = time.Parse("2006-01-02 15:04:05", createdAt.String)
-		}
-		if err != nil {
-			// Try with milliseconds
-			t, err = time.Parse("2006-01-02 15:04:05.999", createdAt.String)
-		}
-		if err == nil {
-			trade.CreatedAt = &t
-		}
+		t := time.Unix(createdAt.Int64, 0).UTC()
+		trade.CreatedAt = &t
 	}
 
 	// Handle optional fields

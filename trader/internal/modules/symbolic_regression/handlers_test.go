@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
@@ -31,9 +32,9 @@ func setupTestHandlers(t *testing.T) (*Handlers, *sql.DB, func()) {
 			fitness_score REAL NOT NULL,
 			complexity INTEGER NOT NULL,
 			training_examples_count INTEGER,
-			discovered_at TEXT NOT NULL,
+			discovered_at INTEGER NOT NULL,
 			is_active INTEGER DEFAULT 1,
-			created_at TEXT DEFAULT CURRENT_TIMESTAMP
+			created_at INTEGER DEFAULT (strftime('%s', 'now'))
 		);
 	`)
 	require.NoError(t, err)
@@ -55,15 +56,16 @@ func TestHandlers_ListFormulas(t *testing.T) {
 	defer cleanup()
 
 	// Insert test formula
+	testDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	_, err := db.Exec(`
 		INSERT INTO discovered_formulas (
 			formula_type, security_type, formula_expression, validation_metrics,
 			fitness_score, complexity, discovered_at, is_active
 		) VALUES (
 			'expected_return', 'stock', '0.65*cagr + 0.28*score',
-			'{"mae": 0.05}', 0.05, 5, '2024-01-01', 1
+			'{"mae": 0.05}', 0.05, 5, ?, 1
 		);
-	`)
+	`, testDate.Unix())
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/api/symbolic-regression/formulas?formula_type=expected_return&security_type=stock", nil)
@@ -84,16 +86,17 @@ func TestHandlers_GetActiveFormula(t *testing.T) {
 	handlers, db, cleanup := setupTestHandlers(t)
 	defer cleanup()
 
-	// Insert test formula with RFC3339 timestamp
+	// Insert test formula with Unix timestamp
+	testDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	_, err := db.Exec(`
 		INSERT INTO discovered_formulas (
 			formula_type, security_type, formula_expression, validation_metrics,
 			fitness_score, complexity, discovered_at, is_active
 		) VALUES (
 			'expected_return', 'stock', '0.65*cagr + 0.28*score',
-			'{"mae": 0.05}', 0.05, 5, '2024-01-01T00:00:00Z', 1
+			'{"mae": 0.05}', 0.05, 5, ?, 1
 		);
-	`)
+	`, testDate.Unix())
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/api/symbolic-regression/formulas/active?formula_type=expected_return&security_type=stock", nil)
@@ -122,15 +125,16 @@ func TestHandlers_DeactivateFormula(t *testing.T) {
 	defer cleanup()
 
 	// Insert test formula
+	testDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	result, err := db.Exec(`
 		INSERT INTO discovered_formulas (
 			formula_type, security_type, formula_expression, validation_metrics,
 			fitness_score, complexity, discovered_at, is_active
 		) VALUES (
 			'expected_return', 'stock', '0.65*cagr + 0.28*score',
-			'{"mae": 0.05}', 0.05, 5, '2024-01-01', 1
+			'{"mae": 0.05}', 0.05, 5, ?, 1
 		);
-	`)
+	`, testDate.Unix())
 	require.NoError(t, err)
 
 	id, _ := result.LastInsertId()

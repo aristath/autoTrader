@@ -60,7 +60,7 @@ func (r *RecommendationRepository) CreateOrUpdate(rec Recommendation) (string, e
 		r.log.Warn().Err(err).Msg("Error checking for existing recommendation")
 	}
 
-	now := time.Now()
+	now := time.Now().Unix()
 
 	if existing != nil {
 		// Update existing
@@ -136,7 +136,7 @@ func (r *RecommendationRepository) CreateOrUpdate(rec Recommendation) (string, e
 // findExisting finds an existing recommendation by matching criteria
 func (r *RecommendationRepository) findExisting(symbol, side, reason, portfolioHash string) (*Recommendation, error) {
 	var rec Recommendation
-	var createdAt, updatedAt, executedAt sql.NullTime
+	var createdAtUnix, updatedAtUnix, executedAtUnix sql.NullInt64
 
 	err := r.db.QueryRow(`
 		SELECT uuid, symbol, name, side, quantity, estimated_price, estimated_value,
@@ -166,9 +166,9 @@ func (r *RecommendationRepository) findExisting(symbol, side, reason, portfolioH
 		&rec.ScoreChange,
 		&rec.Status,
 		&rec.PortfolioHash,
-		&createdAt,
-		&updatedAt,
-		&executedAt,
+		&createdAtUnix,
+		&updatedAtUnix,
+		&executedAtUnix,
 	)
 
 	if err == sql.ErrNoRows {
@@ -178,15 +178,16 @@ func (r *RecommendationRepository) findExisting(symbol, side, reason, portfolioH
 		return nil, err
 	}
 
-	// Convert sql.NullTime to time.Time
-	if createdAt.Valid {
-		rec.CreatedAt = createdAt.Time
+	// Convert Unix timestamps to time.Time
+	if createdAtUnix.Valid {
+		rec.CreatedAt = time.Unix(createdAtUnix.Int64, 0).UTC()
 	}
-	if updatedAt.Valid {
-		rec.UpdatedAt = updatedAt.Time
+	if updatedAtUnix.Valid {
+		rec.UpdatedAt = time.Unix(updatedAtUnix.Int64, 0).UTC()
 	}
-	if executedAt.Valid {
-		rec.ExecutedAt = &executedAt.Time
+	if executedAtUnix.Valid {
+		t := time.Unix(executedAtUnix.Int64, 0).UTC()
+		rec.ExecutedAt = &t
 	}
 
 	return &rec, nil
@@ -214,7 +215,7 @@ func (r *RecommendationRepository) FindMatchingForExecution(symbol, side, portfo
 	var recs []Recommendation
 	for rows.Next() {
 		var rec Recommendation
-		var createdAt, updatedAt, executedAt sql.NullTime
+		var createdAtUnix, updatedAtUnix, executedAtUnix sql.NullInt64
 
 		err := rows.Scan(
 			&rec.UUID,
@@ -232,24 +233,25 @@ func (r *RecommendationRepository) FindMatchingForExecution(symbol, side, portfo
 			&rec.ScoreChange,
 			&rec.Status,
 			&rec.PortfolioHash,
-			&createdAt,
-			&updatedAt,
-			&executedAt,
+			&createdAtUnix,
+			&updatedAtUnix,
+			&executedAtUnix,
 		)
 
 		if err != nil {
 			return nil, err
 		}
 
-		// Convert sql.NullTime to time.Time
-		if createdAt.Valid {
-			rec.CreatedAt = createdAt.Time
+		// Convert Unix timestamps to time.Time
+		if createdAtUnix.Valid {
+			rec.CreatedAt = time.Unix(createdAtUnix.Int64, 0).UTC()
 		}
-		if updatedAt.Valid {
-			rec.UpdatedAt = updatedAt.Time
+		if updatedAtUnix.Valid {
+			rec.UpdatedAt = time.Unix(updatedAtUnix.Int64, 0).UTC()
 		}
-		if executedAt.Valid {
-			rec.ExecutedAt = &executedAt.Time
+		if executedAtUnix.Valid {
+			t := time.Unix(executedAtUnix.Int64, 0).UTC()
+			rec.ExecutedAt = &t
 		}
 
 		recs = append(recs, rec)
@@ -260,7 +262,7 @@ func (r *RecommendationRepository) FindMatchingForExecution(symbol, side, portfo
 
 // MarkExecuted marks a recommendation as executed
 func (r *RecommendationRepository) MarkExecuted(recUUID string) error {
-	now := time.Now()
+	now := time.Now().Unix()
 	_, err := r.db.Exec(`
 		UPDATE recommendations
 		SET status = 'executed',
@@ -305,7 +307,7 @@ func (r *RecommendationRepository) CountPendingBySide() (buyCount int, sellCount
 
 // DismissAllByPortfolioHash dismisses all recommendations for a given portfolio hash
 func (r *RecommendationRepository) DismissAllByPortfolioHash(portfolioHash string) (int, error) {
-	now := time.Now()
+	now := time.Now().Unix()
 	result, err := r.db.Exec(`
 		UPDATE recommendations
 		SET status = 'dismissed',
@@ -357,7 +359,7 @@ func (r *RecommendationRepository) GetPendingRecommendations(limit int) ([]Recom
 	var recs []Recommendation
 	for rows.Next() {
 		var rec Recommendation
-		var createdAt, updatedAt, executedAt sql.NullTime
+		var createdAtUnix, updatedAtUnix, executedAtUnix sql.NullInt64
 
 		err := rows.Scan(
 			&rec.UUID,
@@ -375,24 +377,25 @@ func (r *RecommendationRepository) GetPendingRecommendations(limit int) ([]Recom
 			&rec.ScoreChange,
 			&rec.Status,
 			&rec.PortfolioHash,
-			&createdAt,
-			&updatedAt,
-			&executedAt,
+			&createdAtUnix,
+			&updatedAtUnix,
+			&executedAtUnix,
 		)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan recommendation: %w", err)
 		}
 
-		// Convert sql.NullTime to time.Time
-		if createdAt.Valid {
-			rec.CreatedAt = createdAt.Time
+		// Convert Unix timestamps to time.Time
+		if createdAtUnix.Valid {
+			rec.CreatedAt = time.Unix(createdAtUnix.Int64, 0).UTC()
 		}
-		if updatedAt.Valid {
-			rec.UpdatedAt = updatedAt.Time
+		if updatedAtUnix.Valid {
+			rec.UpdatedAt = time.Unix(updatedAtUnix.Int64, 0).UTC()
 		}
-		if executedAt.Valid {
-			rec.ExecutedAt = &executedAt.Time
+		if executedAtUnix.Valid {
+			t := time.Unix(executedAtUnix.Int64, 0).UTC()
+			rec.ExecutedAt = &t
 		}
 
 		recs = append(recs, rec)

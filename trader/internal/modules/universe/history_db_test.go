@@ -20,7 +20,7 @@ func setupHistoryTestDB(t *testing.T) *sql.DB {
 	_, err = db.Exec(`
 		CREATE TABLE daily_prices (
 			isin TEXT NOT NULL,
-			date TEXT NOT NULL,
+			date INTEGER NOT NULL,
 			open REAL NOT NULL,
 			high REAL NOT NULL,
 			low REAL NOT NULL,
@@ -40,7 +40,7 @@ func setupHistoryTestDB(t *testing.T) *sql.DB {
 			avg_close REAL NOT NULL,
 			avg_adj_close REAL NOT NULL,
 			source TEXT,
-			created_at TEXT,
+			created_at INTEGER,
 			PRIMARY KEY (isin, year_month)
 		) STRICT
 	`)
@@ -73,15 +73,19 @@ func TestGetDailyPrices_WithISIN(t *testing.T) {
 	db := setupHistoryTestDB(t)
 	defer db.Close()
 
-	// Insert test data with ISIN
+	// Insert test data with ISIN (using Unix timestamps for dates)
+	date1 := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC).Unix()
+	date2 := time.Date(2024, 1, 3, 0, 0, 0, 0, time.UTC).Unix()
+	date3 := time.Date(2024, 1, 4, 0, 0, 0, 0, time.UTC).Unix()
+	date4 := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC).Unix() // Same date for different ISIN
 	_, err := db.Exec(`
 		INSERT INTO daily_prices (isin, date, open, high, low, close, volume, adjusted_close)
 		VALUES
-			('US0378331005', '2024-01-02', 185.0, 186.5, 184.0, 185.5, 50000000, 185.5),
-			('US0378331005', '2024-01-03', 185.5, 187.0, 185.0, 186.0, 45000000, 186.0),
-			('US0378331005', '2024-01-04', 186.0, 188.0, 185.5, 187.5, 55000000, 187.5),
-			('NL0010273215', '2024-01-02', 800.0, 810.0, 795.0, 805.0, 1000000, 805.0)
-	`)
+			('US0378331005', ?, 185.0, 186.5, 184.0, 185.5, 50000000, 185.5),
+			('US0378331005', ?, 185.5, 187.0, 185.0, 186.0, 45000000, 186.0),
+			('US0378331005', ?, 186.0, 188.0, 185.5, 187.5, 55000000, 187.5),
+			('NL0010273215', ?, 800.0, 810.0, 795.0, 805.0, 1000000, 805.0)
+	`, date1, date2, date3, date4)
 	require.NoError(t, err)
 
 	log := zerolog.New(nil).Level(zerolog.Disabled)
@@ -121,11 +125,11 @@ func TestGetDailyPrices_Limit(t *testing.T) {
 
 	// Insert 5 days of data
 	for i := 1; i <= 5; i++ {
-		date := time.Date(2024, 1, i+1, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
+		dateUnix := time.Date(2024, 1, i+1, 0, 0, 0, 0, time.UTC).Unix()
 		_, err := db.Exec(`
 			INSERT INTO daily_prices (isin, date, open, high, low, close, volume, adjusted_close)
 			VALUES (?, ?, 100.0, 105.0, 95.0, 102.0, 1000000, 102.0)
-		`, "US0378331005", date)
+		`, "US0378331005", dateUnix)
 		require.NoError(t, err)
 	}
 
@@ -147,10 +151,10 @@ func TestGetMonthlyPrices_WithISIN(t *testing.T) {
 	_, err := db.Exec(`
 		INSERT INTO monthly_prices (isin, year_month, avg_close, avg_adj_close, source, created_at)
 		VALUES
-			('US0378331005', '2024-01', 185.0, 185.0, 'calculated', datetime('now')),
-			('US0378331005', '2024-02', 186.5, 186.5, 'calculated', datetime('now')),
-			('US0378331005', '2024-03', 188.0, 188.0, 'calculated', datetime('now')),
-			('NL0010273215', '2024-01', 800.0, 800.0, 'calculated', datetime('now'))
+			('US0378331005', '2024-01', 185.0, 185.0, 'calculated', strftime('%s', 'now')),
+			('US0378331005', '2024-02', 186.5, 186.5, 'calculated', strftime('%s', 'now')),
+			('US0378331005', '2024-03', 188.0, 188.0, 'calculated', strftime('%s', 'now')),
+			('NL0010273215', '2024-01', 800.0, 800.0, 'calculated', strftime('%s', 'now'))
 	`)
 	require.NoError(t, err)
 
@@ -195,7 +199,7 @@ func TestHasMonthlyData_WithISIN(t *testing.T) {
 	// Insert monthly data
 	_, err = db.Exec(`
 		INSERT INTO monthly_prices (isin, year_month, avg_close, avg_adj_close, source, created_at)
-		VALUES ('US0378331005', '2024-01', 185.0, 185.0, 'calculated', datetime('now'))
+		VALUES ('US0378331005', '2024-01', 185.0, 185.0, 'calculated', strftime('%s', 'now'))
 	`)
 	require.NoError(t, err)
 
@@ -322,8 +326,11 @@ func TestSyncHistoricalPrices_ReplaceExisting(t *testing.T) {
 	assert.Equal(t, 1, count)
 
 	// Verify updated price
+	// Convert date string to Unix timestamp for query
+	testDate, _ := time.Parse("2006-01-02", "2024-01-02")
+	testDateUnix := time.Date(testDate.Year(), testDate.Month(), testDate.Day(), 0, 0, 0, 0, time.UTC).Unix()
 	var close float64
-	err = db.QueryRow("SELECT close FROM daily_prices WHERE isin = ? AND date = '2024-01-02'", isin).Scan(&close)
+	err = db.QueryRow("SELECT close FROM daily_prices WHERE isin = ? AND date = ?", isin, testDateUnix).Scan(&close)
 	assert.NoError(t, err)
 	assert.Equal(t, 186.5, close) // Updated value, not original
 }

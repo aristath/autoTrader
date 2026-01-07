@@ -217,7 +217,7 @@ func (r *SecurityRepository) GetAll() ([]Security, error) {
 
 // Create creates a new security in the repository
 func (r *SecurityRepository) Create(security Security) error {
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Normalize symbol
 	security.Symbol = strings.ToUpper(strings.TrimSpace(security.Symbol))
@@ -302,7 +302,7 @@ func (r *SecurityRepository) Update(isin string, updates map[string]interface{})
 	}
 
 	// Add updated_at
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	updates["updated_at"] = now
 
 	// Convert booleans to integers
@@ -581,10 +581,11 @@ func (r *SecurityRepository) GetWithScores(portfolioDB *sql.DB) ([]SecurityWithS
 func (r *SecurityRepository) scanSecurity(rows *sql.Rows) (Security, error) {
 	var security Security
 	var yahooSymbol, isin, productType, country, fullExchangeName sql.NullString
-	var industry, currency, lastSynced sql.NullString
+	var industry, currency sql.NullString
+	var lastSynced sql.NullInt64
 	var minPortfolioTarget, maxPortfolioTarget sql.NullFloat64
 	var active, allowBuy, allowSell sql.NullInt64
-	var createdAt, updatedAt sql.NullString
+	var createdAt, updatedAt sql.NullInt64
 
 	// Table schema after migration: isin, symbol, yahoo_symbol, name, product_type, industry, country, fullExchangeName,
 	// priority_multiplier, min_lot, active, allow_buy, allow_sell, currency, last_synced,
@@ -641,7 +642,8 @@ func (r *SecurityRepository) scanSecurity(rows *sql.Rows) (Security, error) {
 		security.Currency = currency.String
 	}
 	if lastSynced.Valid {
-		security.LastSynced = lastSynced.String
+		t := time.Unix(lastSynced.Int64, 0).UTC()
+		security.LastSynced = t.Format(time.RFC3339)
 	}
 	if minPortfolioTarget.Valid {
 		security.MinPortfolioTarget = minPortfolioTarget.Float64
@@ -662,6 +664,9 @@ func (r *SecurityRepository) scanSecurity(rows *sql.Rows) (Security, error) {
 	if allowSell.Valid {
 		security.AllowSell = allowSell.Int64 != 0
 	}
+
+	// Timestamps are read but not stored in Security model
+	// (created_at and updated_at are database fields but not part of the domain model)
 
 	// Normalize symbol
 	security.Symbol = strings.ToUpper(strings.TrimSpace(security.Symbol))
@@ -760,7 +765,7 @@ func (r *SecurityRepository) SetTagsForSecurity(symbol string, tagIDs []string) 
 	}
 
 	// Insert new tags (using ISIN)
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	for _, tagID := range tagIDs {
 		// Skip empty tag IDs
 		tagID = strings.ToLower(strings.TrimSpace(tagID))
@@ -826,36 +831,19 @@ func (r *SecurityRepository) GetTagsWithUpdateTimes(symbol string) (map[string]t
 	tags := make(map[string]time.Time)
 	for rows.Next() {
 		var tagID string
-		var updatedAtStr string
-		err := rows.Scan(&tagID, &updatedAtStr)
+		var updatedAtUnix sql.NullInt64
+		err := rows.Scan(&tagID, &updatedAtUnix)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan tag update time: %w", err)
 		}
 
-		// Parse updated_at timestamp
-		updatedAt, err := time.Parse(time.RFC3339, updatedAtStr)
-		if err != nil {
-			// Try alternative formats
-			formats := []string{
-				"2006-01-02 15:04:05",
-				"2006-01-02T15:04:05Z",
-				"2006-01-02",
-			}
-			parsed := false
-			for _, format := range formats {
-				if t, parseErr := time.Parse(format, updatedAtStr); parseErr == nil {
-					updatedAt = t
-					parsed = true
-					break
-				}
-			}
-			if !parsed {
-				// If we can't parse, use zero time (will force update)
-				updatedAt = time.Time{}
-			}
+		// Convert Unix timestamp to time.Time
+		if updatedAtUnix.Valid {
+			tags[tagID] = time.Unix(updatedAtUnix.Int64, 0).UTC()
+		} else {
+			// If NULL, use zero time (will force update)
+			tags[tagID] = time.Time{}
 		}
-
-		tags[tagID] = updatedAt
 	}
 
 	if err := rows.Err(); err != nil {
@@ -908,7 +896,7 @@ func (r *SecurityRepository) UpdateSpecificTags(symbol string, tagIDs []string) 
 		currentTagSet[tagID] = true
 	}
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	newTagSet := make(map[string]bool)
 
 	// Process each tag

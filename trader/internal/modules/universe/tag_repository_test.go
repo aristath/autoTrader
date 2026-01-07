@@ -39,7 +39,7 @@ func TestTagRepository_GetByID_Existing(t *testing.T) {
 	repo := NewTagRepository(db, log)
 
 	// Insert test tag
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	_, err := db.Exec(`
 		INSERT INTO tags (id, name, created_at, updated_at)
 		VALUES ('value-opportunity', 'Value Opportunity', ?, ?)
@@ -97,7 +97,7 @@ func TestTagRepository_GetAll_Multiple(t *testing.T) {
 	repo := NewTagRepository(db, log)
 
 	// Insert test tags
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	_, err := db.Exec(`
 		INSERT INTO tags (id, name, created_at, updated_at)
 		VALUES
@@ -160,7 +160,7 @@ func TestTagRepository_CreateOrGet_Existing(t *testing.T) {
 	repo := NewTagRepository(db, log)
 
 	// Insert existing tag
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	_, err := db.Exec(`
 		INSERT INTO tags (id, name, created_at, updated_at)
 		VALUES ('value-opportunity', 'Value Opportunity', ?, ?)
@@ -223,7 +223,7 @@ func TestTagRepository_EnsureTagsExist_ExistingTags(t *testing.T) {
 	repo := NewTagRepository(db, log)
 
 	// Insert existing tag
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	_, err := db.Exec(`
 		INSERT INTO tags (id, name, created_at, updated_at)
 		VALUES ('value-opportunity', 'Value Opportunity', ?, ?)

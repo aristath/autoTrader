@@ -92,7 +92,7 @@ func TestTagBasedFilter_GetOpportunityCandidates_WithCash(t *testing.T) {
 	securityRepo := universe.NewSecurityRepository(db, log)
 	filter := NewTagBasedFilter(securityRepo, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Insert test securities
 	_, err := db.Exec(`
@@ -157,7 +157,7 @@ func TestTagBasedFilter_GetOpportunityCandidates_NoCash(t *testing.T) {
 	securityRepo := universe.NewSecurityRepository(db, log)
 	filter := NewTagBasedFilter(securityRepo, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Insert test securities
 	_, err := db.Exec(`
@@ -216,7 +216,7 @@ func TestTagBasedFilter_GetSellCandidates(t *testing.T) {
 	securityRepo := universe.NewSecurityRepository(db, log)
 	filter := NewTagBasedFilter(securityRepo, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Insert test securities
 	_, err := db.Exec(`
@@ -310,7 +310,7 @@ func TestTagBasedFilter_isMarketVolatile(t *testing.T) {
 	securityRepo := universe.NewSecurityRepository(db, log)
 	filter := NewTagBasedFilter(securityRepo, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Insert test securities
 	symbols := []string{"AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA"}
@@ -382,7 +382,7 @@ func TestTagBasedFilter_isMarketVolatile_NotVolatile(t *testing.T) {
 	securityRepo := universe.NewSecurityRepository(db, log)
 	filter := NewTagBasedFilter(securityRepo, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Insert test securities
 	_, err := db.Exec(`

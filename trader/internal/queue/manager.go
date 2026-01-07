@@ -1,3 +1,4 @@
+// Package queue provides an event queue system for asynchronous job processing.
 package queue
 
 import (

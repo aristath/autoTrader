@@ -148,8 +148,8 @@ func TestSyncFromTradernet_Success(t *testing.T) {
 	_, err = universeDB.Exec(`
 		INSERT INTO securities (isin, symbol, name, created_at, updated_at)
 		VALUES
-			('US0378331005', 'AAPL', 'Apple Inc.', datetime('now'), datetime('now')),
-			('US5949181045', 'MSFT', 'Microsoft Corp.', datetime('now'), datetime('now'))
+			('US0378331005', 'AAPL', 'Apple Inc.', strftime('%s', 'now'), strftime('%s', 'now')),
+			('US5949181045', 'MSFT', 'Microsoft Corp.', strftime('%s', 'now'), strftime('%s', 'now'))
 	`)
 	require.NoError(t, err)
 
@@ -237,7 +237,7 @@ func TestSyncFromTradernet_DeleteStale(t *testing.T) {
 	_, err = universeDB.Exec(`
 		INSERT INTO securities (isin, symbol, name, created_at, updated_at)
 		VALUES
-			('US0378331005', 'AAPL', 'Apple Inc.', datetime('now'), datetime('now'))
+			('US0378331005', 'AAPL', 'Apple Inc.', strftime('%s', 'now'), strftime('%s', 'now'))
 	`)
 	require.NoError(t, err)
 
@@ -316,7 +316,7 @@ func TestSyncFromTradernet_SkipZeroQuantity(t *testing.T) {
 	_, err = universeDB.Exec(`
 		INSERT INTO securities (isin, symbol, name, created_at, updated_at)
 		VALUES
-			('US0378331005', 'AAPL', 'Apple Inc.', datetime('now'), datetime('now'))
+			('US0378331005', 'AAPL', 'Apple Inc.', strftime('%s', 'now'), strftime('%s', 'now'))
 	`)
 	require.NoError(t, err)
 
@@ -461,8 +461,8 @@ func TestSyncFromTradernet_UpsertError(t *testing.T) {
 	_, err = universeDB.Exec(`
 		INSERT INTO securities (isin, symbol, name, created_at, updated_at)
 		VALUES
-			('US0378331005', 'AAPL', 'Apple Inc.', datetime('now'), datetime('now')),
-			('US5949181045', 'MSFT', 'Microsoft Corp.', datetime('now'), datetime('now'))
+			('US0378331005', 'AAPL', 'Apple Inc.', strftime('%s', 'now'), strftime('%s', 'now')),
+			('US5949181045', 'MSFT', 'Microsoft Corp.', strftime('%s', 'now'), strftime('%s', 'now'))
 	`)
 	require.NoError(t, err)
 
@@ -533,7 +533,7 @@ func TestSyncFromTradernet_CashBalancesError(t *testing.T) {
 	_, err = universeDB.Exec(`
 		INSERT INTO securities (isin, symbol, name, created_at, updated_at)
 		VALUES
-			('US0378331005', 'AAPL', 'Apple Inc.', datetime('now'), datetime('now'))
+			('US0378331005', 'AAPL', 'Apple Inc.', strftime('%s', 'now'), strftime('%s', 'now'))
 	`)
 	require.NoError(t, err)
 

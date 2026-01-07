@@ -184,10 +184,10 @@ func (r *ScoreRepository) GetTop(limit int) ([]SecurityScore, error) {
 // Upsert inserts or updates a score
 // Faithful translation of Python: async def upsert(self, score: SecurityScore) -> None
 func (r *ScoreRepository) Upsert(score SecurityScore) error {
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	calculatedAt := now
 	if score.CalculatedAt != nil {
-		calculatedAt = score.CalculatedAt.Format(time.RFC3339)
+		calculatedAt = score.CalculatedAt.Unix()
 	}
 
 	// Normalize symbol
@@ -316,7 +316,7 @@ func (r *ScoreRepository) scanScore(rows *sql.Rows) (SecurityScore, error) {
 	var sharpeScore, drawdownScore, dividendBonus sql.NullFloat64
 	var financialStrengthScore sql.NullFloat64
 	var rsi, ema200, below52wHighPct sql.NullFloat64
-	var lastUpdated sql.NullString
+	var lastUpdated sql.NullInt64
 
 	err := rows.Scan(
 		&isin, // isin (PRIMARY KEY)
@@ -399,16 +399,10 @@ func (r *ScoreRepository) scanScore(rows *sql.Rows) (SecurityScore, error) {
 	if below52wHighPct.Valid {
 		score.Below52wHighPct = below52wHighPct.Float64
 	}
-	// Map last_updated to calculated_at
-	if lastUpdated.Valid && lastUpdated.String != "" {
-		if t, err := time.Parse(time.RFC3339, lastUpdated.String); err == nil {
-			score.CalculatedAt = &t
-		} else {
-			// Try parsing as other common formats
-			if t, err := time.Parse("2006-01-02 15:04:05", lastUpdated.String); err == nil {
-				score.CalculatedAt = &t
-			}
-		}
+	// Map last_updated (Unix timestamp) to calculated_at
+	if lastUpdated.Valid {
+		t := time.Unix(lastUpdated.Int64, 0).UTC()
+		score.CalculatedAt = &t
 	}
 
 	// Handle ISIN

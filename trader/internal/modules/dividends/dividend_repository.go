@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aristath/portfolioManager/internal/utils"
 	"github.com/rs/zerolog"
 )
 
@@ -35,7 +36,7 @@ func NewDividendRepository(ledgerDB *sql.DB, log zerolog.Logger) *DividendReposi
 // Create creates a new dividend record
 // After migration: ISIN should be populated
 func (r *DividendRepository) Create(dividend *DividendRecord) error {
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Ensure ISIN is populated (required after migration)
 	// If not provided, try to lookup from securities table if universeDB is available
@@ -46,6 +47,12 @@ func (r *DividendRepository) Create(dividend *DividendRecord) error {
 		if err := row.Scan(&isin); err == nil && isin.Valid {
 			dividend.ISIN = isin.String
 		}
+	}
+
+	// Convert YYYY-MM-DD payment_date to Unix timestamp at midnight UTC
+	paymentDateUnix, err := utils.DateToUnix(dividend.PaymentDate)
+	if err != nil {
+		return fmt.Errorf("invalid payment_date format (expected YYYY-MM-DD): %w", err)
 	}
 
 	query := `
@@ -63,13 +70,13 @@ func (r *DividendRepository) Create(dividend *DividendRecord) error {
 		dividend.Amount,
 		dividend.Currency,
 		dividend.AmountEUR,
-		dividend.PaymentDate,
+		paymentDateUnix,
 		boolToInt(dividend.Reinvested),
-		nullTime(dividend.ReinvestedAt),
+		nullTimeUnix(dividend.ReinvestedAt),
 		nullInt(dividend.ReinvestedQuantity),
 		dividend.PendingBonus,
 		boolToInt(dividend.BonusCleared),
-		nullTime(dividend.ClearedAt),
+		nullTimeUnix(dividend.ClearedAt),
 		now,
 	)
 
@@ -83,7 +90,7 @@ func (r *DividendRepository) Create(dividend *DividendRecord) error {
 	}
 
 	dividend.ID = int(id)
-	createdAt, _ := time.Parse(time.RFC3339, now)
+	createdAt := time.Unix(now, 0).UTC()
 	dividend.CreatedAt = &createdAt
 
 	r.log.Info().
@@ -316,7 +323,7 @@ func (r *DividendRepository) GetPendingBonus(symbol string) (float64, error) {
 // MarkReinvested marks a dividend as reinvested (DRIP executed)
 // Faithful translation of Python: async def mark_reinvested(self, dividend_id: int, quantity: int) -> None
 func (r *DividendRepository) MarkReinvested(dividendID int, quantity int) error {
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	query := `
 		UPDATE dividend_history
@@ -360,7 +367,7 @@ func (r *DividendRepository) SetPendingBonus(dividendID int, bonus float64) erro
 // ClearBonus clears pending bonuses for a symbol (after security is bought)
 // Faithful translation of Python: async def clear_bonus(self, symbol: str) -> int
 func (r *DividendRepository) ClearBonus(symbol string) (int, error) {
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	query := `
 		UPDATE dividend_history
@@ -490,7 +497,8 @@ func (r *DividendRepository) GetReinvestmentRate() (float64, error) {
 func (r *DividendRepository) scanDividend(row *sql.Row) (DividendRecord, error) {
 	var dividend DividendRecord
 	var reinvested, bonusCleared int
-	var isin, reinvestedAt, clearedAt, createdAt sql.NullString
+	var isin sql.NullString
+	var paymentDateUnix, reinvestedAtUnix, clearedAtUnix, createdAtUnix sql.NullInt64
 	var cashFlowID, reinvestedQuantity sql.NullInt64
 
 	err := row.Scan(
@@ -501,14 +509,14 @@ func (r *DividendRepository) scanDividend(row *sql.Row) (DividendRecord, error) 
 		&dividend.Amount,
 		&dividend.Currency,
 		&dividend.AmountEUR,
-		&dividend.PaymentDate,
+		&paymentDateUnix,
 		&reinvested,
-		&reinvestedAt,
+		&reinvestedAtUnix,
 		&reinvestedQuantity,
 		&dividend.PendingBonus,
 		&bonusCleared,
-		&clearedAt,
-		&createdAt,
+		&clearedAtUnix,
+		&createdAtUnix,
 	)
 
 	if err != nil {
@@ -523,9 +531,12 @@ func (r *DividendRepository) scanDividend(row *sql.Row) (DividendRecord, error) 
 		id := int(cashFlowID.Int64)
 		dividend.CashFlowID = &id
 	}
+	if paymentDateUnix.Valid {
+		dividend.PaymentDate = utils.UnixToDate(paymentDateUnix.Int64)
+	}
 	dividend.Reinvested = reinvested == 1
-	if reinvestedAt.Valid {
-		t, _ := time.Parse(time.RFC3339, reinvestedAt.String)
+	if reinvestedAtUnix.Valid {
+		t := time.Unix(reinvestedAtUnix.Int64, 0).UTC()
 		dividend.ReinvestedAt = &t
 	}
 	if reinvestedQuantity.Valid {
@@ -533,12 +544,12 @@ func (r *DividendRepository) scanDividend(row *sql.Row) (DividendRecord, error) 
 		dividend.ReinvestedQuantity = &qty
 	}
 	dividend.BonusCleared = bonusCleared == 1
-	if clearedAt.Valid {
-		t, _ := time.Parse(time.RFC3339, clearedAt.String)
+	if clearedAtUnix.Valid {
+		t := time.Unix(clearedAtUnix.Int64, 0).UTC()
 		dividend.ClearedAt = &t
 	}
-	if createdAt.Valid {
-		t, _ := time.Parse(time.RFC3339, createdAt.String)
+	if createdAtUnix.Valid {
+		t := time.Unix(createdAtUnix.Int64, 0).UTC()
 		dividend.CreatedAt = &t
 	}
 
@@ -548,7 +559,8 @@ func (r *DividendRepository) scanDividend(row *sql.Row) (DividendRecord, error) 
 func (r *DividendRepository) scanDividendFromRows(rows *sql.Rows) (DividendRecord, error) {
 	var dividend DividendRecord
 	var reinvested, bonusCleared int
-	var isin, reinvestedAt, clearedAt, createdAt sql.NullString
+	var isin sql.NullString
+	var paymentDateUnix, reinvestedAtUnix, clearedAtUnix, createdAtUnix sql.NullInt64
 	var cashFlowID, reinvestedQuantity sql.NullInt64
 
 	err := rows.Scan(
@@ -559,14 +571,14 @@ func (r *DividendRepository) scanDividendFromRows(rows *sql.Rows) (DividendRecor
 		&dividend.Amount,
 		&dividend.Currency,
 		&dividend.AmountEUR,
-		&dividend.PaymentDate,
+		&paymentDateUnix,
 		&reinvested,
-		&reinvestedAt,
+		&reinvestedAtUnix,
 		&reinvestedQuantity,
 		&dividend.PendingBonus,
 		&bonusCleared,
-		&clearedAt,
-		&createdAt,
+		&clearedAtUnix,
+		&createdAtUnix,
 	)
 
 	if err != nil {
@@ -581,9 +593,12 @@ func (r *DividendRepository) scanDividendFromRows(rows *sql.Rows) (DividendRecor
 		id := int(cashFlowID.Int64)
 		dividend.CashFlowID = &id
 	}
+	if paymentDateUnix.Valid {
+		dividend.PaymentDate = utils.UnixToDate(paymentDateUnix.Int64)
+	}
 	dividend.Reinvested = reinvested == 1
-	if reinvestedAt.Valid {
-		t, _ := time.Parse(time.RFC3339, reinvestedAt.String)
+	if reinvestedAtUnix.Valid {
+		t := time.Unix(reinvestedAtUnix.Int64, 0).UTC()
 		dividend.ReinvestedAt = &t
 	}
 	if reinvestedQuantity.Valid {
@@ -591,12 +606,12 @@ func (r *DividendRepository) scanDividendFromRows(rows *sql.Rows) (DividendRecor
 		dividend.ReinvestedQuantity = &qty
 	}
 	dividend.BonusCleared = bonusCleared == 1
-	if clearedAt.Valid {
-		t, _ := time.Parse(time.RFC3339, clearedAt.String)
+	if clearedAtUnix.Valid {
+		t := time.Unix(clearedAtUnix.Int64, 0).UTC()
 		dividend.ClearedAt = &t
 	}
-	if createdAt.Valid {
-		t, _ := time.Parse(time.RFC3339, createdAt.String)
+	if createdAtUnix.Valid {
+		t := time.Unix(createdAtUnix.Int64, 0).UTC()
 		dividend.CreatedAt = &t
 	}
 
@@ -612,11 +627,11 @@ func nullInt(i *int) sql.NullInt64 {
 	return sql.NullInt64{Int64: int64(*i), Valid: true}
 }
 
-func nullTime(t *time.Time) sql.NullString {
+func nullTimeUnix(t *time.Time) sql.NullInt64 {
 	if t == nil {
-		return sql.NullString{Valid: false}
+		return sql.NullInt64{Valid: false}
 	}
-	return sql.NullString{String: t.Format(time.RFC3339), Valid: true}
+	return sql.NullInt64{Int64: t.Unix(), Valid: true}
 }
 
 func boolToInt(b bool) int {

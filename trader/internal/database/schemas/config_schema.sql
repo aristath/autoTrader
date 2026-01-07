@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
     description TEXT,
-    updated_at TEXT NOT NULL
+    updated_at INTEGER NOT NULL      -- Unix timestamp (seconds since epoch)
 ) STRICT;
 
 -- Allocation targets table: group-based allocation rules
@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS allocation_targets (
     type TEXT NOT NULL,      -- 'geography', 'industry', 'country_group', 'industry_group'
     name TEXT NOT NULL,
     target_pct REAL NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
+    created_at INTEGER NOT NULL,     -- Unix timestamp (seconds since epoch)
+    updated_at INTEGER NOT NULL,     -- Unix timestamp (seconds since epoch)
     UNIQUE(type, name)
 ) STRICT;
 
@@ -92,21 +92,21 @@ CREATE TABLE IF NOT EXISTS planner_settings (
     optimizer_blend REAL DEFAULT 0.5,  -- Blend between Mean-Variance (0.0) and HRP (1.0)
 
     -- Timestamps
-    updated_at TEXT NOT NULL
+    updated_at INTEGER NOT NULL      -- Unix timestamp (seconds since epoch)
 ) STRICT;
 
 -- Insert default row (single row table - use INSERT OR REPLACE)
 INSERT OR REPLACE INTO planner_settings (id, name, description, updated_at)
-VALUES ('main', 'default', 'Default planner configuration', datetime('now'));
+VALUES ('main', 'default', 'Default planner configuration', (strftime('%s', 'now')));
 
 -- Market regime history: tracks continuous regime scores over time
 CREATE TABLE IF NOT EXISTS market_regime_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    recorded_at TEXT NOT NULL,           -- ISO 8601 timestamp
+    recorded_at INTEGER NOT NULL,        -- Unix timestamp (seconds since epoch)
     raw_score REAL NOT NULL,             -- Raw regime score before smoothing (-1.0 to +1.0)
     smoothed_score REAL NOT NULL,         -- Exponentially smoothed score (-1.0 to +1.0)
     discrete_regime TEXT NOT NULL,       -- Label (unused by code)
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    created_at INTEGER DEFAULT (strftime('%s', 'now'))  -- Unix timestamp (seconds since epoch)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_regime_history_recorded ON market_regime_history(recorded_at DESC);
@@ -115,11 +115,11 @@ CREATE INDEX IF NOT EXISTS idx_regime_history_smoothed ON market_regime_history(
 -- Adaptive performance history: tracks component performance over time
 CREATE TABLE IF NOT EXISTS adaptive_performance_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    recorded_at TEXT NOT NULL,           -- ISO 8601 timestamp
+    recorded_at INTEGER NOT NULL,        -- Unix timestamp (seconds since epoch)
     regime_score REAL NOT NULL,          -- Regime score when recorded (-1.0 to +1.0)
     portfolio_return REAL NOT NULL,      -- Portfolio return for this period
     component_performance TEXT NOT NULL, -- JSON: {"long_term": 0.12, "fundamentals": 0.08, ...}
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    created_at INTEGER DEFAULT (strftime('%s', 'now'))  -- Unix timestamp (seconds since epoch)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_adaptive_perf_recorded ON adaptive_performance_history(recorded_at DESC);
@@ -131,8 +131,8 @@ CREATE TABLE IF NOT EXISTS adaptive_parameters (
     parameter_type TEXT NOT NULL UNIQUE, -- 'scoring_weights', 'optimizer_blend', 'quality_gates'
     parameter_value TEXT NOT NULL,       -- JSON
     regime_score REAL NOT NULL,          -- Regime score when adapted (-1.0 to +1.0)
-    adapted_at TEXT NOT NULL,            -- ISO 8601 timestamp
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    adapted_at INTEGER NOT NULL,         -- Unix timestamp (seconds since epoch)
+    created_at INTEGER DEFAULT (strftime('%s', 'now'))  -- Unix timestamp (seconds since epoch)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_adaptive_params_type ON adaptive_parameters(parameter_type);

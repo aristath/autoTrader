@@ -44,11 +44,11 @@ func setupIntegrationTestDB(t *testing.T) (*sql.DB, *sql.DB, *sql.DB) {
 	_, err = configDB.Exec(`
 		CREATE TABLE IF NOT EXISTS market_regime_history (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			recorded_at TEXT NOT NULL,
+			recorded_at INTEGER NOT NULL,
 			raw_score REAL NOT NULL,
 			smoothed_score REAL NOT NULL,
 			discrete_regime TEXT NOT NULL,
-			created_at TEXT DEFAULT CURRENT_TIMESTAMP
+			created_at INTEGER DEFAULT (strftime('%s', 'now'))
 		);
 		CREATE INDEX IF NOT EXISTS idx_regime_history_recorded ON market_regime_history(recorded_at DESC);
 
@@ -57,8 +57,8 @@ func setupIntegrationTestDB(t *testing.T) (*sql.DB, *sql.DB, *sql.DB) {
 			parameter_type TEXT NOT NULL UNIQUE,
 			parameter_value TEXT NOT NULL,
 			regime_score REAL NOT NULL,
-			adapted_at TEXT NOT NULL,
-			created_at TEXT DEFAULT CURRENT_TIMESTAMP
+			adapted_at INTEGER NOT NULL,
+			created_at INTEGER DEFAULT (strftime('%s', 'now'))
 		);
 		CREATE INDEX IF NOT EXISTS idx_adaptive_params_type ON adaptive_parameters(parameter_type);
 	`)
@@ -74,8 +74,8 @@ func setupIntegrationTestDB(t *testing.T) (*sql.DB, *sql.DB, *sql.DB) {
 			active INTEGER DEFAULT 1,
 			allow_buy INTEGER DEFAULT 1,
 			allow_sell INTEGER DEFAULT 1,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
 		);
 	`)
 	require.NoError(t, err)
@@ -173,7 +173,7 @@ func TestFullAdaptationFlow(t *testing.T) {
 	assert.Less(t, adaptiveGates.GetLongTerm(), 0.50, "Bull market should have lower long_term threshold")
 
 	// Step 6: Store adaptive parameters
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	weightsJSON, err := json.Marshal(adaptiveWeights)
 	require.NoError(t, err)
@@ -447,7 +447,7 @@ func TestAdaptiveParametersPersistence(t *testing.T) {
 	blend := adaptiveService.CalculateAdaptiveBlend(float64(currentScore))
 	gates := adaptiveService.CalculateAdaptiveQualityGates(float64(currentScore))
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Store weights
 	weightsJSON, _ := json.Marshal(weights)

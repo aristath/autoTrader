@@ -48,7 +48,7 @@ func TestScanScore_ScansAllColumns(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert test data with all columns populated (ISIN as first column)
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	_, err = db.Conn().Exec(`
 		INSERT INTO scores VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, "TEST12345678", 0.75, 0.70, 0.65, 0.60, 0.55, 0.20, 0.15, 0.10, 5, 0.50, 0.45,
@@ -127,7 +127,7 @@ func TestScanScore_HandlesNullValues(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert test data with NULL values for optional columns (ISIN as key)
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	_, err = db.Conn().Exec(`
 		INSERT INTO scores (isin, total_score, last_updated) VALUES (?, ?, ?)
 	`, "TEST12345678", 0.50, now)

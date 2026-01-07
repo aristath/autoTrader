@@ -43,7 +43,7 @@ func TestCashRepository_Get(t *testing.T) {
 	_, err = db.Exec(`
 		INSERT INTO cash_balances (currency, balance, last_updated)
 		VALUES ('EUR', 1000.50, ?)
-	`, time.Now().Format(time.RFC3339))
+	`, time.Now().Unix())
 	require.NoError(t, err)
 
 	// Get existing balance
@@ -69,7 +69,7 @@ func TestCashRepository_GetAll(t *testing.T) {
 	assert.Empty(t, all)
 
 	// Insert multiple currencies
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	_, err = db.Exec(`
 		INSERT INTO cash_balances (currency, balance, last_updated) VALUES
 		('EUR', 1000.0, ?),

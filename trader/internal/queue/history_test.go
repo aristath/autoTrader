@@ -65,17 +65,16 @@ func TestHistory_RecordExecution(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify it was recorded
-	var lastRunAt string
 	var lastStatus string
+	var lastRunAtUnix int64
 	err = db.QueryRow("SELECT last_run_at, last_status FROM job_history WHERE job_type = ?", JobTypePlannerBatch).
-		Scan(&lastRunAt, &lastStatus)
+		Scan(&lastRunAtUnix, &lastStatus)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", lastStatus)
 
-	// Parse and verify timestamp is close
-	parsed, err := time.Parse(time.RFC3339, lastRunAt)
-	require.NoError(t, err)
+	// Convert Unix timestamp to time.Time and verify it's close
+	parsed := time.Unix(lastRunAtUnix, 0).UTC()
 	assert.WithinDuration(t, now, parsed, 1*time.Second)
 }
 

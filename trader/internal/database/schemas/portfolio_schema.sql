@@ -14,9 +14,9 @@ CREATE TABLE IF NOT EXISTS positions (
     cost_basis_eur REAL,
     unrealized_pnl REAL,
     unrealized_pnl_pct REAL,
-    last_updated TEXT,
-    first_bought TEXT,
-    last_sold TEXT,
+    last_updated INTEGER,             -- Unix timestamp (seconds since epoch)
+    first_bought INTEGER,            -- Unix timestamp at midnight UTC (seconds since epoch)
+    last_sold INTEGER,               -- Unix timestamp at midnight UTC (seconds since epoch)
     symbol TEXT -- Keep symbol for display/API conversion
 ) STRICT;
 
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS scores (
     rsi REAL,
     ema_200 REAL,
     below_52w_high_pct REAL,
-    last_updated TEXT NOT NULL
+    last_updated INTEGER NOT NULL    -- Unix timestamp (seconds since epoch)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_scores_total ON scores(total_score DESC);
@@ -57,5 +57,5 @@ CREATE INDEX IF NOT EXISTS idx_scores_updated ON scores(last_updated);
 CREATE TABLE IF NOT EXISTS cash_balances (
     currency TEXT PRIMARY KEY,
     balance REAL NOT NULL,
-    last_updated TEXT NOT NULL
+    last_updated INTEGER NOT NULL    -- Unix timestamp (seconds since epoch)
 ) STRICT;

@@ -12,9 +12,9 @@ CREATE TABLE IF NOT EXISTS discovered_formulas (
     fitness_score REAL NOT NULL,          -- Final fitness score (lower is better)
     complexity INTEGER NOT NULL,           -- Formula complexity (number of nodes)
     training_examples_count INTEGER,      -- Number of training examples used
-    discovered_at TEXT NOT NULL,           -- ISO 8601 timestamp
+    discovered_at INTEGER NOT NULL,        -- Unix timestamp (seconds since epoch)
     is_active INTEGER DEFAULT 1,          -- 1 = active (currently in use), 0 = inactive
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    created_at INTEGER DEFAULT (strftime('%s', 'now'))  -- Unix timestamp (seconds since epoch)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_formulas_type ON discovered_formulas(formula_type);

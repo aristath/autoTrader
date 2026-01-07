@@ -70,22 +70,26 @@ func (r *Repository) GetByType(targetType string) ([]AllocationTarget, error) {
 	var targets []AllocationTarget
 	for rows.Next() {
 		var target AllocationTarget
-		var createdAt, updatedAt string
+		var createdAtUnix, updatedAtUnix sql.NullInt64
 
 		if err := rows.Scan(
 			&target.ID,
 			&target.Type,
 			&target.Name,
 			&target.TargetPct,
-			&createdAt,
-			&updatedAt,
+			&createdAtUnix,
+			&updatedAtUnix,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan allocation target: %w", err)
 		}
 
-		// Parse timestamps
-		target.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		target.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		// Convert Unix timestamps to time.Time
+		if createdAtUnix.Valid {
+			target.CreatedAt = time.Unix(createdAtUnix.Int64, 0).UTC()
+		}
+		if updatedAtUnix.Valid {
+			target.UpdatedAt = time.Unix(updatedAtUnix.Int64, 0).UTC()
+		}
 
 		targets = append(targets, target)
 	}
@@ -160,7 +164,7 @@ func (r *Repository) GetIndustryGroupTargets() (map[string]float64, error) {
 // Upsert inserts or updates an allocation target
 // Faithful translation of Python: async def upsert(self, target: AllocationTarget) -> None
 func (r *Repository) Upsert(target AllocationTarget) error {
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	query := `
 		INSERT INTO allocation_targets (type, name, target_pct, created_at, updated_at)

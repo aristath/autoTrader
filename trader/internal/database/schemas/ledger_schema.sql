@@ -10,13 +10,13 @@ CREATE TABLE IF NOT EXISTS trades (
     side TEXT NOT NULL CHECK (side IN ('BUY', 'SELL')),
     quantity REAL NOT NULL CHECK (quantity > 0),
     price REAL NOT NULL CHECK (price > 0),
-    executed_at TEXT NOT NULL,       -- ISO 8601 timestamp
+    executed_at INTEGER NOT NULL,    -- Unix timestamp (seconds since epoch)
     order_id TEXT,
     currency TEXT NOT NULL,
     value_eur REAL NOT NULL,
     source TEXT DEFAULT 'manual',    -- 'manual', 'planner', 'rebalance', etc.
     mode TEXT DEFAULT 'normal',      -- 'normal', 'drip', 'fractional'
-    created_at TEXT NOT NULL
+    created_at INTEGER NOT NULL      -- Unix timestamp (seconds since epoch)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol);
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS cash_flows (
     transaction_id TEXT UNIQUE NOT NULL,
     type_doc_id INTEGER NOT NULL,
     transaction_type TEXT,
-    date TEXT NOT NULL,              -- YYYY-MM-DD format
+    date INTEGER NOT NULL,            -- Unix timestamp at midnight UTC (seconds since epoch)
     amount REAL NOT NULL,
     currency TEXT NOT NULL,
     amount_eur REAL NOT NULL,
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS cash_flows (
     status_c INTEGER,
     description TEXT,
     params_json TEXT,
-    created_at TEXT NOT NULL
+    created_at INTEGER NOT NULL      -- Unix timestamp (seconds since epoch)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_cash_flows_date ON cash_flows(date);
@@ -49,16 +49,18 @@ CREATE TABLE IF NOT EXISTS dividend_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     symbol TEXT NOT NULL,
     isin TEXT,
-    payment_date TEXT NOT NULL,      -- YYYY-MM-DD when dividend was received
-    ex_date TEXT,                    -- YYYY-MM-DD ex-dividend date
-    amount_per_share REAL NOT NULL,
-    shares_held REAL NOT NULL,       -- Shares owned on ex-date
-    total_amount REAL NOT NULL,      -- Total dividend received
+    cash_flow_id INTEGER,            -- Reference to cash_flows.id
+    amount REAL NOT NULL,             -- Dividend amount in original currency
     currency TEXT NOT NULL,
-    total_amount_eur REAL NOT NULL,
-    drip_enabled INTEGER DEFAULT 0,  -- Boolean: was DRIP active?
-    reinvested_shares REAL,          -- Shares acquired via DRIP
-    created_at TEXT NOT NULL
+    amount_eur REAL NOT NULL,         -- Dividend amount in EUR
+    payment_date INTEGER NOT NULL,    -- Unix timestamp at midnight UTC when dividend was received
+    reinvested INTEGER DEFAULT 0,     -- Boolean: was dividend reinvested?
+    reinvested_at INTEGER,            -- Unix timestamp when reinvested
+    reinvested_quantity INTEGER,      -- Quantity of shares acquired via DRIP
+    pending_bonus REAL DEFAULT 0,     -- Pending bonus amount (when reinvestment not possible)
+    bonus_cleared INTEGER DEFAULT 0,  -- Boolean: was bonus cleared?
+    cleared_at INTEGER,                -- Unix timestamp when bonus was cleared
+    created_at INTEGER NOT NULL       -- Unix timestamp (seconds since epoch)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_dividends_symbol ON dividend_history(symbol);
@@ -71,8 +73,8 @@ CREATE TABLE IF NOT EXISTS drip_tracking (
     drip_enabled INTEGER DEFAULT 0,  -- Boolean: is DRIP active for this security?
     total_dividends_received REAL DEFAULT 0,
     total_shares_reinvested REAL DEFAULT 0,
-    last_dividend_date TEXT,
-    updated_at TEXT NOT NULL
+    last_dividend_date INTEGER,      -- Unix timestamp at midnight UTC
+    updated_at INTEGER NOT NULL      -- Unix timestamp (seconds since epoch)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_drip_enabled ON drip_tracking(drip_enabled);

@@ -87,7 +87,7 @@ func TestSecurityRepository_getTagsForSecurity_NoTags(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	// Insert test security with ISIN (using symbol as ISIN for test simplicity)
 	_, err := db.Exec(`
 		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
@@ -111,7 +111,7 @@ func TestSecurityRepository_getTagsForSecurity_MultipleTags(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	// Insert test security with ISIN
 	_, err := db.Exec(`
 		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
@@ -173,7 +173,7 @@ func TestSecurityRepository_setTagsForSecurity_NewTags(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	// Insert test security with ISIN
 	_, err := db.Exec(`
 		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
@@ -214,7 +214,7 @@ func TestSecurityRepository_setTagsForSecurity_ReplaceTags(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	// Insert test security with ISIN
 	_, err := db.Exec(`
 		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
@@ -250,7 +250,7 @@ func TestSecurityRepository_setTagsForSecurity_EmptyArray(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	// Insert test security with ISIN
 	_, err := db.Exec(`
 		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
@@ -284,7 +284,7 @@ func TestSecurityRepository_scanSecurity_IncludesTags(t *testing.T) {
 	repo := NewSecurityRepository(db, log)
 
 	// Insert test security with ISIN
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	_, err := db.Exec(`
 		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
 		VALUES ('US0378331005', 'AAPL', 'Apple Inc', 1, ?, ?)
@@ -349,7 +349,7 @@ func TestSecurityRepository_GetTagsForSecurity_Public(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 	// Insert test security with ISIN
 	_, err := db.Exec(`
 		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
@@ -387,7 +387,7 @@ func TestSecurityRepository_GetByTags_SingleTag(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Insert test securities with ISINs
 	_, err := db.Exec(`
@@ -470,7 +470,7 @@ func TestSecurityRepository_GetByTags_MultipleTags(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Insert test securities with ISINs
 	_, err := db.Exec(`
@@ -517,7 +517,7 @@ func TestSecurityRepository_GetByTags_NoMatches(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Insert test security with ISIN
 	_, err := db.Exec(`
@@ -542,7 +542,7 @@ func TestSecurityRepository_GetPositionsByTags(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 	repo := NewSecurityRepository(db, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Insert test securities with ISINs
 	_, err := db.Exec(`

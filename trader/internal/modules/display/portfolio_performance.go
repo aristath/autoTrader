@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aristath/portfolioManager/internal/modules/settings"
+	"github.com/aristath/portfolioManager/internal/utils"
 	"github.com/rs/zerolog"
 )
 
@@ -77,17 +78,31 @@ func (s *PortfolioPerformanceService) CalculateWeightedPerformance() (float64, e
 }
 
 // CalculateTrailing12MoReturn calculates trailing 12-month annualized return from portfolio snapshots
+// NOTE: portfolio_snapshots table was dropped in migration 022 - this function will fail
 func (s *PortfolioPerformanceService) CalculateTrailing12MoReturn() (*float64, error) {
-	endDate := time.Now().Format("2006-01-02")
-	startDate := time.Now().AddDate(-1, 0, 0).Format("2006-01-02")
+	endDateStr := time.Now().Format("2006-01-02")
+	startDateStr := time.Now().AddDate(-1, 0, 0).Format("2006-01-02")
+
+	// Convert YYYY-MM-DD strings to Unix timestamps
+	startUnix, err := utils.DateToUnix(startDateStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid start_date: %w", err)
+	}
+	// End date should be end of day (23:59:59)
+	endTime, err := time.Parse("2006-01-02", endDateStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid end_date: %w", err)
+	}
+	endUnix := time.Date(endTime.Year(), endTime.Month(), endTime.Day(), 23, 59, 59, 0, time.UTC).Unix()
 
 	// Get snapshots in range
+	// NOTE: portfolio_snapshots table was dropped in migration 022 - this will fail
 	rows, err := s.portfolioDB.Query(`
-		SELECT date, total_value
+		SELECT snapshot_date, total_value
 		FROM portfolio_snapshots
-		WHERE date >= ? AND date <= ?
-		ORDER BY date ASC
-	`, startDate, endDate)
+		WHERE snapshot_date >= ? AND snapshot_date <= ?
+		ORDER BY snapshot_date ASC
+	`, startUnix, endUnix)
 	if err != nil {
 		return nil, err
 	}
@@ -103,8 +118,12 @@ func (s *PortfolioPerformanceService) CalculateTrailing12MoReturn() (*float64, e
 			Date       string
 			TotalValue float64
 		}
-		if err := rows.Scan(&snap.Date, &snap.TotalValue); err != nil {
+		var dateUnix sql.NullInt64
+		if err := rows.Scan(&dateUnix, &snap.TotalValue); err != nil {
 			return nil, err
+		}
+		if dateUnix.Valid {
+			snap.Date = utils.UnixToDate(dateUnix.Int64)
 		}
 		snapshots = append(snapshots, snap)
 	}
@@ -155,14 +174,22 @@ func (s *PortfolioPerformanceService) CalculateTrailing12MoReturn() (*float64, e
 }
 
 // CalculateSinceInceptionCAGR calculates since-inception CAGR from first to latest portfolio snapshot
+// NOTE: portfolio_snapshots table was dropped in migration 022 - this function will fail
 func (s *PortfolioPerformanceService) CalculateSinceInceptionCAGR() (*float64, error) {
+	// Convert hardcoded date to Unix timestamp
+	startDateUnix, err := utils.DateToUnix("2020-01-01")
+	if err != nil {
+		return nil, fmt.Errorf("invalid start_date: %w", err)
+	}
+
 	// Get first and last snapshot
+	// NOTE: portfolio_snapshots table was dropped in migration 022 - this will fail
 	rows, err := s.portfolioDB.Query(`
-		SELECT date, total_value
+		SELECT snapshot_date, total_value
 		FROM portfolio_snapshots
-		WHERE date >= '2020-01-01'
-		ORDER BY date ASC
-	`)
+		WHERE snapshot_date >= ?
+		ORDER BY snapshot_date ASC
+	`, startDateUnix)
 	if err != nil {
 		return nil, err
 	}
@@ -178,8 +205,12 @@ func (s *PortfolioPerformanceService) CalculateSinceInceptionCAGR() (*float64, e
 			Date       string
 			TotalValue float64
 		}
-		if err := rows.Scan(&snap.Date, &snap.TotalValue); err != nil {
+		var dateUnix sql.NullInt64
+		if err := rows.Scan(&dateUnix, &snap.TotalValue); err != nil {
 			return nil, err
+		}
+		if dateUnix.Valid {
+			snap.Date = utils.UnixToDate(dateUnix.Int64)
 		}
 		snapshots = append(snapshots, snap)
 	}

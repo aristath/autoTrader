@@ -19,7 +19,7 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS daily_prices (
 			isin TEXT NOT NULL,
-			date TEXT NOT NULL,
+			date INTEGER NOT NULL,
 			close REAL NOT NULL,
 			adjusted_close REAL NOT NULL,
 			PRIMARY KEY (isin, date)
@@ -45,20 +45,20 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 			rsi REAL,
 			ema_200 REAL,
 			below_52w_high_pct REAL,
-			last_updated TEXT NOT NULL
+			last_updated INTEGER NOT NULL
 		);
 
 		CREATE TABLE IF NOT EXISTS calculated_metrics (
 			symbol TEXT NOT NULL,
 			metric_name TEXT NOT NULL,
 			metric_value REAL NOT NULL,
-			calculated_at TEXT NOT NULL,
+			calculated_at INTEGER NOT NULL,
 			PRIMARY KEY (symbol, metric_name)
 		);
 
 		CREATE TABLE IF NOT EXISTS market_regime_history (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			recorded_at TEXT NOT NULL,
+			recorded_at INTEGER NOT NULL,
 			raw_score REAL NOT NULL,
 			smoothed_score REAL NOT NULL,
 			discrete_regime TEXT NOT NULL DEFAULT 'n/a'
@@ -105,18 +105,20 @@ func TestDataPrep_ExtractTrainingExamples_MinimumHistory(t *testing.T) {
 	baseDate := time.Date(2023, 1, 15, 0, 0, 0, 0, time.UTC)
 	for i := 0; i < 540; i++ {
 		date := baseDate.AddDate(0, 0, i)
+		dateUnix := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC).Unix()
 		_, err := historyDB.Exec(
 			"INSERT INTO daily_prices (isin, date, close, adjusted_close) VALUES (?, ?, ?, ?)",
-			isin, date.Format("2006-01-02"), 100.0+float64(i)*0.1, 100.0+float64(i)*0.1,
+			isin, dateUnix, 100.0+float64(i)*0.1, 100.0+float64(i)*0.1,
 		)
 		require.NoError(t, err)
 	}
 
 	// Insert score at training date (2023-07-15)
 	trainingDate := baseDate.AddDate(0, 6, 0)
+	trainingDateUnix := time.Date(trainingDate.Year(), trainingDate.Month(), trainingDate.Day(), 0, 0, 0, 0, time.UTC).Unix()
 	_, err := portfolioDB.Exec(
 		"INSERT INTO scores (isin, total_score, cagr_score, fundamental_score, last_updated) VALUES (?, ?, ?, ?, ?)",
-		isin, 0.75, 0.80, 0.70, trainingDate.Format("2006-01-02"),
+		isin, 0.75, 0.80, 0.70, trainingDateUnix,
 	)
 	require.NoError(t, err)
 
@@ -187,9 +189,10 @@ func TestDataPrep_ExtractTrainingExamples_InsufficientHistory(t *testing.T) {
 	// Only 90 days (3 months) - insufficient for 6-month forward return (use ISIN)
 	for i := 0; i < 90; i++ {
 		date := baseDate.AddDate(0, 0, i)
+		dateUnix := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC).Unix()
 		_, err := historyDB.Exec(
 			"INSERT INTO daily_prices (isin, date, close, adjusted_close) VALUES (?, ?, ?, ?)",
-			isin, date.Format("2006-01-02"), 50.0, 50.0,
+			isin, dateUnix, 50.0, 50.0,
 		)
 		require.NoError(t, err)
 	}
@@ -243,9 +246,10 @@ func TestDataPrep_ExtractTrainingExamples_TimeWindowed(t *testing.T) {
 	aaplStart := time.Date(2014, 1, 15, 0, 0, 0, 0, time.UTC)
 	for i := 0; i < 3650; i++ {
 		date := aaplStart.AddDate(0, 0, i)
+		dateUnix := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC).Unix()
 		_, err := historyDB.Exec(
 			"INSERT INTO daily_prices (isin, date, close, adjusted_close) VALUES (?, ?, ?, ?)",
-			aaplISIN, date.Format("2006-01-02"), 100.0, 100.0,
+			aaplISIN, dateUnix, 100.0, 100.0,
 		)
 		require.NoError(t, err)
 	}
@@ -257,23 +261,29 @@ func TestDataPrep_ExtractTrainingExamples_TimeWindowed(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert scores for AAPL at various dates (before both test dates)
+	aaplScoreDate, _ := time.Parse("2006-01-02", "2019-12-01")
+	aaplScoreDateUnix := time.Date(aaplScoreDate.Year(), aaplScoreDate.Month(), aaplScoreDate.Day(), 0, 0, 0, 0, time.UTC).Unix()
 	_, err = portfolioDB.Exec(
 		"INSERT INTO scores (isin, total_score, cagr_score, fundamental_score, last_updated) VALUES (?, ?, ?, ?, ?)",
-		aaplISIN, 0.75, 0.80, 0.70, "2019-12-01",
+		aaplISIN, 0.75, 0.80, 0.70, aaplScoreDateUnix,
 	)
 	require.NoError(t, err)
 
 	// Insert regime scores (before both test dates)
+	regimeDate1, _ := time.Parse("2006-01-02", "2019-12-01")
+	regimeDate1Unix := time.Date(regimeDate1.Year(), regimeDate1.Month(), regimeDate1.Day(), 0, 0, 0, 0, time.UTC).Unix()
 	_, err = configDB.Exec(
 		"INSERT INTO market_regime_history (recorded_at, raw_score, smoothed_score) VALUES (?, ?, ?)",
-		"2019-12-01", 0.3, 0.3,
+		regimeDate1Unix, 0.3, 0.3,
 	)
 	require.NoError(t, err)
 
 	// Also add regime score for 2022
+	regimeDate2, _ := time.Parse("2006-01-02", "2022-01-01")
+	regimeDate2Unix := time.Date(regimeDate2.Year(), regimeDate2.Month(), regimeDate2.Day(), 0, 0, 0, 0, time.UTC).Unix()
 	_, err = configDB.Exec(
 		"INSERT INTO market_regime_history (recorded_at, raw_score, smoothed_score) VALUES (?, ?, ?)",
-		"2022-01-01", 0.2, 0.2,
+		regimeDate2Unix, 0.2, 0.2,
 	)
 	require.NoError(t, err)
 
@@ -283,9 +293,10 @@ func TestDataPrep_ExtractTrainingExamples_TimeWindowed(t *testing.T) {
 	newcoStart := time.Date(2022, 1, 15, 0, 0, 0, 0, time.UTC)
 	for i := 0; i < 730; i++ {
 		date := newcoStart.AddDate(0, 0, i)
+		dateUnix := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC).Unix()
 		_, err := historyDB.Exec(
 			"INSERT INTO daily_prices (isin, date, close, adjusted_close) VALUES (?, ?, ?, ?)",
-			newcoISIN, date.Format("2006-01-02"), 50.0, 50.0,
+			newcoISIN, dateUnix, 50.0, 50.0,
 		)
 		require.NoError(t, err)
 	}
@@ -297,9 +308,11 @@ func TestDataPrep_ExtractTrainingExamples_TimeWindowed(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert scores for NEWCO (before test date)
+	newcoScoreDate, _ := time.Parse("2006-01-02", "2022-06-01")
+	newcoScoreDateUnix := time.Date(newcoScoreDate.Year(), newcoScoreDate.Month(), newcoScoreDate.Day(), 0, 0, 0, 0, time.UTC).Unix()
 	_, err = portfolioDB.Exec(
 		"INSERT INTO scores (isin, total_score, cagr_score, fundamental_score, last_updated) VALUES (?, ?, ?, ?, ?)",
-		newcoISIN, 0.70, 0.75, 0.65, "2022-06-01",
+		newcoISIN, 0.70, 0.75, 0.65, newcoScoreDateUnix,
 	)
 	require.NoError(t, err)
 
@@ -355,15 +368,19 @@ func TestDataPrep_CalculateTargetReturn(t *testing.T) {
 	isin := "US0378331005" // AAPL ISIN
 
 	// Insert price data: $100 on 2023-01-15, $110 on 2023-07-15 (10% return)
+	startDate, _ := time.Parse("2006-01-02", "2023-01-15")
+	startDateUnix := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC).Unix()
 	_, err := historyDB.Exec(
 		"INSERT INTO daily_prices (isin, date, close, adjusted_close) VALUES (?, ?, ?, ?)",
-		isin, "2023-01-15", 100.0, 100.0,
+		isin, startDateUnix, 100.0, 100.0,
 	)
 	require.NoError(t, err)
 
+	endDate, _ := time.Parse("2006-01-02", "2023-07-15")
+	endDateUnix := time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, time.UTC).Unix()
 	_, err = historyDB.Exec(
 		"INSERT INTO daily_prices (isin, date, close, adjusted_close) VALUES (?, ?, ?, ?)",
-		isin, "2023-07-15", 110.0, 110.0,
+		isin, endDateUnix, 110.0, 110.0,
 	)
 	require.NoError(t, err)
 

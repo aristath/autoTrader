@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS sequences (
     depth INTEGER NOT NULL,          -- Sequence depth (1-5)
     pattern_type TEXT,               -- Pattern: 'direct_buy', 'combinatorial', etc.
     completed INTEGER DEFAULT 0,     -- 0 = not evaluated, 1 = evaluated
-    evaluated_at TEXT,               -- ISO timestamp when evaluated
-    created_at TEXT NOT NULL,
+    evaluated_at INTEGER,            -- Unix timestamp when evaluated (seconds since epoch)
+    created_at INTEGER NOT NULL,     -- Unix timestamp (seconds since epoch)
     PRIMARY KEY (sequence_hash, portfolio_hash)
 ) STRICT;
 
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS evaluations (
     end_context_positions_json TEXT NOT NULL,  -- JSON Dict[str, float]
     div_score REAL NOT NULL,         -- Diversification score
     total_value REAL NOT NULL,       -- Total portfolio value after sequence
-    evaluated_at TEXT NOT NULL,
+    evaluated_at INTEGER NOT NULL,   -- Unix timestamp (seconds since epoch)
     PRIMARY KEY (sequence_hash, portfolio_hash)
 ) STRICT;
 
@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS best_result (
     sequence_hash TEXT NOT NULL,
     plan_data TEXT NOT NULL,         -- JSON serialized HolisticPlan
     score REAL NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    created_at INTEGER NOT NULL,      -- Unix timestamp (seconds since epoch)
+    updated_at INTEGER NOT NULL      -- Unix timestamp (seconds since epoch)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_best_result_score ON best_result(score DESC);

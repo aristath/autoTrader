@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/aristath/portfolioManager/internal/utils"
 	"github.com/rs/zerolog"
 )
 
@@ -39,14 +40,20 @@ func (r *Repository) Create(cashFlow *CashFlow) (*CashFlow, error) {
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	createdAt := time.Now().Format("2006-01-02 15:04:05")
+	createdAt := time.Now().Unix()
+
+	// Convert YYYY-MM-DD date string to Unix timestamp at midnight UTC
+	dateUnix, err := utils.DateToUnix(cashFlow.Date)
+	if err != nil {
+		return nil, fmt.Errorf("invalid date format (expected YYYY-MM-DD): %w", err)
+	}
 
 	result, err := r.ledgerDB.Exec(
 		query,
 		cashFlow.TransactionID,
 		cashFlow.TypeDocID,
 		cashFlow.TransactionType,
-		cashFlow.Date,
+		dateUnix,
 		cashFlow.Amount,
 		cashFlow.Currency,
 		cashFlow.AmountEUR,
@@ -66,7 +73,7 @@ func (r *Repository) Create(cashFlow *CashFlow) (*CashFlow, error) {
 	}
 
 	cashFlow.ID = int(id)
-	cashFlow.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+	cashFlow.CreatedAt = time.Unix(createdAt, 0).UTC()
 
 	return cashFlow, nil
 }
@@ -81,14 +88,15 @@ func (r *Repository) GetByTransactionID(transactionID string) (*CashFlow, error)
 	`
 
 	var cf CashFlow
-	var createdAt string
+	var dateUnix sql.NullInt64
+	var createdAt sql.NullInt64
 
 	err := r.ledgerDB.QueryRow(query, transactionID).Scan(
 		&cf.ID,
 		&cf.TransactionID,
 		&cf.TypeDocID,
 		&cf.TransactionType,
-		&cf.Date,
+		&dateUnix,
 		&cf.Amount,
 		&cf.Currency,
 		&cf.AmountEUR,
@@ -106,7 +114,12 @@ func (r *Repository) GetByTransactionID(transactionID string) (*CashFlow, error)
 		return nil, fmt.Errorf("failed to get cash flow: %w", err)
 	}
 
-	cf.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+	if dateUnix.Valid {
+		cf.Date = utils.UnixToDate(dateUnix.Int64)
+	}
+	if createdAt.Valid {
+		cf.CreatedAt = time.Unix(createdAt.Int64, 0).UTC()
+	}
 	return &cf, nil
 }
 
@@ -138,7 +151,21 @@ func (r *Repository) GetAll(limit *int) ([]CashFlow, error) {
 }
 
 // GetByDateRange retrieves cash flows within a date range
+// startDate and endDate are in YYYY-MM-DD format, converted to Unix timestamps
 func (r *Repository) GetByDateRange(startDate, endDate string) ([]CashFlow, error) {
+	// Convert YYYY-MM-DD to Unix timestamps at midnight UTC
+	startUnix, err := utils.DateToUnix(startDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid start_date format (expected YYYY-MM-DD): %w", err)
+	}
+
+	// End date should be end of day (23:59:59)
+	endTime, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid end_date format (expected YYYY-MM-DD): %w", err)
+	}
+	endUnix := time.Date(endTime.Year(), endTime.Month(), endTime.Day(), 23, 59, 59, 0, time.UTC).Unix()
+
 	query := `
 		SELECT id, transaction_id, type_doc_id, transaction_type, date, amount, currency,
 		       amount_eur, status, status_c, description, params_json, created_at
@@ -147,7 +174,7 @@ func (r *Repository) GetByDateRange(startDate, endDate string) ([]CashFlow, erro
 		ORDER BY date ASC
 	`
 
-	rows, err := r.ledgerDB.Query(query, startDate, endDate)
+	rows, err := r.ledgerDB.Query(query, startUnix, endUnix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query by date range: %w", err)
 	}
@@ -256,7 +283,21 @@ func (r *Repository) GetTotalWithdrawals() (float64, error) {
 }
 
 // GetCashBalanceHistory calculates running cash balance
+// startDate and endDate are in YYYY-MM-DD format, converted to Unix timestamps
 func (r *Repository) GetCashBalanceHistory(startDate, endDate string, initialCash float64) ([]BalancePoint, error) {
+	// Convert YYYY-MM-DD to Unix timestamps at midnight UTC
+	startUnix, err := utils.DateToUnix(startDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid start_date format (expected YYYY-MM-DD): %w", err)
+	}
+
+	// End date should be end of day (23:59:59)
+	endTime, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid end_date format (expected YYYY-MM-DD): %w", err)
+	}
+	endUnix := time.Date(endTime.Year(), endTime.Month(), endTime.Day(), 23, 59, 59, 0, time.UTC).Unix()
+
 	query := `
 		SELECT date, SUM(
 			CASE
@@ -271,7 +312,7 @@ func (r *Repository) GetCashBalanceHistory(startDate, endDate string, initialCas
 		ORDER BY date ASC
 	`
 
-	rows, err := r.ledgerDB.Query(query, startDate, endDate)
+	rows, err := r.ledgerDB.Query(query, startUnix, endUnix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query balance history: %w", err)
 	}
@@ -281,16 +322,20 @@ func (r *Repository) GetCashBalanceHistory(startDate, endDate string, initialCas
 	runningBalance := initialCash
 
 	for rows.Next() {
-		var date string
+		var dateUnix sql.NullInt64
 		var dailyFlow float64
 
-		if err := rows.Scan(&date, &dailyFlow); err != nil {
+		if err := rows.Scan(&dateUnix, &dailyFlow); err != nil {
 			return nil, fmt.Errorf("failed to scan balance point: %w", err)
 		}
 
 		runningBalance += dailyFlow
+		var dateStr string
+		if dateUnix.Valid {
+			dateStr = utils.UnixToDate(dateUnix.Int64)
+		}
 		points = append(points, BalancePoint{
-			Date:    date,
+			Date:    dateStr,
 			Balance: runningBalance,
 		})
 	}
@@ -308,14 +353,15 @@ func (r *Repository) scanCashFlows(rows *sql.Rows) ([]CashFlow, error) {
 
 	for rows.Next() {
 		var cf CashFlow
-		var createdAt string
+		var dateUnix sql.NullInt64
+		var createdAt sql.NullInt64
 
 		err := rows.Scan(
 			&cf.ID,
 			&cf.TransactionID,
 			&cf.TypeDocID,
 			&cf.TransactionType,
-			&cf.Date,
+			&dateUnix,
 			&cf.Amount,
 			&cf.Currency,
 			&cf.AmountEUR,
@@ -329,7 +375,12 @@ func (r *Repository) scanCashFlows(rows *sql.Rows) ([]CashFlow, error) {
 			return nil, fmt.Errorf("failed to scan cash flow: %w", err)
 		}
 
-		cf.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+		if dateUnix.Valid {
+			cf.Date = utils.UnixToDate(dateUnix.Int64)
+		}
+		if createdAt.Valid {
+			cf.CreatedAt = time.Unix(createdAt.Int64, 0).UTC()
+		}
 		cashFlows = append(cashFlows, cf)
 	}
 

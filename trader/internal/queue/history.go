@@ -23,11 +23,11 @@ func (h *History) ShouldRun(jobType JobType, interval time.Duration) bool {
 		return true
 	}
 
-	var lastRunAtStr string
+	var lastRunAtUnix sql.NullInt64
 	err := h.db.QueryRow(
 		"SELECT last_run_at FROM job_history WHERE job_type = ?",
 		string(jobType),
-	).Scan(&lastRunAtStr)
+	).Scan(&lastRunAtUnix)
 
 	if err == sql.ErrNoRows {
 		// Never run before - should run
@@ -38,11 +38,12 @@ func (h *History) ShouldRun(jobType JobType, interval time.Duration) bool {
 		return true
 	}
 
-	lastRunAt, err := time.Parse(time.RFC3339, lastRunAtStr)
-	if err != nil {
-		// Invalid timestamp - should run
+	if !lastRunAtUnix.Valid {
+		// NULL value - should run
 		return true
 	}
+
+	lastRunAt := time.Unix(lastRunAtUnix.Int64, 0).UTC()
 
 	nextRun := lastRunAt.Add(interval)
 	return time.Now().After(nextRun)
@@ -55,7 +56,7 @@ func (h *History) RecordExecution(jobType JobType, timestamp time.Time, status s
 		return nil
 	}
 
-	lastRunAt := timestamp.Format(time.RFC3339)
+	lastRunAt := timestamp.Unix()
 
 	_, err := h.db.Exec(`
 		INSERT INTO job_history (job_type, last_run_at, last_status)

@@ -6,6 +6,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/aristath/portfolioManager/internal/utils"
 	"github.com/rs/zerolog"
 )
 
@@ -26,8 +27,20 @@ func NewSecurityPerformanceService(historyDB *sql.DB, log zerolog.Logger) *Secur
 // CalculateTrailing12MoCAGR calculates trailing 12-month CAGR for a specific security using ISIN
 // Uses the consolidated history database
 func (s *SecurityPerformanceService) CalculateTrailing12MoCAGR(isin string) (*float64, error) {
-	endDate := time.Now().Format("2006-01-02")
-	startDate := time.Now().AddDate(-1, 0, 0).Format("2006-01-02")
+	endDateStr := time.Now().Format("2006-01-02")
+	startDateStr := time.Now().AddDate(-1, 0, 0).Format("2006-01-02")
+
+	// Convert YYYY-MM-DD strings to Unix timestamps
+	startUnix, err := utils.DateToUnix(startDateStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid start_date: %w", err)
+	}
+	// End date should be end of day (23:59:59)
+	endTime, err := time.Parse("2006-01-02", endDateStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid end_date: %w", err)
+	}
+	endUnix := time.Date(endTime.Year(), endTime.Month(), endTime.Day(), 23, 59, 59, 0, time.UTC).Unix()
 
 	// Query price history for this security using ISIN
 	rows, err := s.historyDB.Query(`
@@ -35,7 +48,7 @@ func (s *SecurityPerformanceService) CalculateTrailing12MoCAGR(isin string) (*fl
 		FROM daily_prices
 		WHERE isin = ? AND date >= ? AND date <= ?
 		ORDER BY date ASC
-	`, isin, startDate, endDate)
+	`, isin, startUnix, endUnix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query price history for %s: %w", isin, err)
 	}
@@ -51,8 +64,12 @@ func (s *SecurityPerformanceService) CalculateTrailing12MoCAGR(isin string) (*fl
 			Date  string
 			Close float64
 		}
-		if err := rows.Scan(&p.Date, &p.Close); err != nil {
+		var dateUnix sql.NullInt64
+		if err := rows.Scan(&dateUnix, &p.Close); err != nil {
 			return nil, err
+		}
+		if dateUnix.Valid {
+			p.Date = utils.UnixToDate(dateUnix.Int64)
 		}
 		prices = append(prices, p)
 	}

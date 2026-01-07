@@ -86,7 +86,7 @@ func (rp *RegimePersistence) RecordRegimeScore(rawScore MarketRegimeScore) error
 	          (recorded_at, raw_score, smoothed_score, discrete_regime)
 	          VALUES (?, ?, ?, ?)`
 
-	_, err = rp.db.Exec(query, time.Now(), float64(rawScore), smoothed, discrete)
+	_, err = rp.db.Exec(query, time.Now().Unix(), float64(rawScore), smoothed, discrete)
 	if err != nil {
 		return err
 	}
@@ -152,24 +152,19 @@ func (rp *RegimePersistence) GetRegimeHistory(limit int) ([]RegimeHistoryEntry, 
 	var entries []RegimeHistoryEntry
 	for rows.Next() {
 		var entry RegimeHistoryEntry
-		var recordedAtStr string
+		var recordedAtUnix sql.NullInt64
 
 		if err := rows.Scan(
 			&entry.ID,
-			&recordedAtStr,
+			&recordedAtUnix,
 			&entry.RawScore,
 			&entry.SmoothedScore,
 		); err != nil {
 			return nil, err
 		}
 
-		entry.RecordedAt, err = time.Parse(time.RFC3339, recordedAtStr)
-		if err != nil {
-			// Try alternative format
-			entry.RecordedAt, err = time.Parse("2006-01-02 15:04:05", recordedAtStr)
-			if err != nil {
-				return nil, err
-			}
+		if recordedAtUnix.Valid {
+			entry.RecordedAt = time.Unix(recordedAtUnix.Int64, 0).UTC()
 		}
 
 		entries = append(entries, entry)

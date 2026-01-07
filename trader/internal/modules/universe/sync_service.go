@@ -334,7 +334,7 @@ func (s *SyncService) detectAndUpdateCountryAndExchange(symbol string) error {
 // updateLastSynced updates the last_synced timestamp for a security
 // After migration: accepts ISIN as primary identifier
 func (s *SyncService) updateLastSynced(isin string) error {
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	err := s.securityRepo.Update(isin, map[string]interface{}{
 		"last_synced": now,

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aristath/portfolioManager/internal/modules/universe"
+	"github.com/aristath/portfolioManager/internal/utils"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog"
 )
@@ -117,21 +118,39 @@ func (s *Service) getPricesFromDB(isin string, startDate string, endDate string)
 	var args []interface{}
 
 	if startDate != "" && endDate != "" {
+		// Convert YYYY-MM-DD strings to Unix timestamps
+		startUnix, err := utils.DateToUnix(startDate)
+		if err != nil {
+			return nil, fmt.Errorf("invalid start_date format (expected YYYY-MM-DD): %w", err)
+		}
+		// End date should be end of day (23:59:59)
+		endTime, err := time.Parse("2006-01-02", endDate)
+		if err != nil {
+			return nil, fmt.Errorf("invalid end_date format (expected YYYY-MM-DD): %w", err)
+		}
+		endUnix := time.Date(endTime.Year(), endTime.Month(), endTime.Day(), 23, 59, 59, 0, time.UTC).Unix()
+
 		query = `
 			SELECT date, close
 			FROM daily_prices
 			WHERE isin = ? AND date >= ? AND date <= ?
 			ORDER BY date ASC
 		`
-		args = []interface{}{isin, startDate, endDate}
+		args = []interface{}{isin, startUnix, endUnix}
 	} else if startDate != "" {
+		// Convert YYYY-MM-DD string to Unix timestamp
+		startUnix, err := utils.DateToUnix(startDate)
+		if err != nil {
+			return nil, fmt.Errorf("invalid start_date format (expected YYYY-MM-DD): %w", err)
+		}
+
 		query = `
 			SELECT date, close
 			FROM daily_prices
 			WHERE isin = ? AND date >= ?
 			ORDER BY date ASC
 		`
-		args = []interface{}{isin, startDate}
+		args = []interface{}{isin, startUnix}
 	} else {
 		query = `
 			SELECT date, close
@@ -150,21 +169,24 @@ func (s *Service) getPricesFromDB(isin string, startDate string, endDate string)
 
 	var prices []ChartDataPoint
 	for rows.Next() {
-		var date string
+		var dateUnix sql.NullInt64
 		var closePrice sql.NullFloat64
 
-		if err := rows.Scan(&date, &closePrice); err != nil {
+		if err := rows.Scan(&dateUnix, &closePrice); err != nil {
 			s.log.Warn().Err(err).Msg("Failed to scan price row")
 			continue
 		}
 
-		// Skip rows with null prices
-		if !closePrice.Valid {
+		// Skip rows with null prices or dates
+		if !closePrice.Valid || !dateUnix.Valid {
 			continue
 		}
 
+		// Convert Unix timestamp to YYYY-MM-DD string for JSON response
+		dateStr := utils.UnixToDate(dateUnix.Int64)
+
 		prices = append(prices, ChartDataPoint{
-			Time:  date,
+			Time:  dateStr,
 			Value: closePrice.Float64,
 		})
 	}

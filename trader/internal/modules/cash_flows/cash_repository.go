@@ -68,7 +68,7 @@ func (r *CashRepository) GetAll() (map[string]float64, error) {
 
 // Upsert inserts or updates a cash balance for the given currency
 func (r *CashRepository) Upsert(currency string, balance float64) error {
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	query := `
 		INSERT INTO cash_balances (currency, balance, last_updated)

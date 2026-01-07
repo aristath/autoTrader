@@ -112,7 +112,7 @@ func TestHybridOpportunityBuysCalculator_Calculate_WithTagFiltering(t *testing.T
 
 	calculator := NewHybridOpportunityBuysCalculator(mockFilter, securityRepo, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Insert test securities
 	_, err := db.Exec(`
@@ -191,7 +191,7 @@ func TestHybridOpportunityBuysCalculator_Calculate_ExcludesValueTraps(t *testing
 
 	calculator := NewHybridOpportunityBuysCalculator(mockFilter, securityRepo, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Insert test security with value-trap tag
 	_, err := db.Exec(`
@@ -258,7 +258,7 @@ func TestHybridOpportunityBuysCalculator_Calculate_ExcludesBubbleRisks(t *testin
 
 	calculator := NewHybridOpportunityBuysCalculator(mockFilter, securityRepo, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Insert test security with bubble-risk tag (but not quality-high-cagr)
 	_, err := db.Exec(`
@@ -325,7 +325,7 @@ func TestHybridOpportunityBuysCalculator_Calculate_PriorityBoosting(t *testing.T
 
 	calculator := NewHybridOpportunityBuysCalculator(mockFilter, securityRepo, log)
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Insert test security with quality-value tag (should get priority boost)
 	_, err := db.Exec(`

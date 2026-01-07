@@ -3,7 +3,9 @@ package portfolio
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
+	"github.com/aristath/portfolioManager/internal/utils"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog"
 )
@@ -40,7 +42,21 @@ func NewHistoryRepository(isin string, historyDB *sql.DB, log zerolog.Logger) *H
 
 // GetDailyRange retrieves daily prices within a date range
 // Faithful translation of Python: async def get_daily_range(self, start_date: str, end_date: str) -> List[DailyPrice]
+// startDate and endDate are in YYYY-MM-DD format, converted to Unix timestamps
 func (r *HistoryRepository) GetDailyRange(startDate, endDate string) ([]DailyPrice, error) {
+	// Convert YYYY-MM-DD to Unix timestamps at midnight UTC
+	startUnix, err := utils.DateToUnix(startDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid start_date format (expected YYYY-MM-DD): %w", err)
+	}
+
+	// End date should be end of day (23:59:59)
+	endTime, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid end_date format (expected YYYY-MM-DD): %w", err)
+	}
+	endUnix := time.Date(endTime.Year(), endTime.Month(), endTime.Day(), 23, 59, 59, 0, time.UTC).Unix()
+
 	query := `
 		SELECT date, open, high, low, close, volume
 		FROM daily_prices
@@ -48,7 +64,7 @@ func (r *HistoryRepository) GetDailyRange(startDate, endDate string) ([]DailyPri
 		ORDER BY date ASC
 	`
 
-	rows, err := r.db.Query(query, r.isin, startDate, endDate)
+	rows, err := r.db.Query(query, r.isin, startUnix, endUnix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query daily prices: %w", err)
 	}
@@ -58,9 +74,10 @@ func (r *HistoryRepository) GetDailyRange(startDate, endDate string) ([]DailyPri
 	for rows.Next() {
 		var price DailyPrice
 		var volume sql.NullInt64
+		var dateUnix sql.NullInt64
 
 		err := rows.Scan(
-			&price.Date,
+			&dateUnix,
 			&price.OpenPrice,
 			&price.HighPrice,
 			&price.LowPrice,
@@ -71,6 +88,9 @@ func (r *HistoryRepository) GetDailyRange(startDate, endDate string) ([]DailyPri
 			return nil, fmt.Errorf("failed to scan daily price: %w", err)
 		}
 
+		if dateUnix.Valid {
+			price.Date = utils.UnixToDate(dateUnix.Int64)
+		}
 		if volume.Valid {
 			price.Volume = volume.Int64
 		}
@@ -103,9 +123,10 @@ func (r *HistoryRepository) GetLatestPrice() (*DailyPrice, error) {
 
 	var price DailyPrice
 	var volume sql.NullInt64
+	var dateUnix sql.NullInt64
 
 	err := row.Scan(
-		&price.Date,
+		&dateUnix,
 		&price.OpenPrice,
 		&price.HighPrice,
 		&price.LowPrice,
@@ -119,6 +140,9 @@ func (r *HistoryRepository) GetLatestPrice() (*DailyPrice, error) {
 		return nil, fmt.Errorf("failed to get latest price: %w", err)
 	}
 
+	if dateUnix.Valid {
+		price.Date = utils.UnixToDate(dateUnix.Int64)
+	}
 	if volume.Valid {
 		price.Volume = volume.Int64
 	}

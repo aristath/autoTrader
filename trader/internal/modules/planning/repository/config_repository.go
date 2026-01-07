@@ -135,7 +135,7 @@ func (r *ConfigRepository) getSettings() (*domain.PlannerConfiguration, error) {
 
 // UpdateSettings updates the planner settings (single config exists).
 func (r *ConfigRepository) updateSettings(cfg *domain.PlannerConfiguration) error {
-	now := time.Now()
+	now := time.Now().Unix()
 
 	_, err := r.db.Exec(`
 		UPDATE planner_settings SET
@@ -218,7 +218,7 @@ func (r *ConfigRepository) updateSettings(cfg *domain.PlannerConfiguration) erro
 		cfg.EnableDiversityFilter,
 		cfg.EnableEligibilityFilter,
 		cfg.EnableRecentlyTradedFilter,
-		now.Format(time.RFC3339),
+		now,
 	)
 
 	if err != nil {

@@ -41,7 +41,7 @@ func (r *Repository) Get(key string) (*string, error) {
 
 // Set sets a setting value
 func (r *Repository) Set(key string, value string, description *string) error {
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	if description != nil {
 		_, err := r.db.Exec(`

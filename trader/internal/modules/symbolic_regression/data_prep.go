@@ -169,13 +169,19 @@ func (dp *DataPrep) getAllSecurities() ([]SecurityInfo, error) {
 // Parameter isin is the ISIN identifier (daily_prices table uses isin column)
 // Uses closest available date within ±5 days to handle weekends/holidays
 func (dp *DataPrep) hasSufficientHistory(isin string, trainingDate, targetDate time.Time) (bool, error) {
+	// Convert dates to Unix timestamps at midnight UTC
+	trainingUnix := time.Date(trainingDate.Year(), trainingDate.Month(), trainingDate.Day(), 0, 0, 0, 0, time.UTC).Unix()
+	targetUnix := time.Date(targetDate.Year(), targetDate.Month(), targetDate.Day(), 0, 0, 0, 0, time.UTC).Unix()
+
+	// ±5 days in seconds
+	fiveDaysSeconds := int64(5 * 24 * 60 * 60)
+
 	// Check if we have price data near training date (±5 days)
 	var count int
-	trainingDateStr := trainingDate.Format("2006-01-02")
 	err := dp.historyDB.QueryRow(
 		`SELECT COUNT(*) FROM daily_prices
-		 WHERE isin = ? AND date BETWEEN date(?, '-5 days') AND date(?, '+5 days')`,
-		isin, trainingDateStr, trainingDateStr,
+		 WHERE isin = ? AND date >= ? AND date <= ?`,
+		isin, trainingUnix-fiveDaysSeconds, trainingUnix+fiveDaysSeconds,
 	).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("failed to check training date price: %w", err)
@@ -185,11 +191,10 @@ func (dp *DataPrep) hasSufficientHistory(isin string, trainingDate, targetDate t
 	}
 
 	// Check if we have price data near target date (±5 days)
-	targetDateStr := targetDate.Format("2006-01-02")
 	err = dp.historyDB.QueryRow(
 		`SELECT COUNT(*) FROM daily_prices
-		 WHERE isin = ? AND date BETWEEN date(?, '-5 days') AND date(?, '+5 days')`,
-		isin, targetDateStr, targetDateStr,
+		 WHERE isin = ? AND date >= ? AND date <= ?`,
+		isin, targetUnix-fiveDaysSeconds, targetUnix+fiveDaysSeconds,
 	).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("failed to check target date price: %w", err)
@@ -445,16 +450,33 @@ func convertCAGRScoreToCAGR(cagrScore float64) float64 {
 
 // calculateTargetReturn calculates the actual return from startDate to endDate
 // Parameter isin is the ISIN identifier (daily_prices table uses isin column)
+// startDate and endDate are in YYYY-MM-DD format
 // Uses closest available date within ±5 days to handle weekends/holidays
 func (dp *DataPrep) calculateTargetReturn(isin, startDate, endDate string) (float64, error) {
+	// Convert YYYY-MM-DD to Unix timestamps at midnight UTC
+	startTime, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		return 0, fmt.Errorf("invalid start_date format (expected YYYY-MM-DD): %w", err)
+	}
+	startUnix := time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, time.UTC).Unix()
+
+	endTime, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return 0, fmt.Errorf("invalid end_date format (expected YYYY-MM-DD): %w", err)
+	}
+	endUnix := time.Date(endTime.Year(), endTime.Month(), endTime.Day(), 0, 0, 0, 0, time.UTC).Unix()
+
+	// ±5 days in seconds
+	fiveDaysSeconds := int64(5 * 24 * 60 * 60)
+
 	// Get price at start date (use closest available date within ±5 days)
 	var startPrice sql.NullFloat64
-	err := dp.historyDB.QueryRow(
+	err = dp.historyDB.QueryRow(
 		`SELECT adjusted_close FROM daily_prices
-		 WHERE isin = ? AND date BETWEEN date(?, '-5 days') AND date(?, '+5 days')
-		 ORDER BY ABS(julianday(date) - julianday(?)) ASC
+		 WHERE isin = ? AND date >= ? AND date <= ?
+		 ORDER BY ABS(date - ?) ASC
 		 LIMIT 1`,
-		isin, startDate, startDate, startDate,
+		isin, startUnix-fiveDaysSeconds, startUnix+fiveDaysSeconds, startUnix,
 	).Scan(&startPrice)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get start price: %w", err)
@@ -467,10 +489,10 @@ func (dp *DataPrep) calculateTargetReturn(isin, startDate, endDate string) (floa
 	var endPrice sql.NullFloat64
 	err = dp.historyDB.QueryRow(
 		`SELECT adjusted_close FROM daily_prices
-		 WHERE isin = ? AND date BETWEEN date(?, '-5 days') AND date(?, '+5 days')
-		 ORDER BY ABS(julianday(date) - julianday(?)) ASC
+		 WHERE isin = ? AND date >= ? AND date <= ?
+		 ORDER BY ABS(date - ?) ASC
 		 LIMIT 1`,
-		isin, endDate, endDate, endDate,
+		isin, endUnix-fiveDaysSeconds, endUnix+fiveDaysSeconds, endUnix,
 	).Scan(&endPrice)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get end price: %w", err)

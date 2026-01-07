@@ -6,7 +6,7 @@
 -- Note: Column is named 'isin' (not 'symbol') to match actual data storage (ISINs, not Tradernet symbols)
 CREATE TABLE IF NOT EXISTS daily_prices (
     isin TEXT NOT NULL,
-    date TEXT NOT NULL,              -- YYYY-MM-DD format
+    date INTEGER NOT NULL,            -- Unix timestamp at midnight UTC (seconds since epoch)
     open REAL NOT NULL,
     high REAL NOT NULL,
     low REAL NOT NULL,
@@ -24,7 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_prices_isin_date ON daily_prices(isin, date DESC)
 CREATE TABLE IF NOT EXISTS exchange_rates (
     from_currency TEXT NOT NULL,
     to_currency TEXT NOT NULL,
-    date TEXT NOT NULL,              -- YYYY-MM-DD format
+    date INTEGER NOT NULL,            -- Unix timestamp at midnight UTC (seconds since epoch)
     rate REAL NOT NULL,
     PRIMARY KEY (from_currency, to_currency, date)
 ) STRICT;
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS monthly_prices (
     avg_close REAL NOT NULL,
     avg_adj_close REAL NOT NULL,
     source TEXT,
-    created_at TEXT,
+    created_at INTEGER,               -- Unix timestamp (seconds since epoch)
     PRIMARY KEY (isin, year_month)
 ) STRICT;
 

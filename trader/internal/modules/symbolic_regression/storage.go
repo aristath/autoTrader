@@ -68,7 +68,7 @@ func (fs *FormulaStorage) SaveFormula(formula *DiscoveredFormula) (int64, error)
 		fitness,
 		complexity,
 		0, // training_examples_count (can be added later)
-		formula.DiscoveredAt.Format(time.RFC3339),
+		formula.DiscoveredAt.Unix(),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert formula: %w", err)
@@ -129,7 +129,7 @@ func (fs *FormulaStorage) GetActiveFormula(
 	var formula DiscoveredFormula
 	var regimeMin, regimeMax sql.NullFloat64
 	var metricsJSON string
-	var discoveredAtStr string
+	var discoveredAtUnix sql.NullInt64
 	var fitnessScore float64
 	var complexity int
 	var trainingExamplesCount sql.NullInt64
@@ -145,7 +145,7 @@ func (fs *FormulaStorage) GetActiveFormula(
 		&fitnessScore,
 		&complexity,
 		&trainingExamplesCount,
-		&discoveredAtStr,
+		&discoveredAtUnix,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil // No active formula found
@@ -167,10 +167,9 @@ func (fs *FormulaStorage) GetActiveFormula(
 		return nil, fmt.Errorf("failed to unmarshal validation metrics: %w", err)
 	}
 
-	// Parse discovered_at
-	formula.DiscoveredAt, err = time.Parse(time.RFC3339, discoveredAtStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse discovered_at: %w", err)
+	// Convert Unix timestamp to time.Time
+	if discoveredAtUnix.Valid {
+		formula.DiscoveredAt = time.Unix(discoveredAtUnix.Int64, 0).UTC()
 	}
 
 	return &formula, nil
@@ -215,7 +214,7 @@ func (fs *FormulaStorage) GetAllFormulas(
 		var formula DiscoveredFormula
 		var regimeMin, regimeMax sql.NullFloat64
 		var metricsJSON string
-		var discoveredAtStr string
+		var discoveredAtUnix sql.NullInt64
 		var fitnessScore float64
 		var complexity int
 		var trainingExamplesCount sql.NullInt64
@@ -231,7 +230,7 @@ func (fs *FormulaStorage) GetAllFormulas(
 			&fitnessScore,
 			&complexity,
 			&trainingExamplesCount,
-			&discoveredAtStr,
+			&discoveredAtUnix,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan formula: %w", err)
@@ -253,18 +252,9 @@ func (fs *FormulaStorage) GetAllFormulas(
 			}
 		}
 
-		// Parse discovered_at
-		formula.DiscoveredAt, err = time.Parse(time.RFC3339, discoveredAtStr)
-		if err != nil {
-			// Try alternative format
-			formula.DiscoveredAt, err = time.Parse("2006-01-02 15:04:05", discoveredAtStr)
-			if err != nil {
-				// Try date-only format
-				formula.DiscoveredAt, err = time.Parse("2006-01-02", discoveredAtStr)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse discovered_at: %w", err)
-				}
-			}
+		// Convert Unix timestamp to time.Time
+		if discoveredAtUnix.Valid {
+			formula.DiscoveredAt = time.Unix(discoveredAtUnix.Int64, 0).UTC()
 		}
 
 		formulas = append(formulas, &formula)

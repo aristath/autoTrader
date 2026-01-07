@@ -3,7 +3,9 @@ package universe
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
+	"github.com/aristath/portfolioManager/internal/utils"
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 	"github.com/rs/zerolog"
 )
@@ -58,12 +60,18 @@ func (h *HistoryDB) GetDailyPrices(isin string, limit int) ([]DailyPrice, error)
 	for rows.Next() {
 		var p DailyPrice
 		var volume sql.NullInt64
+		var dateUnix sql.NullInt64
 
-		err := rows.Scan(&p.Date, &p.Close, &p.High, &p.Low, &p.Open, &volume)
+		err := rows.Scan(&dateUnix, &p.Close, &p.High, &p.Low, &p.Open, &volume)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan daily price: %w", err)
 		}
 
+		if dateUnix.Valid {
+			// Convert Unix timestamp to YYYY-MM-DD format
+			t := time.Unix(dateUnix.Int64, 0).UTC()
+			p.Date = t.Format("2006-01-02")
+		}
 		if volume.Valid {
 			p.Volume = &volume.Int64
 		}
@@ -158,9 +166,15 @@ func (h *HistoryDB) SyncHistoricalPrices(isin string, prices []DailyPrice) error
 
 		adjustedClose := price.Close // Use close as adjusted_close if not provided
 
+		// Convert date string to Unix timestamp
+		dateUnix, err := utils.DateToUnix(price.Date)
+		if err != nil {
+			return fmt.Errorf("failed to parse date %s: %w", price.Date, err)
+		}
+
 		_, err = stmt.Exec(
 			isin,
-			price.Date,
+			dateUnix,
 			price.Open,
 			price.High,
 			price.Low,
@@ -179,14 +193,14 @@ func (h *HistoryDB) SyncHistoricalPrices(isin string, prices []DailyPrice) error
 		(isin, year_month, avg_close, avg_adj_close, source, created_at)
 		SELECT
 			? as isin,
-			strftime('%Y-%m', date) as year_month,
+			strftime('%Y-%m', datetime(date, 'unixepoch')) as year_month,
 			AVG(close) as avg_close,
 			AVG(adjusted_close) as avg_adj_close,
 			'calculated',
-			datetime('now')
+			strftime('%s', 'now')
 		FROM daily_prices
 		WHERE isin = ?
-		GROUP BY strftime('%Y-%m', date)
+		GROUP BY strftime('%Y-%m', datetime(date, 'unixepoch'))
 	`, isin, isin)
 	if err != nil {
 		return fmt.Errorf("failed to aggregate monthly prices: %w", err)

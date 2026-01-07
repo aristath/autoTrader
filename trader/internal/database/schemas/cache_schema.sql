@@ -21,9 +21,9 @@ CREATE TABLE IF NOT EXISTS recommendations (
     score_change REAL NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'executed', 'rejected', 'expired')),
     portfolio_hash TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    executed_at TEXT
+    created_at INTEGER NOT NULL,     -- Unix timestamp (seconds since epoch)
+    updated_at INTEGER NOT NULL,     -- Unix timestamp (seconds since epoch)
+    executed_at INTEGER              -- Unix timestamp (seconds since epoch)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_recommendations_status_priority
@@ -50,7 +50,7 @@ CREATE INDEX IF NOT EXISTS idx_cache_expires ON cache_data(expires_at);
 -- Used by time-based scheduler to determine if jobs should run
 CREATE TABLE IF NOT EXISTS job_history (
     job_type TEXT PRIMARY KEY,
-    last_run_at TEXT NOT NULL,
+    last_run_at INTEGER NOT NULL,    -- Unix timestamp (seconds since epoch)
     last_status TEXT NOT NULL DEFAULT 'success'
 ) STRICT;
 

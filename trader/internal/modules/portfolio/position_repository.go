@@ -297,26 +297,26 @@ func (r *PositionRepository) scanPosition(rows *sql.Rows) (Position, error) {
 	var isin sql.NullString
 	var currentPrice, marketValueEUR, costBasisEUR sql.NullFloat64
 	var unrealizedPnL, unrealizedPnLPct sql.NullFloat64
-	var lastUpdated, firstBoughtAt, lastSoldAt sql.NullString
+	var lastUpdatedUnix, firstBoughtAtUnix, lastSoldAtUnix sql.NullInt64
 
 	// Column order after migration: isin, symbol, quantity, avg_price, current_price, currency,
 	// currency_rate, market_value_eur, cost_basis_eur, unrealized_pnl, unrealized_pnl_pct,
 	// last_updated, first_bought, last_sold
 	err := rows.Scan(
-		&isin,             // 1: isin (PRIMARY KEY)
-		&pos.Symbol,       // 2: symbol
-		&pos.Quantity,     // 3: quantity
-		&pos.AvgPrice,     // 4: avg_price
-		&currentPrice,     // 5: current_price
-		&pos.Currency,     // 6: currency
-		&pos.CurrencyRate, // 7: currency_rate
-		&marketValueEUR,   // 8: market_value_eur
-		&costBasisEUR,     // 9: cost_basis_eur
-		&unrealizedPnL,    // 10: unrealized_pnl
-		&unrealizedPnLPct, // 11: unrealized_pnl_pct
-		&lastUpdated,      // 12: last_updated
-		&firstBoughtAt,    // 13: first_bought
-		&lastSoldAt,       // 14: last_sold
+		&isin,              // 1: isin (PRIMARY KEY)
+		&pos.Symbol,        // 2: symbol
+		&pos.Quantity,      // 3: quantity
+		&pos.AvgPrice,      // 4: avg_price
+		&currentPrice,      // 5: current_price
+		&pos.Currency,      // 6: currency
+		&pos.CurrencyRate,  // 7: currency_rate
+		&marketValueEUR,    // 8: market_value_eur
+		&costBasisEUR,      // 9: cost_basis_eur
+		&unrealizedPnL,     // 10: unrealized_pnl
+		&unrealizedPnLPct,  // 11: unrealized_pnl_pct
+		&lastUpdatedUnix,   // 12: last_updated (Unix timestamp)
+		&firstBoughtAtUnix, // 13: first_bought (Unix timestamp)
+		&lastSoldAtUnix,    // 14: last_sold (Unix timestamp)
 	)
 	if err != nil {
 		return pos, err
@@ -338,14 +338,17 @@ func (r *PositionRepository) scanPosition(rows *sql.Rows) (Position, error) {
 	if unrealizedPnLPct.Valid {
 		pos.UnrealizedPnLPct = unrealizedPnLPct.Float64
 	}
-	if lastUpdated.Valid {
-		pos.LastUpdated = lastUpdated.String
+	if lastUpdatedUnix.Valid {
+		t := time.Unix(lastUpdatedUnix.Int64, 0).UTC()
+		pos.LastUpdated = t.Format(time.RFC3339)
 	}
-	if firstBoughtAt.Valid {
-		pos.FirstBoughtAt = firstBoughtAt.String
+	if firstBoughtAtUnix.Valid {
+		t := time.Unix(firstBoughtAtUnix.Int64, 0).UTC()
+		pos.FirstBoughtAt = t.Format("2006-01-02")
 	}
-	if lastSoldAt.Valid {
-		pos.LastSoldAt = lastSoldAt.String
+	if lastSoldAtUnix.Valid {
+		t := time.Unix(lastSoldAtUnix.Int64, 0).UTC()
+		pos.LastSoldAt = t.Format("2006-01-02")
 	}
 	if isin.Valid {
 		pos.ISIN = isin.String
@@ -370,7 +373,7 @@ func (r *PositionRepository) scanPosition(rows *sql.Rows) (Position, error) {
 // Upsert inserts or updates a position
 // After migration: isin is PRIMARY KEY
 func (r *PositionRepository) Upsert(position Position) error {
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// Normalize symbol
 	position.Symbol = strings.ToUpper(strings.TrimSpace(position.Symbol))
@@ -382,9 +385,35 @@ func (r *PositionRepository) Upsert(position Position) error {
 	position.ISIN = strings.ToUpper(strings.TrimSpace(position.ISIN))
 
 	// Set last_updated if not provided
-	lastUpdated := position.LastUpdated
-	if lastUpdated == "" {
-		lastUpdated = now
+	var lastUpdatedUnix int64
+	if position.LastUpdated != "" {
+		// Parse RFC3339 timestamp to Unix
+		t, err := time.Parse(time.RFC3339, position.LastUpdated)
+		if err != nil {
+			return fmt.Errorf("invalid last_updated format: %w", err)
+		}
+		lastUpdatedUnix = t.Unix()
+	} else {
+		lastUpdatedUnix = now
+	}
+
+	// Convert date strings to Unix timestamps
+	var firstBoughtUnix sql.NullInt64
+	if position.FirstBoughtAt != "" {
+		t, err := time.Parse("2006-01-02", position.FirstBoughtAt)
+		if err != nil {
+			return fmt.Errorf("invalid first_bought_at format (expected YYYY-MM-DD): %w", err)
+		}
+		firstBoughtUnix = sql.NullInt64{Int64: time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC).Unix(), Valid: true}
+	}
+
+	var lastSoldUnix sql.NullInt64
+	if position.LastSoldAt != "" {
+		t, err := time.Parse("2006-01-02", position.LastSoldAt)
+		if err != nil {
+			return fmt.Errorf("invalid last_sold_at format (expected YYYY-MM-DD): %w", err)
+		}
+		lastSoldUnix = sql.NullInt64{Int64: time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC).Unix(), Valid: true}
 	}
 
 	// Begin transaction
@@ -416,10 +445,9 @@ func (r *PositionRepository) Upsert(position Position) error {
 		nullFloat64(position.CostBasisEUR),
 		nullFloat64(position.UnrealizedPnL),
 		nullFloat64(position.UnrealizedPnLPct),
-		lastUpdated,
-		nullString(position.FirstBoughtAt),
-		nullString(position.LastSoldAt),
-		nullString(position.ISIN),
+		lastUpdatedUnix,
+		firstBoughtUnix,
+		lastSoldUnix,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to upsert position: %w", err)
@@ -489,7 +517,7 @@ func (r *PositionRepository) DeleteAll() error {
 // Changed from symbol to ISIN as primary identifier
 func (r *PositionRepository) UpdatePrice(isin string, price float64, currencyRate float64) error {
 	isin = strings.ToUpper(strings.TrimSpace(isin))
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	if currencyRate == 0 {
 		currencyRate = 1.0
@@ -549,7 +577,8 @@ func (r *PositionRepository) UpdatePrice(isin string, price float64, currencyRat
 // Changed from symbol to ISIN as primary identifier
 func (r *PositionRepository) UpdateLastSoldAt(isin string) error {
 	isin = strings.ToUpper(strings.TrimSpace(isin))
-	now := time.Now().Format(time.RFC3339)
+	// Store as Unix timestamp at midnight UTC (date only)
+	now := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, time.UTC).Unix()
 
 	// Begin transaction
 	tx, err := r.portfolioDB.Begin()

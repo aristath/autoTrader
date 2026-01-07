@@ -80,7 +80,7 @@ func (r *PlannerRepository) InsertSequence(
 		return fmt.Errorf("failed to marshal sequence actions: %w", err)
 	}
 
-	now := time.Now()
+	now := time.Now().Unix()
 	_, err = r.db.Exec(`
 		INSERT OR IGNORE INTO sequences
 		(sequence_hash, portfolio_hash, sequence_json, pattern_type, depth, priority, completed, created_at)
@@ -103,7 +103,8 @@ func (r *PlannerRepository) InsertSequence(
 // GetSequence retrieves a sequence by sequence hash and portfolio hash.
 func (r *PlannerRepository) GetSequence(sequenceHash, portfolioHash string) (*domain.ActionSequence, error) {
 	var record SequenceRecord
-	var evaluatedAt sql.NullTime
+	var evaluatedAtUnix sql.NullInt64
+	var createdAtUnix sql.NullInt64
 	err := r.db.QueryRow(`
 		SELECT sequence_hash, portfolio_hash, sequence_json, pattern_type, depth, priority, completed, evaluated_at, created_at
 		FROM sequences
@@ -116,8 +117,8 @@ func (r *PlannerRepository) GetSequence(sequenceHash, portfolioHash string) (*do
 		&record.Depth,
 		&record.Priority,
 		&record.Completed,
-		&evaluatedAt,
-		&record.CreatedAt,
+		&evaluatedAtUnix,
+		&createdAtUnix,
 	)
 
 	if err == sql.ErrNoRows {
@@ -127,8 +128,8 @@ func (r *PlannerRepository) GetSequence(sequenceHash, portfolioHash string) (*do
 		return nil, fmt.Errorf("failed to get sequence: %w", err)
 	}
 
-	// evaluatedAt is read but not used since domain.ActionSequence doesn't have this field
-	_ = evaluatedAt
+	// Note: EvaluatedAt and CreatedAt are scanned but not used in domain.ActionSequence
+	// They're kept in SequenceRecord struct for potential future use
 
 	// Unmarshal actions from sequence_json
 	var actions []domain.ActionCandidate
@@ -171,7 +172,7 @@ func (r *PlannerRepository) ListSequencesByPortfolioHash(
 	var records []SequenceRecord
 	for rows.Next() {
 		var record SequenceRecord
-		var evaluatedAt sql.NullTime
+		var evaluatedAtUnix, createdAtUnix sql.NullInt64
 		if err := rows.Scan(
 			&record.SequenceHash,
 			&record.PortfolioHash,
@@ -180,13 +181,17 @@ func (r *PlannerRepository) ListSequencesByPortfolioHash(
 			&record.Depth,
 			&record.Priority,
 			&record.Completed,
-			&evaluatedAt,
-			&record.CreatedAt,
+			&evaluatedAtUnix,
+			&createdAtUnix,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan sequence: %w", err)
 		}
-		if evaluatedAt.Valid {
-			record.EvaluatedAt = &evaluatedAt.Time
+		if evaluatedAtUnix.Valid {
+			t := time.Unix(evaluatedAtUnix.Int64, 0).UTC()
+			record.EvaluatedAt = &t
+		}
+		if createdAtUnix.Valid {
+			record.CreatedAt = time.Unix(createdAtUnix.Int64, 0).UTC()
 		}
 		records = append(records, record)
 	}
@@ -218,7 +223,7 @@ func (r *PlannerRepository) GetPendingSequences(
 	var records []SequenceRecord
 	for rows.Next() {
 		var record SequenceRecord
-		var evaluatedAt sql.NullTime
+		var evaluatedAtUnix, createdAtUnix sql.NullInt64
 		if err := rows.Scan(
 			&record.SequenceHash,
 			&record.PortfolioHash,
@@ -227,13 +232,17 @@ func (r *PlannerRepository) GetPendingSequences(
 			&record.Depth,
 			&record.Priority,
 			&record.Completed,
-			&evaluatedAt,
-			&record.CreatedAt,
+			&evaluatedAtUnix,
+			&createdAtUnix,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan sequence: %w", err)
 		}
-		if evaluatedAt.Valid {
-			record.EvaluatedAt = &evaluatedAt.Time
+		if evaluatedAtUnix.Valid {
+			t := time.Unix(evaluatedAtUnix.Int64, 0).UTC()
+			record.EvaluatedAt = &t
+		}
+		if createdAtUnix.Valid {
+			record.CreatedAt = time.Unix(createdAtUnix.Int64, 0).UTC()
 		}
 		records = append(records, record)
 	}
@@ -243,7 +252,7 @@ func (r *PlannerRepository) GetPendingSequences(
 
 // MarkSequenceCompleted marks a sequence as completed.
 func (r *PlannerRepository) MarkSequenceCompleted(sequenceHash, portfolioHash string) error {
-	now := time.Now()
+	now := time.Now().Unix()
 	_, err := r.db.Exec(`
 		UPDATE sequences
 		SET completed = 1, evaluated_at = ?
@@ -290,7 +299,7 @@ func (r *PlannerRepository) InsertEvaluation(
 		return fmt.Errorf("failed to marshal end context positions: %w", err)
 	}
 
-	now := time.Now()
+	now := time.Now().Unix()
 	_, err = r.db.Exec(`
 		INSERT OR REPLACE INTO evaluations
 		(sequence_hash, portfolio_hash, end_score, breakdown_json, end_cash, end_context_positions_json, div_score, total_value, evaluated_at)
@@ -315,6 +324,7 @@ func (r *PlannerRepository) InsertEvaluation(
 // GetEvaluation retrieves an evaluation by sequence hash and portfolio hash.
 func (r *PlannerRepository) GetEvaluation(sequenceHash, portfolioHash string) (*domain.EvaluationResult, error) {
 	var record EvaluationRecord
+	var evaluatedAtUnix sql.NullInt64
 	err := r.db.QueryRow(`
 		SELECT sequence_hash, portfolio_hash, end_score, breakdown_json, end_cash, end_context_positions_json, div_score, total_value, evaluated_at
 		FROM evaluations
@@ -328,8 +338,11 @@ func (r *PlannerRepository) GetEvaluation(sequenceHash, portfolioHash string) (*
 		&record.EndContextPositionsJSON,
 		&record.DiversificationScore,
 		&record.TotalValue,
-		&record.EvaluatedAt,
+		&evaluatedAtUnix,
 	)
+
+	// Note: EvaluatedAt is scanned but not used in domain.Evaluation
+	// It's kept in EvaluationRecord struct for potential future use
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -381,6 +394,7 @@ func (r *PlannerRepository) ListEvaluationsByPortfolioHash(
 	var records []EvaluationRecord
 	for rows.Next() {
 		var record EvaluationRecord
+		var evaluatedAtUnix sql.NullInt64
 		if err := rows.Scan(
 			&record.SequenceHash,
 			&record.PortfolioHash,
@@ -390,9 +404,12 @@ func (r *PlannerRepository) ListEvaluationsByPortfolioHash(
 			&record.EndContextPositionsJSON,
 			&record.DiversificationScore,
 			&record.TotalValue,
-			&record.EvaluatedAt,
+			&evaluatedAtUnix,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan evaluation: %w", err)
+		}
+		if evaluatedAtUnix.Valid {
+			record.EvaluatedAt = time.Unix(evaluatedAtUnix.Int64, 0).UTC()
 		}
 		records = append(records, record)
 	}
@@ -438,7 +455,7 @@ func (r *PlannerRepository) UpsertBestResult(
 		return fmt.Errorf("failed to marshal plan: %w", err)
 	}
 
-	now := time.Now()
+	now := time.Now().Unix()
 	_, err = r.db.Exec(`
 		INSERT INTO best_result (portfolio_hash, sequence_hash, plan_data, score, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
@@ -465,6 +482,7 @@ func (r *PlannerRepository) UpsertBestResult(
 // GetBestResult retrieves the best result for a portfolio hash.
 func (r *PlannerRepository) GetBestResult(portfolioHash string) (*domain.HolisticPlan, error) {
 	var record BestResultRecord
+	var createdAtUnix, updatedAtUnix sql.NullInt64
 	err := r.db.QueryRow(`
 		SELECT portfolio_hash, sequence_hash, plan_data, score, created_at, updated_at
 		FROM best_result
@@ -474,9 +492,12 @@ func (r *PlannerRepository) GetBestResult(portfolioHash string) (*domain.Holisti
 		&record.SequenceHash,
 		&record.PlanData,
 		&record.Score,
-		&record.CreatedAt,
-		&record.UpdatedAt,
+		&createdAtUnix,
+		&updatedAtUnix,
 	)
+
+	// Note: CreatedAt and UpdatedAt are scanned but not used in domain.HolisticPlan
+	// They're kept in BestResultRecord struct for potential future use
 
 	if err == sql.ErrNoRows {
 		return nil, nil

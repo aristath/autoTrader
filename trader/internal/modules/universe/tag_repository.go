@@ -38,11 +38,15 @@ func (r *TagRepository) GetByID(id string) (*Tag, error) {
 	}
 
 	var tag Tag
-	var createdAt, updatedAt sql.NullString
-	err = rows.Scan(&tag.ID, &tag.Name, &createdAt, &updatedAt)
+	var createdAtUnix, updatedAtUnix sql.NullInt64
+	err = rows.Scan(&tag.ID, &tag.Name, &createdAtUnix, &updatedAtUnix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan tag: %w", err)
 	}
+
+	// Timestamps are stored but not exposed in Tag model (internal only)
+	_ = createdAtUnix
+	_ = updatedAtUnix
 
 	return &tag, nil
 }
@@ -60,11 +64,14 @@ func (r *TagRepository) GetAll() ([]Tag, error) {
 	var tags []Tag
 	for rows.Next() {
 		var tag Tag
-		var createdAt, updatedAt sql.NullString
-		err := rows.Scan(&tag.ID, &tag.Name, &createdAt, &updatedAt)
+		var createdAtUnix, updatedAtUnix sql.NullInt64
+		err := rows.Scan(&tag.ID, &tag.Name, &createdAtUnix, &updatedAtUnix)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan tag: %w", err)
 		}
+		// Timestamps are stored but not exposed in Tag model (internal only)
+		_ = createdAtUnix
+		_ = updatedAtUnix
 		tags = append(tags, tag)
 	}
 
@@ -93,7 +100,7 @@ func (r *TagRepository) CreateOrGet(tag Tag) (*Tag, error) {
 	}
 
 	// Create new tag
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	// If name is empty, generate default name from ID
 	if tag.Name == "" {
@@ -128,7 +135,7 @@ func (r *TagRepository) EnsureTagsExist(tagIDs []string) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().Unix()
 
 	for _, tagID := range tagIDs {
 		// Skip empty tag IDs

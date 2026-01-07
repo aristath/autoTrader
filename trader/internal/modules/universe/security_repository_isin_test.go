@@ -3,6 +3,7 @@ package universe
 import (
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -35,8 +36,8 @@ func setupTestDBWithISINPrimaryKey(t *testing.T) *sql.DB {
 			last_synced TEXT,
 			min_portfolio_target REAL,
 			max_portfolio_target REAL,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
 		)
 	`)
 	require.NoError(t, err)
@@ -56,10 +57,11 @@ func TestGetByISIN_PrimaryMethod(t *testing.T) {
 	repo := NewSecurityRepository(db, log)
 
 	// Insert test data
+	testDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	_, err := db.Exec(`
 		INSERT INTO securities (isin, symbol, name, created_at, updated_at)
-		VALUES ('US0378331005', 'AAPL.US', 'Apple Inc.', '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')
-	`)
+		VALUES ('US0378331005', 'AAPL.US', 'Apple Inc.', ?, ?)
+	`, testDate.Unix(), testDate.Unix())
 	require.NoError(t, err)
 
 	// Execute
@@ -96,10 +98,11 @@ func TestGetBySymbol_HelperMethod_LooksUpISINFirst(t *testing.T) {
 	repo := NewSecurityRepository(db, log)
 
 	// Insert test data
+	testDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	_, err := db.Exec(`
 		INSERT INTO securities (isin, symbol, name, created_at, updated_at)
-		VALUES ('US0378331005', 'AAPL.US', 'Apple Inc.', '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')
-	`)
+		VALUES ('US0378331005', 'AAPL.US', 'Apple Inc.', ?, ?)
+	`, testDate.Unix(), testDate.Unix())
 	require.NoError(t, err)
 
 	// Execute - GetBySymbol should lookup ISIN first, then query by ISIN
@@ -120,10 +123,11 @@ func TestUpdate_ByISIN(t *testing.T) {
 	repo := NewSecurityRepository(db, log)
 
 	// Insert test data
+	testDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	_, err := db.Exec(`
 		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
-		VALUES ('US0378331005', 'AAPL.US', 'Apple Inc.', 1, '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')
-	`)
+		VALUES ('US0378331005', 'AAPL.US', 'Apple Inc.', 1, ?, ?)
+	`, testDate.Unix(), testDate.Unix())
 	require.NoError(t, err)
 
 	// Execute - Update should use ISIN
@@ -149,10 +153,11 @@ func TestDelete_ByISIN(t *testing.T) {
 	repo := NewSecurityRepository(db, log)
 
 	// Insert test data
+	testDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	_, err := db.Exec(`
 		INSERT INTO securities (isin, symbol, name, active, created_at, updated_at)
-		VALUES ('US0378331005', 'AAPL.US', 'Apple Inc.', 1, '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')
-	`)
+		VALUES ('US0378331005', 'AAPL.US', 'Apple Inc.', 1, ?, ?)
+	`, testDate.Unix(), testDate.Unix())
 	require.NoError(t, err)
 
 	// Execute - Delete should use ISIN
@@ -203,10 +208,11 @@ func TestGetBySymbol_FallbackToSymbolLookup(t *testing.T) {
 	repo := NewSecurityRepository(db, log)
 
 	// Insert test data
+	testDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	_, err := db.Exec(`
 		INSERT INTO securities (isin, symbol, name, created_at, updated_at)
-		VALUES ('US0378331005', 'AAPL.US', 'Apple Inc.', '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')
-	`)
+		VALUES ('US0378331005', 'AAPL.US', 'Apple Inc.', ?, ?)
+	`, testDate.Unix(), testDate.Unix())
 	require.NoError(t, err)
 
 	// GetBySymbol should lookup by symbol column (indexed)
@@ -227,10 +233,11 @@ func TestGetByIdentifier_PrioritizesISIN(t *testing.T) {
 	repo := NewSecurityRepository(db, log)
 
 	// Insert test data
+	testDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	_, err := db.Exec(`
 		INSERT INTO securities (isin, symbol, name, created_at, updated_at)
-		VALUES ('US0378331005', 'AAPL.US', 'Apple Inc.', '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')
-	`)
+		VALUES ('US0378331005', 'AAPL.US', 'Apple Inc.', ?, ?)
+	`, testDate.Unix(), testDate.Unix())
 	require.NoError(t, err)
 
 	// Test with ISIN
