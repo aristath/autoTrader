@@ -1,3 +1,4 @@
+// Package handlers provides HTTP handlers for security evaluation.
 package handlers
 
 import (

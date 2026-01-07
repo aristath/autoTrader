@@ -1,3 +1,4 @@
+// Package charts provides services for generating chart data from historical prices.
 package charts
 
 import (

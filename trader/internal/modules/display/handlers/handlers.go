@@ -1,3 +1,4 @@
+// Package handlers provides HTTP handlers for LED display management.
 package handlers
 
 import (

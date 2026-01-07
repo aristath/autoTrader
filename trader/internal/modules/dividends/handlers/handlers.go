@@ -1,3 +1,4 @@
+// Package handlers provides HTTP handlers for dividend management.
 package handlers
 
 import (

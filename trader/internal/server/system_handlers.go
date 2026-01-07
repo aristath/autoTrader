@@ -1,3 +1,4 @@
+// Package server provides the HTTP server and routing for Sentinel.
 package server
 
 import (

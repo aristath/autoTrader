@@ -1,3 +1,4 @@
+// Package handlers provides HTTP handlers for cash flow management.
 package handlers
 
 import (

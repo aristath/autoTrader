@@ -1,3 +1,4 @@
+// Package handlers provides HTTP handlers for portfolio allocation management.
 package handlers
 
 import (

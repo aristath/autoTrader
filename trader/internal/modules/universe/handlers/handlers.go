@@ -1,3 +1,4 @@
+// Package handlers provides HTTP handlers for universe management.
 package handlers
 
 import (

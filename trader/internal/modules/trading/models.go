@@ -1,3 +1,4 @@
+// Package trading provides trade execution and safety services.
 package trading
 
 import (

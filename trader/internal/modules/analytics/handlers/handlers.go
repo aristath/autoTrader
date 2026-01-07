@@ -1,3 +1,4 @@
+// Package handlers provides HTTP handlers for portfolio analytics and factor exposure tracking.
 package handlers
 
 import (
