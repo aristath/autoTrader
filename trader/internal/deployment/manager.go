@@ -621,7 +621,23 @@ func (e *logEventAdapter) Msg(msg string) {
 
 // restartDisplayApp restarts the Arduino display app using arduino-app-cli
 // This triggers the Arduino App Framework to automatically rebuild and upload the sketch
+// Matches old behavior: stop app, wait 2s, then restart (or start if restart fails)
 func (m *Manager) restartDisplayApp() error {
+	// Stop the app first to ensure clean rebuild (matching old auto-deploy.sh behavior)
+	m.log.Debug().Msg("Stopping display app for clean rebuild")
+	stopCmd := exec.Command("arduino-app-cli", "app", "stop", "user:trader-display")
+	var stopStdout, stopStderr strings.Builder
+	stopCmd.Stdout = &stopStdout
+	stopCmd.Stderr = &stopStderr
+	// Ignore stop errors - app may not be running
+	_ = stopCmd.Run()
+
+	// Wait 2 seconds for app to fully stop (matching old behavior)
+	m.log.Debug().Msg("Waiting 2 seconds for app to fully stop")
+	time.Sleep(2 * time.Second)
+
+	// Try restart first
+	m.log.Debug().Msg("Restarting display app to trigger sketch rebuild")
 	cmd := exec.Command("arduino-app-cli", "app", "restart", "user:trader-display")
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
