@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aristath/portfolioManager/internal/events"
 	"github.com/aristath/portfolioManager/internal/modules/planning/config"
 	"github.com/aristath/portfolioManager/internal/modules/planning/domain"
 	"github.com/aristath/portfolioManager/internal/modules/planning/repository"
@@ -16,21 +17,24 @@ import (
 
 // ConfigHandler handles CRUD operations for planner configurations.
 type ConfigHandler struct {
-	configRepo *repository.ConfigRepository
-	validator  *config.Validator
-	log        zerolog.Logger
+	configRepo   *repository.ConfigRepository
+	validator    *config.Validator
+	eventManager *events.Manager
+	log          zerolog.Logger
 }
 
 // NewConfigHandler creates a new config handler.
 func NewConfigHandler(
 	configRepo *repository.ConfigRepository,
 	validator *config.Validator,
+	eventManager *events.Manager,
 	log zerolog.Logger,
 ) *ConfigHandler {
 	return &ConfigHandler{
-		configRepo: configRepo,
-		validator:  validator,
-		log:        log.With().Str("handler", "config").Logger(),
+		configRepo:   configRepo,
+		validator:    validator,
+		eventManager: eventManager,
+		log:          log.With().Str("handler", "config").Logger(),
 	}
 }
 
@@ -226,6 +230,15 @@ func (h *ConfigHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	h.log.Info().Int64("config_id", configID).Str("name", req.Config.Name).Msg("Configuration created")
 
+	// Emit PLANNER_CONFIG_CHANGED event
+	if h.eventManager != nil {
+		h.eventManager.Emit(events.PlannerConfigChanged, "planning", map[string]interface{}{
+			"config_id": configID,
+			"action":    "created",
+			"name":      req.Config.Name,
+		})
+	}
+
 	response := ConfigResponse{Config: &req.Config}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -280,6 +293,16 @@ func (h *ConfigHandler) handleUpdate(w http.ResponseWriter, r *http.Request, con
 
 	h.log.Info().Int64("config_id", id).Str("name", req.Config.Name).Msg("Configuration updated")
 
+	// Emit PLANNER_CONFIG_CHANGED event
+	if h.eventManager != nil {
+		h.eventManager.Emit(events.PlannerConfigChanged, "planning", map[string]interface{}{
+			"config_id":  id,
+			"action":     "updated",
+			"name":       req.Config.Name,
+			"changed_by": changedBy,
+		})
+	}
+
 	response := ConfigResponse{Config: &req.Config}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -309,6 +332,14 @@ func (h *ConfigHandler) handleDelete(w http.ResponseWriter, r *http.Request, con
 	}
 
 	h.log.Info().Int64("config_id", id).Msg("Configuration deleted")
+
+	// Emit PLANNER_CONFIG_CHANGED event
+	if h.eventManager != nil {
+		h.eventManager.Emit(events.PlannerConfigChanged, "planning", map[string]interface{}{
+			"config_id": id,
+			"action":    "deleted",
+		})
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }

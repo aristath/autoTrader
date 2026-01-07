@@ -4,33 +4,34 @@ import { IconTrash } from '@tabler/icons-react';
 import { api } from '../../api/client';
 import { useNotifications } from '../../hooks/useNotifications';
 
-// 25-color palette for groups
+// Catppuccin Mocha accent color palette for groups
+// https://catppuccin.com/palette
 const COLOR_PALETTE = [
-  '#3B82F6', // blue
-  '#10B981', // emerald
-  '#F59E0B', // amber
-  '#EF4444', // red
-  '#8B5CF6', // violet
-  '#06B6D4', // cyan
-  '#EC4899', // pink
-  '#84CC16', // lime
-  '#F97316', // orange
-  '#6366F1', // indigo
-  '#14B8A6', // teal
-  '#A855F7', // purple
-  '#22C55E', // green
-  '#EAB308', // yellow
-  '#F43F5E', // rose
-  '#0EA5E9', // sky
-  '#64748B', // slate
-  '#78716C', // stone
-  '#B91C1C', // red-800
-  '#059669', // emerald-600
-  '#DC2626', // red-600
-  '#7C3AED', // violet-600
-  '#0891B2', // cyan-600
-  '#BE185D', // pink-700
-  '#CA8A04', // yellow-600
+  '#89b4fa', // Blue
+  '#a6e3a1', // Green
+  '#f38ba8', // Red
+  '#f9e2af', // Yellow
+  '#fab387', // Peach
+  '#cba6f7', // Mauve
+  '#94e2d5', // Teal
+  '#89dceb', // Sky
+  '#74c7ec', // Sapphire
+  '#b4befe', // Lavender
+  '#f5c2e7', // Pink
+  '#f5e0dc', // Rosewater
+  '#f2cdcd', // Flamingo
+  '#eba0ac', // Maroon
+  '#8caaee', // Blue (alternative)
+  '#a6da95', // Green (alternative)
+  '#ed8796', // Red (alternative)
+  '#eed49f', // Yellow (alternative)
+  '#f5a97f', // Peach (alternative)
+  '#c6a0f6', // Mauve (alternative)
+  '#8bd5ca', // Teal (alternative)
+  '#91d7e3', // Sky (alternative)
+  '#7dc4e4', // Sapphire (alternative)
+  '#b7bdf8', // Lavender (alternative)
+  '#f4b8e4', // Pink (alternative)
 ];
 
 function hashString(str) {

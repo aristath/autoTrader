@@ -62,22 +62,33 @@ export function TabNavigation() {
   return (
     <Tabs value={activeTab} onChange={handleTabChange}>
       <Tabs.List>
-        <Tabs.Tab value="next-actions">
+        <Tabs.Tab value="next-actions" style={{ fontFamily: 'var(--mantine-font-family)' }}>
           <Group gap="xs">
             <span>Next Actions</span>
             {pendingCount > 0 && (
-              <Badge size="xs" color="blue" variant="filled" className="pulse">
+              <Badge size="xs" color="blue" variant="filled" className="pulse" style={{ fontFamily: 'var(--mantine-font-family)' }}>
                 {pendingCount}
               </Badge>
             )}
           </Group>
         </Tabs.Tab>
-        <Tabs.Tab value="diversification">Diversification</Tabs.Tab>
-        <Tabs.Tab value="security-universe">Security Universe</Tabs.Tab>
-        <Tabs.Tab value="recent-trades">Recent Trades</Tabs.Tab>
-        <Tabs.Tab value="logs">Logs</Tabs.Tab>
-        <div style={{ marginLeft: 'auto', fontSize: '0.875rem', color: 'var(--mantine-color-dimmed)' }}>
-          Press <kbd style={{ padding: '2px 6px', backgroundColor: 'var(--mantine-color-gray-2)', borderRadius: '4px' }}>1-5</kbd>
+        <Tabs.Tab value="diversification" style={{ fontFamily: 'var(--mantine-font-family)' }}>Diversification</Tabs.Tab>
+        <Tabs.Tab value="security-universe" style={{ fontFamily: 'var(--mantine-font-family)' }}>Security Universe</Tabs.Tab>
+        <Tabs.Tab value="recent-trades" style={{ fontFamily: 'var(--mantine-font-family)' }}>Recent Trades</Tabs.Tab>
+        <Tabs.Tab value="logs" style={{ fontFamily: 'var(--mantine-font-family)' }}>Logs</Tabs.Tab>
+        <div style={{
+          marginLeft: 'auto',
+          fontSize: '0.875rem',
+          color: 'var(--mantine-color-dimmed)',
+          fontFamily: 'var(--mantine-font-family)',
+        }}>
+          Press <kbd style={{
+            padding: '2px 6px',
+            backgroundColor: 'var(--mantine-color-dark-7)',
+            border: '1px solid var(--mantine-color-dark-6)',
+            borderRadius: '2px',
+            fontFamily: 'var(--mantine-font-family)',
+          }}>1-5</kbd>
         </div>
       </Tabs.List>
     </Tabs>

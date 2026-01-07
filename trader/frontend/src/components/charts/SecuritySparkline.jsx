@@ -41,13 +41,13 @@ export function SecuritySparkline({ symbol, hasPosition = false }) {
 
     const pathData = `M ${points.join(' L ')}`;
 
-    // Determine color based on trend and position
+    // Determine color based on trend and position (using Catppuccin Mocha colors)
     const firstValue = values[0];
     const lastValue = values[values.length - 1];
     const isPositive = lastValue > firstValue;
     const color = hasPosition
-      ? (isPositive ? 'rgba(34, 197, 94, 0.8)' : 'rgba(239, 68, 68, 0.8)')
-      : (isPositive ? 'rgba(59, 130, 246, 0.6)' : 'rgba(107, 114, 128, 0.6)');
+      ? (isPositive ? '#a6e3a1' : '#f38ba8') // Catppuccin Mocha Green/Red
+      : (isPositive ? '#89b4fa' : '#6c7086'); // Catppuccin Mocha Blue/Overlay 0
 
     containerRef.current.innerHTML = `
       <svg width="${width}" height="${height}" style="display: block;">

@@ -107,7 +107,7 @@ func TestSyncFromTradernet_Success(t *testing.T) {
 
 	mockRepo := newMockTradeRepository()
 
-	service := NewTradingService(mockRepo, mockClient, nil, log)
+	service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 	err := service.SyncFromTradernet()
 
@@ -156,7 +156,7 @@ func TestSyncFromTradernet_DuplicateOrderID(t *testing.T) {
 
 	mockRepo := newMockTradeRepository()
 
-	service := NewTradingService(mockRepo, mockClient, nil, log)
+	service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 	err := service.SyncFromTradernet()
 
@@ -195,7 +195,7 @@ func TestSyncFromTradernet_InvalidSide(t *testing.T) {
 
 	mockRepo := newMockTradeRepository()
 
-	service := NewTradingService(mockRepo, mockClient, nil, log)
+	service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 	err := service.SyncFromTradernet()
 
@@ -231,7 +231,7 @@ func TestSyncFromTradernet_InvalidTimestamp(t *testing.T) {
 
 	mockRepo := newMockTradeRepository()
 
-	service := NewTradingService(mockRepo, mockClient, nil, log)
+	service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 	err := service.SyncFromTradernet()
 
@@ -250,7 +250,7 @@ func TestSyncFromTradernet_TradernetError(t *testing.T) {
 
 	mockRepo := newMockTradeRepository()
 
-	service := NewTradingService(mockRepo, mockClient, nil, log)
+	service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 	err := service.SyncFromTradernet()
 
@@ -287,7 +287,7 @@ func TestSyncFromTradernet_RepositoryError(t *testing.T) {
 	mockRepo := newMockTradeRepository()
 	mockRepo.createErr = errors.New("database connection lost")
 
-	service := NewTradingService(mockRepo, mockClient, nil, log)
+	service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 	err := service.SyncFromTradernet()
 
@@ -307,7 +307,7 @@ func TestSyncFromTradernet_EmptyResponse(t *testing.T) {
 
 	mockRepo := newMockTradeRepository()
 
-	service := NewTradingService(mockRepo, mockClient, nil, log)
+	service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 	err := service.SyncFromTradernet()
 
@@ -362,7 +362,7 @@ func TestSyncFromTradernet_TimestampParsing(t *testing.T) {
 			}
 
 			mockRepo := newMockTradeRepository()
-			service := NewTradingService(mockRepo, mockClient, nil, log)
+			service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 			err := service.SyncFromTradernet()
 
@@ -437,7 +437,7 @@ func TestSyncFromTradernet_TradeSideParsing(t *testing.T) {
 			}
 
 			mockRepo := newMockTradeRepository()
-			service := NewTradingService(mockRepo, mockClient, nil, log)
+			service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 			err := service.SyncFromTradernet()
 			assert.NoError(t, err)
@@ -494,7 +494,7 @@ func TestSyncFromTradernet_PartialSuccess(t *testing.T) {
 	}
 
 	mockRepo := newMockTradeRepository()
-	service := NewTradingService(mockRepo, mockClient, nil, log)
+	service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 	err := service.SyncFromTradernet()
 
@@ -523,7 +523,7 @@ func TestSyncFromTradernet_CurrencyDefault(t *testing.T) {
 	}
 
 	mockRepo := newMockTradeRepository()
-	service := NewTradingService(mockRepo, mockClient, nil, log)
+	service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 	err := service.SyncFromTradernet()
 
@@ -550,7 +550,7 @@ func TestSyncFromTradernet_SourceTracking(t *testing.T) {
 	}
 
 	mockRepo := newMockTradeRepository()
-	service := NewTradingService(mockRepo, mockClient, nil, log)
+	service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 	err := service.SyncFromTradernet()
 
@@ -577,7 +577,7 @@ func TestSyncFromTradernet_LargeQuantity(t *testing.T) {
 	}
 
 	mockRepo := newMockTradeRepository()
-	service := NewTradingService(mockRepo, mockClient, nil, log)
+	service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 	err := service.SyncFromTradernet()
 
@@ -604,7 +604,7 @@ func TestSyncFromTradernet_ZeroQuantity(t *testing.T) {
 	}
 
 	mockRepo := newMockTradeRepository()
-	service := NewTradingService(mockRepo, mockClient, nil, log)
+	service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 	err := service.SyncFromTradernet()
 
@@ -648,7 +648,7 @@ func TestSyncFromTradernet_SkipsInvalidPrice(t *testing.T) {
 	}
 
 	mockRepo := newMockTradeRepository()
-	service := NewTradingService(mockRepo, mockClient, nil, log)
+	service := NewTradingService(mockRepo, mockClient, nil, nil, log)
 
 	err := service.SyncFromTradernet()
 

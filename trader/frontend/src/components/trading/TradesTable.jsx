@@ -6,8 +6,8 @@ export function TradesTable() {
   const { trades } = useTradesStore();
 
   return (
-    <Card p="md">
-      <Text size="xs" tt="uppercase" c="dimmed" fw={600} mb="md">
+    <Card p="md" style={{ backgroundColor: 'var(--mantine-color-dark-8)', border: '1px solid var(--mantine-color-dark-6)' }}>
+      <Text size="xs" tt="uppercase" c="dimmed" fw={600} mb="md" style={{ fontFamily: 'var(--mantine-font-family)' }}>
         Recent Trades
       </Text>
 
@@ -36,7 +36,7 @@ export function TradesTable() {
                   <Table.Tr
                     key={trade.id}
                     style={{
-                      backgroundColor: isCash ? 'rgba(139, 92, 246, 0.1)' : undefined,
+                      backgroundColor: isCash ? 'var(--mantine-color-dark-7)' : undefined,
                     }}
                   >
                     <Table.Td>
@@ -47,7 +47,7 @@ export function TradesTable() {
                     <Table.Td>
                       <Text
                         size="sm"
-                        ff="monospace"
+                        style={{ fontFamily: 'var(--mantine-font-family)' }}
                         c={isCash ? 'violet' : 'blue'}
                       >
                         {trade.symbol}
@@ -58,7 +58,7 @@ export function TradesTable() {
                         size="sm"
                         c={isCash ? 'violet' : 'dimmed'}
                         truncate
-                        style={{ maxWidth: '128px' }}
+                        style={{ maxWidth: '128px', fontFamily: 'var(--mantine-font-family)' }}
                       >
                         {trade.name || trade.symbol}
                       </Text>
@@ -68,22 +68,23 @@ export function TradesTable() {
                         size="sm"
                         color={trade.side === 'BUY' ? 'green' : 'red'}
                         variant="light"
+                        style={{ fontFamily: 'var(--mantine-font-family)' }}
                       >
                         {trade.side}
                       </Badge>
                     </Table.Td>
                     <Table.Td ta="right">
-                      <Text size="sm" ff="monospace" c="dimmed">
+                      <Text size="sm" style={{ fontFamily: 'var(--mantine-font-family)' }} c="dimmed">
                         {formatCurrency(trade.quantity)}
                       </Text>
                     </Table.Td>
                     <Table.Td ta="right" visibleFrom="sm">
-                      <Text size="sm" ff="monospace" c="dimmed">
+                      <Text size="sm" style={{ fontFamily: 'var(--mantine-font-family)' }} c="dimmed">
                         {formatCurrency(trade.price)}
                       </Text>
                     </Table.Td>
                     <Table.Td ta="right">
-                      <Text size="sm" ff="monospace" fw={600}>
+                      <Text size="sm" style={{ fontFamily: 'var(--mantine-font-family)' }} fw={600}>
                         {formatCurrency(trade.quantity * trade.price)}
                       </Text>
                     </Table.Td>

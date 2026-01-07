@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aristath/portfolioManager/internal/clients/tradernet"
+	"github.com/aristath/portfolioManager/internal/events"
 	"github.com/aristath/portfolioManager/internal/modules/allocation"
 	"github.com/aristath/portfolioManager/internal/modules/portfolio"
 	"github.com/aristath/portfolioManager/internal/modules/settings"
@@ -38,6 +39,7 @@ type TradingHandlers struct {
 	settingsService            *settings.Service
 	recommendationRepo         RecommendationRepositoryInterface
 	plannerRepo                PlannerRepositoryInterface
+	eventManager               *events.Manager
 }
 
 // RecommendationRepositoryInterface defines the interface for recommendation repository
@@ -56,6 +58,7 @@ func NewTradingHandlers(
 	settingsService *settings.Service,
 	recommendationRepo RecommendationRepositoryInterface,
 	plannerRepo PlannerRepositoryInterface,
+	eventManager *events.Manager,
 	log zerolog.Logger,
 ) *TradingHandlers {
 	return &TradingHandlers{
@@ -68,6 +71,7 @@ func NewTradingHandlers(
 		settingsService:            settingsService,
 		recommendationRepo:         recommendationRepo,
 		plannerRepo:                plannerRepo,
+		eventManager:               eventManager,
 		log:                        log.With().Str("handler", "trading").Logger(),
 	}
 }
@@ -197,6 +201,17 @@ func (h *TradingHandlers) HandleExecuteTrade(w http.ResponseWriter, r *http.Requ
 	if err := h.recordTrade(req.Symbol, req.Side, req.Quantity, result, tradingMode); err != nil {
 		h.log.Error().Err(err).Msg("Failed to record trade")
 		// Don't fail the request - trade already executed
+	} else {
+		// Emit TRADE_EXECUTED event
+		if h.eventManager != nil {
+			h.eventManager.Emit(events.TradeExecuted, "trading", map[string]interface{}{
+				"symbol":   result.Symbol,
+				"side":     result.Side,
+				"quantity": result.Quantity,
+				"price":    result.Price,
+				"order_id": result.OrderID,
+			})
+		}
 	}
 
 	// Return success response matching Python format

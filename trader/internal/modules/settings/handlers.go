@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os/exec"
 
+	"github.com/aristath/portfolioManager/internal/events"
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
 )
@@ -25,14 +26,16 @@ type Handler struct {
 	service             *Service
 	onboardingService   OnboardingServiceInterface
 	credentialRefresher CredentialRefresher
+	eventManager        *events.Manager
 	log                 zerolog.Logger
 }
 
 // NewHandler creates a new settings handler
-func NewHandler(service *Service, log zerolog.Logger) *Handler {
+func NewHandler(service *Service, eventManager *events.Manager, log zerolog.Logger) *Handler {
 	return &Handler{
-		service: service,
-		log:     log.With().Str("handler", "settings").Logger(),
+		service:      service,
+		eventManager: eventManager,
+		log:          log.With().Str("handler", "settings").Logger(),
 	}
 }
 
@@ -109,6 +112,14 @@ func (h *Handler) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 				h.log.Info().Msg("Onboarding completed successfully")
 			}
 		}()
+	}
+
+	// Emit SETTINGS_CHANGED event
+	if h.eventManager != nil {
+		h.eventManager.Emit(events.SettingsChanged, "settings", map[string]interface{}{
+			"key":   key,
+			"value": update.Value,
+		})
 	}
 
 	// Return updated value

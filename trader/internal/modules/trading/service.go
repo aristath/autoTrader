@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/aristath/portfolioManager/internal/domain"
+	"github.com/aristath/portfolioManager/internal/events"
 	"github.com/rs/zerolog"
 )
 
@@ -22,6 +23,7 @@ type TradingService struct {
 	tradeRepo       TradeRepositoryInterface
 	tradernetClient domain.TradernetClientInterface
 	safetyService   *TradeSafetyService
+	eventManager    *events.Manager
 }
 
 // NewTradingService creates a new trading service
@@ -29,6 +31,7 @@ func NewTradingService(
 	tradeRepo TradeRepositoryInterface,
 	tradernetClient domain.TradernetClientInterface,
 	safetyService *TradeSafetyService,
+	eventManager *events.Manager,
 	log zerolog.Logger,
 ) *TradingService {
 	return &TradingService{
@@ -36,6 +39,7 @@ func NewTradingService(
 		tradeRepo:       tradeRepo,
 		tradernetClient: tradernetClient,
 		safetyService:   safetyService,
+		eventManager:    eventManager,
 	}
 }
 
@@ -212,6 +216,18 @@ func (s *TradingService) ExecuteTrade(req TradeRequest) (*TradeResult, error) {
 			Str("order_id", orderResult.OrderID).
 			Msg("Failed to record trade in database")
 		// Don't fail the execution - trade was placed successfully
+	} else {
+		// Emit TRADE_EXECUTED event
+		if s.eventManager != nil {
+			s.eventManager.Emit(events.TradeExecuted, "trading", map[string]interface{}{
+				"symbol":   orderResult.Symbol,
+				"side":     req.Side,
+				"quantity": req.Quantity,
+				"price":    orderResult.Price,
+				"order_id": orderResult.OrderID,
+				"source":   "autonomous",
+			})
+		}
 	}
 
 	s.log.Info().

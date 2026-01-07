@@ -36,6 +36,7 @@ func (s *Server) setupSettingsRoutes(r chi.Router) {
 		setupService,
 		syncService,
 		currencyExchangeService,
+		s.container.EventManager,
 		s.log,
 	)
 
@@ -53,7 +54,7 @@ func (s *Server) setupSettingsRoutes(r chi.Router) {
 	)
 
 	// Initialize settings handler
-	settingsHandler := settings.NewHandler(settingsService, s.log)
+	settingsHandler := settings.NewHandler(settingsService, s.container.EventManager, s.log)
 	settingsHandler.SetOnboardingService(onboardingService)
 
 	// Set credential refresher to refresh system handlers' tradernet client

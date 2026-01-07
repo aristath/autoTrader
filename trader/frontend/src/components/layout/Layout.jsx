@@ -23,12 +23,12 @@ import { ColorSchemeToggle } from './ColorSchemeToggle';
 export function Layout() {
   // Display notifications from app store
   useNotifications();
-  const { fetchAll, startPlannerStatusStream, startRecommendationStream } = useAppStore();
+  const { fetchAll, startEventStream, stopEventStream } = useAppStore();
   const { fetchAllocation, fetchCashBreakdown, fetchTargets } = usePortfolioStore();
   const { fetchSecurities, fetchSparklines } = useSecuritiesStore();
   const { fetchSettings } = useSettingsStore();
   const { fetchTrades } = useTradesStore();
-  const { fetchAvailableLogFiles } = useLogsStore();
+  const { fetchAvailableLogFiles, selectedLogFile } = useLogsStore();
 
   useEffect(() => {
     // Fetch all initial data
@@ -48,19 +48,29 @@ export function Layout() {
 
     loadData();
 
-    // Start SSE streams
-    startPlannerStatusStream();
-    startRecommendationStream();
+    // Start unified event stream with log_file param if logs view is active
+    startEventStream(selectedLogFile);
 
     // Cleanup on unmount
     return () => {
-      // SSE cleanup is handled in the store
+      stopEventStream();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Restart event stream when log file changes
+  useEffect(() => {
+    if (selectedLogFile) {
+      stopEventStream();
+      startEventStream(selectedLogFile);
+    }
+    return () => {
+      stopEventStream();
+    };
+  }, [selectedLogFile, startEventStream, stopEventStream]);
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: 'var(--mantine-color-body)' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--mantine-color-dark-9)' }}>
       <Container size="xl" py="md">
         <AppHeader />
         <MarketStatus />

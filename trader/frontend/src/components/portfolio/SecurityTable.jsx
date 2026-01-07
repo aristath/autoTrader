@@ -105,7 +105,7 @@ export function SecurityTable() {
           Security Universe
         </Text>
         <Group gap="xs">
-          <Menu shadow="md" width={200}>
+          <Menu width={200}>
             <Menu.Target>
               <ActionIcon variant="subtle" size="sm" title="Column visibility">
                 <IconColumns size={16} />
@@ -361,9 +361,8 @@ export function SecurityTable() {
                   <Table.Td style={{ position: 'sticky', left: 0, backgroundColor: 'var(--mantine-color-body)', zIndex: 5 }}>
                     <Text
                       size="sm"
-                      ff="monospace"
+                      style={{ fontFamily: 'var(--mantine-font-family)', cursor: 'pointer' }}
                       c="blue"
-                      style={{ cursor: 'pointer' }}
                       onClick={() => {
                         useAppStore.getState().openSecurityChart(security.symbol, security.isin);
                       }}
@@ -427,7 +426,7 @@ export function SecurityTable() {
                   {visibleColumns.value && (
                     <Table.Td ta="right">
                       <Group gap="xs" justify="flex-end">
-                        <Text size="sm" ff="monospace">
+                        <Text size="sm" style={{ fontFamily: 'var(--mantine-font-family)' }}>
                           {security.position_value ? formatCurrency(security.position_value) : '-'}
                         </Text>
                         {alert && (

@@ -33,7 +33,7 @@ func (s *Server) setupPlanningRoutes(r chi.Router) {
 
 	// Initialize handlers
 	recommendationsHandler := handlers.NewRecommendationsHandler(planningService, s.log)
-	configHandler := handlers.NewConfigHandler(configRepo, validator, s.log)
+	configHandler := handlers.NewConfigHandler(configRepo, validator, s.container.EventManager, s.log)
 	batchHandler := handlers.NewBatchHandler(incrementalPlanner, configRepo, s.log)
 	executeHandler := handlers.NewExecuteHandler(plannerRepo, nil, s.log) // TODO: Pass trade executor
 	statusHandler := handlers.NewStatusHandler(plannerRepo, s.log)

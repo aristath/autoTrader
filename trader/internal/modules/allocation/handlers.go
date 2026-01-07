@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aristath/portfolioManager/internal/events"
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
 )
@@ -18,6 +19,7 @@ type Handler struct {
 	groupingRepo             *GroupingRepository
 	alertService             *ConcentrationAlertService
 	portfolioSummaryProvider PortfolioSummaryProvider
+	eventManager             *events.Manager
 	log                      zerolog.Logger
 }
 
@@ -27,6 +29,7 @@ func NewHandler(
 	groupingRepo *GroupingRepository,
 	alertService *ConcentrationAlertService,
 	portfolioSummaryProvider PortfolioSummaryProvider,
+	eventManager *events.Manager,
 	log zerolog.Logger,
 ) *Handler {
 	return &Handler{
@@ -34,6 +37,7 @@ func NewHandler(
 		groupingRepo:             groupingRepo,
 		alertService:             alertService,
 		portfolioSummaryProvider: portfolioSummaryProvider,
+		eventManager:             eventManager,
 		log:                      log.With().Str("handler", "allocation").Logger(),
 	}
 }
@@ -392,6 +396,14 @@ func (h *Handler) HandleUpdateIndustryGroupTargets(w http.ResponseWriter, r *htt
 		if v != 0 {
 			filteredGroups[k] = v
 		}
+	}
+
+	// Emit ALLOCATION_TARGETS_CHANGED event
+	if h.eventManager != nil {
+		h.eventManager.Emit(events.AllocationTargetsChanged, "allocation", map[string]interface{}{
+			"type":  "industry",
+			"count": len(filteredGroups),
+		})
 	}
 
 	h.writeJSON(w, http.StatusOK, map[string]interface{}{

@@ -110,6 +110,7 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 		container.TradeRepo,
 		container.TradernetClient,
 		container.TradeSafetyService,
+		container.EventManager,
 		log,
 	)
 
@@ -120,6 +121,7 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 		container.PositionRepo,
 		cashManager, // Use concrete type for now, will be interface later
 		container.CurrencyExchangeService,
+		container.EventManager,
 		log,
 	)
 

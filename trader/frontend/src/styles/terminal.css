@@ -1,0 +1,170 @@
+/* Terminal-style global overrides for Catppuccin Mocha theme */
+
+/* Reduce shadows for terminal aesthetic */
+[data-mantine-color-scheme="dark"] .mantine-Paper-root,
+[data-mantine-color-scheme="dark"] .mantine-Card-root,
+[data-mantine-color-scheme="dark"] .mantine-Modal-inner,
+[data-mantine-color-scheme="dark"] .mantine-Modal-content {
+  box-shadow: none !important;
+  border: 1px solid var(--mantine-color-dark-6) !important;
+}
+
+/* Terminal-style borders for panels */
+[data-mantine-color-scheme="dark"] .mantine-Paper-root {
+  background-color: var(--mantine-color-dark-8) !important;
+  border: 1px solid var(--mantine-color-dark-6) !important;
+}
+
+/* Subtle borders for buttons */
+[data-mantine-color-scheme="dark"] .mantine-Button-root {
+  border: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Button-root:hover {
+  border-color: var(--mantine-color-dark-5);
+}
+
+/* Terminal-style input fields */
+[data-mantine-color-scheme="dark"] .mantine-Input-input,
+[data-mantine-color-scheme="dark"] .mantine-TextInput-input,
+[data-mantine-color-scheme="dark"] .mantine-Select-input {
+  background-color: var(--mantine-color-dark-8) !important;
+  border: 1px solid var(--mantine-color-dark-6) !important;
+  font-family: var(--mantine-font-family) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Input-input:focus,
+[data-mantine-color-scheme="dark"] .mantine-TextInput-input:focus,
+[data-mantine-color-scheme="dark"] .mantine-Select-input:focus {
+  border-color: var(--mantine-color-blue-0) !important;
+}
+
+/* Terminal-style tables */
+[data-mantine-color-scheme="dark"] .mantine-Table-root {
+  font-family: var(--mantine-font-family) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-th {
+  background-color: var(--mantine-color-dark-8) !important;
+  border-bottom: 1px solid var(--mantine-color-dark-6) !important;
+  color: var(--mantine-color-dark-1) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-td {
+  border-bottom: 1px solid var(--mantine-color-dark-7) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Table-tr:hover {
+  background-color: var(--mantine-color-dark-7) !important;
+}
+
+/* Terminal-style tabs */
+[data-mantine-color-scheme="dark"] .mantine-Tabs-tab {
+  border: 1px solid transparent;
+  border-bottom: 1px solid var(--mantine-color-dark-6);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Tabs-tab[data-active] {
+  border-color: var(--mantine-color-dark-6);
+  border-bottom-color: transparent;
+  background-color: var(--mantine-color-dark-8);
+}
+
+/* Terminal-style badges */
+[data-mantine-color-scheme="dark"] .mantine-Badge-root {
+  border: 1px solid var(--mantine-color-dark-6);
+  font-family: var(--mantine-font-family);
+}
+
+/* Terminal-style modals */
+[data-mantine-color-scheme="dark"] .mantine-Modal-content {
+  background-color: var(--mantine-color-dark-8) !important;
+  border: 1px solid var(--mantine-color-dark-6) !important;
+  font-family: var(--mantine-font-family) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Modal-header {
+  border-bottom: 1px solid var(--mantine-color-dark-6) !important;
+  background-color: var(--mantine-color-dark-8) !important;
+  font-family: var(--mantine-font-family) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Modal-title {
+  font-family: var(--mantine-font-family) !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Modal-body {
+  font-family: var(--mantine-font-family) !important;
+}
+
+/* Terminal-style notifications */
+[data-mantine-color-scheme="dark"] .mantine-Notification-root {
+  background-color: var(--mantine-color-dark-8) !important;
+  border: 1px solid var(--mantine-color-dark-6) !important;
+  box-shadow: none !important;
+}
+
+/* Ensure all text uses monospace */
+[data-mantine-color-scheme="dark"] {
+  font-family: var(--mantine-font-family) !important;
+}
+
+/* Terminal-style code blocks and pre elements */
+[data-mantine-color-scheme="dark"] pre,
+[data-mantine-color-scheme="dark"] code {
+  font-family: var(--mantine-font-family) !important;
+  background-color: var(--mantine-color-dark-8) !important;
+  border: 1px solid var(--mantine-color-dark-6) !important;
+  padding: 4px 8px;
+  border-radius: 2px;
+}
+
+/* Terminal-style dividers */
+[data-mantine-color-scheme="dark"] .mantine-Divider-root {
+  border-color: var(--mantine-color-dark-6) !important;
+}
+
+/* Terminal-style Paper with borders */
+[data-mantine-color-scheme="dark"] .mantine-Paper-root[data-with-border] {
+  border: 1px solid var(--mantine-color-dark-6) !important;
+  background-color: var(--mantine-color-dark-7) !important;
+}
+
+/* Terminal-style Alerts */
+[data-mantine-color-scheme="dark"] .mantine-Alert-root {
+  background-color: var(--mantine-color-dark-7) !important;
+  border: 1px solid var(--mantine-color-dark-6) !important;
+  font-family: var(--mantine-font-family) !important;
+}
+
+/* Terminal-style Select dropdowns */
+[data-mantine-color-scheme="dark"] .mantine-Select-dropdown {
+  background-color: var(--mantine-color-dark-8) !important;
+  border: 1px solid var(--mantine-color-dark-6) !important;
+  font-family: var(--mantine-font-family) !important;
+}
+
+/* Terminal-style Menu dropdowns */
+[data-mantine-color-scheme="dark"] .mantine-Menu-dropdown {
+  background-color: var(--mantine-color-dark-8) !important;
+  border: 1px solid var(--mantine-color-dark-6) !important;
+  font-family: var(--mantine-font-family) !important;
+}
+
+/* Terminal-style Tooltip */
+[data-mantine-color-scheme="dark"] .mantine-Tooltip-tooltip {
+  background-color: var(--mantine-color-dark-7) !important;
+  border: 1px solid var(--mantine-color-dark-6) !important;
+  font-family: var(--mantine-font-family) !important;
+  color: var(--mantine-color-dark-0) !important;
+}
+
+/* Ensure all text elements use monospace */
+[data-mantine-color-scheme="dark"] .mantine-Text-root,
+[data-mantine-color-scheme="dark"] .mantine-TextInput-label,
+[data-mantine-color-scheme="dark"] .mantine-Select-label,
+[data-mantine-color-scheme="dark"] .mantine-NumberInput-label,
+[data-mantine-color-scheme="dark"] .mantine-Switch-label {
+  font-family: var(--mantine-font-family) !important;
+}

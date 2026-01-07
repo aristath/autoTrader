@@ -25,11 +25,11 @@ export function MarketStatus() {
                 height: '6px',
                 borderRadius: '50%',
                 backgroundColor: market.open
-                  ? 'var(--mantine-color-green-5)'
-                  : 'var(--mantine-color-gray-6)',
+                  ? 'var(--mantine-color-green-0)'
+                  : 'var(--mantine-color-dark-5)',
               }}
             />
-            <span>{geo}</span>
+            <span style={{ fontFamily: 'var(--mantine-font-family)' }}>{geo}</span>
           </Group>
         </Badge>
       ))}

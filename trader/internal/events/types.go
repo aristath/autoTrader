@@ -21,4 +21,16 @@ const (
 	PlanGenerated        EventType = "PLAN_GENERATED"
 	SecuritySynced       EventType = "SECURITY_SYNCED"
 	ScoreUpdated         EventType = "SCORE_UPDATED"
+
+	// Additional event types for reactive UI
+	TradeExecuted            EventType = "TRADE_EXECUTED"
+	CashUpdated              EventType = "CASH_UPDATED"
+	AllocationTargetsChanged EventType = "ALLOCATION_TARGETS_CHANGED"
+	SettingsChanged          EventType = "SETTINGS_CHANGED"
+	PlannerConfigChanged     EventType = "PLANNER_CONFIG_CHANGED"
+	LogFileChanged           EventType = "LOG_FILE_CHANGED"
+	SystemStatusChanged      EventType = "SYSTEM_STATUS_CHANGED"
+	TradernetStatusChanged   EventType = "TRADERNET_STATUS_CHANGED"
+	MarketsStatusChanged     EventType = "MARKETS_STATUS_CHANGED"
+	PlanningStatusUpdated    EventType = "PLANNING_STATUS_UPDATED"
 )

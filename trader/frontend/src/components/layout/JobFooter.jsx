@@ -119,12 +119,20 @@ export function JobFooter() {
   };
 
   return (
-    <Paper p="md" mt="xl" style={{ borderTop: '1px solid var(--mantine-color-gray-3)' }}>
-      <Title order={4} mb="md">Manual Job Triggers</Title>
+    <Paper
+      p="md"
+      mt="xl"
+      style={{
+        borderTop: '1px solid var(--mantine-color-dark-6)',
+        backgroundColor: 'var(--mantine-color-dark-8)',
+        border: '1px solid var(--mantine-color-dark-6)',
+      }}
+    >
+      <Title order={4} mb="md" style={{ fontFamily: 'var(--mantine-font-family)' }}>Manual Job Triggers</Title>
       <Stack gap="lg">
         {jobCategories.map((category) => (
           <Stack key={category.name} gap="xs">
-            <Text size="sm" fw={600} c="dimmed" tt="uppercase">
+            <Text size="sm" fw={600} c="dimmed" tt="uppercase" style={{ fontFamily: 'var(--mantine-font-family)' }}>
               {category.name}
             </Text>
             <Group gap="xs" wrap="wrap">

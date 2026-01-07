@@ -22,7 +22,7 @@ export function ConcentrationAlerts() {
                 <Text size="sm" fw={500}>
                   {alert.name} ({alert.type})
                 </Text>
-                <Text size="sm" ff="monospace" fw={600}>
+                <Text size="sm" style={{ fontFamily: 'var(--mantine-font-family)' }} fw={600}>
                   {formatPercent(alert.current_pct)} / {formatPercent(alert.limit_pct, 0)} limit
                 </Text>
               </div>
@@ -39,7 +39,7 @@ export function ConcentrationAlerts() {
                 <Text size="sm" fw={500}>
                   {alert.name} ({alert.type})
                 </Text>
-                <Text size="sm" ff="monospace" fw={600}>
+                <Text size="sm" style={{ fontFamily: 'var(--mantine-font-family)' }} fw={600}>
                   {formatPercent(alert.current_pct)} / {formatPercent(alert.limit_pct, 0)} limit
                 </Text>
               </div>

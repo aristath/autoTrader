@@ -8,7 +8,13 @@ export function StatusBar() {
   const { allocation, cashBreakdown } = usePortfolioStore();
 
   return (
-    <Paper p="md">
+    <Paper
+      p="md"
+      style={{
+        backgroundColor: 'var(--mantine-color-dark-8)',
+        border: '1px solid var(--mantine-color-dark-6)',
+      }}
+    >
       {/* System Status Row */}
       <Group justify="space-between" mb="xs">
         <Group gap="md">
@@ -18,15 +24,15 @@ export function StatusBar() {
                 width: '6px',
                 height: '6px',
                 borderRadius: '50%',
-                backgroundColor: status.status === 'healthy' ? 'var(--mantine-color-green-5)' : 'var(--mantine-color-red-5)',
+                backgroundColor: status.status === 'healthy' ? 'var(--mantine-color-green-0)' : 'var(--mantine-color-red-0)',
               }}
             />
-            <Text size="xs" c="dimmed">
+            <Text size="xs" c="dimmed" ff="var(--mantine-font-family)">
               {status.status === 'healthy' ? 'System Online' : 'System Offline'}
             </Text>
           </Group>
-          <Text size="xs" c="dimmed">|</Text>
-          <Text size="xs" c="dimmed">
+          <Text size="xs" c="dimmed" ff="var(--mantine-font-family)">|</Text>
+          <Text size="xs" c="dimmed" ff="var(--mantine-font-family)">
             Last sync: <span>{status.last_sync || 'Never'}</span>
           </Text>
         </Group>
@@ -35,32 +41,32 @@ export function StatusBar() {
       {/* Portfolio Summary Row */}
       <Group justify="space-between">
         <Group gap="md" wrap="wrap">
-          <Text size="xs" c="dimmed">
-            Total Value: <span style={{ color: 'var(--mantine-color-green-4)', fontFamily: 'monospace' }}>
+          <Text size="xs" c="dimmed" ff="var(--mantine-font-family)">
+            Total Value: <span style={{ color: 'var(--mantine-color-green-0)' }}>
               {formatCurrency(allocation.total_value)}
             </span>
           </Text>
-          <Text size="xs" c="dimmed">|</Text>
-          <Text size="xs" c="dimmed">
-            Cash: <span style={{ fontFamily: 'monospace' }}>
+          <Text size="xs" c="dimmed" ff="var(--mantine-font-family)">|</Text>
+          <Text size="xs" c="dimmed" ff="var(--mantine-font-family)">
+            Cash: <span>
               {formatCurrency(allocation.cash_balance)}
             </span>
           </Text>
           {cashBreakdown && cashBreakdown.length > 0 && (
             <>
-              <Text size="xs" c="dimmed">
+              <Text size="xs" c="dimmed" ff="var(--mantine-font-family)">
                 ({cashBreakdown.map((cb, index) => (
                   <span key={cb.currency}>
                     {cb.currency === 'TEST' ? (
-                      <span style={{ backgroundColor: 'rgba(34, 197, 94, 0.2)', padding: '2px 4px', borderRadius: '4px' }}>
-                        <span style={{ color: 'var(--mantine-color-green-4)' }}>{cb.currency}</span>:
-                        <span style={{ fontFamily: 'monospace', color: 'var(--mantine-color-green-4)' }}>
+                      <span style={{ backgroundColor: 'rgba(166, 227, 161, 0.15)', padding: '2px 4px', borderRadius: '2px', border: '1px solid rgba(166, 227, 161, 0.3)' }}>
+                        <span style={{ color: 'var(--mantine-color-green-0)' }}>{cb.currency}</span>:
+                        <span style={{ color: 'var(--mantine-color-green-0)' }}>
                           {formatNumber(cb.amount, 2)}
                         </span>
                       </span>
                     ) : (
                       <span>
-                        {cb.currency}: <span style={{ fontFamily: 'monospace' }}>{formatNumber(cb.amount, 2)}</span>
+                        {cb.currency}: <span>{formatNumber(cb.amount, 2)}</span>
                       </span>
                     )}
                     {index < cashBreakdown.length - 1 && ', '}
@@ -69,9 +75,9 @@ export function StatusBar() {
               </Text>
             </>
           )}
-          <Text size="xs" c="dimmed">|</Text>
-          <Text size="xs" c="dimmed">
-            Positions: <span style={{ fontFamily: 'monospace' }}>
+          <Text size="xs" c="dimmed" ff="var(--mantine-font-family)">|</Text>
+          <Text size="xs" c="dimmed" ff="var(--mantine-font-family)">
+            Positions: <span>
               {status.active_positions || 0}
             </span>
           </Text>

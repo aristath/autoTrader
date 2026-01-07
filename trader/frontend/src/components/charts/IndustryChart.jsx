@@ -135,10 +135,10 @@ export function IndustryChart() {
                     {industry.name}
                   </Text>
                   <Group gap="xs" style={{ flexShrink: 0 }}>
-                    <Text size="xs" ff="monospace">
+                    <Text size="xs" style={{ fontFamily: 'var(--mantine-font-family)' }}>
                       {formatPercent(industry.current_pct)}
                     </Text>
-                    <Badge size="xs" {...badgeClass} ff="monospace">
+                    <Badge size="xs" {...badgeClass} style={{ fontFamily: 'var(--mantine-font-family)' }}>
                       {formatDeviation(deviation)}
                     </Badge>
                   </Group>
@@ -147,7 +147,7 @@ export function IndustryChart() {
                 <div
                   style={{
                     height: '6px',
-                    backgroundColor: 'var(--mantine-color-gray-3)',
+                    backgroundColor: 'var(--mantine-color-dark-6)',
                     borderRadius: '999px',
                     position: 'relative',
                     overflow: 'hidden',
@@ -209,7 +209,7 @@ export function IndustryChart() {
                   <Text size="sm" truncate style={{ maxWidth: '200px' }}>
                     {name}
                   </Text>
-                  <Badge size="xs" {...badgeClass} ff="monospace" style={{ flexShrink: 0 }}>
+                  <Badge size="xs" {...badgeClass} style={{ flexShrink: 0, fontFamily: 'var(--mantine-font-family)' }}>
                     {formatWeight(weight)}
                   </Badge>
                 </Group>

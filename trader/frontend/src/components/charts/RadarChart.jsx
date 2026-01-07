@@ -72,7 +72,7 @@ export function RadarChart({ labels = [], targetData = [], currentData = [], max
       circle.setAttribute('cy', centerY);
       circle.setAttribute('r', circleRadius);
       circle.setAttribute('fill', 'none');
-      circle.setAttribute('stroke', '#374151');
+      circle.setAttribute('stroke', '#313244'); // Catppuccin Mocha Surface 0
       circle.setAttribute('stroke-width', '1');
       gridGroup.appendChild(circle);
     }
@@ -98,7 +98,7 @@ export function RadarChart({ labels = [], targetData = [], currentData = [], max
       line.setAttribute('y1', centerY);
       line.setAttribute('x2', coord.x);
       line.setAttribute('y2', coord.y);
-      line.setAttribute('stroke', '#374151');
+      line.setAttribute('stroke', '#313244'); // Catppuccin Mocha Surface 0
       line.setAttribute('stroke-width', '1');
       radialGroup.appendChild(line);
     });
@@ -119,7 +119,7 @@ export function RadarChart({ labels = [], targetData = [], currentData = [], max
       tick.setAttribute('y1', tickY - tickLength);
       tick.setAttribute('x2', tickX);
       tick.setAttribute('y2', tickY + tickLength);
-      tick.setAttribute('stroke', '#6B7280');
+      tick.setAttribute('stroke', '#6c7086'); // Catppuccin Mocha Overlay 0
       tick.setAttribute('stroke-width', '1');
       tickGroup.appendChild(tick);
 
@@ -129,9 +129,9 @@ export function RadarChart({ labels = [], targetData = [], currentData = [], max
       label.setAttribute('x', tickX);
       label.setAttribute('y', tickY - tickLabelOffset);
       label.setAttribute('text-anchor', 'middle');
-      label.setAttribute('fill', '#6B7280');
+      label.setAttribute('fill', '#6c7086'); // Catppuccin Mocha Overlay 0
       label.setAttribute('font-size', '9');
-      label.setAttribute('font-family', 'system-ui, sans-serif');
+      label.setAttribute('font-family', 'JetBrains Mono, Fira Code, IBM Plex Mono, monospace');
       label.textContent = tickValue.toString();
       tickGroup.appendChild(label);
     });
@@ -163,7 +163,8 @@ export function RadarChart({ labels = [], targetData = [], currentData = [], max
       const currentPolygon = document.createElementNS(svgNS, 'polygon');
       const currentPolygonPoints = currentPoints.map(p => `${p.x},${p.y}`).join(' ');
       currentPolygon.setAttribute('points', currentPolygonPoints);
-      currentPolygon.setAttribute('fill', 'rgba(34, 197, 94, 0.2)');
+      currentPolygon.setAttribute('fill', '#a6e3a1'); // Catppuccin Mocha Green
+      currentPolygon.setAttribute('fill-opacity', '0.2');
       currentPolygon.setAttribute('stroke', 'none');
       dataGroup.appendChild(currentPolygon);
 
@@ -171,7 +172,8 @@ export function RadarChart({ labels = [], targetData = [], currentData = [], max
       const currentPolylinePoints = [...currentPoints, currentPoints[0]].map(p => `${p.x},${p.y}`).join(' ');
       currentPolyline.setAttribute('points', currentPolylinePoints);
       currentPolyline.setAttribute('fill', 'none');
-      currentPolyline.setAttribute('stroke', 'rgba(34, 197, 94, 0.8)');
+      currentPolyline.setAttribute('stroke', '#a6e3a1'); // Catppuccin Mocha Green
+      currentPolyline.setAttribute('stroke-opacity', '0.8');
       currentPolyline.setAttribute('stroke-width', '2');
       dataGroup.appendChild(currentPolyline);
 
@@ -180,7 +182,8 @@ export function RadarChart({ labels = [], targetData = [], currentData = [], max
         circle.setAttribute('cx', point.x);
         circle.setAttribute('cy', point.y);
         circle.setAttribute('r', '3');
-        circle.setAttribute('fill', 'rgba(34, 197, 94, 0.8)');
+        circle.setAttribute('fill', '#a6e3a1'); // Catppuccin Mocha Green
+        circle.setAttribute('fill-opacity', '0.8');
         dataGroup.appendChild(circle);
       });
     }
@@ -191,7 +194,8 @@ export function RadarChart({ labels = [], targetData = [], currentData = [], max
       const targetPolylinePoints = [...targetPoints, targetPoints[0]].map(p => `${p.x},${p.y}`).join(' ');
       targetPolyline.setAttribute('points', targetPolylinePoints);
       targetPolyline.setAttribute('fill', 'none');
-      targetPolyline.setAttribute('stroke', 'rgba(59, 130, 246, 0.8)');
+      targetPolyline.setAttribute('stroke', '#89b4fa'); // Catppuccin Mocha Blue
+      targetPolyline.setAttribute('stroke-opacity', '0.8');
       targetPolyline.setAttribute('stroke-width', '2');
       targetPolyline.setAttribute('stroke-dasharray', '5,5');
       dataGroup.appendChild(targetPolyline);
@@ -201,7 +205,8 @@ export function RadarChart({ labels = [], targetData = [], currentData = [], max
         circle.setAttribute('cx', point.x);
         circle.setAttribute('cy', point.y);
         circle.setAttribute('r', '3');
-        circle.setAttribute('fill', 'rgba(59, 130, 246, 0.8)');
+        circle.setAttribute('fill', '#89b4fa'); // Catppuccin Mocha Blue
+        circle.setAttribute('fill-opacity', '0.8');
         dataGroup.appendChild(circle);
       });
     }
@@ -217,9 +222,9 @@ export function RadarChart({ labels = [], targetData = [], currentData = [], max
       label.setAttribute('y', labelY);
       label.setAttribute('text-anchor', coord.x > centerX ? 'start' : coord.x < centerX ? 'end' : 'middle');
       label.setAttribute('dominant-baseline', 'middle');
-      label.setAttribute('fill', '#D1D5DB');
+      label.setAttribute('fill', '#cdd6f4'); // Catppuccin Mocha Text
       label.setAttribute('font-size', '10');
-      label.setAttribute('font-family', 'system-ui, sans-serif');
+      label.setAttribute('font-family', 'JetBrains Mono, Fira Code, IBM Plex Mono, monospace');
       label.textContent = labels[i];
       labelGroup.appendChild(label);
     });
@@ -234,7 +239,8 @@ export function RadarChart({ labels = [], targetData = [], currentData = [], max
     targetLegendLine.setAttribute('y1', legendY);
     targetLegendLine.setAttribute('x2', legendX - 40);
     targetLegendLine.setAttribute('y2', legendY);
-    targetLegendLine.setAttribute('stroke', 'rgba(59, 130, 246, 0.8)');
+    targetLegendLine.setAttribute('stroke', '#89b4fa'); // Catppuccin Mocha Blue
+    targetLegendLine.setAttribute('stroke-opacity', '0.8');
     targetLegendLine.setAttribute('stroke-width', '2');
     targetLegendLine.setAttribute('stroke-dasharray', '5,5');
     legendGroup.appendChild(targetLegendLine);
@@ -243,9 +249,9 @@ export function RadarChart({ labels = [], targetData = [], currentData = [], max
     targetLegendText.setAttribute('x', legendX - 35);
     targetLegendText.setAttribute('y', legendY);
     targetLegendText.setAttribute('dominant-baseline', 'middle');
-    targetLegendText.setAttribute('fill', '#9CA3AF');
-    targetLegendText.setAttribute('font-size', '10');
-    targetLegendText.setAttribute('font-family', 'system-ui, sans-serif');
+    targetLegendText.setAttribute('fill', '#a6adc8'); // Catppuccin Mocha Subtext 0
+      targetLegendText.setAttribute('font-size', '10');
+      targetLegendText.setAttribute('font-family', 'JetBrains Mono, Fira Code, IBM Plex Mono, monospace');
     targetLegendText.textContent = 'Target';
     legendGroup.appendChild(targetLegendText);
 
@@ -255,7 +261,8 @@ export function RadarChart({ labels = [], targetData = [], currentData = [], max
     currentLegendLine.setAttribute('y1', legendY);
     currentLegendLine.setAttribute('x2', legendX + 30);
     currentLegendLine.setAttribute('y2', legendY);
-    currentLegendLine.setAttribute('stroke', 'rgba(34, 197, 94, 0.8)');
+    currentLegendLine.setAttribute('stroke', '#a6e3a1'); // Catppuccin Mocha Green
+    currentLegendLine.setAttribute('stroke-opacity', '0.8');
     currentLegendLine.setAttribute('stroke-width', '2');
     legendGroup.appendChild(currentLegendLine);
 
@@ -263,9 +270,9 @@ export function RadarChart({ labels = [], targetData = [], currentData = [], max
     currentLegendText.setAttribute('x', legendX + 35);
     currentLegendText.setAttribute('y', legendY);
     currentLegendText.setAttribute('dominant-baseline', 'middle');
-    currentLegendText.setAttribute('fill', '#9CA3AF');
-    currentLegendText.setAttribute('font-size', '10');
-    currentLegendText.setAttribute('font-family', 'system-ui, sans-serif');
+    currentLegendText.setAttribute('fill', '#a6adc8'); // Catppuccin Mocha Subtext 0
+      currentLegendText.setAttribute('font-size', '10');
+      currentLegendText.setAttribute('font-family', 'JetBrains Mono, Fira Code, IBM Plex Mono, monospace');
     currentLegendText.textContent = 'Current';
     legendGroup.appendChild(currentLegendText);
 

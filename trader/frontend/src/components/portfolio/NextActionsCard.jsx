@@ -14,18 +14,9 @@ export function NextActionsCard() {
     fetchRecommendations,
     executeRecommendation,
     regenerateSequences,
-    startPlannerStatusStream,
-    stopPlannerStatusStream,
   } = useAppStore();
   const { allocation } = usePortfolioStore();
   const { settings } = useSettingsStore();
-
-  useEffect(() => {
-    startPlannerStatusStream();
-    return () => {
-      stopPlannerStatusStream();
-    };
-  }, []);
 
   const handleRegenerateSequences = async () => {
     if (confirm('This will delete existing sequences and regenerate them with current settings. Existing evaluations will be preserved. Continue?')) {
@@ -40,29 +31,30 @@ export function NextActionsCard() {
     <Card
       p="lg"
       style={{
-        border: '2px solid rgba(59, 130, 246, 0.3)',
+        border: '1px solid var(--mantine-color-dark-6)',
+        backgroundColor: 'var(--mantine-color-dark-8)',
       }}
     >
       <Group justify="space-between" mb="md">
         <div style={{ flex: 1 }}>
-          <Text size="lg" fw={700} c="blue" tt="uppercase" mb="xs">
+          <Text size="lg" fw={700} c="blue" tt="uppercase" mb="xs" style={{ fontFamily: 'var(--mantine-font-family)' }}>
             Next Actions
           </Text>
-          <Text size="xs" c="dimmed">
+          <Text size="xs" c="dimmed" style={{ fontFamily: 'var(--mantine-font-family)' }}>
             Automated portfolio management recommendations
           </Text>
         </div>
         <Group gap="md" visibleFrom="md">
           <div style={{ textAlign: 'right' }}>
-            <Text size="xs" c="dimmed">Total Value</Text>
-            <Text size="sm" fw={600} c="green" ff="monospace">
+            <Text size="xs" c="dimmed" style={{ fontFamily: 'var(--mantine-font-family)' }}>Total Value</Text>
+            <Text size="sm" fw={600} c="green" style={{ fontFamily: 'var(--mantine-font-family)' }}>
               {formatCurrency(allocation.total_value)}
             </Text>
           </div>
-          <div style={{ width: '1px', height: '32px', backgroundColor: 'var(--mantine-color-gray-3)' }} />
+          <div style={{ width: '1px', height: '32px', backgroundColor: 'var(--mantine-color-dark-6)' }} />
           <div style={{ textAlign: 'right' }}>
-            <Text size="xs" c="dimmed">Cash</Text>
-            <Text size="sm" fw={600} c="dimmed" ff="monospace">
+            <Text size="xs" c="dimmed" style={{ fontFamily: 'var(--mantine-font-family)' }}>Cash</Text>
+            <Text size="sm" fw={600} c="dimmed" style={{ fontFamily: 'var(--mantine-font-family)' }}>
               {formatCurrency(allocation.cash_balance)}
             </Text>
           </div>
@@ -90,7 +82,7 @@ export function NextActionsCard() {
 
       {/* Planner Status */}
       {plannerStatus && (
-        <Paper p="md" mb="md" style={{ border: '2px solid rgba(59, 130, 246, 0.3)' }}>
+        <Paper p="md" mb="md" style={{ border: '1px solid var(--mantine-color-blue-0)', backgroundColor: 'var(--mantine-color-dark-7)' }}>
           <Group gap="xs" mb="sm">
             {plannerStatus.is_planning && <Text c="blue">⏳</Text>}
             {!plannerStatus.is_planning && !plannerStatus.is_finished && plannerStatus.has_sequences && <Text c="dimmed">⏸</Text>}
@@ -176,23 +168,23 @@ export function NextActionsCard() {
                 key={`step-${step.step}`}
                 p="md"
                 style={{
-                  border: '2px solid',
+                  border: '1px solid',
                   borderColor: step.is_emergency
-                    ? 'rgba(249, 115, 22, 0.5)'
+                    ? 'var(--mantine-color-yellow-0)'
                     : step.side === 'SELL'
-                    ? 'rgba(127, 29, 29, 0.5)'
-                    : 'rgba(20, 83, 45, 0.5)',
-                  backgroundColor: 'var(--mantine-color-default)',
+                    ? 'var(--mantine-color-red-0)'
+                    : 'var(--mantine-color-green-0)',
+                  backgroundColor: 'var(--mantine-color-dark-7)',
                 }}
               >
                 <Group justify="space-between" align="flex-start">
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <Group gap="xs" mb="xs" wrap="wrap">
-                      <Badge size="sm" variant="filled" color="dark" ff="monospace">
+                      <Badge size="sm" variant="filled" color="dark" style={{ fontFamily: 'var(--mantine-font-family)' }}>
                         Step {step.step}
                       </Badge>
                       {step.is_emergency && (
-                        <Badge size="sm" color="orange" variant="light">
+                        <Badge size="sm" color="orange" variant="light" style={{ fontFamily: 'var(--mantine-font-family)' }}>
                           🚨 EMERGENCY
                         </Badge>
                       )}
@@ -200,15 +192,15 @@ export function NextActionsCard() {
                         size="sm"
                         color={step.side === 'SELL' ? 'red' : 'green'}
                         variant="light"
-                        ff="monospace"
+                        style={{ fontFamily: 'var(--mantine-font-family)' }}
                       >
                         {step.side}
                       </Badge>
-                      <Text size="lg" fw={700} ff="monospace" c={step.side === 'SELL' ? 'red' : 'green'}>
+                      <Text size="lg" fw={700} style={{ fontFamily: 'var(--mantine-font-family)' }} c={step.side === 'SELL' ? 'red' : 'green'}>
                         {step.symbol}
                       </Text>
                     </Group>
-                    <Text size="md" fw={500} mb="xs">
+                    <Text size="md" fw={500} mb="xs" style={{ fontFamily: 'var(--mantine-font-family)' }}>
                       {step.name}
                     </Text>
                     <Text
@@ -216,20 +208,21 @@ export function NextActionsCard() {
                       mb="xs"
                       c={step.is_emergency ? 'orange' : 'dimmed'}
                       fw={step.is_emergency ? 600 : 400}
+                      style={{ fontFamily: 'var(--mantine-font-family)' }}
                     >
                       {step.reason}
                     </Text>
                     <Group gap="md" wrap="wrap">
-                      <Text size="sm" c="dimmed">
+                      <Text size="sm" c="dimmed" style={{ fontFamily: 'var(--mantine-font-family)' }}>
                         Score: {step.portfolio_score_before.toFixed(1)} → {step.portfolio_score_after.toFixed(1)}
                       </Text>
                       {step.score_change > 0 && (
-                        <Badge size="sm" color="green" variant="light">
+                        <Badge size="sm" color="green" variant="light" style={{ fontFamily: 'var(--mantine-font-family)' }}>
                           +{step.score_change.toFixed(1)}
                         </Badge>
                       )}
                       {step.score_change < 0 && (
-                        <Badge size="sm" color="red" variant="light">
+                        <Badge size="sm" color="red" variant="light" style={{ fontFamily: 'var(--mantine-font-family)' }}>
                           {step.score_change.toFixed(1)}
                         </Badge>
                       )}
@@ -239,15 +232,15 @@ export function NextActionsCard() {
                     <Text
                       size="lg"
                       fw={700}
-                      ff="monospace"
+                      style={{ fontFamily: 'var(--mantine-font-family)' }}
                       c={step.side === 'SELL' ? 'red' : 'green'}
                     >
                       {(step.side === 'SELL' ? '-' : '+')}€{step.estimated_value.toLocaleString()}
                     </Text>
-                    <Text size="sm" c="dimmed">
+                    <Text size="sm" c="dimmed" style={{ fontFamily: 'var(--mantine-font-family)' }}>
                       {step.quantity} @ €{step.estimated_price}
                     </Text>
-                    <Text size="xs" c="dimmed">
+                    <Text size="xs" c="dimmed" style={{ fontFamily: 'var(--mantine-font-family)' }}>
                       Cash: €{step.available_cash_before.toLocaleString()} → €{step.available_cash_after.toLocaleString()}
                     </Text>
                   </div>
@@ -257,8 +250,8 @@ export function NextActionsCard() {
           </Stack>
 
           {recommendations.final_available_cash && (
-            <Text size="sm" c="dimmed" ta="center" mt="md">
-              Final cash: <Text span fw={600} c="dimmed" ff="monospace">
+            <Text size="sm" c="dimmed" ta="center" mt="md" style={{ fontFamily: 'var(--mantine-font-family)' }}>
+              Final cash: <Text span fw={600} c="dimmed" style={{ fontFamily: 'var(--mantine-font-family)' }}>
                 €{recommendations.final_available_cash.toLocaleString()}
               </Text>
             </Text>

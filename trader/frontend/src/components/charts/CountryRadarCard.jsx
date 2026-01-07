@@ -35,7 +35,7 @@ export function CountryRadarCard() {
 
       {/* Country Alerts */}
       {countryAlerts.length > 0 && (
-        <Stack gap="xs" mt="md" pt="md" style={{ borderTop: '1px solid var(--mantine-color-gray-3)' }}>
+        <Stack gap="xs" mt="md" pt="md" style={{ borderTop: '1px solid var(--mantine-color-dark-6)' }}>
           {countryAlerts.map((alert) => (
             <Alert
               key={alert.name}
@@ -50,7 +50,7 @@ export function CountryRadarCard() {
                     </Text>
                   </Group>
                   <Group gap="xs">
-                    <Text size="sm" ff="monospace" fw={600}>
+                    <Text size="sm" style={{ fontFamily: 'var(--mantine-font-family)' }} fw={600}>
                       {formatPercent(alert.current_pct)}
                     </Text>
                     <Text size="xs" c="dimmed">

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { notifications } from '@mantine/notifications';
 import { api } from '../api/client';
+import { handleEvent } from './eventHandlers';
 
 export const useAppStore = create((set, get) => ({
   // System status
@@ -11,11 +12,13 @@ export const useAppStore = create((set, get) => ({
 
   // Planner status
   plannerStatus: null,
-  plannerStatusEventSource: null,
 
   // Recommendations
   recommendations: null,
-  recommendationEventSource: null,
+
+  // Unified event stream
+  eventStreamSource: null,
+  eventStreamReconnectAttempts: 0,
 
   // UI State
   activeTab: 'next-actions',
@@ -185,68 +188,62 @@ export const useAppStore = create((set, get) => ({
     }
   },
 
-  // SSE streams
-  startPlannerStatusStream: () => {
-    const { plannerStatusEventSource } = get();
-    if (plannerStatusEventSource) {
-      plannerStatusEventSource.close();
-    }
-
-    const eventSource = new EventSource('/api/planning/stream');
-    set({ plannerStatusEventSource: eventSource });
-
-    eventSource.onmessage = (event) => {
-      try {
-        const status = JSON.parse(event.data);
-        set({ plannerStatus: status });
-      } catch (e) {
-        console.error('Failed to parse planner status event:', e);
-      }
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('Planner status SSE stream error:', error);
-    };
+  // Planner status update (called by event handler)
+  updatePlannerStatus: (status) => {
+    set({ plannerStatus: status });
   },
 
-  stopPlannerStatusStream: () => {
-    const { plannerStatusEventSource } = get();
-    if (plannerStatusEventSource) {
-      plannerStatusEventSource.close();
-      set({ plannerStatusEventSource: null });
-    }
-  },
-
-  startRecommendationStream: () => {
-    const { recommendationEventSource } = get();
-    if (recommendationEventSource) {
-      recommendationEventSource.close();
+  // Unified event stream
+  startEventStream: (logFile = null) => {
+    const { eventStreamSource } = get();
+    if (eventStreamSource) {
+      eventStreamSource.close();
     }
 
-    const eventSource = new EventSource('/api/planning/stream');
-    set({ recommendationEventSource: eventSource });
+    // Build URL with optional log_file query param
+    let url = '/api/events/stream';
+    if (logFile) {
+      url += `?log_file=${encodeURIComponent(logFile)}`;
+    }
+
+    const eventSource = new EventSource(url);
+    set({ eventStreamSource: eventSource });
 
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.invalidated) {
-          get().fetchRecommendations();
-        }
+        handleEvent(data);
       } catch (e) {
-        console.error('Failed to parse recommendation event:', e);
+        console.error('Failed to parse event stream message:', e);
       }
     };
 
     eventSource.onerror = (error) => {
-      console.error('Recommendation SSE stream error:', error);
+      console.error('Event stream error:', error);
+      const { eventStreamReconnectAttempts } = get();
+
+      // Close the connection
+      eventSource.close();
+
+      // Reconnect with exponential backoff (max 30 seconds)
+      const delay = Math.min(1000 * Math.pow(2, eventStreamReconnectAttempts), 30000);
+      setTimeout(() => {
+        set({ eventStreamReconnectAttempts: eventStreamReconnectAttempts + 1 });
+        get().startEventStream(logFile);
+      }, delay);
     };
+
+    // Reset reconnect attempts on successful connection
+    eventSource.addEventListener('open', () => {
+      set({ eventStreamReconnectAttempts: 0 });
+    });
   },
 
-  stopRecommendationStream: () => {
-    const { recommendationEventSource } = get();
-    if (recommendationEventSource) {
-      recommendationEventSource.close();
-      set({ recommendationEventSource: null });
+  stopEventStream: () => {
+    const { eventStreamSource } = get();
+    if (eventStreamSource) {
+      eventStreamSource.close();
+      set({ eventStreamSource: null, eventStreamReconnectAttempts: 0 });
     }
   },
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/aristath/portfolioManager/internal/clients/tradernet"
 	"github.com/aristath/portfolioManager/internal/domain"
+	"github.com/aristath/portfolioManager/internal/events"
 	"github.com/aristath/portfolioManager/internal/modules/portfolio"
 	"github.com/aristath/portfolioManager/internal/modules/trading"
 	"github.com/rs/zerolog"
@@ -51,6 +52,7 @@ type TradeExecutionService struct {
 	positionRepo    *portfolio.PositionRepository
 	cashManager     domain.CashManager
 	exchangeService domain.CurrencyExchangeServiceInterface
+	eventManager    *events.Manager
 	log             zerolog.Logger
 }
 
@@ -68,6 +70,7 @@ func NewTradeExecutionService(
 	positionRepo *portfolio.PositionRepository,
 	cashManager domain.CashManager,
 	exchangeService domain.CurrencyExchangeServiceInterface,
+	eventManager *events.Manager,
 	log zerolog.Logger,
 ) *TradeExecutionService {
 	return &TradeExecutionService{
@@ -76,6 +79,7 @@ func NewTradeExecutionService(
 		positionRepo:    positionRepo,
 		cashManager:     cashManager,
 		exchangeService: exchangeService,
+		eventManager:    eventManager,
 		log:             log.With().Str("service", "trade_execution").Logger(),
 	}
 }
@@ -157,6 +161,18 @@ func (s *TradeExecutionService) executeSingleTrade(rec TradeRecommendation) Exec
 			Str("symbol", rec.Symbol).
 			Msg("Trade executed but failed to record")
 		// Still return success - the trade went through
+	} else {
+		// Emit TRADE_EXECUTED event
+		if s.eventManager != nil {
+			s.eventManager.Emit(events.TradeExecuted, "trade_execution", map[string]interface{}{
+				"symbol":   orderResult.Symbol,
+				"side":     rec.Side,
+				"quantity": rec.Quantity,
+				"price":    orderResult.Price,
+				"order_id": orderResult.OrderID,
+				"source":   "emergency_rebalancing",
+			})
+		}
 	}
 
 	s.log.Info().

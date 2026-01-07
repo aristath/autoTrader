@@ -18,23 +18,40 @@ export class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-          <Alert color="red" title="Something went wrong" variant="filled">
+        <div style={{
+          padding: '2rem',
+          maxWidth: '800px',
+          margin: '0 auto',
+          fontFamily: 'var(--mantine-font-family)',
+        }}>
+          <Alert
+            color="red"
+            title="Something went wrong"
+            variant="filled"
+            style={{ fontFamily: 'var(--mantine-font-family)' }}
+          >
             <Stack gap="md">
-              <Text>
+              <Text style={{ fontFamily: 'var(--mantine-font-family)' }}>
                 An unexpected error occurred. Please refresh the page or contact support if the problem persists.
               </Text>
               {this.state.error && (
                 <details style={{ marginTop: '1rem' }}>
-                  <summary style={{ cursor: 'pointer', marginBottom: '0.5rem' }}>
+                  <summary style={{
+                    cursor: 'pointer',
+                    marginBottom: '0.5rem',
+                    fontFamily: 'var(--mantine-font-family)',
+                  }}>
                     Error Details
                   </summary>
                   <pre style={{
-                    backgroundColor: 'var(--mantine-color-default)',
+                    backgroundColor: 'var(--mantine-color-dark-8)',
+                    border: '1px solid var(--mantine-color-dark-6)',
                     padding: '1rem',
-                    borderRadius: '4px',
+                    borderRadius: '2px',
                     overflow: 'auto',
-                    fontSize: '0.875rem'
+                    fontSize: '0.875rem',
+                    fontFamily: 'var(--mantine-font-family)',
+                    color: 'var(--mantine-color-dark-0)',
                   }}>
                     {this.state.error.toString()}
                     {this.state.error.stack && `\n${this.state.error.stack}`}
@@ -46,6 +63,7 @@ export class ErrorBoundary extends Component {
                   this.setState({ hasError: false, error: null });
                   window.location.reload();
                 }}
+                style={{ fontFamily: 'var(--mantine-font-family)' }}
               >
                 Reload Page
               </Button>

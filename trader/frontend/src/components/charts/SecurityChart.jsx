@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
 import { createChart, ColorType } from 'lightweight-charts';
 import { api } from '../../api/client';
 import { Select, Button, Group, Loader, Text } from '@mantine/core';
+import { setSecurityChartRefreshFn } from '../../stores/eventHandlers';
 
-export function SecurityChart({ isin, symbol, onClose }) {
+export const SecurityChart = forwardRef(({ isin, symbol, onClose }, ref) => {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const lineSeriesRef = useRef(null);
@@ -12,25 +13,30 @@ export function SecurityChart({ isin, symbol, onClose }) {
   const [selectedRange, setSelectedRange] = useState('1Y');
   const [selectedSource, setSelectedSource] = useState('tradernet');
 
+  // Expose refresh function via ref
+  useImperativeHandle(ref, () => ({
+    refresh: loadChartData,
+  }));
+
   useEffect(() => {
     if (!chartContainerRef.current || !isin) return;
 
-    // Create chart
+    // Create chart with Catppuccin Mocha colors
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: '#1A1B1E' },
-        textColor: '#D1D5DB',
+        background: { type: ColorType.Solid, color: '#1e1e2e' }, // Catppuccin Mocha Base
+        textColor: '#cdd6f4', // Catppuccin Mocha Text
       },
       grid: {
-        vertLines: { color: '#374151' },
-        horzLines: { color: '#374151' },
+        vertLines: { color: '#313244' }, // Catppuccin Mocha Surface 0
+        horzLines: { color: '#313244' }, // Catppuccin Mocha Surface 0
       },
       width: chartContainerRef.current.clientWidth,
       height: 400,
     });
 
     const lineSeries = chart.addLineSeries({
-      color: '#3B82F6',
+      color: '#89b4fa', // Catppuccin Mocha Blue
       lineWidth: 2,
     });
 
@@ -57,13 +63,6 @@ export function SecurityChart({ isin, symbol, onClose }) {
       }
     };
   }, [isin]);
-
-  useEffect(() => {
-    if (isin && lineSeriesRef.current) {
-      loadChartData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRange, selectedSource, isin]);
 
   const loadChartData = async () => {
     if (!isin) return;
@@ -99,6 +98,29 @@ export function SecurityChart({ isin, symbol, onClose }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isin && lineSeriesRef.current) {
+      loadChartData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRange, selectedSource, isin]);
+
+  // Register refresh function with event handler
+  useEffect(() => {
+    if (isin) {
+      setSecurityChartRefreshFn(() => {
+        if (lineSeriesRef.current) {
+          loadChartData();
+        }
+      });
+
+      return () => {
+        setSecurityChartRefreshFn(null);
+      };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isin]);
 
   return (
     <div>
@@ -158,4 +180,4 @@ export function SecurityChart({ isin, symbol, onClose }) {
       />
     </div>
   );
-}
+});

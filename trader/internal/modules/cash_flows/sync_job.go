@@ -192,5 +192,13 @@ func (j *SyncJob) SyncCashFlows() error {
 		"completion_timestamp": time.Now().Format(time.RFC3339),
 	})
 
+	// Emit CASH_UPDATED event when cash balances change (deposits/dividends processed)
+	if depositCount > 0 || dividendCount > 0 {
+		j.eventManager.Emit(events.CashUpdated, "cash_flows", map[string]interface{}{
+			"deposits_processed": depositCount,
+			"dividends_created":  dividendCount,
+		})
+	}
+
 	return nil
 }

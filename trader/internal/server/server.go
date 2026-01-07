@@ -71,6 +71,7 @@ type Server struct {
 	displayManager     *display.StateManager
 	systemHandlers     *SystemHandlers
 	deploymentHandlers *DeploymentHandlers
+	statusMonitor      *StatusMonitor
 }
 
 // New creates a new HTTP server
@@ -122,7 +123,17 @@ func New(cfg Config) *Server {
 		displayManager:     cfg.DisplayManager,
 		systemHandlers:     systemHandlers,
 		deploymentHandlers: cfg.DeploymentHandlers,
+		statusMonitor:      nil, // Will be initialized after setupRoutes
 	}
+
+	// Initialize status monitor
+	s.statusMonitor = NewStatusMonitor(
+		cfg.Container.EventManager,
+		systemHandlers,
+		marketHoursService,
+		cfg.UniverseDB,
+		cfg.Log,
+	)
 
 	s.setupMiddleware(cfg.DevMode)
 	s.setupRoutes()
@@ -246,6 +257,10 @@ func (s *Server) setupRoutes() {
 
 	// API routes
 	s.router.Route("/api", func(r chi.Router) {
+		// Unified events stream (SSE) - must be before other routes for proper handling
+		eventsStreamHandler := NewEventsStreamHandler(s.container.EventBus, s.cfg.DataDir, s.log)
+		r.Get("/events/stream", eventsStreamHandler.ServeHTTP)
+
 		// System monitoring and operations (MIGRATED TO GO!)
 		s.setupSystemRoutes(r)
 
@@ -382,6 +397,7 @@ func (s *Server) setupSystemRoutes(r chi.Router) {
 		setupService1,
 		syncService1,
 		currencyExchangeService1,
+		s.container.EventManager,
 		s.log,
 	)
 
@@ -468,7 +484,7 @@ func (s *Server) setupAllocationRoutes(r chi.Router) {
 	// Create adapter to break circular dependency: allocation → portfolio
 	portfolioSummaryAdapter := portfolio.NewPortfolioSummaryAdapter(portfolioService)
 
-	handler := allocation.NewHandler(allocRepo, groupingRepo, alertService, portfolioSummaryAdapter, s.log)
+	handler := allocation.NewHandler(allocRepo, groupingRepo, alertService, portfolioSummaryAdapter, s.container.EventManager, s.log)
 
 	// Allocation routes (faithful translation of Python routes)
 	r.Route("/allocation", func(r chi.Router) {
@@ -547,6 +563,7 @@ func (s *Server) setupUniverseRoutes(r chi.Router) {
 		setupService,
 		syncService,
 		currencyExchangeService,
+		s.container.EventManager,
 		s.log,
 	)
 
@@ -619,6 +636,7 @@ func (s *Server) setupTradingRoutes(r chi.Router) {
 		settingsService,
 		recommendationRepo,
 		plannerRepo,
+		s.container.EventManager,
 		s.log,
 	)
 
@@ -803,8 +821,14 @@ func (s *Server) setupDeploymentRoutes(r chi.Router) {
 	}
 }
 
-// Start starts the HTTP server
+// Start starts the HTTP server and background monitors
 func (s *Server) Start() error {
+	// Start status monitor (check every 60 seconds)
+	if s.statusMonitor != nil {
+		s.statusMonitor.Start(60 * time.Second)
+		s.log.Info().Msg("Status monitor started")
+	}
+
 	s.log.Info().Int("port", s.cfg.Port).Msg("Starting HTTP server")
 	return s.server.ListenAndServe()
 }

@@ -76,10 +76,10 @@ export function LogsViewer() {
   };
 
   return (
-    <Card p="md">
+    <Card p="md" style={{ backgroundColor: 'var(--mantine-color-dark-8)', border: '1px solid var(--mantine-color-dark-6)' }}>
       <Stack gap="md">
         {/* Controls */}
-        <Card p="md">
+        <Card p="md" style={{ backgroundColor: 'var(--mantine-color-dark-7)', border: '1px solid var(--mantine-color-dark-6)' }}>
           <Group gap="md" wrap="wrap">
             <Select
               label="Log File"
@@ -156,9 +156,17 @@ export function LogsViewer() {
 
         {/* Log Entries */}
         <ScrollArea h={600} ref={scrollAreaRef}>
-          <Code block style={{ padding: '12px' }}>
+          <Code
+            block
+            style={{
+              padding: '12px',
+              backgroundColor: 'var(--mantine-color-dark-9)',
+              border: '1px solid var(--mantine-color-dark-6)',
+              fontFamily: 'var(--mantine-font-family)',
+            }}
+          >
             {entries.length === 0 ? (
-              <Text c="dimmed" size="sm">No log entries</Text>
+              <Text c="dimmed" size="sm" style={{ fontFamily: 'var(--mantine-font-family)' }}>No log entries</Text>
             ) : (
               entries.map((entry, index) => (
                 <div key={index} style={{ marginBottom: '4px' }}>
@@ -166,7 +174,7 @@ export function LogsViewer() {
                     size="xs"
                     c={getLevelColor(entry.level)}
                     span
-                    style={{ fontFamily: 'monospace' }}
+                    style={{ fontFamily: 'var(--mantine-font-family)' }}
                   >
                     [{formatDateTime(entry.timestamp)}] [{entry.level}] {entry.message}
                   </Text>

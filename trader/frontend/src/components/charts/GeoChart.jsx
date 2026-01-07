@@ -152,10 +152,10 @@ export function GeoChart() {
                     <Text size="sm">{country.name}</Text>
                   </Group>
                   <Group gap="xs">
-                    <Text size="sm" ff="monospace">
+                    <Text size="sm" style={{ fontFamily: 'var(--mantine-font-family)' }}>
                       {formatPercent(country.current_pct)}
                     </Text>
-                    <Badge size="xs" {...badgeClass} ff="monospace">
+                    <Badge size="xs" {...badgeClass} style={{ fontFamily: 'var(--mantine-font-family)' }}>
                       {formatDeviation(deviation)}
                     </Badge>
                   </Group>
@@ -164,7 +164,7 @@ export function GeoChart() {
                 <div
                   style={{
                     height: '6px',
-                    backgroundColor: 'var(--mantine-color-gray-3)',
+                    backgroundColor: 'var(--mantine-color-dark-6)',
                     borderRadius: '999px',
                     position: 'relative',
                     overflow: 'hidden',
@@ -177,7 +177,7 @@ export function GeoChart() {
                       bottom: 0,
                       left: '50%',
                       width: '1px',
-                      backgroundColor: 'var(--mantine-color-gray-5)',
+                      backgroundColor: 'var(--mantine-color-dark-5)',
                       zIndex: 10,
                     }}
                   />
@@ -234,7 +234,7 @@ export function GeoChart() {
                     />
                     <Text size="sm">{name}</Text>
                   </Group>
-                  <Badge size="xs" {...badgeClass} ff="monospace">
+                  <Badge size="xs" {...badgeClass} style={{ fontFamily: 'var(--mantine-font-family)' }}>
                     {formatWeight(weight)}
                   </Badge>
                 </Group>
