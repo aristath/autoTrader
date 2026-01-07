@@ -26,7 +26,6 @@ import (
 	"github.com/aristath/sentinel/internal/modules/charts"
 	chartshandlers "github.com/aristath/sentinel/internal/modules/charts/handlers"
 	"github.com/aristath/sentinel/internal/modules/display"
-	"github.com/aristath/sentinel/internal/modules/settings"
 	settingshandlers "github.com/aristath/sentinel/internal/modules/settings/handlers"
 	displayhandlers "github.com/aristath/sentinel/internal/modules/display/handlers"
 	dividendhandlers "github.com/aristath/sentinel/internal/modules/dividends/handlers"
