@@ -290,7 +290,7 @@ func TestCopyMap(t *testing.T) {
 			assert.Equal(t, tt.expected, result, tt.desc)
 
 			// Verify it's a deep copy (modifying result shouldn't affect input)
-			if tt.input != nil && len(tt.input) > 0 {
+			if len(tt.input) > 0 {
 				result["NEW_KEY"] = 999.0
 				_, exists := tt.input["NEW_KEY"]
 				assert.False(t, exists, "Modifying copy should not affect original")
@@ -332,7 +332,7 @@ func TestCopyStringMap(t *testing.T) {
 			assert.Equal(t, tt.expected, result, tt.desc)
 
 			// Verify it's a deep copy (modifying result shouldn't affect input)
-			if tt.input != nil && len(tt.input) > 0 {
+			if len(tt.input) > 0 {
 				result["NEW_KEY"] = "NEW_VALUE"
 				_, exists := tt.input["NEW_KEY"]
 				assert.False(t, exists, "Modifying copy should not affect original")
