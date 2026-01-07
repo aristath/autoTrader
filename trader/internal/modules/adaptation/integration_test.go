@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/aristath/sentinel/internal/market_regime"
-	"github.com/aristath/sentinel/internal/modules/portfolio"
 	"github.com/aristath/sentinel/internal/modules/scoring/scorers"
 	"github.com/aristath/sentinel/internal/modules/universe"
 	_ "github.com/mattn/go-sqlite3"
@@ -248,7 +247,7 @@ func TestAdaptationWithScoringIntegration(t *testing.T) {
 	securityScorer.SetAdaptiveService(adaptiveService)
 
 	// Create regime score provider adapter
-	regimeScoreProvider := portfolio.NewRegimeScoreProviderAdapter(regimePersistence)
+	regimeScoreProvider := market_regime.NewRegimeScoreProviderAdapter(regimePersistence)
 	securityScorer.SetRegimeScoreProvider(regimeScoreProvider)
 
 	// Get current regime score
@@ -303,7 +302,7 @@ func TestAdaptationWithTagAssignerIntegration(t *testing.T) {
 	tagAssigner.SetAdaptiveService(qualityGatesAdapter)
 
 	// Create regime score provider adapter
-	regimeScoreProvider := portfolio.NewRegimeScoreProviderAdapter(regimePersistence)
+	regimeScoreProvider := market_regime.NewRegimeScoreProviderAdapter(regimePersistence)
 	tagAssigner.SetRegimeScoreProvider(regimeScoreProvider)
 
 	// Get current regime score

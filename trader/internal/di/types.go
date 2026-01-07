@@ -105,7 +105,7 @@ type Container struct {
 	RegimePersistence         *market_regime.RegimePersistence
 	RegimeDetector            *market_regime.MarketRegimeDetector
 	AdaptiveMarketService     *adaptation.AdaptiveMarketService
-	RegimeScoreProvider       *portfolio.RegimeScoreProviderAdapter
+	RegimeScoreProvider       *market_regime.RegimeScoreProviderAdapter
 	DividendService           *cash_flows.DividendServiceImpl
 	DividendCreator           *cash_flows.DividendCreator
 	DepositProcessor          *cash_flows.DepositProcessor

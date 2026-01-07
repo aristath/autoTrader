@@ -407,7 +407,7 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 	)
 
 	// Regime score provider adapter
-	container.RegimeScoreProvider = portfolio.NewRegimeScoreProviderAdapter(container.RegimePersistence)
+	container.RegimeScoreProvider = market_regime.NewRegimeScoreProviderAdapter(container.RegimePersistence)
 
 	// Wire up adaptive services to integration points
 	container.OptimizerService.SetAdaptiveService(container.AdaptiveMarketService)
