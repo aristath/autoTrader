@@ -57,11 +57,43 @@ export const api = {
   },
   fetchAvailableLogFiles: () => fetchJSON('/api/system/logs/list'),
 
-  // Jobs
+  // Jobs - Original composite jobs
   triggerSyncCycle: () => fetchJSON('/api/system/jobs/sync-cycle', { method: 'POST' }),
   triggerDailyPipeline: () => fetchJSON('/api/system/sync/daily-pipeline', { method: 'POST' }),
   triggerDividendReinvestment: () => fetchJSON('/api/system/jobs/dividend-reinvestment', { method: 'POST' }),
+  triggerHealthCheck: () => fetchJSON('/api/system/jobs/health-check', { method: 'POST' }),
+  triggerPlannerBatch: () => fetchJSON('/api/system/jobs/planner-batch', { method: 'POST' }),
+  triggerEventBasedTrading: () => fetchJSON('/api/system/jobs/event-based-trading', { method: 'POST' }),
+  triggerTagUpdate: () => fetchJSON('/api/system/jobs/tag-update', { method: 'POST' }),
   hardUpdate: () => fetchJSON('/api/system/deployment/hard-update', { method: 'POST' }),
+
+  // Jobs - Individual sync jobs
+  triggerSyncTrades: () => fetchJSON('/api/system/jobs/sync-trades', { method: 'POST' }),
+  triggerSyncCashFlows: () => fetchJSON('/api/system/jobs/sync-cash-flows', { method: 'POST' }),
+  triggerSyncPortfolio: () => fetchJSON('/api/system/jobs/sync-portfolio', { method: 'POST' }),
+  triggerSyncPrices: () => fetchJSON('/api/system/jobs/sync-prices', { method: 'POST' }),
+  triggerCheckNegativeBalances: () => fetchJSON('/api/system/jobs/check-negative-balances', { method: 'POST' }),
+  triggerUpdateDisplayTicker: () => fetchJSON('/api/system/jobs/update-display-ticker', { method: 'POST' }),
+
+  // Jobs - Individual planning jobs
+  triggerGeneratePortfolioHash: () => fetchJSON('/api/system/jobs/generate-portfolio-hash', { method: 'POST' }),
+  triggerGetOptimizerWeights: () => fetchJSON('/api/system/jobs/get-optimizer-weights', { method: 'POST' }),
+  triggerBuildOpportunityContext: () => fetchJSON('/api/system/jobs/build-opportunity-context', { method: 'POST' }),
+  triggerCreateTradePlan: () => fetchJSON('/api/system/jobs/create-trade-plan', { method: 'POST' }),
+  triggerStoreRecommendations: () => fetchJSON('/api/system/jobs/store-recommendations', { method: 'POST' }),
+
+  // Jobs - Individual dividend jobs
+  triggerGetUnreinvestedDividends: () => fetchJSON('/api/system/jobs/get-unreinvested-dividends', { method: 'POST' }),
+  triggerGroupDividendsBySymbol: () => fetchJSON('/api/system/jobs/group-dividends-by-symbol', { method: 'POST' }),
+  triggerCheckDividendYields: () => fetchJSON('/api/system/jobs/check-dividend-yields', { method: 'POST' }),
+  triggerCreateDividendRecommendations: () => fetchJSON('/api/system/jobs/create-dividend-recommendations', { method: 'POST' }),
+  triggerSetPendingBonuses: () => fetchJSON('/api/system/jobs/set-pending-bonuses', { method: 'POST' }),
+  triggerExecuteDividendTrades: () => fetchJSON('/api/system/jobs/execute-dividend-trades', { method: 'POST' }),
+
+  // Jobs - Individual health check jobs
+  triggerCheckCoreDatabases: () => fetchJSON('/api/system/jobs/check-core-databases', { method: 'POST' }),
+  triggerCheckHistoryDatabases: () => fetchJSON('/api/system/jobs/check-history-databases', { method: 'POST' }),
+  triggerCheckWALCheckpoints: () => fetchJSON('/api/system/jobs/check-wal-checkpoints', { method: 'POST' }),
 
   // Allocation
   fetchAllocation: () => fetchJSON('/api/allocation/groups/allocation'),

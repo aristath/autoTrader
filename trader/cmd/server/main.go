@@ -117,6 +117,30 @@ func main() {
 		jobs.PlannerBatch,
 		jobs.EventBasedTrading,
 		jobs.TagUpdate,
+		// Individual sync jobs
+		jobs.SyncTrades,
+		jobs.SyncCashFlows,
+		jobs.SyncPortfolio,
+		jobs.SyncPrices,
+		jobs.CheckNegativeBalances,
+		jobs.UpdateDisplayTicker,
+		// Individual planning jobs
+		jobs.GeneratePortfolioHash,
+		jobs.GetOptimizerWeights,
+		jobs.BuildOpportunityContext,
+		jobs.CreateTradePlan,
+		jobs.StoreRecommendations,
+		// Individual dividend jobs
+		jobs.GetUnreinvestedDividends,
+		jobs.GroupDividendsBySymbol,
+		jobs.CheckDividendYields,
+		jobs.CreateDividendRecommendations,
+		jobs.SetPendingBonuses,
+		jobs.ExecuteDividendTrades,
+		// Individual health check jobs
+		jobs.CheckCoreDatabases,
+		jobs.CheckHistoryDatabases,
+		jobs.CheckWALCheckpoints,
 	)
 
 	// Start server in goroutine

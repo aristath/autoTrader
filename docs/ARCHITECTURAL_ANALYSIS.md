@@ -1,177 +1,49 @@
-# Architectural Analysis & Refactoring Opportunities
+# Architectural Analysis & Refactoring Plan
 
-**Date**: 2025-01-04
-**Project**: Arduino Trader
-**Purpose**: Comprehensive architectural analysis identifying refactoring opportunities
+**Last Updated**: 2025-01-27
+**Purpose**: Comprehensive refactoring roadmap for production readiness, testability, debuggability, and extensibility
 
 ---
 
 ## Executive Summary
 
-This analysis identifies **12 major architectural issues** and **25+ specific refactoring opportunities** across the codebase. The primary concerns are:
+This document identifies **remaining architectural refactoring opportunities** to improve code organization, maintainability, and production readiness. The analysis focuses on structural improvements that will make the codebase easier to test, debug, and extend.
 
-1. **Dependency Injection**: 840-line `main.go` with all wiring
-2. **Service Duplication**: Services created in 3+ places
-3. **Circular Dependencies**: Interface band-aids instead of proper design
-4. **Handler Inconsistency**: Mixed patterns across modules
-5. **Database Access**: Raw `.Conn()` calls, no abstraction layer
-6. **Testing Gaps**: Inconsistent mocking and test coverage
+**Current Architecture Health**: 7.5/10
 
-**Priority**: High-impact refactoring should focus on DI extraction and dependency management first, as these enable all other improvements.
+**Key Strengths**:
+- ✅ Clean dependency injection architecture
+- ✅ No circular dependencies
+- ✅ Well-organized module structure (mostly)
+- ✅ Comprehensive DI test coverage
 
----
-
-## 1. Dependency Injection Architecture
-
-### Current State
-
-**Problem**: All dependency wiring in `cmd/server/main.go` (842 lines)
-
-```go
-// main.go - 842 lines of wiring
-func registerJobs(...) {
-    // 500+ lines of service/repository creation
-    positionRepo := portfolio.NewPositionRepository(...)
-    securityRepo := universe.NewSecurityRepository(...)
-    // ... 50+ more initializations
-}
-```
-
-**Issues**:
-- Impossible to test in isolation
-- Hard to understand dependency graph
-- Changes require modifying massive function
-- No dependency validation
-- Services created multiple times (main.go, server.go, settings_routes.go)
-
-### Refactoring Opportunities
-
-#### 1.1 Extract DI Package
-
-**Create**: `internal/di/` package
-
-**Structure**:
-```
-internal/di/
-├── wire.go          # Main wiring function
-├── databases.go     # Database initialization
-├── repositories.go  # Repository wiring
-├── services.go      # Service wiring
-├── handlers.go      # Handler wiring
-├── jobs.go          # Job registration
-└── types.go         # DI container types
-```
-
-**Benefits**:
-- `main.go` reduces from 842 to ~100 lines
-- Single source of truth for dependencies
-- Testable dependency graph
-- Clear dependency relationships
-
-**Impact**: ⭐⭐⭐⭐⭐ (Critical)
-
-#### 1.2 Service Creation Duplication
-
-**Problem**: Services created in:
-- `cmd/server/main.go` (registerJobs function)
-- `internal/server/server.go` (setup*Routes functions)
-- `internal/server/settings_routes.go` (onboarding setup)
-
-**Example**:
-```go
-// main.go line 367
-portfolioService := portfolio.NewPortfolioService(...)
-
-// server.go line 367 (duplicate!)
-portfolioService := portfolio.NewPortfolioService(...)
-
-// settings_routes.go line 134 (duplicate!)
-portfolioService := portfolio.NewPortfolioService(...)
-```
-
-**Solution**: Single service creation in `internal/di/services.go`
-
-**Impact**: ⭐⭐⭐⭐ (High)
+**Key Areas for Improvement**:
+- ⚠️ Inconsistent handler/routing patterns (14% standardized)
+- ⚠️ Market regime code misplaced (in portfolio module)
+- ⚠️ Database access lacks abstraction layer
+- ⚠️ Repository pattern inconsistent
+- ⚠️ Service boundaries unclear
+- ⚠️ Error handling inconsistent
+- ⚠️ Testing patterns need standardization
 
 ---
 
-## 2. Circular Dependencies
+## 1. Handler/Routing Architecture Standardization
 
 ### Current State
 
-**Problem**: Circular dependencies broken with interface band-aids
+**Problem**: Inconsistent routing patterns across modules
 
-**Dependency Cycle**:
-```
-portfolio → cash_flows → trading → allocation → portfolio
-```
-
-**Band-Aid Solution**:
+**Pattern 1**: Routes defined in `server.go` (15+ modules) - **NEEDS REFACTORING**
 ```go
-// portfolio/service.go
-type CashManager interface { ... }  // Interface to break cycle
-
-// cash_flows/cash_security_manager.go
-type CashManager struct { ... }  // Implements interface
-
-// services/trade_execution_service.go
-type CashManagerInterface interface { ... }  // Another interface!
-```
-
-**Issues**:
-- Same interface defined in 3+ places
-- No single source of truth
-- Hard to track what implements what
-- Adapter types everywhere (`qualityGatesAdapter`, etc.)
-
-### Refactoring Opportunities
-
-#### 2.1 Centralize Shared Interfaces
-
-**Create**: `internal/domain/interfaces.go`
-
-**Move all shared interfaces**:
-- `CashManager` (from portfolio, cash_flows, services)
-- `AllocationTargetProvider` (from portfolio)
-- `PortfolioSummaryProvider` (from allocation)
-- `ConcentrationAlertProvider` (from allocation)
-- `TradernetClientInterface` (from portfolio, services)
-- `CurrencyExchangeServiceInterface` (from portfolio, services)
-- All other cross-module interfaces
-
-**Benefits**:
-- Single source of truth
-- Clear dependency graph
-- No duplicate definitions
-- Easier to understand relationships
-
-**Impact**: ⭐⭐⭐⭐ (High)
-
-#### 2.2 Remove Adapter Types
-
-**Problem**: Adapter types like `qualityGatesAdapter` in `main.go`
-
-**Solution**: Use domain interfaces directly, no adapters needed
-
-**Impact**: ⭐⭐⭐ (Medium)
-
----
-
-## 3. Handler/Routing Architecture
-
-### Current State
-
-**Problem**: Inconsistent handler patterns
-
-**Pattern 1**: Handlers in `server.go` (15+ functions)
-```go
-// server.go
+// server.go - 15+ setup*Routes functions
 func (s *Server) setupAllocationRoutes(r chi.Router) { ... }
 func (s *Server) setupPortfolioRoutes(r chi.Router) { ... }
-// ... 13 more setup*Routes functions
+func (s *Server) setupUniverseRoutes(r chi.Router) { ... }
+// ... 12+ more
 ```
 
-**Pattern 2**: Handlers in module with `RegisterRoutes()` (2 modules)
+**Pattern 2**: Routes in module with `RegisterRoutes()` (2 modules) - **GOOD EXAMPLE**
 ```go
 // modules/symbolic_regression/handlers.go
 func (h *Handlers) RegisterRoutes(r chi.Router) { ... }
@@ -180,166 +52,272 @@ func (h *Handlers) RegisterRoutes(r chi.Router) { ... }
 func (h *Handlers) RegisterRoutes(r chi.Router) { ... }
 ```
 
-**Pattern 3**: Handlers in module but no `RegisterRoutes()` (most modules)
+**Pattern 3**: Handlers exist but no `RegisterRoutes()` (most modules)
 ```go
-// modules/trading/handlers.go
-type TradingHandlers struct { ... }
-// No RegisterRoutes function!
+// modules/trading/handlers.go - Has handlers, no RegisterRoutes
+// modules/allocation/handlers.go - Has handlers, no RegisterRoutes
+// ... many more
 ```
 
-**Issues**:
-- Inconsistent patterns make code hard to navigate
-- Routing logic scattered across server.go
-- Some modules have handlers, some don't
-- Hard to test routing in isolation
+### Issues
 
-### Refactoring Opportunities
+- ⚠️ Routing logic scattered across `server.go` (~840 lines)
+- ⚠️ Hard to test routing in isolation
+- ⚠️ Inconsistent patterns (only 2/15+ modules use RegisterRoutes)
+- ⚠️ Some modules have handlers but not in `handlers/` subdirectory
+- ⚠️ Server is doing too much (violates single responsibility)
 
-#### 3.1 Standardize Handler Pattern
+### Refactoring Plan
 
-**Standard**: Every module with HTTP endpoints should have:
+#### 1.1 Standardize Handler Pattern
+
+**Target Structure**:
 ```
 modules/{module}/
 ├── handlers/
 │   ├── handlers.go      # Handler struct and methods
 │   └── routes.go        # RegisterRoutes function
+├── service.go           # Business logic
+└── models.go           # DTOs/request/response models
 ```
 
-**Modules Needing Extraction**:
-1. allocation - from `setupAllocationRoutes()`
-2. portfolio - from `setupPortfolioRoutes()`
-3. universe - from `setupUniverseRoutes()`
-4. trading - handlers exist but no routes.go
-5. dividends - from `setupDividendRoutes()`
-6. display - from `setupDisplayRoutes()`
-7. scoring - from `setupScoringRoutes()`
-8. optimization - from `setupOptimizationRoutes()`
-9. cash_flows - handlers exist but no routes.go
-10. charts - from `setupChartsRoutes()`
-11. settings - from `setupSettingsRoutes()`
-12. planning - has handlers/, ensure RegisterRoutes exists
+**Modules Needing Extraction** (13+ modules):
+1. ⚠️ `allocation` - Extract from `setupAllocationRoutes()` (has handlers.go, needs routes.go)
+2. ⚠️ `portfolio` - Extract from `setupPortfolioRoutes()` (has handlers.go, needs routes.go)
+3. ⚠️ `universe` - Extract from `setupUniverseRoutes()` (has handlers.go, needs routes.go)
+4. ⚠️ `trading` - Add `RegisterRoutes()` (handlers exist)
+5. ⚠️ `dividends` - Extract from `setupDividendRoutes()` (has handlers.go, needs routes.go)
+6. ⚠️ `display` - Extract from `setupDisplayRoutes()` (has handlers.go, needs routes.go)
+7. ⚠️ `scoring` - Extract from `setupScoringRoutes()` (has api/handlers.go, needs routes.go)
+8. ⚠️ `optimization` - Extract from `setupOptimizationRoutes()` (has handlers.go, needs routes.go)
+9. ⚠️ `cash_flows` - Add `RegisterRoutes()` (handlers exist)
+10. ⚠️ `charts` - Extract from `setupChartsRoutes()` (has handlers.go, needs routes.go)
+11. ⚠️ `settings` - Extract from `setupSettingsRoutes()` (has handlers.go, needs routes.go)
+12. ⚠️ `planning` - Add `RegisterRoutes()` (has handlers/ subdirectory)
+13. ⚠️ `analytics` - Extract from `setupAnalyticsRoutes()` (new module)
+
+**Implementation Steps**:
+1. For each module, create `handlers/routes.go` with `RegisterRoutes()` function
+2. Move routing logic from `server.go` to module's `routes.go`
+3. Update `server.go` to call `module.RegisterRoutes(router)`
+4. Ensure handlers are in `handlers/` subdirectory (move if needed)
 
 **Benefits**:
-- Consistent pattern across all modules
-- Routing logic lives with module
-- Easier to test
-- Server becomes thin router
+- ✅ Consistent pattern across all modules
+- ✅ Routing logic lives with module (better cohesion)
+- ✅ Easier to test (can test routing in isolation)
+- ✅ Server becomes thin router (~200 lines vs ~840 lines)
+- ✅ Better separation of concerns
 
-**Impact**: ⭐⭐⭐⭐ (High)
+**Impact**: ⭐⭐⭐⭐ (High) - **PRIORITY 1**
 
-#### 3.2 Simplify server.go
+#### 1.2 Simplify server.go
 
-**Current**: 1000+ lines with 15+ setup functions
+**Current**: ~840 lines with 15+ setup functions
 
-**Target**: ~200 lines, just calls module RegisterRoutes
+**Target**: ~200 lines, just calls module `RegisterRoutes()`
+
+**Example Target Structure**:
+```go
+func (s *Server) setupRoutes() {
+    // System routes (handled separately)
+    s.setupSystemRoutes(s.router)
+
+    // Module routes - each module registers itself
+    allocationHandlers := allocation.NewHandlers(s.container.AllocRepo, ...)
+    allocationHandlers.RegisterRoutes(s.router)
+
+    portfolioHandlers := portfolio.NewHandlers(s.container.PortfolioService, ...)
+    portfolioHandlers.RegisterRoutes(s.router)
+
+    // ... etc for all modules
+}
+```
 
 **Impact**: ⭐⭐⭐ (Medium)
 
 ---
 
-## 4. Database Access Patterns
+## 2. Market Regime Module Extraction
 
 ### Current State
 
-**Problem**: Raw database connections passed everywhere
+**Problem**: Market regime detection code is in `modules/portfolio/` but it's a cross-cutting concern
 
-**Pattern**:
+**Files in Wrong Location**:
+- `modules/portfolio/market_regime.go` - Core regime detection logic
+- `modules/portfolio/regime_persistence.go` - Regime score persistence
+- `modules/portfolio/market_index_service.go` - Market index data service
+
+**Usage Across Codebase**:
+- `modules/optimization/risk.go` - Uses regime for correlation matrices
+- `modules/sequences/patterns/market_regime.go` - Uses regime for pattern generation
+- `modules/symbolic_regression/regime_splitter.go` - Uses regime for formula splitting
+- `internal/scheduler/adaptive_market_job.go` - Uses regime for adaptation
+- Multiple other modules depend on regime
+
+### Issues
+
+- ⚠️ Market regime is a cross-cutting concern, not portfolio-specific
+- ⚠️ Creates unnecessary coupling (other modules import portfolio just for regime)
+- ⚠️ Violates single responsibility (portfolio module does too much)
+- ⚠️ Hard to test regime logic in isolation
+
+### Refactoring Plan
+
+#### 2.1 Extract Market Regime Module
+
+**Target Structure**:
+```
+internal/market_regime/
+├── detector.go              # MarketRegimeDetector (from market_regime.go)
+├── persistence.go           # RegimePersistence (from regime_persistence.go)
+├── index_service.go         # MarketIndexService (from market_index_service.go)
+├── models.go                # MarketRegimeScore and related types
+├── interfaces.go            # RegimeDetector interface (if needed)
+└── *_test.go               # Tests
+```
+
+**Implementation Steps**:
+1. Create `internal/market_regime/` package
+2. Move 3 files from `modules/portfolio/` to new package
+3. Update package name from `portfolio` to `market_regime`
+4. Update all imports across codebase:
+   - `modules/optimization/risk.go`
+   - `modules/sequences/patterns/market_regime.go`
+   - `modules/symbolic_regression/regime_splitter.go`
+   - `internal/scheduler/adaptive_market_job.go`
+   - Any other files importing regime code
+5. Update DI wiring in `internal/di/services.go` (if needed)
+6. Run tests to ensure no regressions
+
+**Benefits**:
+- ✅ Clear separation of concerns
+- ✅ Market regime is a standalone, reusable module
+- ✅ Reduces coupling (modules don't need to import portfolio)
+- ✅ Easier to test regime logic independently
+- ✅ Better code organization
+
+**Impact**: ⭐⭐⭐⭐ (High) - **PRIORITY 2**
+
+---
+
+## 3. Database Access Abstraction
+
+### Current State
+
+**Problem**: Raw database connections passed everywhere, no abstraction layer
+
+**Current Pattern**:
 ```go
 // Everywhere in codebase
 positionRepo := portfolio.NewPositionRepository(
     portfolioDB.Conn(),  // Raw *sql.DB
-    universeDB.Conn(),  // Raw *sql.DB
+    universeDB.Conn(),   // Raw *sql.DB
     log,
 )
 ```
 
 **Issues**:
-- No abstraction layer
-- Hard to mock for testing
-- Connection management scattered
-- No transaction support
-- Direct access to `*sql.DB` everywhere
+- ⚠️ No abstraction layer (hard to mock for testing)
+- ⚠️ Connection management scattered
+- ⚠️ Limited transaction support (transactions exist but not consistently used)
+- ⚠️ Direct access to `*sql.DB` everywhere
+- ⚠️ Hard to add cross-cutting concerns (logging, metrics, retries)
 
-### Refactoring Opportunities
+### Refactoring Plan
 
-#### 4.1 Database Abstraction Layer
+#### 3.1 Add Transaction Helper
 
-**Option A**: Repository pattern with interfaces (Recommended)
+**Option A**: Add `WithTransaction` helper to `database.DB` (Recommended)
+
 ```go
-// internal/database/repository.go
-type Repository interface {
-    BeginTx(ctx context.Context) (*sql.Tx, error)
-    Query(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
-    // ... other operations
+// internal/database/db.go
+func (db *DB) WithTransaction(ctx context.Context, fn func(*sql.Tx) error) error {
+    tx, err := db.conn.BeginTx(ctx, nil)
+    if err != nil {
+        return fmt.Errorf("failed to begin transaction: %w", err)
+    }
+
+    defer func() {
+        if p := recover(); p != nil {
+            _ = tx.Rollback()
+            panic(p)
+        } else if err != nil {
+            _ = tx.Rollback()
+        } else {
+            err = tx.Commit()
+        }
+    }()
+
+    return fn(tx)
 }
 ```
 
-**Option B**: Keep current pattern but add transaction support
+**Usage**:
 ```go
-// Add transaction methods to database.DB
-func (db *DB) WithTransaction(ctx context.Context, fn func(*sql.Tx) error) error
+err := portfolioDB.WithTransaction(ctx, func(tx *sql.Tx) error {
+    // Multiple operations in transaction
+    if err := repo.UpdatePosition(tx, ...); err != nil {
+        return err
+    }
+    if err := repo.UpdateCash(tx, ...); err != nil {
+        return err
+    }
+    return nil
+})
 ```
 
-**Impact**: ⭐⭐⭐ (Medium)
-
-#### 4.2 Connection Pool Management
-
-**Current**: Connection pools configured per database, but no centralized management
-
-**Opportunity**: Add connection pool monitoring and health checks
-
-**Impact**: ⭐⭐ (Low)
-
----
-
-## 5. Service Layer Architecture
-
-### Current State
-
-**Problem**: Unclear service boundaries
-
-**Services in `internal/services/`**:
-- `currency_exchange_service.go`
-- `trade_execution_service.go`
-
-**Services in modules**:
-- `modules/*/service.go` (15+ services)
-
-**Issues**:
-- Unclear what goes where
-- Some services are truly shared, some are domain-specific
-- `trade_execution_service` is in services/ but used by trading module
-
-### Refactoring Opportunities
-
-#### 5.1 Clarify Service Boundaries
-
-**Rule**:
-- **Module services** (`modules/*/service.go`): Business logic for specific domain
-- **Shared services** (`internal/services/`): Infrastructure services used by multiple modules
-- **Client services** (`internal/clients/`): External API clients
-
-**Decision Needed**: Should `trade_execution_service` move to `modules/trading/`?
+**Benefits**:
+- ✅ Consistent transaction handling
+- ✅ Automatic rollback on error
+- ✅ Panic-safe
+- ✅ Easy to use
 
 **Impact**: ⭐⭐⭐ (Medium)
 
-#### 5.2 Service Interface Standardization
+#### 3.2 Repository Interface Standardization
 
-**Problem**: Some services have interfaces, some don't
+**Current**: Some repositories have interfaces, some don't
 
-**Opportunity**: Define service interfaces for testability
+**Target**: All repositories should have interfaces for testability
 
-**Impact**: ⭐⭐ (Low)
+**Example**:
+```go
+// modules/portfolio/interfaces.go
+type PositionRepositoryInterface interface {
+    GetByISIN(ctx context.Context, isin string) (*domain.Position, error)
+    Update(ctx context.Context, position *domain.Position) error
+    // ... other methods
+}
+
+// modules/portfolio/position_repository.go
+type PositionRepository struct {
+    portfolioDB *sql.DB
+    universeDB  *sql.DB
+    log         zerolog.Logger
+}
+
+// Ensure it implements the interface
+var _ PositionRepositoryInterface = (*PositionRepository)(nil)
+```
+
+**Benefits**:
+- ✅ Easy to mock for testing
+- ✅ Clear contracts
+- ✅ Better testability
+
+**Impact**: ⭐⭐⭐ (Medium)
 
 ---
 
-## 6. Repository Pattern
+## 4. Repository Pattern Standardization
 
 ### Current State
 
 **Problem**: Inconsistent repository patterns
 
-**Pattern 1**: Uses `BaseRepository` (unused)
+**Pattern 1**: `BaseRepository` exists but unused
 ```go
 // database/repositories/base.go exists but not used
 ```
@@ -355,37 +333,78 @@ type PositionRepository struct {
 
 **Pattern 3**: Some repositories have interfaces, some don't
 
-**Issues**:
-- BaseRepository exists but unused
-- No consistent pattern
-- Hard to mock for testing
-- Some repos have interfaces, some don't
+### Issues
 
-### Refactoring Opportunities
+- ⚠️ `BaseRepository` exists but unused (dead code or missed opportunity?)
+- ⚠️ No consistent pattern across repositories
+- ⚠️ Hard to mock for testing (no interfaces)
+- ⚠️ Inconsistent error handling
 
-#### 6.1 Standardize Repository Pattern
+### Refactoring Plan
+
+#### 4.1 Standardize Repository Pattern
 
 **Standard**: All repositories should:
-1. Have interface defined
-2. Accept `*sql.DB` or transaction in methods
+1. Have interface defined (for testability)
+2. Accept `*sql.DB` or transaction in methods (for transaction support)
 3. Use consistent error handling
 4. Follow naming: `{Entity}Repository` and `{Entity}RepositoryInterface`
 
-**Impact**: ⭐⭐⭐ (Medium)
-
-#### 6.2 Use BaseRepository or Remove It
-
 **Decision**: Either use `BaseRepository` consistently or remove it
 
-**Impact**: ⭐⭐ (Low)
+**Recommendation**: Remove `BaseRepository` (it's not providing enough value) and standardize on:
+- Interface for each repository
+- Direct `*sql.DB` or `*sql.Tx` in methods
+- Consistent error wrapping
+
+**Impact**: ⭐⭐⭐ (Medium)
 
 ---
 
-## 7. Error Handling Patterns
+## 5. Service Layer Boundaries
 
 ### Current State
 
-**Pattern**: Inconsistent error wrapping
+**Problem**: Unclear service boundaries
+
+**Services in `internal/services/`**:
+- `currency_exchange_service.go`
+- `trade_execution_service.go`
+
+**Services in modules**:
+- `modules/*/service.go` (15+ services)
+
+### Issues
+
+- ⚠️ Unclear what goes where
+- ⚠️ Some services are truly shared, some are domain-specific
+- ⚠️ `trade_execution_service` is in `services/` but used by trading module
+
+### Refactoring Plan
+
+#### 5.1 Clarify Service Boundaries
+
+**Rule**:
+- **Module services** (`modules/*/service.go`): Business logic for specific domain
+- **Shared services** (`internal/services/`): Infrastructure services used by multiple modules
+- **Client services** (`internal/clients/`): External API clients
+
+**Decision Needed**: Should `trade_execution_service` move to `modules/trading/`?
+
+**Analysis**:
+- `TradeExecutionService` is used by trading module and scheduler
+- It's more of an infrastructure service (handles execution, safety checks)
+- **Recommendation**: Keep in `internal/services/` (it's shared infrastructure)
+
+**Impact**: ⭐⭐⭐ (Medium)
+
+---
+
+## 6. Error Handling Standardization
+
+### Current State
+
+**Problem**: Inconsistent error wrapping
 
 **Examples**:
 ```go
@@ -399,312 +418,359 @@ return err
 return fmt.Errorf("error occurred")
 ```
 
-**Issues**:
-- Some errors wrapped, some not
-- Inconsistent error messages
-- Some errors logged, some not
-- No error categorization
+### Issues
 
-### Refactoring Opportunities
+- ⚠️ Some errors wrapped, some not
+- ⚠️ Inconsistent error messages
+- ⚠️ Some errors logged, some not
+- ⚠️ No error categorization
 
-#### 7.1 Standardize Error Wrapping
+### Refactoring Plan
+
+#### 6.1 Standardize Error Wrapping
 
 **Rule**: Always wrap errors with context using `fmt.Errorf("operation: %w", err)`
 
+**Guidelines**:
+- Always include operation context
+- Preserve original error with `%w`
+- Use consistent error message format: `"failed to {operation}: %w"`
+- Log errors at service boundaries (not in repositories)
+
 **Impact**: ⭐⭐⭐ (Medium)
 
-#### 7.2 Error Categorization
+#### 6.2 Error Categorization (Optional)
 
 **Opportunity**: Define error types for different categories
 ```go
-type DomainError struct { ... }
-type InfrastructureError struct { ... }
-type ValidationError struct { ... }
+type DomainError struct {
+    Code    string
+    Message string
+    Err     error
+}
+
+type ValidationError struct {
+    Field   string
+    Message string
+}
 ```
 
-**Impact**: ⭐⭐ (Low)
+**Impact**: ⭐⭐ (Low) - Nice to have, not critical
 
 ---
 
-## 8. Testing Architecture
+## 7. Testing Architecture Standardization
 
 ### Current State
 
-**Pattern**: Inconsistent testing
+**Problem**: Inconsistent testing patterns
 
 **Good Examples**:
 - `modules/trading/service_test.go` - Uses mocks
 - `modules/universe/service_test.go` - Uses testify/mock
 
 **Issues**:
-- Some modules have tests, some don't
-- Inconsistent mocking patterns
-- Some tests use real DB, some use mocks
-- No test utilities package
+- ⚠️ Some modules have tests, some don't
+- ⚠️ Inconsistent mocking patterns
+- ⚠️ Some tests use real DB, some use mocks
+- ⚠️ No test utilities package
 
-### Refactoring Opportunities
+### Refactoring Plan
 
-#### 8.1 Test Utilities Package
+#### 7.1 Test Utilities Package
 
 **Create**: `internal/testing/` package
 
 **Contents**:
-- Mock factories
-- Test database helpers
+- Mock factories for common interfaces
+- Test database helpers (in-memory SQLite)
 - Common test utilities
+- Test fixtures
+
+**Example**:
+```go
+// internal/testing/mocks.go
+func NewMockCashManager() *MockCashManager { ... }
+func NewMockPortfolioService() *MockPortfolioService { ... }
+
+// internal/testing/db.go
+func NewTestDB() (*database.DB, error) { ... }
+```
 
 **Impact**: ⭐⭐⭐ (Medium)
 
-#### 8.2 Standardize Test Patterns
+#### 7.2 Standardize Test Patterns
 
 **Rule**:
-- Unit tests: Use mocks, no real DB
-- Integration tests: Use test database
-- All tests: Use testify for assertions
+- **Unit tests**: Use mocks, no real DB
+- **Integration tests**: Use test database (in-memory SQLite)
+- **All tests**: Use testify for assertions
+- **Test naming**: `Test{FunctionName}` or `Test{FunctionName}_{Scenario}`
 
 **Impact**: ⭐⭐⭐ (Medium)
 
 ---
 
-## 9. Configuration Management
+## 8. Type Safety Improvements
 
 ### Current State
 
-**Pattern**: Mixed configuration sources
+**Problem**: Use of `interface{}` and `any` in some places
 
-**Sources**:
-- Environment variables (`.env` file)
-- Settings database (`config.db`)
-- Hard-coded defaults
-
-**Issues**:
-- Unclear precedence
-- Deprecated `.env` for credentials but still used
-- Configuration scattered
-
-### Refactoring Opportunities
-
-#### 9.1 Centralize Configuration
-
-**Opportunity**: Single configuration source with clear precedence
-
-**Impact**: ⭐⭐ (Low)
-
----
-
-## 10. Job/Scheduler Architecture
-
-### Current State
-
-**Pattern**: Jobs mixed with services
-
-**Structure**:
-- Jobs in `internal/scheduler/` (good)
-- Some jobs are services (e.g., `cash_flows.SyncJob`)
-- Job registration in `main.go`
-
-**Issues**:
-- Unclear separation between jobs and services
-- Job dependencies wired in main.go
-
-### Refactoring Opportunities
-
-#### 10.1 Extract Job Wiring
-
-**Move**: Job registration to `internal/di/jobs.go`
-
-**Impact**: ⭐⭐⭐ (Medium)
-
----
-
-## 11. Code Organization
-
-### Current State
-
-**Problem**: Mixed concerns in modules
+**Found**: 8+ instances of `interface{}` or `any`
 
 **Examples**:
-- `modules/portfolio/` contains market regime code (wrong domain)
-- `modules/universe/` contains scoring integration (mixed concerns)
-- `modules/optimization/` contains regime-aware AND non-regime-aware code
+- `internal/scheduler/store_recommendations.go:14` - `plan interface{}`
+- `internal/scheduler/planner_batch.go:142` - Event data `map[string]interface{}`
 
-### Recent Improvements
+### Issues
 
-#### 11.0 Quantum Probability Module (✅ Implemented 2025-01-27)
+- ⚠️ Loss of type safety
+- ⚠️ Harder to refactor
+- ⚠️ Runtime errors instead of compile-time
 
-**New Module**: `internal/modules/quantum/`
+### Refactoring Plan
 
-**Structure** (follows clean architecture):
+#### 8.1 Replace interface{} with Specific Types
+
+**Rule**: Use explicit types, avoid `interface{}` when possible
+
+**Examples**:
+```go
+// Before
+type StoreRecommendationsJob struct {
+    plan interface{}
+}
+
+// After
+type StoreRecommendationsJob struct {
+    plan *planning.Plan  // Or define Plan interface
+}
 ```
-internal/modules/quantum/
-├── calculator.go      # Core quantum probability calculator
-├── bubble.go          # Bubble detection using quantum states
-├── value_trap.go      # Value trap detection using superposition
-├── scoring.go         # Quantum-enhanced scoring metrics
-├── models.go          # Quantum state models and types
-└── calculator_test.go # Comprehensive unit tests
-```
 
-**Integration Points**:
-- **Tag Assigner** (`modules/universe/tag_assigner.go`): Ensemble logic combining classical + quantum bubble/value trap detection
-- **Security Scorer** (`modules/scoring/scorers/security.go`): Quantum metrics added to SubScores under "quantum" group
-- **Opportunity Calculators**: All three calculators updated to use ensemble tags for filtering
+**Impact**: ⭐⭐⭐ (Medium)
 
-**Architecture Notes**:
-- ✅ Clean module structure with clear separation of concerns
-- ✅ No circular dependencies (quantum module is a pure calculator)
-- ✅ Dependency injection via constructor (quantumCalculator field)
-- ✅ Comprehensive unit tests with benchmarks
-- ✅ Follows existing patterns (similar to other scoring modules)
+---
 
-**Impact**: ⭐⭐⭐⭐ (High) - Demonstrates good module organization
+## 9. Module Structure Standardization
 
-### Refactoring Opportunities
+### Current State
 
-#### 11.1 Extract Market Regime
+**Problem**: Inconsistent module structure
 
-**Move**: From `modules/portfolio/` to `internal/market_regime/`
+**Good Examples**:
+- `modules/quantum/` - Clean structure, well-organized
+- `modules/symbolic_regression/` - Has `RegisterRoutes()`
 
-**Files to Move**:
-- `market_regime.go` → `market_regime/detector.go`
-- `regime_persistence.go` → `market_regime/persistence.go`
-- `market_index_service.go` → `market_regime/index_service.go`
+**Issues**:
+- ⚠️ Some modules have handlers in root, some in `handlers/` subdirectory
+- ⚠️ Some modules have `domain/` subdirectory, some don't
+- ⚠️ Inconsistent organization
 
-**Impact**: ⭐⭐⭐⭐ (High)
+### Refactoring Plan
 
-#### 11.2 Standardize Module Structure
+#### 9.1 Standardize Module Structure
 
 **Standard Template**:
 ```
 modules/{module}/
 ├── domain/              # Domain models (if needed)
-├── repository/          # Data access
-├── service/             # Business logic
-├── handlers/            # HTTP handlers (if module has API)
+├── repository/         # Data access (if needed)
+├── handlers/           # HTTP handlers (if module has API)
+│   ├── handlers.go    # Handler struct and methods
+│   └── routes.go      # RegisterRoutes function
+├── service.go          # Business logic
 ├── models.go           # DTOs/request/response models
-└── interfaces.go       # Module-specific interfaces (if needed)
+├── interfaces.go       # Module-specific interfaces (if needed)
+└── *_test.go          # Tests
 ```
+
+**Note**: Not all modules need all subdirectories. Use only what's needed.
 
 **Impact**: ⭐⭐⭐ (Medium)
 
 ---
 
-## 12. Type Safety Issues
+## 10. Configuration Management
 
 ### Current State
 
-**Problem**: Use of `interface{}` and `any`
+**Pattern**: Mixed configuration sources
+- Environment variables (`.env` file)
+- Settings database (`config.db`)
+- Hard-coded defaults
 
-**Found**: 15+ instances of `interface{}` or `any`
+### Issues
 
-**Examples**:
-- `modules/opportunities/calculators/weight_based.go:49`
-- `modules/symbolic_regression/storage.go:42`
-- `modules/scoring/scorers/security.go:441`
+- ⚠️ Unclear precedence
+- ⚠️ Deprecated `.env` for credentials but still used
+- ⚠️ Configuration scattered
 
-**Issues**:
-- Loss of type safety
-- Harder to refactor
-- Runtime errors instead of compile-time
+### Refactoring Plan
 
-### Refactoring Opportunities
+#### 10.1 Centralize Configuration (Low Priority)
 
-#### 12.1 Replace interface{} with Specific Types
+**Opportunity**: Single configuration source with clear precedence
 
-**Rule**: Use explicit types, avoid `interface{}` when possible
+**Precedence** (highest to lowest):
+1. Settings database (runtime config)
+2. Environment variables (deployment config)
+3. Hard-coded defaults
 
-**Impact**: ⭐⭐⭐ (Medium)
+**Impact**: ⭐⭐ (Low) - Current system works, improvement is minor
 
 ---
 
 ## Refactoring Priority Matrix
 
-### Critical (Do First)
-1. **Extract Dependency Injection** - Enables all other refactoring
-2. **Break Circular Dependencies** - Required before handler extraction
-3. **Extract Market Regime** - Clean separation of concerns
+### 🔄 High Priority (Next Steps)
 
-### High Priority
-4. **Standardize Handler Pattern** - Consistency across codebase
-5. **Consolidate Service Creation** - Single source of truth
-6. **Centralize Shared Interfaces** - Clear dependency graph
+1. **Handler Standardization** - **PRIORITY 1**
+   - Extract `RegisterRoutes()` for 13+ modules
+   - Move routing logic from `server.go` to modules
+   - Simplifies server.go significantly
+   - **Estimated**: 2-3 days
+
+2. **Market Regime Extraction** - **PRIORITY 2**
+   - Create `internal/market_regime/` package
+   - Move 3 files from `portfolio/`
+   - Update all imports
+   - **Estimated**: 1-2 days
 
 ### Medium Priority
-7. **Standardize Repository Pattern** - Consistency
-8. **Standardize Module Structure** - Predictability
-9. **Extract Job Wiring** - Clean separation
-10. **Improve Error Handling** - Better debugging
+
+3. **Database Transaction Helper** - Add `WithTransaction` helper
+4. **Repository Interface Standardization** - Add interfaces for all repositories
+5. **Service Boundary Clarification** - Document and enforce boundaries
+6. **Error Handling Standardization** - Consistent error wrapping
+7. **Test Utilities Package** - Create `internal/testing/`
+8. **Module Structure Standardization** - Consistent organization
 
 ### Low Priority
-11. **Database Abstraction** - Nice to have
-12. **Test Utilities** - Quality of life
-13. **Configuration Centralization** - Minor improvement
+
+9. **Type Safety Improvements** - Replace `interface{}` with specific types
+10. **Configuration Centralization** - Minor improvement
 
 ---
 
 ## Implementation Strategy
 
-### Phase 1: Foundation (Week 1-2)
-1. Extract DI package
-2. Break circular dependencies
-3. Extract market regime
+### Phase 1: Routing Standardization (Week 1)
 
-**Result**: Clean foundation for all other work
+**Goal**: Standardize handler pattern across all modules
 
-### Phase 2: Consistency (Week 3-4)
-4. Standardize handlers
-5. Consolidate services
-6. Standardize repositories
+**Steps**:
+1. Create `handlers/routes.go` for each module
+2. Move routing logic from `server.go` to modules
+3. Update `server.go` to call `RegisterRoutes()`
+4. Test each module's routing independently
 
-**Result**: Consistent patterns across codebase
+**Success Criteria**:
+- All modules have `RegisterRoutes()`
+- `server.go` reduced to ~200 lines
+- All routing tests pass
 
-### Phase 3: Quality (Week 5-6)
-7. Improve error handling
-8. Add test utilities
-9. Standardize module structure
+### Phase 2: Market Regime Extraction (Week 1-2)
 
-**Result**: Higher code quality
+**Goal**: Extract market regime to standalone module
+
+**Steps**:
+1. Create `internal/market_regime/` package
+2. Move 3 files from `portfolio/`
+3. Update all imports
+4. Update DI wiring
+5. Run full test suite
+
+**Success Criteria**:
+- Market regime code in new package
+- All imports updated
+- All tests pass
+- No circular dependencies
+
+### Phase 3: Database & Repository Improvements (Week 2-3)
+
+**Goal**: Improve database access patterns
+
+**Steps**:
+1. Add `WithTransaction` helper
+2. Add interfaces for all repositories
+3. Standardize repository patterns
+4. Update tests to use interfaces
+
+**Success Criteria**:
+- Transaction helper available
+- All repositories have interfaces
+- Tests use mocks
+
+### Phase 4: Quality Improvements (Week 3-4)
+
+**Goal**: Standardize error handling, testing, and module structure
+
+**Steps**:
+1. Create test utilities package
+2. Standardize error handling
+3. Standardize module structure
+4. Improve type safety
+
+**Success Criteria**:
+- Consistent patterns across codebase
+- Better testability
+- Improved code quality
 
 ---
 
 ## Success Metrics
 
-- `main.go` reduced from 842 to <150 lines
-- Zero circular dependencies
-- All modules follow standard structure
-- All handlers in module `handlers/` subdirectories
-- Single source of truth for service creation
-- 100% test coverage for critical paths
-- All tests passing
+### Quantitative Metrics
+
+- **Handler Standardization**: 0% → 100% (modules using `RegisterRoutes()`)
+- **Server.go Size**: ~840 lines → ~200 lines (76% reduction)
+- **Market Regime Extraction**: 0% → 100% (code moved to dedicated package)
+- **Repository Interfaces**: ~50% → 100% (repositories with interfaces)
+- **Test Coverage**: Current → +10% (with test utilities)
+
+### Qualitative Metrics
+
+- ✅ Consistent patterns across all modules
+- ✅ Better separation of concerns
+- ✅ Easier to test (mocking, isolation)
+- ✅ Easier to debug (clear error messages, logging)
+- ✅ Easier to extend (clear boundaries, interfaces)
 
 ---
 
 ## Notes
 
-- This analysis focuses on structural issues, not business logic
+- This analysis focuses on **structural improvements**, not business logic
 - Some refactoring may require breaking changes (acceptable per project philosophy)
 - Prioritize refactoring that enables other improvements
 - Test after each phase to ensure no regressions
+- **Focus on handler standardization first** - it unlocks other improvements
 
 ---
 
-## Recent Additions (2025-01-27)
+## Appendix: Module Status
 
-### Quantum Probability Module
+### Modules with RegisterRoutes() ✅
+- `symbolic_regression`
+- `rebalancing`
 
-A new `internal/modules/quantum/` module has been implemented following clean architecture principles:
+### Modules Needing RegisterRoutes() ⚠️
+- `allocation`
+- `portfolio`
+- `universe`
+- `trading`
+- `dividends`
+- `display`
+- `scoring`
+- `optimization`
+- `cash_flows`
+- `charts`
+- `settings`
+- `planning`
+- `analytics`
 
-**Key Features**:
-- Quantum-inspired probability models for asset returns
-- Ensemble approach combining classical and quantum detection methods
-- Zero circular dependencies (pure calculator module)
-- Comprehensive test coverage with performance benchmarks
-- Clean integration with existing tag assigner, scoring, and opportunity calculator systems
-
-**Architectural Quality**: ⭐⭐⭐⭐⭐
-- Follows standard module structure
-- No architectural violations
-- Well-tested and documented
-- Serves as a good example for future module development
-
-**See**: `docs/QUANTUM_PROBABILITY_IMPLEMENTATION.md` for detailed technical documentation
+### Market Regime Files to Move
+- `modules/portfolio/market_regime.go` → `internal/market_regime/detector.go`
+- `modules/portfolio/regime_persistence.go` → `internal/market_regime/persistence.go`
+- `modules/portfolio/market_index_service.go` → `internal/market_regime/index_service.go`

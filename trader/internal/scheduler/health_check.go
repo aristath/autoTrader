@@ -1,53 +1,36 @@
 package scheduler
 
 import (
-	"database/sql"
 	"fmt"
 	"time"
 
-	"github.com/aristath/portfolioManager/internal/database"
 	"github.com/rs/zerolog"
 )
 
-// HealthCheckJob performs database integrity checks and auto-recovery
-// Runs every 6 hours to ensure database health - NEW 7-database architecture
+// HealthCheckJob orchestrates individual health check jobs
+// Runs every 6 hours to ensure database health
 type HealthCheckJob struct {
-	log         zerolog.Logger
-	dataDir     string
-	universeDB  *database.DB
-	configDB    *database.DB
-	ledgerDB    *database.DB
-	portfolioDB *database.DB
-	agentsDB    *database.DB
-	historyDB   *database.DB
-	cacheDB     *database.DB
+	log                      zerolog.Logger
+	checkCoreDatabasesJob    Job
+	checkHistoryDatabasesJob Job
+	checkWALCheckpointsJob   Job
 }
 
 // HealthCheckConfig holds configuration for health check job
 type HealthCheckConfig struct {
-	Log         zerolog.Logger
-	DataDir     string
-	UniverseDB  *database.DB
-	ConfigDB    *database.DB
-	LedgerDB    *database.DB
-	PortfolioDB *database.DB
-	AgentsDB    *database.DB
-	HistoryDB   *database.DB
-	CacheDB     *database.DB
+	Log                      zerolog.Logger
+	CheckCoreDatabasesJob    Job
+	CheckHistoryDatabasesJob Job
+	CheckWALCheckpointsJob   Job
 }
 
 // NewHealthCheckJob creates a new health check job
 func NewHealthCheckJob(cfg HealthCheckConfig) *HealthCheckJob {
 	return &HealthCheckJob{
-		log:         cfg.Log.With().Str("job", "health_check").Logger(),
-		dataDir:     cfg.DataDir,
-		universeDB:  cfg.UniverseDB,
-		configDB:    cfg.ConfigDB,
-		ledgerDB:    cfg.LedgerDB,
-		portfolioDB: cfg.PortfolioDB,
-		agentsDB:    cfg.AgentsDB,
-		historyDB:   cfg.HistoryDB,
-		cacheDB:     cfg.CacheDB,
+		log:                      cfg.Log.With().Str("job", "health_check").Logger(),
+		checkCoreDatabasesJob:    cfg.CheckCoreDatabasesJob,
+		checkHistoryDatabasesJob: cfg.CheckHistoryDatabasesJob,
+		checkWALCheckpointsJob:   cfg.CheckWALCheckpointsJob,
 	}
 }
 
@@ -56,23 +39,37 @@ func (j *HealthCheckJob) Name() string {
 	return "health_check"
 }
 
-// Run executes the health check
+// Run executes the health check by orchestrating individual health check jobs
 // Note: Concurrent execution is prevented by the scheduler's SkipIfStillRunning wrapper
 func (j *HealthCheckJob) Run() error {
 	j.log.Info().Msg("Starting database health check")
 	startTime := time.Now()
 
 	// Step 1: Check core database integrity
-	if err := j.checkCoreDatabases(); err != nil {
-		j.log.Error().Err(err).Msg("Core database integrity check failed")
-		return err
+	if j.checkCoreDatabasesJob != nil {
+		if err := j.checkCoreDatabasesJob.Run(); err != nil {
+			j.log.Error().Err(err).Msg("Core database integrity check failed")
+			return err
+		}
+	} else {
+		return fmt.Errorf("check core databases job not available")
 	}
 
 	// Step 2: Check history databases
-	j.checkHistoryDatabases()
+	if j.checkHistoryDatabasesJob != nil {
+		if err := j.checkHistoryDatabasesJob.Run(); err != nil {
+			j.log.Error().Err(err).Msg("History database check failed (non-critical)")
+			// Continue - history check is non-critical
+		}
+	}
 
 	// Step 3: Check WAL checkpoints
-	j.checkWALCheckpoints()
+	if j.checkWALCheckpointsJob != nil {
+		if err := j.checkWALCheckpointsJob.Run(); err != nil {
+			j.log.Error().Err(err).Msg("WAL checkpoint check failed (non-critical)")
+			// Continue - WAL check is non-critical
+		}
+	}
 
 	duration := time.Since(startTime)
 	j.log.Info().
@@ -80,114 +77,4 @@ func (j *HealthCheckJob) Run() error {
 		Msg("Health check completed successfully")
 
 	return nil
-}
-
-// checkCoreDatabases verifies integrity of core SQLite databases
-func (j *HealthCheckJob) checkCoreDatabases() error {
-	databases := map[string]*database.DB{
-		"universe":  j.universeDB,
-		"config":    j.configDB,
-		"ledger":    j.ledgerDB,
-		"portfolio": j.portfolioDB,
-		"agents":    j.agentsDB,
-		"history":   j.historyDB,
-		"cache":     j.cacheDB,
-	}
-
-	for name, db := range databases {
-		if db == nil {
-			j.log.Warn().Str("database", name).Msg("Database not initialized, skipping")
-			continue
-		}
-
-		if err := j.checkDatabaseIntegrity(name, db.Conn()); err != nil {
-			// Core database corruption is critical - cannot auto-recover
-			return fmt.Errorf("database %s is corrupted: %w", name, err)
-		}
-
-		j.log.Debug().Str("database", name).Msg("Database integrity OK")
-	}
-
-	return nil
-}
-
-// checkHistoryDatabases verifies integrity of consolidated history database
-func (j *HealthCheckJob) checkHistoryDatabases() {
-	if j.historyDB == nil {
-		j.log.Debug().Msg("History database not configured, skipping history database checks")
-		return
-	}
-
-	// Check integrity of consolidated history.db
-	db := j.historyDB.Conn()
-	if err := j.checkDatabaseIntegrity("history", db); err != nil {
-		// Consolidated history database corruption is critical - log error but don't delete
-		// The database contains all historical data and should not be auto-deleted
-		j.log.Error().
-			Err(err).
-			Msg("History database integrity check failed - manual intervention required")
-		return
-	}
-
-	j.log.Debug().Msg("History database integrity OK")
-}
-
-// checkDatabaseIntegrity runs SQLite's PRAGMA integrity_check
-func (j *HealthCheckJob) checkDatabaseIntegrity(name string, db *sql.DB) error {
-	var result string
-	err := db.QueryRow("PRAGMA integrity_check").Scan(&result)
-	if err != nil {
-		return fmt.Errorf("integrity check failed: %w", err)
-	}
-
-	if result != "ok" {
-		return fmt.Errorf("integrity check returned: %s", result)
-	}
-
-	return nil
-}
-
-// checkWALCheckpoints monitors WAL checkpoint status
-func (j *HealthCheckJob) checkWALCheckpoints() {
-	databases := map[string]*database.DB{
-		"universe":  j.universeDB,
-		"config":    j.configDB,
-		"ledger":    j.ledgerDB,
-		"portfolio": j.portfolioDB,
-		"agents":    j.agentsDB,
-		"history":   j.historyDB,
-		"cache":     j.cacheDB,
-	}
-
-	for name, db := range databases {
-		if db == nil {
-			continue
-		}
-
-		// Check WAL checkpoint status
-		// PRAGMA wal_checkpoint returns: busy, log, checkpointed
-		var busy, log, checkpointed int
-		err := db.Conn().QueryRow("PRAGMA wal_checkpoint(PASSIVE)").Scan(&busy, &log, &checkpointed)
-		if err != nil {
-			j.log.Warn().
-				Err(err).
-				Str("database", name).
-				Msg("Failed to check WAL checkpoint")
-			continue
-		}
-
-		// Log if WAL is growing large
-		if log > 1000 {
-			j.log.Warn().
-				Str("database", name).
-				Int("wal_frames", log).
-				Int("checkpointed", checkpointed).
-				Msg("WAL file is large, checkpoint may be needed")
-		} else {
-			j.log.Debug().
-				Str("database", name).
-				Int("wal_frames", log).
-				Msg("WAL checkpoint status OK")
-		}
-	}
 }

@@ -1,0 +1,89 @@
+package scheduler
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// MockRecommendationRepoForStore is a mock implementation of RecommendationRepositoryInterface
+type MockRecommendationRepoForStore struct {
+	StorePlanFunc func(plan interface{}, portfolioHash string) error
+}
+
+func (m *MockRecommendationRepoForStore) StorePlan(plan interface{}, portfolioHash string) error {
+	if m.StorePlanFunc != nil {
+		return m.StorePlanFunc(plan, portfolioHash)
+	}
+	return nil
+}
+
+func TestStoreRecommendationsJob_Name(t *testing.T) {
+	job := NewStoreRecommendationsJob(nil, "")
+	assert.Equal(t, "store_recommendations", job.Name())
+}
+
+func TestStoreRecommendationsJob_Run_Success(t *testing.T) {
+	storeCalled := false
+	var storedPlan interface{}
+	var storedHash string
+
+	mockRepo := &MockRecommendationRepoForStore{
+		StorePlanFunc: func(plan interface{}, portfolioHash string) error {
+			storeCalled = true
+			storedPlan = plan
+			storedHash = portfolioHash
+			return nil
+		},
+	}
+
+	plan := map[string]interface{}{
+		"Steps": []interface{}{},
+	}
+	portfolioHash := "test-hash-123"
+
+	job := NewStoreRecommendationsJob(mockRepo, portfolioHash)
+	job.SetPlan(plan)
+
+	err := job.Run()
+	require.NoError(t, err)
+	assert.True(t, storeCalled, "StorePlan should have been called")
+	assert.Equal(t, plan, storedPlan)
+	assert.Equal(t, portfolioHash, storedHash)
+}
+
+func TestStoreRecommendationsJob_Run_NoRepository(t *testing.T) {
+	job := NewStoreRecommendationsJob(nil, "test-hash")
+	job.SetPlan(map[string]interface{}{})
+
+	err := job.Run()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "recommendation repository not available")
+}
+
+func TestStoreRecommendationsJob_Run_NoPlan(t *testing.T) {
+	mockRepo := &MockRecommendationRepoForStore{}
+
+	job := NewStoreRecommendationsJob(mockRepo, "test-hash")
+	// Don't set plan
+
+	err := job.Run()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "plan not set")
+}
+
+func TestStoreRecommendationsJob_Run_RepositoryError(t *testing.T) {
+	mockRepo := &MockRecommendationRepoForStore{
+		StorePlanFunc: func(plan interface{}, portfolioHash string) error {
+			return assert.AnError
+		},
+	}
+
+	job := NewStoreRecommendationsJob(mockRepo, "test-hash")
+	job.SetPlan(map[string]interface{}{})
+
+	err := job.Run()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to store plan")
+}

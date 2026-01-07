@@ -128,13 +128,41 @@ type Container struct {
 
 // JobInstances holds references to all registered jobs for manual triggering
 type JobInstances struct {
-	// Original jobs
+	// Original composite jobs (kept for backward compatibility)
 	HealthCheck       scheduler.Job
 	SyncCycle         scheduler.Job
 	DividendReinvest  scheduler.Job
 	PlannerBatch      scheduler.Job
 	EventBasedTrading scheduler.Job
 	TagUpdate         scheduler.Job
+
+	// Individual sync jobs
+	SyncTrades            scheduler.Job
+	SyncCashFlows         scheduler.Job
+	SyncPortfolio         scheduler.Job
+	SyncPrices            scheduler.Job
+	CheckNegativeBalances scheduler.Job
+	UpdateDisplayTicker   scheduler.Job
+
+	// Individual planning jobs
+	GeneratePortfolioHash   scheduler.Job
+	GetOptimizerWeights     scheduler.Job
+	BuildOpportunityContext scheduler.Job
+	CreateTradePlan         scheduler.Job
+	StoreRecommendations    scheduler.Job
+
+	// Individual dividend jobs
+	GetUnreinvestedDividends      scheduler.Job
+	GroupDividendsBySymbol        scheduler.Job
+	CheckDividendYields           scheduler.Job
+	CreateDividendRecommendations scheduler.Job
+	SetPendingBonuses             scheduler.Job
+	ExecuteDividendTrades         scheduler.Job
+
+	// Individual health check jobs
+	CheckCoreDatabases    scheduler.Job
+	CheckHistoryDatabases scheduler.Job
+	CheckWALCheckpoints   scheduler.Job
 
 	// Reliability jobs
 	HistoryCleanup     scheduler.Job

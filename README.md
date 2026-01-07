@@ -377,36 +377,130 @@ The planner configuration is stored in `config.db` and managed through the UI wi
 
 ## Background Jobs
 
-The system runs scheduled background jobs for autonomous operation:
+The system runs scheduled background jobs for autonomous operation. All jobs are split into individual, single-responsibility units for maximum modularity and testability.
 
-### Operational Jobs
+### Composite Jobs (Legacy - Use Individual Jobs Instead)
 
-**sync_cycle** (Every 30 minutes)
-- Sync portfolio positions from broker
-- Sync cash balances
-- Sync executed trades
-- Update security prices (market-aware)
-- Process cash flows (deposits, dividends, fees)
-- Update LED display ticker
+**sync_cycle** (Every 30 minutes) - Composite job that runs all sync operations
+- **Note**: Prefer using individual sync jobs for granular control
 
-**planner_batch** (Event-driven)
-- Triggered by planning requests or recommendations refresh
-- Generate trading recommendations
-- Evaluate sequences using built-in evaluation service
-- Score opportunities
-- Create optimal trade plans
+**planner_batch** (Event-driven) - Composite job that runs full planning pipeline
+- **Note**: Prefer using individual planning jobs for granular control
+
+**dividend_reinvestment** (Daily at 10:00 AM) - Composite job that runs full dividend pipeline
+- **Note**: Prefer using individual dividend jobs for granular control
+
+**health_check** (Daily at 4:00 AM) - Composite job that runs all health checks
+- **Note**: Prefer using individual health check jobs for granular control
+
+### Individual Sync Jobs
+
+**sync_trades** - Sync executed trades from broker
+- Fetches trade history from Tradernet
+- Updates local trade records
+
+**sync_cash_flows** - Sync cash flows (deposits, dividends, fees)
+- Processes all cash movements
+- Updates cash balances
+
+**sync_portfolio** - Sync portfolio positions from broker
+- Fetches current positions
+- Updates position quantities and values
+
+**sync_prices** - Update security prices (market-aware)
+- Fetches current market prices
+- Updates price cache for all securities
+
+**check_negative_balances** - Check for negative cash balances
+- Monitors all currency balances
+- Triggers emergency rebalancing if negative balances detected
+
+**update_display_ticker** - Update LED display ticker
+- Refreshes display content
+- Shows portfolio status and next actions
+
+### Individual Planning Jobs
+
+**generate_portfolio_hash** - Generate unique portfolio state hash
+- Calculates hash from positions, securities, cash, and pending orders
+- Used for change detection and optimization
+
+**get_optimizer_weights** - Get target weights from optimizer
+- Fetches positions, securities, allocations, and cash
+- Calls optimizer service to get target weights
+- Returns security-level target allocations
+
+**build_opportunity_context** - Build opportunity context for planning
+- Aggregates portfolio state, prices, scores, and settings
+- Creates complete context for opportunity identification
+- Includes CAGR, quality scores, value trap data, and regime information
+
+**create_trade_plan** - Create holistic trade plan
+- Takes opportunity context and planner configuration
+- Generates optimal sequence of trading actions
+- Returns complete plan with scores and feasibility
+
+**store_recommendations** - Store generated plan as recommendations
+- Converts plan steps to recommendations
+- Stores in recommendations database
+- Associates with portfolio hash for tracking
+
+### Individual Dividend Jobs
+
+**get_unreinvested_dividends** - Get all unreinvested dividends
+- Queries dividend history for unreinvested records
+- Filters by minimum amount if specified
+- Returns list of dividend records
+
+**group_dividends_by_symbol** - Group dividends by symbol
+- Aggregates dividends by security symbol
+- Sums amounts and counts
+- Prepares for yield analysis
+
+**check_dividend_yields** - Check dividend yields for symbols
+- Fetches fundamental data from Yahoo Finance
+- Calculates dividend yield for each symbol
+- Categorizes as high-yield (≥3%) or low-yield (<3%)
+
+**create_dividend_recommendations** - Create recommendations for high-yield dividends
+- Generates BUY recommendations for same-security reinvestment
+- Calculates optimal quantity based on dividend amount
+- Respects minimum trade size and lot requirements
+
+**set_pending_bonuses** - Set pending bonuses for small/low-yield dividends
+- Marks dividends as pending bonus
+- Accumulates for future rebalancing
+- Used for dividends below minimum trade size or low yield
+
+**execute_dividend_trades** - Execute dividend reinvestment trades
+- Executes BUY orders via trade execution service
+- Marks dividends as reinvested upon success
+- Handles errors gracefully
+
+### Individual Health Check Jobs
+
+**check_core_databases** - Verify integrity of core databases
+- Checks universe, config, ledger, portfolio, and agents databases
+- Runs SQLite PRAGMA integrity_check
+- Returns error if any database is corrupted
+
+**check_history_databases** - Verify integrity of history database
+- Checks consolidated history database
+- Critical database - manual intervention required if corrupted
+- Logs errors but does not auto-delete
+
+**check_wal_checkpoints** - Monitor WAL checkpoint status
+- Checks WAL file size for all databases
+- Warns if WAL is growing large (>1000 frames)
+- Helps prevent WAL file bloat
+
+### Other Operational Jobs
 
 **event_based_trading** (Event-driven)
 - Triggered when new recommendations are available
 - Monitor for planning completion
 - Execute approved trades
 - Enforces minimum execution intervals (30 minutes)
-
-**dividend_reinvestment** (Daily at 10:00 AM)
-- Detect new dividends
-- Classify high-yield (≥3%) vs low-yield (<3%)
-- Auto-reinvest high-yield dividends (DRIP)
-- Accumulate low-yield as pending bonuses
 
 **tag_update** (Daily at 3:00 AM)
 - Re-evaluate and update tags for all securities
@@ -417,11 +511,6 @@ The system runs scheduled background jobs for autonomous operation:
 - Monitor market conditions and adapt portfolio strategy
 - Update scoring weights based on market regime
 - Adjust optimizer blend (MV/HRP) dynamically
-
-**health_check** (Daily at 4:00 AM)
-- Database integrity checks
-- Auto-recovery for corrupted databases
-- Health monitoring for all 7 databases
 
 ### Reliability Jobs
 
@@ -459,8 +548,9 @@ The system runs scheduled background jobs for autonomous operation:
 
 ### Manual Triggers
 
-Operational jobs can be manually triggered via API:
+All operational jobs (both composite and individual) can be manually triggered via API:
 
+**Composite Jobs:**
 ```bash
 POST /api/system/jobs/health-check
 POST /api/system/jobs/sync-cycle
@@ -470,7 +560,61 @@ POST /api/system/jobs/event-based-trading
 POST /api/system/jobs/tag-update
 ```
 
+**Individual Sync Jobs:**
+```bash
+POST /api/system/jobs/sync-trades
+POST /api/system/jobs/sync-cash-flows
+POST /api/system/jobs/sync-portfolio
+POST /api/system/jobs/sync-prices
+POST /api/system/jobs/check-negative-balances
+POST /api/system/jobs/update-display-ticker
+```
+
+**Individual Planning Jobs:**
+```bash
+POST /api/system/jobs/generate-portfolio-hash
+POST /api/system/jobs/get-optimizer-weights
+POST /api/system/jobs/build-opportunity-context
+POST /api/system/jobs/create-trade-plan
+POST /api/system/jobs/store-recommendations
+```
+
+**Individual Dividend Jobs:**
+```bash
+POST /api/system/jobs/get-unreinvested-dividends
+POST /api/system/jobs/group-dividends-by-symbol
+POST /api/system/jobs/check-dividend-yields
+POST /api/system/jobs/create-dividend-recommendations
+POST /api/system/jobs/set-pending-bonuses
+POST /api/system/jobs/execute-dividend-trades
+```
+
+**Individual Health Check Jobs:**
+```bash
+POST /api/system/jobs/check-core-databases
+POST /api/system/jobs/check-history-databases
+POST /api/system/jobs/check-wal-checkpoints
+```
+
 Note: Reliability jobs (backups, maintenance, cleanup) run automatically on schedule and are not exposed for manual triggering.
+
+### Job Orchestration
+
+Individual jobs can be orchestrated together to create complete workflows:
+
+**Sync Workflow:**
+1. `sync_trades` → `sync_cash_flows` → `sync_portfolio` → `sync_prices` → `check_negative_balances` → `update_display_ticker`
+
+**Planning Workflow:**
+1. `generate_portfolio_hash` → `get_optimizer_weights` → `build_opportunity_context` → `create_trade_plan` → `store_recommendations`
+
+**Dividend Workflow:**
+1. `get_unreinvested_dividends` → `group_dividends_by_symbol` → `check_dividend_yields` → `create_dividend_recommendations` (for high-yield) or `set_pending_bonuses` (for low-yield) → `execute_dividend_trades`
+
+**Health Check Workflow:**
+1. `check_core_databases` → `check_history_databases` → `check_wal_checkpoints`
+
+Composite jobs (`sync_cycle`, `planner_batch`, `dividend_reinvestment`, `health_check`) run these workflows automatically, but individual jobs provide granular control for debugging, testing, and custom orchestration.
 
 ---
 
