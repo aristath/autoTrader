@@ -402,4 +402,3 @@ func TestRemoveDuplicates(t *testing.T) {
 func stringPtr(s string) *string {
 	return &s
 }
-

@@ -186,4 +186,3 @@ func TestCalculateMaxDrawdown(t *testing.T) {
 		})
 	}
 }
-

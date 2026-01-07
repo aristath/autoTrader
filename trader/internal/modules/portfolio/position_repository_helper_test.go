@@ -94,4 +94,3 @@ func TestNullString(t *testing.T) {
 		})
 	}
 }
-

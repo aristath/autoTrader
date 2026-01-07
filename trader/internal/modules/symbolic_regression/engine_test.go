@@ -463,23 +463,23 @@ func TestGetVariableMap(t *testing.T) {
 	maxDrawdown := -0.15
 
 	inputs := TrainingInputs{
-		LongTermScore:       0.8,
-		FundamentalsScore:   0.7,
-		DividendsScore:      0.6,
-		OpportunityScore:    0.9,
-		ShortTermScore:      0.5,
-		TechnicalsScore:     0.75,
-		OpinionScore:        0.65,
+		LongTermScore:        0.8,
+		FundamentalsScore:    0.7,
+		DividendsScore:       0.6,
+		OpportunityScore:     0.9,
+		ShortTermScore:       0.5,
+		TechnicalsScore:      0.75,
+		OpinionScore:         0.65,
 		DiversificationScore: 0.85,
-		TotalScore:          0.75,
-		CAGR:                0.12,
-		DividendYield:       0.03,
-		Volatility:          0.18,
-		RegimeScore:         0.3,
-		SharpeRatio:         &sharpe,
-		SortinoRatio:        &sortino,
-		RSI:                 &rsi,
-		MaxDrawdown:         &maxDrawdown,
+		TotalScore:           0.75,
+		CAGR:                 0.12,
+		DividendYield:        0.03,
+		Volatility:           0.18,
+		RegimeScore:          0.3,
+		SharpeRatio:          &sharpe,
+		SortinoRatio:         &sortino,
+		RSI:                  &rsi,
+		MaxDrawdown:          &maxDrawdown,
 	}
 
 	variables := getVariableMap(inputs)
@@ -687,15 +687,15 @@ func TestCalculateMAE(t *testing.T) {
 
 	examples := []TrainingExample{
 		{
-			Inputs:      TrainingInputs{TotalScore: 0.5},
+			Inputs:       TrainingInputs{TotalScore: 0.5},
 			TargetReturn: 5.0,
 		},
 		{
-			Inputs:      TrainingInputs{TotalScore: 0.6},
+			Inputs:       TrainingInputs{TotalScore: 0.6},
 			TargetReturn: 6.0,
 		},
 		{
-			Inputs:      TrainingInputs{TotalScore: 0.7},
+			Inputs:       TrainingInputs{TotalScore: 0.7},
 			TargetReturn: 4.0,
 		},
 	}
@@ -715,15 +715,15 @@ func TestCalculateRMSE(t *testing.T) {
 
 	examples := []TrainingExample{
 		{
-			Inputs:      TrainingInputs{TotalScore: 0.5},
+			Inputs:       TrainingInputs{TotalScore: 0.5},
 			TargetReturn: 5.0,
 		},
 		{
-			Inputs:      TrainingInputs{TotalScore: 0.6},
+			Inputs:       TrainingInputs{TotalScore: 0.6},
 			TargetReturn: 6.0,
 		},
 		{
-			Inputs:      TrainingInputs{TotalScore: 0.7},
+			Inputs:       TrainingInputs{TotalScore: 0.7},
 			TargetReturn: 4.0,
 		},
 	}
@@ -743,15 +743,15 @@ func TestCalculateSpearman(t *testing.T) {
 
 	examples := []TrainingExample{
 		{
-			Inputs:      TrainingInputs{TotalScore: 0.9},
+			Inputs:       TrainingInputs{TotalScore: 0.9},
 			TargetReturn: 0.15, // High score -> high return
 		},
 		{
-			Inputs:      TrainingInputs{TotalScore: 0.7},
+			Inputs:       TrainingInputs{TotalScore: 0.7},
 			TargetReturn: 0.10,
 		},
 		{
-			Inputs:      TrainingInputs{TotalScore: 0.5},
+			Inputs:       TrainingInputs{TotalScore: 0.5},
 			TargetReturn: 0.05, // Low score -> low return
 		},
 	}
@@ -764,7 +764,7 @@ func TestCalculateSpearman(t *testing.T) {
 	// Test with less than 2 examples (should return 1.0)
 	shortExamples := []TrainingExample{
 		{
-			Inputs:      TrainingInputs{TotalScore: 0.5},
+			Inputs:       TrainingInputs{TotalScore: 0.5},
 			TargetReturn: 0.05,
 		},
 	}
