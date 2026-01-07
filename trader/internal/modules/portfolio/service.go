@@ -152,12 +152,15 @@ func (s *PortfolioService) GetPortfolioSummary() (PortfolioSummary, error) {
 		}
 	}
 
-	// Build allocations
+	// Build allocations (using positions-only value for percentage calculations)
 	countryAllocations := s.buildCountryAllocations(targets, countryValues, totalValue, allStockCountries)
 	industryAllocations := s.buildIndustryAllocations(targets, industryValues, totalValue, allStockIndustries)
 
+	// Total portfolio value includes cash
+	totalPortfolioValue := totalValue + cashBalance
+
 	return PortfolioSummary{
-		TotalValue:          round(totalValue, 2),
+		TotalValue:          round(totalPortfolioValue, 2),
 		CashBalance:         round(cashBalance, 2),
 		CountryAllocations:  countryAllocations,
 		IndustryAllocations: industryAllocations,
