@@ -58,8 +58,8 @@ var SettingDefaults = map[string]interface{}{
 	"max_trades_per_week":             10.0, // Maximum trades per rolling 7-day window
 
 	// Trade Safety settings
-	"buy_cooldown_days":  30.0, // Prevent buying same security within 30 days
-	"min_hold_days":      90.0, // Minimum hold time before selling (days)
+	"buy_cooldown_days":   30.0, // Prevent buying same security within 30 days
+	"min_hold_days":       90.0, // Minimum hold time before selling (days)
 	"max_price_age_hours": 48.0, // Maximum age of price data before considered stale (hours)
 
 	// Security Discovery settings

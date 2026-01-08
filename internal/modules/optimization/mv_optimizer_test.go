@@ -25,7 +25,7 @@ func TestMVOptimizer_EfficientReturn(t *testing.T) {
 	}
 	targetReturn := 0.10 // 10%
 
-	optimizer := NewMVOptimizer()
+	optimizer := NewMVOptimizer(nil, nil)
 	weights, achievedReturn, err := optimizer.Optimize(
 		expectedReturns,
 		covMatrix,
@@ -81,7 +81,7 @@ func TestMVOptimizer_MinVolatility(t *testing.T) {
 		{0.0, 1.0},
 	}
 
-	optimizer := NewMVOptimizer()
+	optimizer := NewMVOptimizer(nil, nil)
 	weights1, _, err1 := optimizer.Optimize(
 		expectedReturns,
 		covMatrix,
@@ -133,7 +133,7 @@ func TestMVOptimizer_MaxSharpe(t *testing.T) {
 		{0.0, 1.0},
 	}
 
-	optimizer := NewMVOptimizer()
+	optimizer := NewMVOptimizer(nil, nil)
 	weights, achievedReturn, err := optimizer.Optimize(
 		expectedReturns,
 		covMatrix,
@@ -202,7 +202,7 @@ func TestMVOptimizer_WithSectorConstraints(t *testing.T) {
 		},
 	}
 
-	optimizer := NewMVOptimizer()
+	optimizer := NewMVOptimizer(nil, nil)
 	weights, _, err := optimizer.Optimize(
 		expectedReturns,
 		covMatrix,
@@ -245,7 +245,7 @@ func TestMVOptimizer_InfeasibleConstraints(t *testing.T) {
 	}
 	targetReturn := 0.11 // Higher return than achievable with these bounds
 
-	optimizer := NewMVOptimizer()
+	optimizer := NewMVOptimizer(nil, nil)
 	weights, _, err := optimizer.Optimize(
 		expectedReturns,
 		covMatrix,

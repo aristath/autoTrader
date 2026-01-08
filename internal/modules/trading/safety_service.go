@@ -92,6 +92,11 @@ func (s *TradeSafetyService) ValidateTrade(
 // validateSecurity validates that security exists
 // Layer 7: Security Lookup (ISIN Validation)
 func (s *TradeSafetyService) validateSecurity(symbol string) error {
+	// HARD fail-safe: Security validation requires repository
+	if s.securityRepo == nil {
+		return fmt.Errorf("security repository not available")
+	}
+
 	security, err := s.securityRepo.GetBySymbol(symbol)
 	if err != nil {
 		return fmt.Errorf("failed to lookup security: %w", err)
@@ -193,6 +198,11 @@ func (s *TradeSafetyService) checkBuyCooldown(symbol string, side string) error 
 func (s *TradeSafetyService) checkPendingOrders(symbol string, side string) error {
 	// For SELL orders: Check database for recent orders (last 2 hours)
 	if side == "SELL" {
+		// HARD fail-safe: Trade repository required for pending order check
+		if s.tradeRepo == nil {
+			return fmt.Errorf("trade repository not available")
+		}
+
 		hasRecent, err := s.tradeRepo.HasRecentSellOrder(symbol, 2.0)
 		if err != nil {
 			// HARD fail-safe - block trade if validation unavailable

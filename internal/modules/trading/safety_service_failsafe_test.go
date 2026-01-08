@@ -94,36 +94,34 @@ func TestValidateTrade_SoftFailSafe_AllowsWhenMarketHoursUnavailable(t *testing.
 
 	// Create repositories
 	tradeRepo := NewTradeRepository(ledgerDB.Conn(), log)
-	securityRepo := universe.NewSecurityRepository(universeDB.Conn())
-	positionRepo := portfolio.NewPositionRepository(portfolioDB.Conn())
-	settingsService := settings.NewService(configDB.Conn(), log)
+	securityRepo := universe.NewSecurityRepository(universeDB.Conn(), log)
+	positionRepo := portfolio.NewPositionRepository(portfolioDB.Conn(), universeDB.Conn(), log)
+	settingsService := settings.NewService(settings.NewRepository(configDB.Conn(), log), log)
 
 	// Insert test security
 	security := universe.Security{
 		Symbol:           "AAPL",
 		Name:             "Apple Inc.",
-		Type:             "Stock",
+		ProductType:      "Stock",
 		Currency:         "USD",
 		ISIN:             "US0378331005",
-		Exchange:         "NASDAQ",
 		FullExchangeName: "NASDAQ",
 	}
 	err := securityRepo.Create(security)
 	assert.NoError(t, err)
 
 	// Insert test position (so SELL validation passes)
+	now := time.Now().Unix()
 	position := portfolio.Position{
-		Symbol:         "AAPL",
-		Quantity:       100.0,
-		AveragePrice:   150.0,
-		Currency:       "USD",
-		CurrentPrice:   155.0,
-		TotalValue:     15500.0,
-		TotalCost:      15000.0,
-		UnrealizedGain: 500.0,
-		LastUpdated:    time.Now(),
+		ISIN:         "US0378331005",
+		Symbol:       "AAPL",
+		Quantity:     100.0,
+		AvgPrice:     150.0,
+		Currency:     "USD",
+		CurrentPrice: 155.0,
+		LastUpdated:  &now,
 	}
-	err = positionRepo.Create(position)
+	err = positionRepo.Upsert(position)
 	assert.NoError(t, err)
 
 	// Create service with nil marketHoursService (SOFT fail-safe)
@@ -155,31 +153,32 @@ func TestValidateTrade_HardFailSafe_BlocksWhenTradeRepoUnavailable(t *testing.T)
 	defer cleanupPortfolio()
 
 	// Create repositories
-	securityRepo := universe.NewSecurityRepository(universeDB.Conn())
-	positionRepo := portfolio.NewPositionRepository(portfolioDB.Conn())
+	securityRepo := universe.NewSecurityRepository(universeDB.Conn(), log)
+	positionRepo := portfolio.NewPositionRepository(portfolioDB.Conn(), universeDB.Conn(), log)
 
 	// Insert test security
 	security := universe.Security{
 		Symbol:           "AAPL",
 		Name:             "Apple Inc.",
-		Type:             "Stock",
+		ProductType:      "Stock",
 		Currency:         "USD",
 		ISIN:             "US0378331005",
-		Exchange:         "NASDAQ",
 		FullExchangeName: "NASDAQ",
 	}
 	err := securityRepo.Create(security)
 	assert.NoError(t, err)
 
 	// Insert test position
+	now := time.Now().Unix()
 	position := portfolio.Position{
-		Symbol:       "AAPL",
-		Quantity:     100.0,
-		AveragePrice: 150.0,
-		Currency:     "USD",
-		LastUpdated:  time.Now(),
+		ISIN:        "US0378331005",
+		Symbol:      "AAPL",
+		Quantity:    100.0,
+		AvgPrice:    150.0,
+		Currency:    "USD",
+		LastUpdated: &now,
 	}
-	err = positionRepo.Create(position)
+	err = positionRepo.Upsert(position)
 	assert.NoError(t, err)
 
 	// Create service with nil tradeRepo
@@ -218,33 +217,34 @@ func TestValidateTrade_WithMarketHoursService(t *testing.T) {
 
 	// Create repositories
 	tradeRepo := NewTradeRepository(ledgerDB.Conn(), log)
-	securityRepo := universe.NewSecurityRepository(universeDB.Conn())
-	positionRepo := portfolio.NewPositionRepository(portfolioDB.Conn())
-	settingsService := settings.NewService(configDB.Conn(), log)
-	marketHoursService := market_hours.NewMarketHoursService(configDB.Conn(), log)
+	securityRepo := universe.NewSecurityRepository(universeDB.Conn(), log)
+	positionRepo := portfolio.NewPositionRepository(portfolioDB.Conn(), universeDB.Conn(), log)
+	settingsService := settings.NewService(settings.NewRepository(configDB.Conn(), log), log)
+	marketHoursService := market_hours.NewMarketHoursService()
 
 	// Insert test security
 	security := universe.Security{
 		Symbol:           "AAPL",
 		Name:             "Apple Inc.",
-		Type:             "Stock",
+		ProductType:      "Stock",
 		Currency:         "USD",
 		ISIN:             "US0378331005",
-		Exchange:         "NASDAQ",
 		FullExchangeName: "NASDAQ",
 	}
 	err := securityRepo.Create(security)
 	assert.NoError(t, err)
 
 	// Insert test position
+	now := time.Now().Unix()
 	position := portfolio.Position{
-		Symbol:       "AAPL",
-		Quantity:     100.0,
-		AveragePrice: 150.0,
-		Currency:     "USD",
-		LastUpdated:  time.Now(),
+		ISIN:        "US0378331005",
+		Symbol:      "AAPL",
+		Quantity:    100.0,
+		AvgPrice:    150.0,
+		Currency:    "USD",
+		LastUpdated: &now,
 	}
-	err = positionRepo.Create(position)
+	err = positionRepo.Upsert(position)
 	assert.NoError(t, err)
 
 	// Create service
@@ -286,32 +286,33 @@ func TestValidateTrade_BlocksInsufficientQuantity(t *testing.T) {
 
 	// Create repositories
 	tradeRepo := NewTradeRepository(ledgerDB.Conn(), log)
-	securityRepo := universe.NewSecurityRepository(universeDB.Conn())
-	positionRepo := portfolio.NewPositionRepository(portfolioDB.Conn())
-	settingsService := settings.NewService(configDB.Conn(), log)
+	securityRepo := universe.NewSecurityRepository(universeDB.Conn(), log)
+	positionRepo := portfolio.NewPositionRepository(portfolioDB.Conn(), universeDB.Conn(), log)
+	settingsService := settings.NewService(settings.NewRepository(configDB.Conn(), log), log)
 
 	// Insert test security
 	security := universe.Security{
 		Symbol:           "AAPL",
 		Name:             "Apple Inc.",
-		Type:             "Stock",
+		ProductType:      "Stock",
 		Currency:         "USD",
 		ISIN:             "US0378331005",
-		Exchange:         "NASDAQ",
 		FullExchangeName: "NASDAQ",
 	}
 	err := securityRepo.Create(security)
 	assert.NoError(t, err)
 
 	// Insert test position with only 10 shares
+	now := time.Now().Unix()
 	position := portfolio.Position{
-		Symbol:       "AAPL",
-		Quantity:     10.0,
-		AveragePrice: 150.0,
-		Currency:     "USD",
-		LastUpdated:  time.Now(),
+		ISIN:        "US0378331005",
+		Symbol:      "AAPL",
+		Quantity:    10.0,
+		AvgPrice:    150.0,
+		Currency:    "USD",
+		LastUpdated: &now,
 	}
-	err = positionRepo.Create(position)
+	err = positionRepo.Upsert(position)
 	assert.NoError(t, err)
 
 	// Create service
@@ -350,32 +351,33 @@ func TestValidateTrade_AllowsValidQuantity(t *testing.T) {
 
 	// Create repositories
 	tradeRepo := NewTradeRepository(ledgerDB.Conn(), log)
-	securityRepo := universe.NewSecurityRepository(universeDB.Conn())
-	positionRepo := portfolio.NewPositionRepository(portfolioDB.Conn())
-	settingsService := settings.NewService(configDB.Conn(), log)
+	securityRepo := universe.NewSecurityRepository(universeDB.Conn(), log)
+	positionRepo := portfolio.NewPositionRepository(portfolioDB.Conn(), universeDB.Conn(), log)
+	settingsService := settings.NewService(settings.NewRepository(configDB.Conn(), log), log)
 
 	// Insert test security
 	security := universe.Security{
 		Symbol:           "AAPL",
 		Name:             "Apple Inc.",
-		Type:             "Stock",
+		ProductType:      "Stock",
 		Currency:         "USD",
 		ISIN:             "US0378331005",
-		Exchange:         "NASDAQ",
 		FullExchangeName: "NASDAQ",
 	}
 	err := securityRepo.Create(security)
 	assert.NoError(t, err)
 
 	// Insert test position with 100 shares
+	now := time.Now().Unix()
 	position := portfolio.Position{
-		Symbol:       "AAPL",
-		Quantity:     100.0,
-		AveragePrice: 150.0,
-		Currency:     "USD",
-		LastUpdated:  time.Now(),
+		ISIN:        "US0378331005",
+		Symbol:      "AAPL",
+		Quantity:    100.0,
+		AvgPrice:    150.0,
+		Currency:    "USD",
+		LastUpdated: &now,
 	}
-	err = positionRepo.Create(position)
+	err = positionRepo.Upsert(position)
 	assert.NoError(t, err)
 
 	// Create service
@@ -403,7 +405,7 @@ func TestValidateTrade_BlocksUnknownSecurity(t *testing.T) {
 	defer cleanupUniverse()
 
 	// Create repository
-	securityRepo := universe.NewSecurityRepository(universeDB.Conn())
+	securityRepo := universe.NewSecurityRepository(universeDB.Conn(), log)
 
 	// Create service
 	service := &TradeSafetyService{

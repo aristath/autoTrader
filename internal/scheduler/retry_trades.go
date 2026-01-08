@@ -10,9 +10,9 @@ import (
 
 // RetryTradesJob processes pending trade retries (7-hour interval, max 3 attempts)
 type RetryTradesJob struct {
-	log                     zerolog.Logger
-	tradeRepo               *trading.TradeRepository
-	tradeExecutionService   *services.TradeExecutionService
+	log                   zerolog.Logger
+	tradeRepo             *trading.TradeRepository
+	tradeExecutionService *services.TradeExecutionService
 }
 
 // RetryTradesConfig holds configuration for retry trades job

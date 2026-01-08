@@ -68,9 +68,9 @@ type TradeExecutionService struct {
 	cashManager     domain.CashManager
 	exchangeService domain.CurrencyExchangeServiceInterface
 	eventManager    *events.Manager
-	settingsService *settings.Service        // For max_price_age_hours configuration
-	yahooClient     yahoo.FullClientInterface // For fetching fresh prices
-	historyDB       *sql.DB                   // For storing updated prices
+	settingsService *settings.Service            // For max_price_age_hours configuration
+	yahooClient     yahoo.FullClientInterface    // For fetching fresh prices
+	historyDB       *sql.DB                      // For storing updated prices
 	securityRepo    *universe.SecurityRepository // For ISIN lookup
 	log             zerolog.Logger
 }
