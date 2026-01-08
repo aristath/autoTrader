@@ -3,6 +3,7 @@ package scheduler
 import (
 	"testing"
 
+	"github.com/aristath/sentinel/internal/domain"
 	planningdomain "github.com/aristath/sentinel/internal/modules/planning/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +49,7 @@ func TestCreateTradePlanJob_Run_Success(t *testing.T) {
 			calledContext = ctx
 			calledConfig = config
 			return &planningdomain.HolisticPlan{
-				Steps: []planningdomain.HolisticStep{},
+				Steps:    []planningdomain.HolisticStep{},
 				Feasible: true,
 			}, nil
 		},
@@ -63,7 +64,7 @@ func TestCreateTradePlanJob_Run_Success(t *testing.T) {
 	}
 
 	opportunityContext := &planningdomain.OpportunityContext{
-		Positions: []planningdomain.Position{},
+		Positions: []domain.Position{},
 	}
 
 	job := NewCreateTradePlanJob(mockPlannerService, mockConfigRepo)
@@ -74,7 +75,7 @@ func TestCreateTradePlanJob_Run_Success(t *testing.T) {
 	assert.True(t, createPlanCalled, "CreatePlan should have been called")
 	assert.Equal(t, opportunityContext, calledContext)
 	assert.NotNil(t, calledConfig)
-	
+
 	plan := job.GetPlan()
 	require.NotNil(t, plan)
 	assert.NotNil(t, plan.Steps)
@@ -123,7 +124,7 @@ func TestCreateTradePlanJob_Run_ConfigRepoError(t *testing.T) {
 	mockPlannerService := &MockPlannerService{
 		CreatePlanFunc: func(ctx interface{}, config interface{}) (interface{}, error) {
 			return &planningdomain.HolisticPlan{
-				Steps: []planningdomain.HolisticStep{},
+				Steps:    []planningdomain.HolisticStep{},
 				Feasible: true,
 			}, nil
 		},
