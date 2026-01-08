@@ -591,6 +591,15 @@ export function SettingsModal() {
                   description="Your Tradernet API secret (hidden for security)"
                 />
                 <Divider />
+                <TextInput
+                  label="GitHub Token"
+                  type="password"
+                  value={getSetting('github_token', '') || ''}
+                  onChange={(e) => handleUpdateSetting('github_token', e.target.value)}
+                  placeholder="ghp_your_token_here"
+                  description="GitHub personal access token for auto-deployment artifact downloads (requires repo and actions:read scopes)"
+                />
+                <Divider />
                 <Alert color="blue" size="sm">
                   <Text size="xs">
                     Credentials are stored in the settings database and take precedence over environment variables.
