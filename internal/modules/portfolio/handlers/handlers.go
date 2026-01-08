@@ -85,8 +85,12 @@ func (h *Handler) HandleGetPortfolio(w http.ResponseWriter, r *http.Request) {
 
 	// Sort by market value (descending)
 	sort.Slice(result, func(i, j int) bool {
-		valI := result[i]["market_value_eur"].(float64)
-		valJ := result[j]["market_value_eur"].(float64)
+		valI, okI := result[i]["market_value_eur"].(float64)
+		valJ, okJ := result[j]["market_value_eur"].(float64)
+		if !okI || !okJ {
+			h.log.Error().Msg("Invalid market value type in position during sort")
+			return false // Keep original order for invalid entries
+		}
 		return valI > valJ
 	})
 

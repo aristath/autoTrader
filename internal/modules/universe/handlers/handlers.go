@@ -18,6 +18,7 @@ import (
 	"github.com/aristath/sentinel/internal/clients/yahoo"
 	"github.com/aristath/sentinel/internal/domain"
 	"github.com/aristath/sentinel/internal/events"
+	"github.com/aristath/sentinel/internal/modules/portfolio"
 	"github.com/aristath/sentinel/internal/modules/scoring/scorers"
 	"github.com/aristath/sentinel/pkg/formulas"
 	"github.com/go-chi/chi/v5"
@@ -118,8 +119,8 @@ func roundFloat(val float64, precision int) float64 {
 // UniverseHandlers contains HTTP handlers for universe API
 type UniverseHandlers struct {
 	log                     zerolog.Logger
-	portfolioDB             interface{}
-	positionRepo            interface{}
+	portfolioDB             *sql.DB
+	positionRepo            *portfolio.PositionRepository
 	securityRepo            *universe.SecurityRepository
 	scoreRepo               *universe.ScoreRepository
 	securityScorer          *scorers.SecurityScorer
@@ -135,8 +136,8 @@ type UniverseHandlers struct {
 func NewUniverseHandlers(
 	securityRepo *universe.SecurityRepository,
 	scoreRepo *universe.ScoreRepository,
-	portfolioDB interface{},
-	positionRepo interface{},
+	portfolioDB *sql.DB,
+	positionRepo *portfolio.PositionRepository,
 	securityScorer *scorers.SecurityScorer,
 	yahooClient yahoo.FullClientInterface,
 	historyDB *universe.HistoryDB,
@@ -168,15 +169,7 @@ func NewUniverseHandlers(
 func (h *UniverseHandlers) HandleGetStocks(w http.ResponseWriter, r *http.Request) {
 	// Fetch securities with scores from repository
 	// This method joins data from config.db (securities), state.db (scores and positions)
-	// Type assertion for portfolioDB
-	portfolioDB, ok := h.portfolioDB.(*sql.DB)
-	if !ok {
-		h.log.Error().Msg("Invalid portfolioDB type")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	securitiesData, err := h.securityRepo.GetWithScores(portfolioDB)
+	securitiesData, err := h.securityRepo.GetWithScores(h.portfolioDB)
 	if err != nil {
 		h.log.Error().Err(err).Msg("Failed to fetch securities with scores")
 		http.Error(w, "Failed to fetch securities", http.StatusInternalServerError)
@@ -184,7 +177,7 @@ func (h *UniverseHandlers) HandleGetStocks(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Fetch positions to get currency info for conversion
-	positionRows, err := portfolioDB.Query(`SELECT symbol, currency, currency_rate, market_value_eur
+	positionRows, err := h.portfolioDB.Query(`SELECT symbol, currency, currency_rate, market_value_eur
 		FROM positions`)
 	if err != nil {
 		h.log.Error().Err(err).Msg("Failed to fetch positions for currency conversion")
