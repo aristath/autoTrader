@@ -55,6 +55,11 @@ func (s *TradeSafetyService) ValidateTrade(
 		Float64("quantity", quantity).
 		Msg("Validating trade")
 
+	// Layer 0: Trading mode check (CRITICAL: block ALL trades in research mode)
+	if err := s.checkTradingMode(); err != nil {
+		return err
+	}
+
 	// Layer 7: Security lookup (validate security exists)
 	if err := s.validateSecurity(symbol); err != nil {
 		return err
@@ -86,6 +91,35 @@ func (s *TradeSafetyService) ValidateTrade(
 	}
 
 	s.log.Info().Str("symbol", symbol).Msg("Trade validation passed")
+	return nil
+}
+
+// checkTradingMode validates that trading mode is "live" (not "research")
+// Layer 0: Trading Mode Check (CRITICAL - must be first)
+// HARD FAIL-SAFE: Block ALL trades in research mode
+func (s *TradeSafetyService) checkTradingMode() error {
+	// Trading mode check requires settings service
+	if s.settingsService == nil {
+		s.log.Warn().Msg("Settings service not available - blocking trade for safety")
+		return fmt.Errorf("trading mode validation failed: settings service not available")
+	}
+
+	// Get trading mode from settings (default: "research")
+	tradingMode := "research" // Safe default - block trades unless explicitly in live mode
+	if val, err := s.settingsService.Get("trading_mode"); err == nil {
+		if mode, ok := val.(string); ok {
+			tradingMode = mode
+		}
+	}
+
+	// Block ALL trades in research mode
+	if tradingMode != "live" {
+		s.log.Warn().
+			Str("trading_mode", tradingMode).
+			Msg("Trade blocked: system is in research mode")
+		return fmt.Errorf("trading blocked: system is in '%s' mode (must be 'live' to execute trades)", tradingMode)
+	}
+
 	return nil
 }
 

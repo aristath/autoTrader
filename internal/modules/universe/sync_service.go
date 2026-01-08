@@ -376,7 +376,7 @@ func (s *SyncService) SyncAllPrices() (int, error) {
 
 	// 4. Update position prices in state.db (using ISIN)
 	updated := 0
-	now := time.Now()
+	now := time.Now().Unix() // Convert to Unix timestamp (INTEGER)
 
 	for symbol, price := range quotes {
 		if price == nil {

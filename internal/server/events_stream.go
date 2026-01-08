@@ -230,11 +230,33 @@ func (h *EventsStreamHandler) startLogWatcher(logFile string, eventChan chan *ev
 		return watcher
 	}
 
-	// Get initial file state
+	// Get initial file state, creating the file if it doesn't exist
 	info, err := os.Stat(logPath)
 	if err != nil {
-		h.log.Warn().Err(err).Str("log_file", logFile).Msg("Log file not found")
-		return nil
+		if os.IsNotExist(err) {
+			// Create directory if it doesn't exist
+			if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+				h.log.Error().Err(err).Str("log_path", logPath).Msg("Failed to create log directory")
+				return nil
+			}
+			// Create empty log file
+			file, err := os.Create(logPath)
+			if err != nil {
+				h.log.Error().Err(err).Str("log_path", logPath).Msg("Failed to create log file")
+				return nil
+			}
+			file.Close()
+			// Get file info after creation
+			info, err = os.Stat(logPath)
+			if err != nil {
+				h.log.Error().Err(err).Str("log_path", logPath).Msg("Failed to stat newly created log file")
+				return nil
+			}
+			h.log.Info().Str("log_path", logPath).Msg("Created log file")
+		} else {
+			h.log.Warn().Err(err).Str("log_file", logFile).Msg("Failed to access log file")
+			return nil
+		}
 	}
 
 	watcher := &logWatcher{
