@@ -66,6 +66,13 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 	// Market hours service
 	container.MarketHoursService = market_hours.NewMarketHoursService()
 
+	// Market state detector (for market-aware scheduling)
+	container.MarketStateDetector = market_regime.NewMarketStateDetector(
+		container.SecurityRepo,
+		container.MarketHoursService,
+		log,
+	)
+
 	// Event system (new bus-based architecture)
 	container.EventBus = events.NewBus(log)
 	container.EventManager = events.NewManager(container.EventBus, log)
@@ -80,6 +87,8 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 	container.WorkerPool.SetLogger(log)
 	container.TimeScheduler = queue.NewScheduler(container.QueueManager)
 	container.TimeScheduler.SetLogger(log)
+	// Set market state detector on scheduler for market-aware sync scheduling
+	container.TimeScheduler.SetMarketStateDetector(container.MarketStateDetector)
 
 	// Settings service (needed for trade safety and other services)
 	container.SettingsService = settings.NewService(container.SettingsRepo, log)
@@ -124,6 +133,10 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 		cashManager, // Use concrete type for now, will be interface later
 		container.CurrencyExchangeService,
 		container.EventManager,
+		container.SettingsService,
+		container.YahooClient,
+		container.HistoryDB.Conn(), // Get underlying *sql.DB
+		container.SecurityRepo,
 		log,
 	)
 
@@ -139,6 +152,7 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 		container.UniverseDB.Conn(),
 		container.TradernetClient,
 		container.CurrencyExchangeService,
+		container.SettingsService,
 		log,
 	)
 

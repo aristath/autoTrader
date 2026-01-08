@@ -79,6 +79,7 @@ type Container struct {
 	TradeExecutionService     *services.TradeExecutionService
 	SettingsService           *settings.Service
 	MarketHoursService        *market_hours.MarketHoursService
+	MarketStateDetector       *market_regime.MarketStateDetector
 	EventBus                  *events.Bus
 	EventManager              *events.Manager
 	TickerContentService      *ticker.TickerContentService
@@ -147,6 +148,7 @@ type JobInstances struct {
 	SyncPrices            scheduler.Job
 	CheckNegativeBalances scheduler.Job
 	UpdateDisplayTicker   scheduler.Job
+	RetryTrades           scheduler.Job
 
 	// Individual planning jobs
 	GeneratePortfolioHash   scheduler.Job
