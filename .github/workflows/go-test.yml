@@ -81,7 +81,7 @@ jobs:
       if: always()
       continue-on-error: true
       with:
-        file: ./trader/coverage.out
+        files: ./trader/coverage.out
         flags: go
         name: go-coverage
         fail_ci_if_error: false
