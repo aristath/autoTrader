@@ -72,6 +72,15 @@ func main() {
 		log.Warn().Err(err).Msg("Failed to update config from settings DB, using environment variables")
 	}
 
+	// Update broker client with credentials from settings DB
+	// The broker client was created before settings were loaded, so we need to update it
+	if cfg.TradernetAPIKey != "" && cfg.TradernetAPISecret != "" {
+		container.BrokerClient.SetCredentials(cfg.TradernetAPIKey, cfg.TradernetAPISecret)
+		log.Info().Msg("Updated broker client credentials from settings database")
+	} else {
+		log.Warn().Msg("Tradernet credentials not configured - broker client will not be able to connect")
+	}
+
 	// NOW create deployment manager with settings-loaded config
 	var deploymentManager *deployment.Manager
 	if cfg.Deployment != nil && cfg.Deployment.Enabled {
