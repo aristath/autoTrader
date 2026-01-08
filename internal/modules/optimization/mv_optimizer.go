@@ -4,16 +4,23 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/aristath/sentinel/internal/modules/settings"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize"
 )
 
 // MVOptimizer performs mean-variance portfolio optimization.
-type MVOptimizer struct{}
+type MVOptimizer struct {
+	cvarCalculator  *CVaRCalculator
+	settingsService *settings.Service
+}
 
 // NewMVOptimizer creates a new mean-variance optimizer.
-func NewMVOptimizer() *MVOptimizer {
-	return &MVOptimizer{}
+func NewMVOptimizer(cvarCalculator *CVaRCalculator, settingsService *settings.Service) *MVOptimizer {
+	return &MVOptimizer{
+		cvarCalculator:  cvarCalculator,
+		settingsService: settingsService,
+	}
 }
 
 // Optimize solves the mean-variance optimization problem.
@@ -232,6 +239,11 @@ func (mvo *MVOptimizer) optimizeEfficientReturn(
 		portfolioReturn /= sum
 	}
 
+	// Validate CVaR constraint
+	if err := mvo.validateCVaR(weights, mu, sigma, symbols); err != nil {
+		return nil, nil, err
+	}
+
 	return weights, &portfolioReturn, nil
 }
 
@@ -329,6 +341,11 @@ func (mvo *MVOptimizer) optimizeMinVolatility(
 			weights[symbol] /= sum
 		}
 		portfolioReturn /= sum
+	}
+
+	// Validate CVaR constraint
+	if err := mvo.validateCVaR(weights, mu, sigma, symbols); err != nil {
+		return nil, nil, err
 	}
 
 	return weights, &portfolioReturn, nil
@@ -442,6 +459,11 @@ func (mvo *MVOptimizer) optimizeMaxSharpe(
 		portfolioReturn /= sum
 	}
 
+	// Validate CVaR constraint
+	if err := mvo.validateCVaR(weights, mu, sigma, symbols); err != nil {
+		return nil, nil, err
+	}
+
 	return weights, &portfolioReturn, nil
 }
 
@@ -552,6 +574,11 @@ func (mvo *MVOptimizer) optimizeEfficientRisk(
 		portfolioReturn /= sum
 	}
 
+	// Validate CVaR constraint
+	if err := mvo.validateCVaR(weights, mu, sigma, symbols); err != nil {
+		return nil, nil, err
+	}
+
 	return weights, &portfolioReturn, nil
 }
 
@@ -659,4 +686,63 @@ func (mvo *MVOptimizer) addSectorConstraintPenaltyGradient(
 			}
 		}
 	}
+}
+
+// validateCVaR validates that portfolio CVaR doesn't exceed maximum threshold.
+// Returns error if CVaR validation fails or threshold is exceeded.
+func (mvo *MVOptimizer) validateCVaR(
+	weights map[string]float64,
+	mu []float64,
+	sigma *mat.Dense,
+	symbols []string,
+) error {
+	// Skip validation if CVaR calculator or settings service unavailable
+	if mvo.cvarCalculator == nil || mvo.settingsService == nil {
+		return nil
+	}
+
+	// Get max CVaR threshold from settings (default -0.15 = max 15% loss at 95% confidence)
+	maxCVaR := -0.15
+	if val, err := mvo.settingsService.Get("optimizer_max_cvar_95"); err == nil {
+		if cvar, ok := val.(float64); ok {
+			maxCVaR = cvar
+		}
+	}
+
+	// Convert covariance matrix to [][]float64
+	n, _ := sigma.Dims()
+	covMatrixSlice := make([][]float64, n)
+	for i := 0; i < n; i++ {
+		covMatrixSlice[i] = make([]float64, n)
+		for j := 0; j < n; j++ {
+			covMatrixSlice[i][j] = sigma.At(i, j)
+		}
+	}
+
+	// Convert mu to map
+	expectedReturnsMap := make(map[string]float64)
+	for i, symbol := range symbols {
+		expectedReturnsMap[symbol] = mu[i]
+	}
+
+	// Calculate portfolio CVaR using Monte Carlo simulation
+	portfolioCVaR := mvo.cvarCalculator.CalculateFromCovariance(
+		covMatrixSlice,
+		expectedReturnsMap,
+		weights,
+		symbols,
+		10000, // numSimulations
+		0.95,  // confidence (95%)
+	)
+
+	// Check if CVaR exceeds threshold (CVaR is negative, so check if it's MORE negative than threshold)
+	if portfolioCVaR < maxCVaR {
+		return fmt.Errorf(
+			"portfolio CVaR (%.2f%%) exceeds maximum (%.2f%%) - portfolio rejected due to excessive tail risk",
+			portfolioCVaR*100,
+			maxCVaR*100,
+		)
+	}
+
+	return nil
 }

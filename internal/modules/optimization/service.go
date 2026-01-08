@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/aristath/sentinel/internal/modules/settings"
 	"github.com/rs/zerolog"
 )
 
@@ -42,6 +43,7 @@ type OptimizerService struct {
 	blackLitterman      *BlackLittermanOptimizer // Optional: Black-Litterman optimizer
 	adaptiveService     AdaptiveBlendProvider    // Optional: adaptive market service
 	regimeScoreProvider RegimeScoreProvider      // Optional: regime score provider
+	settingsService     *settings.Service        // Optional: settings service for configuration
 	log                 zerolog.Logger
 }
 
@@ -52,8 +54,10 @@ func NewOptimizerService(
 	riskBuilder *RiskModelBuilder,
 	log zerolog.Logger,
 ) *OptimizerService {
+	// Note: MVOptimizer dependencies (CVaR calculator, settings service) are set via setters
+	// after construction to avoid circular dependencies in the DI container
 	return &OptimizerService{
-		mvOptimizer:    NewMVOptimizer(),
+		mvOptimizer:    NewMVOptimizer(nil, nil),
 		hrpOptimizer:   NewHRPOptimizer(),
 		constraintsMgr: constraintsMgr,
 		returnsCalc:    returnsCalc,
@@ -84,11 +88,25 @@ func (os *OptimizerService) SetKellySizer(kellySizer *KellyPositionSizer) {
 // SetCVaRCalculator sets the CVaR calculator for tail risk measurement
 func (os *OptimizerService) SetCVaRCalculator(cvarCalculator *CVaRCalculator) {
 	os.cvarCalculator = cvarCalculator
+	// Wire MVOptimizer with latest dependencies
+	os.wireMVOptimizer()
 }
 
 // SetBlackLittermanOptimizer sets the Black-Litterman optimizer for Bayesian returns
 func (os *OptimizerService) SetBlackLittermanOptimizer(blOptimizer *BlackLittermanOptimizer) {
 	os.blackLitterman = blOptimizer
+}
+
+// SetSettingsService sets the settings service for configuration access
+func (os *OptimizerService) SetSettingsService(settingsService *settings.Service) {
+	os.settingsService = settingsService
+	// Wire MVOptimizer with latest dependencies
+	os.wireMVOptimizer()
+}
+
+// wireMVOptimizer recreates the MVOptimizer with current dependencies
+func (os *OptimizerService) wireMVOptimizer() {
+	os.mvOptimizer = NewMVOptimizer(os.cvarCalculator, os.settingsService)
 }
 
 // Optimize runs the complete portfolio optimization process.
