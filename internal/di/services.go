@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/aristath/sentinel/internal/clients/exchangerate"
 	"github.com/aristath/sentinel/internal/clients/tradernet"
 	"github.com/aristath/sentinel/internal/clients/yahoo"
 	"github.com/aristath/sentinel/internal/config"
@@ -57,6 +58,10 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 	container.YahooClient = yahoo.NewNativeClient(log)
 	log.Info().Msg("Using native Go Yahoo Finance client")
 
+	// ExchangeRate API client (exchangerate-api.com)
+	container.ExchangeRateAPIClient = exchangerate.NewClient(log)
+	log.Info().Msg("ExchangeRateAPI client initialized")
+
 	// ==========================================
 	// STEP 2: Initialize Basic Services
 	// ==========================================
@@ -94,9 +99,10 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 	// Settings service (needed for trade safety and other services)
 	container.SettingsService = settings.NewService(container.SettingsRepo, log)
 
-	// Exchange rate cache service (wraps CurrencyExchangeService + Yahoo fallback)
+	// Exchange rate cache service (wraps ExchangeRateAPI + CurrencyExchangeService + Yahoo fallback)
 	container.ExchangeRateCacheService = services.NewExchangeRateCacheService(
-		container.CurrencyExchangeService,
+		container.ExchangeRateAPIClient,   // NEW: Primary source (exchangerate-api.com)
+		container.CurrencyExchangeService, // Tradernet (now secondary)
 		container.YahooClient,
 		container.HistoryDBClient,
 		container.SettingsService,

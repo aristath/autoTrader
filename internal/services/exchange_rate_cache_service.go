@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/aristath/sentinel/internal/clients/exchangerate"
 	"github.com/aristath/sentinel/internal/clients/yahoo"
 	"github.com/aristath/sentinel/internal/domain"
 	"github.com/aristath/sentinel/internal/modules/universe"
@@ -17,6 +18,7 @@ type SettingsServiceInterface interface {
 
 // ExchangeRateCacheService provides cached exchange rates with fallback
 type ExchangeRateCacheService struct {
+	exchangeRateAPIClient   *exchangerate.Client                    // ExchangeRate API (primary)
 	currencyExchangeService domain.CurrencyExchangeServiceInterface // Tradernet
 	yahooClient             yahoo.FullClientInterface               // Yahoo fallback
 	historyDB               *universe.HistoryDB                     // Cache storage
@@ -26,6 +28,7 @@ type ExchangeRateCacheService struct {
 
 // NewExchangeRateCacheService creates a new exchange rate cache service
 func NewExchangeRateCacheService(
+	exchangeRateAPIClient *exchangerate.Client,
 	currencyExchangeService domain.CurrencyExchangeServiceInterface,
 	yahooClient yahoo.FullClientInterface,
 	historyDB *universe.HistoryDB,
@@ -33,6 +36,7 @@ func NewExchangeRateCacheService(
 	log zerolog.Logger,
 ) *ExchangeRateCacheService {
 	return &ExchangeRateCacheService{
+		exchangeRateAPIClient:   exchangeRateAPIClient,
 		currencyExchangeService: currencyExchangeService,
 		yahooClient:             yahooClient,
 		historyDB:               historyDB,
@@ -41,17 +45,33 @@ func NewExchangeRateCacheService(
 	}
 }
 
-// GetRate returns exchange rate with 4-tier fallback:
-// 1. Try Tradernet (primary)
-// 2. Try Yahoo Finance (fallback)
-// 3. Try cached rate from DB
-// 4. Use hardcoded fallback rates
+// GetRate returns exchange rate with 5-tier fallback:
+// 1. Try exchangerate-api.com (primary - fast, free, no auth)
+// 2. Try Tradernet (fallback - uses broker's FX instruments)
+// 3. Try Yahoo Finance (fallback)
+// 4. Try cached rate from DB
+// 5. Use hardcoded fallback rates
 func (s *ExchangeRateCacheService) GetRate(fromCurrency, toCurrency string) (float64, error) {
 	if fromCurrency == toCurrency {
 		return 1.0, nil
 	}
 
-	// Tier 1: Try Tradernet (primary)
+	// Tier 1: Try exchangerate-api.com (NEW PRIMARY)
+	if s.exchangeRateAPIClient != nil {
+		rate, err := s.exchangeRateAPIClient.GetRate(fromCurrency, toCurrency)
+		if err == nil && rate > 0 {
+			s.log.Debug().
+				Str("from", fromCurrency).
+				Str("to", toCurrency).
+				Float64("rate", rate).
+				Str("source", "exchangerate-api").
+				Msg("Got rate from ExchangeRate API")
+			return rate, nil
+		}
+		s.log.Warn().Err(err).Msg("ExchangeRateAPI fetch failed, trying Tradernet")
+	}
+
+	// Tier 2: Try Tradernet (was Tier 1)
 	if s.currencyExchangeService != nil {
 		rate, err := s.currencyExchangeService.GetRate(fromCurrency, toCurrency)
 		if err == nil && rate > 0 {
@@ -66,7 +86,7 @@ func (s *ExchangeRateCacheService) GetRate(fromCurrency, toCurrency string) (flo
 		s.log.Warn().Err(err).Msg("Tradernet rate fetch failed, trying Yahoo")
 	}
 
-	// Tier 2: Try Yahoo Finance (fallback)
+	// Tier 3: Try Yahoo Finance (was Tier 2)
 	if s.yahooClient != nil {
 		rate, err := s.yahooClient.GetExchangeRate(fromCurrency, toCurrency)
 		if err == nil && rate > 0 {
@@ -81,7 +101,7 @@ func (s *ExchangeRateCacheService) GetRate(fromCurrency, toCurrency string) (flo
 		s.log.Warn().Err(err).Msg("Yahoo rate fetch failed, trying cache")
 	}
 
-	// Tier 3: Try cached rate
+	// Tier 4: Try cached rate (was Tier 3)
 	rate, err := s.GetCachedRate(fromCurrency, toCurrency)
 	if err == nil && rate > 0 {
 		s.log.Warn().
@@ -93,7 +113,7 @@ func (s *ExchangeRateCacheService) GetRate(fromCurrency, toCurrency string) (flo
 		return rate, nil
 	}
 
-	// Tier 4: Hardcoded fallback (last resort)
+	// Tier 5: Hardcoded fallback (last resort - was Tier 4)
 	rate = s.getHardcodedRate(fromCurrency, toCurrency)
 	if rate > 0 {
 		s.log.Warn().
