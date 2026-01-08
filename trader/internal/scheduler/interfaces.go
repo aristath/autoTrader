@@ -18,6 +18,7 @@ type BalanceServiceInterface interface {
 // EventManagerInterface defines the contract for event emission
 type EventManagerInterface interface {
 	Emit(eventType events.EventType, module string, data map[string]interface{})
+	EmitTyped(eventType events.EventType, module string, data events.EventData)
 }
 
 // TradingServiceInterface defines the contract for trading service operations
