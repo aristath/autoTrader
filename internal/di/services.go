@@ -340,6 +340,9 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 	// Wire CVaR Calculator into OptimizerService
 	container.OptimizerService.SetCVaRCalculator(container.CVaRCalculator)
 
+	// Wire Settings Service into OptimizerService (for CVaR threshold configuration)
+	container.OptimizerService.SetSettingsService(container.SettingsService)
+
 	// Wire Black-Litterman Optimizer into OptimizerService
 	container.OptimizerService.SetBlackLittermanOptimizer(container.BlackLittermanOptimizer)
 
