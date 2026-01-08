@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/aristath/sentinel/internal/clients/yahoo"
 	"github.com/aristath/sentinel/internal/domain"
 	"github.com/aristath/sentinel/internal/events"
+	"github.com/aristath/sentinel/internal/modules/portfolio"
 	"github.com/aristath/sentinel/internal/modules/scoring/scorers"
 	"github.com/aristath/sentinel/internal/modules/universe"
 	"github.com/go-chi/chi/v5"
@@ -20,8 +22,8 @@ func TestRegisterRoutes(t *testing.T) {
 	// Create mock dependencies
 	securityRepo := &universe.SecurityRepository{}
 	scoreRepo := &universe.ScoreRepository{}
-	var portfolioDB interface{} = nil
-	var positionRepo interface{} = nil
+	var portfolioDB *sql.DB = nil
+	var positionRepo *portfolio.PositionRepository = nil
 	securityScorer := &scorers.SecurityScorer{}
 	var yahooClient yahoo.FullClientInterface = nil
 	historyDB := &universe.HistoryDB{}
@@ -105,8 +107,8 @@ func TestRegisterRoutes_RoutePrefix(t *testing.T) {
 	// Verify that routes are registered under /securities prefix
 	securityRepo := &universe.SecurityRepository{}
 	scoreRepo := &universe.ScoreRepository{}
-	var portfolioDB interface{} = nil
-	var positionRepo interface{} = nil
+	var portfolioDB *sql.DB = nil
+	var positionRepo *portfolio.PositionRepository = nil
 	securityScorer := &scorers.SecurityScorer{}
 	var yahooClient yahoo.FullClientInterface = nil
 	historyDB := &universe.HistoryDB{}
