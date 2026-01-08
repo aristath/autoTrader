@@ -39,7 +39,6 @@ import (
 	"github.com/aristath/sentinel/internal/modules/planning/repository"
 	"github.com/aristath/sentinel/internal/modules/portfolio"
 	portfoliohandlers "github.com/aristath/sentinel/internal/modules/portfolio/handlers"
-	"github.com/aristath/sentinel/internal/modules/rebalancing"
 	rebalancinghandlers "github.com/aristath/sentinel/internal/modules/rebalancing/handlers"
 	scoringhandlers "github.com/aristath/sentinel/internal/modules/scoring/api/handlers"
 	settingshandlers "github.com/aristath/sentinel/internal/modules/settings/handlers"
