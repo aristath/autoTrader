@@ -210,6 +210,39 @@ func (c *NativeClient) GetCurrentPrice(symbol string, yahooSymbolOverride *strin
 	return nil, lastErr
 }
 
+// GetExchangeRate fetches FX rate from Yahoo Finance
+// Uses format: EURUSD=X, GBPUSD=X, EURHKD=X, etc.
+// Returns how many units of toCurrency per 1 fromCurrency
+func (c *NativeClient) GetExchangeRate(fromCurrency, toCurrency string) (float64, error) {
+	// Yahoo Finance FX symbol format: {FROM}{TO}=X
+	symbol := fmt.Sprintf("%s%s=X",
+		strings.ToUpper(fromCurrency),
+		strings.ToUpper(toCurrency))
+
+	c.log.Debug().
+		Str("from", fromCurrency).
+		Str("to", toCurrency).
+		Str("symbol", symbol).
+		Msg("Fetching exchange rate from Yahoo")
+
+	// Use GetCurrentPrice with no override (direct Yahoo symbol)
+	// Use maxRetries=3 for reliability
+	price, err := c.GetCurrentPrice(symbol, nil, 3)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get exchange rate from Yahoo: %w", err)
+	}
+	if price == nil || *price <= 0 {
+		return 0, fmt.Errorf("invalid exchange rate from Yahoo: %v", price)
+	}
+
+	c.log.Debug().
+		Str("symbol", symbol).
+		Float64("rate", *price).
+		Msg("Fetched exchange rate from Yahoo")
+
+	return *price, nil
+}
+
 // GetHistoricalPrices fetches historical OHLCV data
 func (c *NativeClient) GetHistoricalPrices(symbol string, yahooSymbolOverride *string, period string) ([]HistoricalPrice, error) {
 	yahooSymbol, err := c.resolveSymbol(symbol, yahooSymbolOverride)

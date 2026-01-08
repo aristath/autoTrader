@@ -8,6 +8,7 @@ type FullClientInterface interface {
 
 	// Single quote operations
 	GetCurrentPrice(symbol string, yahooSymbolOverride *string, maxRetries int) (*float64, error)
+	GetExchangeRate(fromCurrency, toCurrency string) (float64, error)
 
 	// Historical data
 	GetHistoricalPrices(symbol string, yahooSymbolOverride *string, period string) ([]HistoricalPrice, error)
