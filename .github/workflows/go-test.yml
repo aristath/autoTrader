@@ -79,16 +79,17 @@ jobs:
     - name: Run tests (shard ${{ matrix.shard }}/4)
       run: |
         # Get all packages and split into 4 shards
+        SHARD=${{ matrix.shard }}
         PACKAGES=$(go list ./... | grep -v "/cmd/" | sort)
         TOTAL=$(echo "$PACKAGES" | wc -l)
         PER_SHARD=$(( (TOTAL + 3) / 4 ))  # Round up
-        START=$(( (matrix.shard - 1) * PER_SHARD + 1 ))
+        START=$(( (SHARD - 1) * PER_SHARD + 1 ))
 
         # Get packages for this shard
         SHARD_PACKAGES=$(echo "$PACKAGES" | sed -n "${START},$((START + PER_SHARD - 1))p")
 
         if [ -n "$SHARD_PACKAGES" ]; then
-          echo "Testing shard ${{ matrix.shard }}/4 (packages $START to $((START + PER_SHARD - 1)))"
+          echo "Testing shard ${SHARD}/4 (packages $START to $((START + PER_SHARD - 1)))"
           echo "$SHARD_PACKAGES" | xargs go test -tags=!integration
         fi
       continue-on-error: false
