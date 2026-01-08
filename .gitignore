@@ -45,11 +45,11 @@ tailwindcss
 node_modules/
 package-lock.json
 
-# Go binaries
-server
-sentinel
-sentinel-go
-sentinel-arm64
+# Go binaries (at root only)
+/server
+/sentinel
+/sentinel-go
+/sentinel-arm64
 *.test
 display/bridge/bridge
 display/bridge/display-bridge
