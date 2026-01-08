@@ -38,6 +38,17 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// securitySetupServiceAdapter adapts universe.SecuritySetupService to portfolio.SecuritySetupServiceInterface
+// This is needed because Go doesn't support return type covariance in interfaces
+type securitySetupServiceAdapter struct {
+	service *universe.SecuritySetupService
+}
+
+// AddSecurityByIdentifier implements portfolio.SecuritySetupServiceInterface
+func (a *securitySetupServiceAdapter) AddSecurityByIdentifier(identifier string, minLot int, allowBuy bool, allowSell bool) (interface{}, error) {
+	return a.service.AddSecurityByIdentifier(identifier, minLot, allowBuy, allowSell)
+}
+
 // InitializeServices creates all services and stores them in the container
 // This is the SINGLE SOURCE OF TRUTH for all service creation
 // Services are created in dependency order to ensure all dependencies exist
@@ -188,11 +199,14 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 		log,
 	)
 
+	// Create adapter for SecuritySetupService to match portfolio.SecuritySetupServiceInterface
+	setupServiceAdapter := &securitySetupServiceAdapter{service: container.SetupService}
+
 	// ==========================================
 	// STEP 6: Initialize Portfolio Service
 	// ==========================================
 
-	// Portfolio service (with SecuritySetupService for auto-adding missing securities)
+	// Portfolio service (with SecuritySetupService adapter for auto-adding missing securities)
 	container.PortfolioService = portfolio.NewPortfolioService(
 		container.PositionRepo,
 		container.AllocRepo,
@@ -202,7 +216,7 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 		container.CurrencyExchangeService,
 		container.ExchangeRateCacheService,
 		container.SettingsService,
-		container.SetupService, // Now available
+		setupServiceAdapter, // Use adapter to match interface
 		log,
 	)
 

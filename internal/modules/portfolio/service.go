@@ -18,6 +18,7 @@ type SettingsServiceInterface interface {
 }
 
 // SecuritySetupServiceInterface defines the contract for adding securities to the universe
+// Using interface{} return type to avoid import cycle with universe package
 type SecuritySetupServiceInterface interface {
 	AddSecurityByIdentifier(identifier string, minLot int, allowBuy bool, allowSell bool) (interface{}, error)
 }
