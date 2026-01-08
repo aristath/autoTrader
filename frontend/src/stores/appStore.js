@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { notifications } from '@mantine/notifications';
 import { api } from '../api/client';
-import { handleEvent } from './eventHandlers';
+import { handleEvent, clearAllDebounces } from './eventHandlers';
 
 export const useAppStore = create((set, get) => ({
   // System status
@@ -19,6 +19,7 @@ export const useAppStore = create((set, get) => ({
   // Unified event stream
   eventStreamSource: null,
   eventStreamReconnectAttempts: 0,
+  eventStreamConnecting: false,
 
   // UI State
   activeTab: 'next-actions',
@@ -195,7 +196,15 @@ export const useAppStore = create((set, get) => ({
 
   // Unified event stream
   startEventStream: (logFile = null) => {
-    const { eventStreamSource } = get();
+    const { eventStreamSource, eventStreamConnecting } = get();
+
+    // Prevent concurrent connection attempts
+    if (eventStreamConnecting) {
+      return;
+    }
+
+    set({ eventStreamConnecting: true });
+
     if (eventStreamSource) {
       eventStreamSource.close();
     }
@@ -207,7 +216,7 @@ export const useAppStore = create((set, get) => ({
     }
 
     const eventSource = new EventSource(url);
-    set({ eventStreamSource: eventSource });
+    set({ eventStreamSource: eventSource, eventStreamConnecting: false });
 
     eventSource.onmessage = (event) => {
       try {
@@ -220,15 +229,20 @@ export const useAppStore = create((set, get) => ({
 
     eventSource.onerror = (error) => {
       console.error('Event stream error:', error);
-      const { eventStreamReconnectAttempts } = get();
 
-      // Close the connection
+      // Close the connection and reset connecting flag
       eventSource.close();
+      set({ eventStreamConnecting: false });
+
+      // Get current attempts for delay calculation
+      const currentAttempts = get().eventStreamReconnectAttempts;
 
       // Reconnect with exponential backoff (max 30 seconds)
-      const delay = Math.min(1000 * Math.pow(2, eventStreamReconnectAttempts), 30000);
+      const delay = Math.min(1000 * Math.pow(2, currentAttempts), 30000);
       setTimeout(() => {
-        set({ eventStreamReconnectAttempts: eventStreamReconnectAttempts + 1 });
+        // Read fresh state to avoid stale closure
+        const freshAttempts = get().eventStreamReconnectAttempts;
+        set({ eventStreamReconnectAttempts: freshAttempts + 1 });
         get().startEventStream(logFile);
       }, delay);
     };
@@ -245,6 +259,8 @@ export const useAppStore = create((set, get) => ({
       eventStreamSource.close();
       set({ eventStreamSource: null, eventStreamReconnectAttempts: 0 });
     }
+    // Clear all pending debounced event handlers
+    clearAllDebounces();
   },
 
   // Fetch all initial data

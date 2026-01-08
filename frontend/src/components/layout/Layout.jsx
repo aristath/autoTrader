@@ -10,7 +10,7 @@ import { EditSecurityModal } from '../modals/EditSecurityModal';
 import { SecurityChartModal } from '../modals/SecurityChartModal';
 import { SettingsModal } from '../modals/SettingsModal';
 import { PlannerManagementModal } from '../modals/PlannerManagementModal';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAppStore } from '../../stores/appStore';
 import { usePortfolioStore } from '../../stores/portfolioStore';
 import { useSecuritiesStore } from '../../stores/securitiesStore';
@@ -30,20 +30,36 @@ export function Layout() {
   const { fetchTrades } = useTradesStore();
   const { fetchAvailableLogFiles, selectedLogFile } = useLogsStore();
 
+  // Store function refs to prevent unnecessary effect re-runs
+  const startEventStreamRef = useRef(startEventStream);
+  const stopEventStreamRef = useRef(stopEventStream);
+
+  // Keep refs up to date
+  useEffect(() => {
+    startEventStreamRef.current = startEventStream;
+    stopEventStreamRef.current = stopEventStream;
+  });
+
   useEffect(() => {
     // Fetch all initial data
     const loadData = async () => {
-      await Promise.all([
-        fetchAll(),
-        fetchAllocation(),
-        fetchCashBreakdown(),
-        fetchSecurities(),
-        fetchTargets(),
-        fetchSparklines(),
-        fetchSettings(),
-        fetchTrades(),
-        fetchAvailableLogFiles(),
-      ]);
+      try {
+        await Promise.all([
+          fetchAll(),
+          fetchAllocation(),
+          fetchCashBreakdown(),
+          fetchSecurities(),
+          fetchTargets(),
+          fetchSparklines(),
+          fetchSettings(),
+          fetchTrades(),
+          fetchAvailableLogFiles(),
+        ]);
+      } catch (error) {
+        console.error('Failed to load initial data:', error);
+        // Individual store methods already handle their own errors
+        // This catch prevents unhandled promise rejection
+      }
     };
 
     loadData();
@@ -61,13 +77,13 @@ export function Layout() {
   // Restart event stream when log file changes
   useEffect(() => {
     if (selectedLogFile) {
-      stopEventStream();
-      startEventStream(selectedLogFile);
+      stopEventStreamRef.current();
+      startEventStreamRef.current(selectedLogFile);
     }
     return () => {
-      stopEventStream();
+      stopEventStreamRef.current();
     };
-  }, [selectedLogFile, startEventStream, stopEventStream]);
+  }, [selectedLogFile]);
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--mantine-color-dark-9)' }}>
