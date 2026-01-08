@@ -383,6 +383,22 @@ func (m *mockTradeRepository) Create(trade trading.Trade) error {
 	return nil
 }
 
+func (m *mockTradeRepository) CreatePendingRetry(retry trading.PendingRetry) error {
+	return nil
+}
+
+func (m *mockTradeRepository) GetPendingRetries() ([]trading.PendingRetry, error) {
+	return nil, nil
+}
+
+func (m *mockTradeRepository) UpdateRetryStatus(id int64, status string) error {
+	return nil
+}
+
+func (m *mockTradeRepository) IncrementRetryAttempt(id int64) error {
+	return nil
+}
+
 // Test ExecuteTrades orchestration
 
 func TestExecuteTrades_TradernetNotConnected(t *testing.T) {
