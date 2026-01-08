@@ -285,6 +285,21 @@ func (r *PlannerRepository) DeleteSequencesByPortfolioHash(portfolioHash string)
 	return nil
 }
 
+// DeleteAllSequences deletes all sequences regardless of portfolio hash.
+func (r *PlannerRepository) DeleteAllSequences() error {
+	result, err := r.db.Exec(`DELETE FROM sequences`)
+	if err != nil {
+		return fmt.Errorf("failed to delete all sequences: %w", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	r.log.Info().
+		Int64("rows_deleted", rowsAffected).
+		Msg("Deleted all sequences")
+
+	return nil
+}
+
 // InsertEvaluation inserts a new evaluation into the database.
 func (r *PlannerRepository) InsertEvaluation(
 	evaluation domain.EvaluationResult,
@@ -433,6 +448,21 @@ func (r *PlannerRepository) DeleteEvaluationsByPortfolioHash(portfolioHash strin
 	return nil
 }
 
+// DeleteAllEvaluations deletes all evaluations regardless of portfolio hash.
+func (r *PlannerRepository) DeleteAllEvaluations() error {
+	result, err := r.db.Exec(`DELETE FROM evaluations`)
+	if err != nil {
+		return fmt.Errorf("failed to delete all evaluations: %w", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	r.log.Info().
+		Int64("rows_deleted", rowsAffected).
+		Msg("Deleted all evaluations")
+
+	return nil
+}
+
 // UpsertBestResult inserts or updates the best result for a portfolio hash.
 func (r *PlannerRepository) UpsertBestResult(
 	portfolioHash string,
@@ -524,6 +554,21 @@ func (r *PlannerRepository) DeleteBestResult(portfolioHash string) error {
 	r.log.Info().
 		Str("portfolio_hash", portfolioHash).
 		Msg("Deleted best result")
+
+	return nil
+}
+
+// DeleteAllBestResults deletes all best results regardless of portfolio hash.
+func (r *PlannerRepository) DeleteAllBestResults() error {
+	result, err := r.db.Exec(`DELETE FROM best_result`)
+	if err != nil {
+		return fmt.Errorf("failed to delete all best results: %w", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	r.log.Info().
+		Int64("rows_deleted", rowsAffected).
+		Msg("Deleted all best results")
 
 	return nil
 }

@@ -20,6 +20,7 @@ import (
 	planningevaluation "github.com/aristath/sentinel/internal/modules/planning/evaluation"
 	planningplanner "github.com/aristath/sentinel/internal/modules/planning/planner"
 	planningrepo "github.com/aristath/sentinel/internal/modules/planning/repository"
+	planninguniverse "github.com/aristath/sentinel/internal/modules/planning/universe_monitor"
 	"github.com/aristath/sentinel/internal/modules/portfolio"
 	"github.com/aristath/sentinel/internal/modules/rebalancing"
 	"github.com/aristath/sentinel/internal/modules/scoring/scorers"
@@ -62,6 +63,7 @@ type Container struct {
 	CashFlowsRepo      *cash_flows.Repository
 	RecommendationRepo *planning.RecommendationRepository
 	PlannerConfigRepo  *planningrepo.ConfigRepository
+	PlannerRepo        *planningrepo.PlannerRepository
 	GroupingRepo       *allocation.GroupingRepository
 	HistoryDBClient    *universe.HistoryDB
 
@@ -117,6 +119,7 @@ type Container struct {
 	BackupService             *reliability.BackupService
 	HealthServices            map[string]*reliability.DatabaseHealthService
 	FactorExposureTracker     *analytics.FactorExposureTracker
+	UniverseMonitor           *planninguniverse.UniverseMonitor
 
 	// Handlers (will be populated in handlers.go)
 	// Note: Handlers are created per-route, so we don't store them in container

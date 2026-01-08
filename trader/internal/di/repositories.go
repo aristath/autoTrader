@@ -90,6 +90,12 @@ func InitializeRepositories(container *Container, log zerolog.Logger) error {
 		log,
 	)
 
+	// Planner repository (needs agentsDB)
+	container.PlannerRepo = planningrepo.NewPlannerRepository(
+		container.AgentsDB,
+		log,
+	)
+
 	// Grouping repository (needs universeDB)
 	container.GroupingRepo = allocation.NewGroupingRepository(
 		container.UniverseDB.Conn(),

@@ -22,6 +22,7 @@ import (
 	"github.com/aristath/sentinel/internal/modules/planning"
 	planningevaluation "github.com/aristath/sentinel/internal/modules/planning/evaluation"
 	planningplanner "github.com/aristath/sentinel/internal/modules/planning/planner"
+	planninguniverse "github.com/aristath/sentinel/internal/modules/planning/universe_monitor"
 	"github.com/aristath/sentinel/internal/modules/portfolio"
 	"github.com/aristath/sentinel/internal/modules/rebalancing"
 	"github.com/aristath/sentinel/internal/modules/scoring/scorers"
@@ -265,6 +266,22 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 		container.CurrencyExchangeService,
 		log,
 	)
+
+	// Universe monitor (monitors state changes and invalidates recommendations)
+	container.UniverseMonitor = planninguniverse.NewUniverseMonitor(
+		container.SecurityRepo,
+		container.PositionRepo,
+		container.CashManager,
+		container.PlannerConfigRepo,
+		container.RecommendationRepo,
+		container.PlannerRepo,
+		container.ConfigDB.Conn(),
+		log,
+	)
+
+	// Start universe monitor (runs every minute)
+	container.UniverseMonitor.Start()
+	log.Info().Msg("Universe monitor initialized and started")
 
 	// ==========================================
 	// STEP 9: Initialize Optimization Services
