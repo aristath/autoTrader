@@ -89,7 +89,7 @@ func TestScoreCalculation_SavesAllRawValues(t *testing.T) {
 	calculatedScore := scorer.ScoreSecurityWithDefaults(scoringInput)
 
 	// Convert to SecurityScore
-	score := convertToSecurityScore("TEST12345678", "TEST", calculatedScore)
+	score := handlers.ConvertToSecurityScore("TEST12345678", "TEST", calculatedScore)
 
 	// Verify raw values are extracted (some may be 0.0 if calculation fails or data is insufficient)
 	assert.GreaterOrEqual(t, score.SharpeScore, 0.0, "SharpeScore should be >= 0")

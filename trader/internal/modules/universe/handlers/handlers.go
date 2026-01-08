@@ -1088,7 +1088,7 @@ func (h *UniverseHandlers) calculateAndSaveScore(isin string, yahooSymbol string
 	calculatedScore := h.securityScorer.ScoreSecurityWithDefaults(scoringInput)
 
 	// Convert calculated score to SecurityScore for database storage (using ISIN)
-	score := convertToSecurityScore(isin, symbol, calculatedScore)
+	score := ConvertToSecurityScore(isin, symbol, calculatedScore)
 
 	// Save score to database
 	if err := h.scoreRepo.Upsert(score); err != nil {
@@ -1108,9 +1108,10 @@ func (h *UniverseHandlers) calculateAndSaveScore(isin string, yahooSymbol string
 	return &score, nil
 }
 
-// convertToSecurityScore converts scoringdomain.CalculatedSecurityScore to SecurityScore
+// ConvertToSecurityScore converts scoringdomain.CalculatedSecurityScore to SecurityScore
 // After migration: accepts ISIN as primary identifier
-func convertToSecurityScore(isin string, symbol string, calculated *scoringdomain.CalculatedSecurityScore) universe.SecurityScore {
+// Exported for use in tests
+func ConvertToSecurityScore(isin string, symbol string, calculated *scoringdomain.CalculatedSecurityScore) universe.SecurityScore {
 	// Extract group scores
 	groupScores := calculated.GroupScores
 	if groupScores == nil {
