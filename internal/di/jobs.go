@@ -235,6 +235,15 @@ func RegisterJobs(container *Container, cfg *config.Config, displayManager *disp
 	container.JobRegistry.Register(queue.JobTypeUpdateDisplayTicker, queue.JobToHandler(updateDisplayTicker))
 	instances.UpdateDisplayTicker = updateDisplayTicker
 
+	// Retry Trades Job (processes pending trade retries with 7-hour interval)
+	retryTrades := scheduler.NewRetryTradesJob(scheduler.RetryTradesConfig{
+		Log:                   log,
+		TradeRepo:             container.TradeRepo,
+		TradeExecutionService: container.TradeExecutionService,
+	})
+	container.JobRegistry.Register(queue.JobTypeRetryTrades, queue.JobToHandler(retryTrades))
+	instances.RetryTrades = retryTrades
+
 	// ==========================================
 	// COMPOSITE SYNC CYCLE JOB (orchestrates individual sync jobs)
 	// ==========================================

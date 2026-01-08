@@ -79,3 +79,27 @@ CREATE TABLE IF NOT EXISTS drip_tracking (
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_drip_enabled ON drip_tracking(drip_enabled);
+
+-- Pending retries: trades that failed and need retry (7-hour interval, max 3 attempts)
+CREATE TABLE IF NOT EXISTS pending_retries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    side TEXT NOT NULL CHECK (side IN ('BUY', 'SELL')),
+    quantity REAL NOT NULL CHECK (quantity > 0),
+    estimated_price REAL NOT NULL CHECK (estimated_price > 0),
+    currency TEXT NOT NULL,
+    reason TEXT,                      -- Original trade reason
+    failure_reason TEXT NOT NULL,     -- Why the trade failed
+    attempt_count INTEGER DEFAULT 0,  -- Number of retry attempts made
+    max_attempts INTEGER DEFAULT 3,   -- Maximum retry attempts
+    failed_at INTEGER NOT NULL,       -- Unix timestamp when trade first failed
+    next_retry_at INTEGER NOT NULL,   -- Unix timestamp for next retry (failed_at + 7 hours * attempt_count)
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'retrying', 'succeeded', 'failed', 'abandoned')),
+    completed_at INTEGER,             -- Unix timestamp when final status reached
+    created_at INTEGER NOT NULL,      -- Unix timestamp (seconds since epoch)
+    updated_at INTEGER NOT NULL       -- Unix timestamp (seconds since epoch)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_pending_retries_status ON pending_retries(status);
+CREATE INDEX IF NOT EXISTS idx_pending_retries_next_retry ON pending_retries(next_retry_at) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_pending_retries_symbol ON pending_retries(symbol);

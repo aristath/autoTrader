@@ -32,6 +32,7 @@ const (
 	JobTypeCheckNegativeBalances JobType = "check_negative_balances"
 	JobTypeSyncPrices            JobType = "sync_prices"
 	JobTypeUpdateDisplayTicker   JobType = "update_display_ticker"
+	JobTypeRetryTrades           JobType = "retry_trades"
 
 	// Planning jobs - individual responsibilities split from planner_batch
 	JobTypeGeneratePortfolioHash   JobType = "generate_portfolio_hash"

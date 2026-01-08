@@ -12,6 +12,11 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// SettingsServiceInterface defines the contract for settings operations needed by portfolio
+type SettingsServiceInterface interface {
+	Get(key string) (interface{}, error)
+}
+
 // PortfolioService orchestrates portfolio operations and calculations.
 //
 // This is a module-specific service that encapsulates portfolio domain logic.
@@ -41,6 +46,7 @@ type PortfolioService struct {
 	universeDB              *sql.DB            // For querying securities (universe.db)
 	tradernetClient         domain.TradernetClientInterface
 	currencyExchangeService domain.CurrencyExchangeServiceInterface
+	settingsService         SettingsServiceInterface // For staleness threshold configuration
 	log                     zerolog.Logger
 }
 
@@ -52,6 +58,7 @@ func NewPortfolioService(
 	universeDB *sql.DB,
 	tradernetClient domain.TradernetClientInterface,
 	currencyExchangeService domain.CurrencyExchangeServiceInterface,
+	settingsService SettingsServiceInterface,
 	log zerolog.Logger,
 ) *PortfolioService {
 	return &PortfolioService{
@@ -61,6 +68,7 @@ func NewPortfolioService(
 		universeDB:              universeDB,
 		tradernetClient:         tradernetClient,
 		currencyExchangeService: currencyExchangeService,
+		settingsService:         settingsService,
 		log:                     log.With().Str("service", "portfolio").Logger(),
 	}
 }
@@ -79,6 +87,9 @@ func (s *PortfolioService) GetPortfolioSummary() (PortfolioSummary, error) {
 	if err != nil {
 		return PortfolioSummary{}, fmt.Errorf("failed to get positions: %w", err)
 	}
+
+	// Check for stale price data (warn only, don't block)
+	s.checkPriceStaleness(positions)
 
 	// Aggregate position values by country and industry
 	countryValues, industryValues, totalValue := s.aggregatePositionValues(positions)
@@ -649,4 +660,63 @@ func (s *PortfolioService) SyncFromTradernet() error {
 		Msg("Portfolio sync from Tradernet completed")
 
 	return nil
+}
+
+// checkPriceStaleness checks if any position prices are stale and logs warnings.
+// This is a soft check - it doesn't block operations, just provides visibility.
+func (s *PortfolioService) checkPriceStaleness(positions []PositionWithSecurity) {
+	// Get max price age from settings (default 48 hours)
+	maxAgeHours := 48.0
+	if s.settingsService != nil {
+		if val, err := s.settingsService.Get("max_price_age_hours"); err == nil {
+			if age, ok := val.(float64); ok {
+				maxAgeHours = age
+			}
+		}
+	}
+
+	now := time.Now()
+	staleCount := 0
+	var staleSymbols []string
+
+	for _, pos := range positions {
+		if pos.LastUpdated == nil {
+			// No update timestamp - warn about missing data
+			s.log.Warn().
+				Str("symbol", pos.Symbol).
+				Msg("Position has no price update timestamp")
+			staleCount++
+			staleSymbols = append(staleSymbols, pos.Symbol)
+			continue
+		}
+
+		// Calculate age in hours
+		lastUpdatedTime := time.Unix(*pos.LastUpdated, 0)
+		age := now.Sub(lastUpdatedTime).Hours()
+
+		if age > maxAgeHours {
+			s.log.Warn().
+				Str("symbol", pos.Symbol).
+				Float64("age_hours", age).
+				Float64("max_hours", maxAgeHours).
+				Time("last_updated", lastUpdatedTime).
+				Msg("Position price data is stale")
+			staleCount++
+			staleSymbols = append(staleSymbols, pos.Symbol)
+		}
+	}
+
+	if staleCount > 0 {
+		s.log.Warn().
+			Int("stale_count", staleCount).
+			Int("total_positions", len(positions)).
+			Strs("stale_symbols", staleSymbols).
+			Float64("max_age_hours", maxAgeHours).
+			Msg("Portfolio contains positions with stale price data - consider running price sync")
+	} else if len(positions) > 0 {
+		s.log.Debug().
+			Int("positions", len(positions)).
+			Float64("max_age_hours", maxAgeHours).
+			Msg("All position prices are fresh")
+	}
 }

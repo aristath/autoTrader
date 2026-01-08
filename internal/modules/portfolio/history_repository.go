@@ -152,3 +152,31 @@ func (r *HistoryRepository) GetLatestPrice() (*DailyPrice, error) {
 
 	return &price, nil
 }
+
+// GetLatestPriceWithStalenessCheck retrieves the most recent price and validates freshness
+// Returns error if price is stale (older than maxAgeHours)
+func (r *HistoryRepository) GetLatestPriceWithStalenessCheck(maxAgeHours float64) (*DailyPrice, error) {
+	// Get latest price
+	price, err := r.GetLatestPrice()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest price: %w", err)
+	}
+
+	if price == nil {
+		return nil, fmt.Errorf("no price data available for ISIN %s", r.isin)
+	}
+
+	// Parse price date
+	priceTime, err := time.Parse("2006-01-02", price.Date)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse price date %s: %w", price.Date, err)
+	}
+
+	// Check staleness
+	age := time.Since(priceTime).Hours()
+	if age > maxAgeHours {
+		return nil, fmt.Errorf("price data is stale (%.1f hours old, max %.1f hours allowed)", age, maxAgeHours)
+	}
+
+	return price, nil
+}

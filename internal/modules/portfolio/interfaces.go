@@ -51,6 +51,10 @@ type HistoryRepositoryInterface interface {
 
 	// GetLatestPrice retrieves the most recent price
 	GetLatestPrice() (*DailyPrice, error)
+
+	// GetLatestPriceWithStalenessCheck retrieves the most recent price and validates freshness
+	// Returns error if price is stale (older than maxAgeHours)
+	GetLatestPriceWithStalenessCheck(maxAgeHours float64) (*DailyPrice, error)
 }
 
 // Compile-time check that HistoryRepository implements HistoryRepositoryInterface

@@ -778,3 +778,194 @@ func isAlpha(s string) bool {
 	}
 	return true
 }
+
+// ============================================================================
+// Pending Retries Management (for failed trades with 7-hour retry interval)
+// ============================================================================
+
+// PendingRetry represents a trade that failed and needs to be retried
+type PendingRetry struct {
+	ID             int64
+	Symbol         string
+	Side           string
+	Quantity       float64
+	EstimatedPrice float64
+	Currency       string
+	Reason         string
+	FailureReason  string
+	AttemptCount   int
+	MaxAttempts    int
+	FailedAt       time.Time
+	NextRetryAt    time.Time
+	Status         string
+	CompletedAt    *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// CreatePendingRetry stores a failed trade for retry (7-hour interval, max 3 attempts)
+func (r *TradeRepository) CreatePendingRetry(retry PendingRetry) error {
+	now := time.Now()
+
+	// Calculate next retry time (7 hours from now)
+	nextRetryAt := now.Add(7 * time.Hour)
+
+	query := `
+		INSERT INTO pending_retries (
+			symbol, side, quantity, estimated_price, currency, reason,
+			failure_reason, attempt_count, max_attempts, failed_at, next_retry_at,
+			status, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+
+	_, err := r.ledgerDB.Exec(
+		query,
+		retry.Symbol,
+		retry.Side,
+		retry.Quantity,
+		retry.EstimatedPrice,
+		retry.Currency,
+		retry.Reason,
+		retry.FailureReason,
+		0, // Initial attempt count
+		retry.MaxAttempts,
+		now.Unix(),
+		nextRetryAt.Unix(),
+		"pending",
+		now.Unix(),
+		now.Unix(),
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to create pending retry: %w", err)
+	}
+
+	return nil
+}
+
+// GetPendingRetries retrieves all retries that are due for retry (next_retry_at <= now and status = 'pending')
+func (r *TradeRepository) GetPendingRetries() ([]PendingRetry, error) {
+	now := time.Now()
+
+	query := `
+		SELECT
+			id, symbol, side, quantity, estimated_price, currency, reason,
+			failure_reason, attempt_count, max_attempts, failed_at, next_retry_at,
+			status, completed_at, created_at, updated_at
+		FROM pending_retries
+		WHERE status = 'pending' AND next_retry_at <= ?
+		ORDER BY next_retry_at ASC
+	`
+
+	rows, err := r.ledgerDB.Query(query, now.Unix())
+	if err != nil {
+		return nil, fmt.Errorf("failed to query pending retries: %w", err)
+	}
+	defer rows.Close()
+
+	var retries []PendingRetry
+	for rows.Next() {
+		var retry PendingRetry
+		var completedAtUnix sql.NullInt64
+		var failedAtUnix, nextRetryAtUnix, createdAtUnix, updatedAtUnix int64
+
+		err := rows.Scan(
+			&retry.ID,
+			&retry.Symbol,
+			&retry.Side,
+			&retry.Quantity,
+			&retry.EstimatedPrice,
+			&retry.Currency,
+			&retry.Reason,
+			&retry.FailureReason,
+			&retry.AttemptCount,
+			&retry.MaxAttempts,
+			&failedAtUnix,
+			&nextRetryAtUnix,
+			&retry.Status,
+			&completedAtUnix,
+			&createdAtUnix,
+			&updatedAtUnix,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan pending retry: %w", err)
+		}
+
+		retry.FailedAt = time.Unix(failedAtUnix, 0)
+		retry.NextRetryAt = time.Unix(nextRetryAtUnix, 0)
+		retry.CreatedAt = time.Unix(createdAtUnix, 0)
+		retry.UpdatedAt = time.Unix(updatedAtUnix, 0)
+
+		if completedAtUnix.Valid {
+			completedAt := time.Unix(completedAtUnix.Int64, 0)
+			retry.CompletedAt = &completedAt
+		}
+
+		retries = append(retries, retry)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating pending retries: %w", err)
+	}
+
+	return retries, nil
+}
+
+// UpdateRetryStatus updates the status of a pending retry (succeeded, failed, abandoned)
+func (r *TradeRepository) UpdateRetryStatus(id int64, status string) error {
+	now := time.Now()
+
+	query := `
+		UPDATE pending_retries
+		SET status = ?, completed_at = ?, updated_at = ?
+		WHERE id = ?
+	`
+
+	_, err := r.ledgerDB.Exec(query, status, now.Unix(), now.Unix(), id)
+	if err != nil {
+		return fmt.Errorf("failed to update retry status: %w", err)
+	}
+
+	return nil
+}
+
+// IncrementRetryAttempt increments the attempt count and calculates next retry time
+// Returns error if max attempts reached
+func (r *TradeRepository) IncrementRetryAttempt(id int64) error {
+	now := time.Now()
+
+	// Get current retry info
+	var attemptCount, maxAttempts int
+	err := r.ledgerDB.QueryRow(
+		"SELECT attempt_count, max_attempts FROM pending_retries WHERE id = ?",
+		id,
+	).Scan(&attemptCount, &maxAttempts)
+
+	if err != nil {
+		return fmt.Errorf("failed to get retry info: %w", err)
+	}
+
+	newAttemptCount := attemptCount + 1
+
+	// Check if max attempts reached
+	if newAttemptCount >= maxAttempts {
+		// Mark as failed (max attempts exhausted)
+		return r.UpdateRetryStatus(id, "failed")
+	}
+
+	// Calculate next retry time (7 hours from now)
+	nextRetryAt := now.Add(7 * time.Hour)
+
+	query := `
+		UPDATE pending_retries
+		SET attempt_count = ?, next_retry_at = ?, updated_at = ?
+		WHERE id = ?
+	`
+
+	_, err = r.ledgerDB.Exec(query, newAttemptCount, nextRetryAt.Unix(), now.Unix(), id)
+	if err != nil {
+		return fmt.Errorf("failed to increment retry attempt: %w", err)
+	}
+
+	return nil
+}

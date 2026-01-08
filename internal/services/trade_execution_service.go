@@ -7,14 +7,19 @@
 package services
 
 import (
+	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aristath/sentinel/internal/clients/tradernet"
+	"github.com/aristath/sentinel/internal/clients/yahoo"
 	"github.com/aristath/sentinel/internal/domain"
 	"github.com/aristath/sentinel/internal/events"
 	"github.com/aristath/sentinel/internal/modules/portfolio"
+	"github.com/aristath/sentinel/internal/modules/settings"
 	"github.com/aristath/sentinel/internal/modules/trading"
+	"github.com/aristath/sentinel/internal/modules/universe"
 	"github.com/rs/zerolog"
 )
 
@@ -25,6 +30,10 @@ import (
 // TradeRepositoryInterface defines the interface for trade persistence
 type TradeRepositoryInterface interface {
 	Create(trade trading.Trade) error
+	CreatePendingRetry(retry trading.PendingRetry) error
+	GetPendingRetries() ([]trading.PendingRetry, error)
+	UpdateRetryStatus(id int64, status string) error
+	IncrementRetryAttempt(id int64) error
 }
 
 // TradeRecommendation represents a simplified trade recommendation for execution
@@ -59,6 +68,10 @@ type TradeExecutionService struct {
 	cashManager     domain.CashManager
 	exchangeService domain.CurrencyExchangeServiceInterface
 	eventManager    *events.Manager
+	settingsService *settings.Service        // For max_price_age_hours configuration
+	yahooClient     yahoo.FullClientInterface // For fetching fresh prices
+	historyDB       *sql.DB                   // For storing updated prices
+	securityRepo    *universe.SecurityRepository // For ISIN lookup
 	log             zerolog.Logger
 }
 
@@ -77,6 +90,10 @@ func NewTradeExecutionService(
 	cashManager domain.CashManager,
 	exchangeService domain.CurrencyExchangeServiceInterface,
 	eventManager *events.Manager,
+	settingsService *settings.Service,
+	yahooClient yahoo.FullClientInterface,
+	historyDB *sql.DB,
+	securityRepo *universe.SecurityRepository,
 	log zerolog.Logger,
 ) *TradeExecutionService {
 	return &TradeExecutionService{
@@ -86,6 +103,10 @@ func NewTradeExecutionService(
 		cashManager:     cashManager,
 		exchangeService: exchangeService,
 		eventManager:    eventManager,
+		settingsService: settingsService,
+		yahooClient:     yahooClient,
+		historyDB:       historyDB,
+		securityRepo:    securityRepo,
 		log:             log.With().Str("service", "trade_execution").Logger(),
 	}
 }
@@ -147,6 +168,15 @@ func (s *TradeExecutionService) executeSingleTrade(rec TradeRecommendation) Exec
 		return ExecuteResult{Symbol: rec.Symbol, Status: "error", Error: &errMsg}
 	}
 
+	// Price staleness validation (with auto-refresh if stale)
+	if validationErr := s.validatePriceFreshness(rec); validationErr != nil {
+		s.log.Warn().
+			Str("symbol", rec.Symbol).
+			Str("error", *validationErr.Error).
+			Msg("Trade blocked by price staleness check")
+		return *validationErr
+	}
+
 	// Pre-trade validation for BUY orders
 	if rec.Side == "BUY" {
 		if validationErr := s.validateBuyCashBalance(rec); validationErr != nil {
@@ -170,6 +200,24 @@ func (s *TradeExecutionService) executeSingleTrade(rec TradeRecommendation) Exec
 			Err(err).
 			Str("symbol", rec.Symbol).
 			Msg("Failed to place order")
+
+		// Check if error is market-hours related (should retry after 7 hours)
+		errorMsg := err.Error()
+		if s.isMarketHoursError(errorMsg) {
+			s.log.Info().
+				Str("symbol", rec.Symbol).
+				Str("error", errorMsg).
+				Msg("Market hours error detected - storing for retry in 7 hours")
+
+			// Store for retry
+			if retryErr := s.storePendingRetry(rec, errorMsg); retryErr != nil {
+				s.log.Error().
+					Err(retryErr).
+					Str("symbol", rec.Symbol).
+					Msg("Failed to store pending retry")
+			}
+		}
+
 		errMsg := err.Error()
 		return ExecuteResult{
 			Symbol: rec.Symbol,
@@ -293,6 +341,11 @@ func (s *TradeExecutionService) calculateCommission(
 // Faithful translation from Python:
 // app/modules/trading/services/trade_execution_service.py:152-217
 func (s *TradeExecutionService) validateBuyCashBalance(rec TradeRecommendation) *ExecuteResult {
+	// Skip validation for SELL orders (defensive check)
+	if rec.Side == "SELL" {
+		return nil
+	}
+
 	// Get current balance for the trade currency
 	// Use CashSecurityManager directly
 	if s.cashManager == nil {
@@ -372,4 +425,169 @@ func (s *TradeExecutionService) validateBuyCashBalance(rec TradeRecommendation) 
 
 	// All checks passed
 	return nil
+}
+
+// validatePriceFreshness validates that price data is fresh, attempts auto-refresh if stale.
+//
+// Three-stage process:
+// 1. Check if price is stale (older than max_price_age_hours from settings, default 48h)
+// 2. If stale: Attempt to fetch fresh price from Yahoo Finance
+// 3. If fetch succeeds: Store in history.db and proceed. If fetch fails: Block trade
+//
+// Returns *ExecuteResult if validation fails (stale and refresh failed), nil if OK to proceed
+func (s *TradeExecutionService) validatePriceFreshness(rec TradeRecommendation) *ExecuteResult {
+	// Get max price age from settings (default 48 hours)
+	maxAgeHours := 48.0
+	if s.settingsService != nil {
+		if val, err := s.settingsService.Get("max_price_age_hours"); err == nil {
+			if age, ok := val.(float64); ok {
+				maxAgeHours = age
+			}
+		}
+	}
+
+	// Skip staleness check if required dependencies unavailable (degrade gracefully)
+	if s.securityRepo == nil || s.historyDB == nil {
+		s.log.Warn().Msg("Price staleness check skipped: dependencies unavailable")
+		return nil
+	}
+
+	// Get ISIN for symbol
+	security, err := s.securityRepo.GetBySymbol(rec.Symbol)
+	if err != nil {
+		s.log.Warn().
+			Err(err).
+			Str("symbol", rec.Symbol).
+			Msg("Failed to lookup security for staleness check, allowing trade")
+		return nil
+	}
+
+	if security == nil || security.ISIN == "" {
+		s.log.Warn().
+			Str("symbol", rec.Symbol).
+			Msg("No ISIN found for symbol, skipping staleness check")
+		return nil
+	}
+
+	// Create history repository for this ISIN
+	historyRepo := portfolio.NewHistoryRepository(security.ISIN, s.historyDB, s.log)
+
+	// Check price staleness
+	_, err = historyRepo.GetLatestPriceWithStalenessCheck(maxAgeHours)
+	if err == nil {
+		// Price is fresh, proceed with trade
+		return nil
+	}
+
+	// Price is stale, attempt to refresh
+	s.log.Warn().
+		Err(err).
+		Str("symbol", rec.Symbol).
+		Str("isin", security.ISIN).
+		Msg("Price data is stale, attempting to refresh from Yahoo Finance")
+
+	// Fetch fresh price from Yahoo Finance
+	if s.yahooClient == nil {
+		s.log.Error().Msg("Yahoo client unavailable, cannot refresh stale price")
+		errMsg := fmt.Sprintf("Price data is stale and refresh unavailable (Yahoo client not configured)")
+		return &ExecuteResult{
+			Symbol: rec.Symbol,
+			Status: "blocked",
+			Error:  &errMsg,
+		}
+	}
+
+	// Get current price from Yahoo
+	var yahooSymbolPtr *string
+	if security.YahooSymbol != "" {
+		yahooSymbolPtr = &security.YahooSymbol
+	}
+	currentPrice, err := s.yahooClient.GetCurrentPrice(rec.Symbol, yahooSymbolPtr, 3)
+	if err != nil || currentPrice == nil {
+		s.log.Error().
+			Err(err).
+			Str("symbol", rec.Symbol).
+			Msg("Failed to fetch fresh price from Yahoo Finance")
+		errMsg := fmt.Sprintf("Price data is stale (older than %.0f hours) and refresh failed", maxAgeHours)
+		return &ExecuteResult{
+			Symbol: rec.Symbol,
+			Status: "blocked",
+			Error:  &errMsg,
+		}
+	}
+
+	// Store fresh price in history.db
+	now := time.Now()
+	todayStr := now.Format("2006-01-02")
+
+	// Insert or update today's price
+	insertQuery := `
+		INSERT OR REPLACE INTO daily_prices (isin, date, close, open, high, low, volume)
+		VALUES (?, ?, ?, ?, ?, ?, 0)
+	`
+
+	dateUnix := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).Unix()
+	_, err = s.historyDB.Exec(insertQuery, security.ISIN, dateUnix, *currentPrice, *currentPrice, *currentPrice, *currentPrice)
+	if err != nil {
+		s.log.Warn().
+			Err(err).
+			Str("symbol", rec.Symbol).
+			Float64("price", *currentPrice).
+			Msg("Failed to store refreshed price in history.db, but proceeding with trade")
+		// Don't block trade if storage fails - we have the fresh price
+	} else {
+		s.log.Info().
+			Str("symbol", rec.Symbol).
+			Str("date", todayStr).
+			Float64("price", *currentPrice).
+			Msg("Successfully refreshed stale price from Yahoo Finance")
+	}
+
+	// Fresh price obtained, allow trade to proceed
+	return nil
+}
+
+// isMarketHoursError checks if an error message indicates a market hours issue
+func (s *TradeExecutionService) isMarketHoursError(errorMsg string) bool {
+	// Common market hours error patterns
+	marketHoursPatterns := []string{
+		"market closed",
+		"market is closed",
+		"trading hours",
+		"outside trading hours",
+		"market not open",
+		"exchange closed",
+		"trading session closed",
+		"after hours",
+		"pre-market",
+	}
+
+	errorLower := strings.ToLower(errorMsg)
+	for _, pattern := range marketHoursPatterns {
+		if strings.Contains(errorLower, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// storePendingRetry stores a failed trade for retry (7-hour interval, max 3 attempts)
+func (s *TradeExecutionService) storePendingRetry(rec TradeRecommendation, failureReason string) error {
+	if s.tradeRepo == nil {
+		return fmt.Errorf("trade repository not available")
+	}
+
+	retry := trading.PendingRetry{
+		Symbol:         rec.Symbol,
+		Side:           rec.Side,
+		Quantity:       rec.Quantity,
+		EstimatedPrice: rec.EstimatedPrice,
+		Currency:       rec.Currency,
+		Reason:         rec.Reason,
+		FailureReason:  failureReason,
+		MaxAttempts:    3, // Default max attempts
+	}
+
+	return s.tradeRepo.CreatePendingRetry(retry)
 }
