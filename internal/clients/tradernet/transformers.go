@@ -2,6 +2,7 @@ package tradernet
 
 import (
 	"fmt"
+	"strings"
 )
 
 // transformPositions transforms SDK AccountSummary positions to []Position
@@ -168,7 +169,8 @@ func transformPendingOrders(sdkResult interface{}) ([]PendingOrder, error) {
 
 		order := PendingOrder{
 			OrderID:  orderID,
-			Symbol:   getString(orderMap, "i"),
+			Symbol:   getSymbol(orderMap),     // Use helper with fallback
+			Side:     convertSide(orderMap),   // Extract side (was missing)
 			Quantity: getFloat64(orderMap, "q"),
 			Price:    getFloat64(orderMap, "p"),
 			Currency: getString(orderMap, "curr"),
@@ -327,11 +329,11 @@ func transformTrades(sdkResult interface{}) ([]Trade, error) {
 
 		trade := Trade{
 			OrderID:    orderID,
-			Symbol:     getString(itemMap, "i"),
-			Side:       getString(itemMap, "side"),
+			Symbol:     getSymbol(itemMap),       // Use helper with fallback
+			Side:       convertSide(itemMap),     // Convert type field
 			Quantity:   getFloat64(itemMap, "q"),
 			Price:      getFloat64(itemMap, "p"),
-			ExecutedAt: getString(itemMap, "executed_at"),
+			ExecutedAt: getExecutedAt(itemMap),   // Use helper with fallback
 		}
 
 		trades = append(trades, trade)
@@ -577,4 +579,62 @@ func getFloat64FromValue(val interface{}) float64 {
 	default:
 		return 0.0
 	}
+}
+
+// getSymbol extracts symbol with fallback (instr_nm → i → instr_name)
+func getSymbol(m map[string]interface{}) string {
+	// Try instr_nm first (most trades use this)
+	if val := getString(m, "instr_nm"); val != "" {
+		return val
+	}
+	// Try instr_name (pending orders use this)
+	if val := getString(m, "instr_name"); val != "" {
+		return val
+	}
+	// Fallback to i (older format)
+	return getString(m, "i")
+}
+
+// getExecutedAt extracts date with fallback (date → d → executed_at)
+func getExecutedAt(m map[string]interface{}) string {
+	if val := getString(m, "date"); val != "" {
+		return val
+	}
+	if val := getString(m, "d"); val != "" {
+		return val
+	}
+	return getString(m, "executed_at")
+}
+
+// convertSide converts API type field to BUY/SELL
+// Handles: type="1" → BUY, type="2" → SELL, buy_sell="buy"/"BUY" → BUY, etc.
+func convertSide(m map[string]interface{}) string {
+	// Try "type" field first (trades use numeric codes)
+	if typeVal := getString(m, "type"); typeVal != "" {
+		switch typeVal {
+		case TradernetOrderTypeBuy:
+			return OrderSideBuy
+		case TradernetOrderTypeSell:
+			return OrderSideSell
+		}
+	}
+
+	// Try "buy_sell" field (pending orders use this, can be lowercase or uppercase)
+	if sideVal := getString(m, "buy_sell"); sideVal != "" {
+		// Normalize to uppercase to handle "buy"/"BUY" and "sell"/"SELL"
+		upper := strings.ToUpper(sideVal)
+		if upper == OrderSideBuy || upper == OrderSideSell {
+			return upper
+		}
+	}
+
+	// Try "side" field as fallback (normalize to uppercase)
+	if sideVal := getString(m, "side"); sideVal != "" {
+		upper := strings.ToUpper(sideVal)
+		if upper == OrderSideBuy || upper == OrderSideSell {
+			return upper
+		}
+	}
+
+	return ""
 }
