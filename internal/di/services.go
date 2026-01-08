@@ -523,32 +523,6 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 	backupDir := dataDir + "/backups"
 	container.BackupService = reliability.NewBackupService(databases, dataDir, backupDir, log)
 
-	// Initialize R2 backup service (optional - only if R2 configured)
-	r2AccountID, _ := container.SettingsRepo.Get("r2_account_id")
-	r2AccessKeyID, _ := container.SettingsRepo.Get("r2_access_key_id")
-	r2SecretAccessKey, _ := container.SettingsRepo.Get("r2_secret_access_key")
-	r2BucketName, _ := container.SettingsRepo.Get("r2_bucket_name")
-
-	if r2AccountID != nil && *r2AccountID != "" &&
-		r2AccessKeyID != nil && *r2AccessKeyID != "" &&
-		r2SecretAccessKey != nil && *r2SecretAccessKey != "" &&
-		r2BucketName != nil && *r2BucketName != "" {
-		r2Client, err := reliability.NewR2Client(*r2AccountID, *r2AccessKeyID,
-			*r2SecretAccessKey, *r2BucketName, log)
-		if err == nil {
-			container.R2Client = r2Client
-			container.R2BackupService = reliability.NewR2BackupService(
-				r2Client, container.BackupService, dataDir, log)
-			container.RestoreService = reliability.NewRestoreService(
-				r2Client, dataDir, log)
-			log.Info().Msg("R2 backup service initialized")
-		} else {
-			log.Warn().Err(err).Msg("Failed to initialize R2 client - R2 backups disabled")
-		}
-	} else {
-		log.Debug().Msg("R2 credentials not configured - R2 backups disabled")
-	}
-
 	// ==========================================
 	// STEP 14: Initialize Concentration Alert Service
 	// ==========================================
