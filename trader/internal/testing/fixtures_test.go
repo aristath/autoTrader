@@ -4,9 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aristath/sentinel/internal/modules/portfolio"
 	"github.com/aristath/sentinel/internal/modules/trading"
-	"github.com/aristath/sentinel/internal/modules/universe"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -135,9 +133,9 @@ func TestNewCashFlowFixtures(t *testing.T) {
 	// Verify all fixtures are valid
 	for _, cf := range fixtures {
 		assert.NotEmpty(t, cf.TransactionID, "Cash flow should have transaction ID")
-		assert.NotEmpty(t, cf.Type, "Cash flow should have type")
+		assert.NotNil(t, cf.TransactionType, "Cash flow should have transaction type")
 		assert.NotEqual(t, 0.0, cf.Amount, "Cash flow should have non-zero amount")
-		assert.False(t, cf.Date.IsZero(), "Cash flow should have date")
+		assert.NotEmpty(t, cf.Date, "Cash flow should have date")
 	}
 }
 
@@ -148,7 +146,9 @@ func TestNewCashFlowFixtures_DiverseTypes(t *testing.T) {
 	// Collect types
 	types := make(map[string]bool)
 	for _, cf := range fixtures {
-		types[cf.Type] = true
+		if cf.TransactionType != nil {
+			types[*cf.TransactionType] = true
+		}
 	}
 
 	// Verify diversity
@@ -163,16 +163,18 @@ func TestNewCashFlowFixtures_DateRange(t *testing.T) {
 		t.Skip("Need at least 2 cash flows to test date range")
 	}
 
-	// Find min and max dates
-	minDate := fixtures[0].Date
-	maxDate := fixtures[0].Date
+	// Parse dates and find min and max
+	minDate, _ := time.Parse("2006-01-02", fixtures[0].Date)
+	maxDate := minDate
 
 	for _, cf := range fixtures {
-		if cf.Date.Before(minDate) {
-			minDate = cf.Date
+		date, err := time.Parse("2006-01-02", cf.Date)
+		require.NoError(t, err)
+		if date.Before(minDate) {
+			minDate = date
 		}
-		if cf.Date.After(maxDate) {
-			maxDate = cf.Date
+		if date.After(maxDate) {
+			maxDate = date
 		}
 	}
 
@@ -190,7 +192,7 @@ func TestNewDividendFixtures(t *testing.T) {
 	for _, div := range fixtures {
 		assert.NotEmpty(t, div.Symbol, "Dividend should have symbol")
 		assert.Greater(t, div.Amount, 0.0, "Dividend should have positive amount")
-		assert.False(t, div.PaymentDate.IsZero(), "Dividend should have payment date")
+		assert.NotNil(t, div.PaymentDate, "Dividend should have payment date")
 	}
 }
 
@@ -203,7 +205,8 @@ func TestNewAllocationTargetFixtures(t *testing.T) {
 	// Verify all fixtures are valid
 	totalPct := 0.0
 	for _, target := range fixtures {
-		assert.NotEmpty(t, target.GroupName, "Target should have group name")
+		assert.NotEmpty(t, target.Name, "Target should have name")
+		assert.NotEmpty(t, target.Type, "Target should have type")
 		assert.GreaterOrEqual(t, target.TargetPct, 0.0, "Target percentage should be non-negative")
 		assert.LessOrEqual(t, target.TargetPct, 1.0, "Target percentage should be <= 1.0")
 		totalPct += target.TargetPct

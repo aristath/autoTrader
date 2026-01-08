@@ -1,7 +1,6 @@
 package testing
 
 import (
-	"database/sql"
 	"testing"
 
 	"github.com/aristath/sentinel/internal/database"

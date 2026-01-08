@@ -3,11 +3,9 @@ package testing
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/aristath/sentinel/internal/domain"
 	"github.com/aristath/sentinel/internal/modules/allocation"
-	planningdomain "github.com/aristath/sentinel/internal/modules/planning/domain"
 	"github.com/aristath/sentinel/internal/modules/portfolio"
 	"github.com/aristath/sentinel/internal/modules/trading"
 	"github.com/aristath/sentinel/internal/modules/universe"
@@ -241,8 +239,8 @@ func TestNewMockAllocationTargetProvider(t *testing.T) {
 func TestNewMockAllocationTargetProvider_WithTargets(t *testing.T) {
 	mock := NewMockAllocationTargetProvider()
 	testTargets := []allocation.AllocationTarget{
-		{GroupName: "EU", TargetPct: 0.40},
-		{GroupName: "US", TargetPct: 0.60},
+		{Type: "country", Name: "EU", TargetPct: 0.40},
+		{Type: "country", Name: "US", TargetPct: 0.60},
 	}
 	mock.SetTargets(testTargets)
 
@@ -250,8 +248,8 @@ func TestNewMockAllocationTargetProvider_WithTargets(t *testing.T) {
 	targets, err := mock.GetAll()
 	require.NoError(t, err)
 	require.Equal(t, 2, len(targets))
-	assert.Equal(t, "EU", targets[0].GroupName)
-	assert.Equal(t, 0.40, targets[0].TargetPct)
+	assert.Equal(t, 0.40, targets["country:EU"])
+	assert.Equal(t, 0.60, targets["country:US"])
 }
 
 // TestNewMockPortfolioSummaryProvider tests that NewMockPortfolioSummaryProvider creates a valid mock
@@ -272,10 +270,10 @@ func TestNewMockPortfolioSummaryProvider(t *testing.T) {
 // TestNewMockPortfolioSummaryProvider_WithSummary tests mock with configured summary
 func TestNewMockPortfolioSummaryProvider_WithSummary(t *testing.T) {
 	mock := NewMockPortfolioSummaryProvider()
-	testSummary := allocation.PortfolioSummary{
+	testSummary := domain.PortfolioSummary{
 		TotalValue: 10000.0,
 		CashBalance: 1000.0,
-		CountryAllocations: []allocation.CountryAllocation{
+		CountryAllocations: []domain.PortfolioAllocation{
 			{Name: "EU", CurrentPct: 0.40},
 			{Name: "US", CurrentPct: 0.60},
 		},
