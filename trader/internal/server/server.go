@@ -40,6 +40,7 @@ import (
 	"github.com/aristath/sentinel/internal/modules/portfolio"
 	portfoliohandlers "github.com/aristath/sentinel/internal/modules/portfolio/handlers"
 	"github.com/aristath/sentinel/internal/modules/rebalancing"
+	rebalancinghandlers "github.com/aristath/sentinel/internal/modules/rebalancing/handlers"
 	scoringhandlers "github.com/aristath/sentinel/internal/modules/scoring/api/handlers"
 	settingshandlers "github.com/aristath/sentinel/internal/modules/settings/handlers"
 	tradinghandlers "github.com/aristath/sentinel/internal/modules/trading/handlers"
@@ -522,7 +523,7 @@ func (s *Server) setupRoutes() {
 		rebalancingCashManager := s.container.CashManager
 		rebalancingPortfolioService := s.container.PortfolioService
 		rebalancingService := s.container.RebalancingService
-		rebalancingHandlers := rebalancing.NewHandlers(
+		rebalancingHandlers := rebalancinghandlers.NewHandlers(
 			rebalancingService,
 			rebalancingPortfolioService,
 			rebalancingTradernetClient,

@@ -3,6 +3,7 @@ package server
 
 import (
 	"github.com/aristath/sentinel/internal/modules/symbolic_regression"
+	symbolicregressionhandlers "github.com/aristath/sentinel/internal/modules/symbolic_regression/handlers"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -29,7 +30,7 @@ func (s *Server) setupSymbolicRegressionRoutes(r chi.Router) {
 	)
 
 	// Initialize handlers
-	handlers := symbolic_regression.NewHandlers(
+	handlers := symbolicregressionhandlers.NewHandlers(
 		formulaStorage,
 		discoveryService,
 		dataPrep,

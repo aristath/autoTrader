@@ -1,4 +1,5 @@
-package symbolic_regression
+// Package handlers provides HTTP handlers for symbolic regression API.
+package handlers
 
 import (
 	"encoding/json"
@@ -6,23 +7,24 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/aristath/sentinel/internal/modules/symbolic_regression"
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
 )
 
 // Handlers provides HTTP handlers for symbolic regression API
 type Handlers struct {
-	storage   *FormulaStorage
-	discovery *DiscoveryService
-	dataPrep  *DataPrep
+	storage   *symbolic_regression.FormulaStorage
+	discovery *symbolic_regression.DiscoveryService
+	dataPrep  *symbolic_regression.DataPrep
 	log       zerolog.Logger
 }
 
 // NewHandlers creates new symbolic regression handlers
 func NewHandlers(
-	storage *FormulaStorage,
-	discovery *DiscoveryService,
-	dataPrep *DataPrep,
+	storage *symbolic_regression.FormulaStorage,
+	discovery *symbolic_regression.DiscoveryService,
+	dataPrep *symbolic_regression.DataPrep,
 	log zerolog.Logger,
 ) *Handlers {
 	return &Handlers{
@@ -44,8 +46,8 @@ func (h *Handlers) HandleListFormulas(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	formulaType := FormulaType(formulaTypeStr)
-	securityType := SecurityType(securityTypeStr)
+	formulaType := symbolic_regression.FormulaType(formulaTypeStr)
+	securityType := symbolic_regression.SecurityType(securityTypeStr)
 
 	formulas, err := h.storage.GetAllFormulas(formulaType, securityType)
 	if err != nil {
@@ -72,8 +74,8 @@ func (h *Handlers) HandleGetActiveFormula(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	formulaType := FormulaType(formulaTypeStr)
-	securityType := SecurityType(securityTypeStr)
+	formulaType := symbolic_regression.FormulaType(formulaTypeStr)
+	securityType := symbolic_regression.SecurityType(securityTypeStr)
 
 	var regimePtr *float64
 	if regimeScoreStr != "" {
@@ -157,14 +159,14 @@ func (h *Handlers) HandleRunDiscovery(w http.ResponseWriter, r *http.Request) {
 
 	// Run discovery
 	// Use default regime ranges for regime-specific discovery
-	regimeRanges := DefaultRegimeRanges()
+	regimeRanges := symbolic_regression.DefaultRegimeRanges()
 
-	var discoveredFormulas []*DiscoveredFormula
+	var discoveredFormulas []*symbolic_regression.DiscoveredFormula
 	var err error
 
-	securityType := SecurityType(req.SecurityType)
+	securityType := symbolic_regression.SecurityType(req.SecurityType)
 
-	if req.FormulaType == string(FormulaTypeExpectedReturn) {
+	if req.FormulaType == string(symbolic_regression.FormulaTypeExpectedReturn) {
 		discoveredFormulas, err = h.discovery.DiscoverExpectedReturnFormula(
 			securityType,
 			req.StartDate,
@@ -172,7 +174,7 @@ func (h *Handlers) HandleRunDiscovery(w http.ResponseWriter, r *http.Request) {
 			req.ForwardMonths,
 			regimeRanges, // Discover separate formulas for each regime
 		)
-	} else if req.FormulaType == string(FormulaTypeScoring) {
+	} else if req.FormulaType == string(symbolic_regression.FormulaTypeScoring) {
 		discoveredFormulas, err = h.discovery.DiscoverScoringFormula(
 			securityType,
 			req.StartDate,

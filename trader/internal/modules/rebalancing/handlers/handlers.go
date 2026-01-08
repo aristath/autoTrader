@@ -1,5 +1,5 @@
-// Package rebalancing provides portfolio rebalancing functionality.
-package rebalancing
+// Package handlers provides HTTP handlers for portfolio rebalancing functionality.
+package handlers
 
 import (
 	"encoding/json"
@@ -10,6 +10,7 @@ import (
 	"github.com/aristath/sentinel/internal/domain"
 	"github.com/aristath/sentinel/internal/modules/allocation"
 	"github.com/aristath/sentinel/internal/modules/portfolio"
+	"github.com/aristath/sentinel/internal/modules/rebalancing"
 	"github.com/aristath/sentinel/internal/services"
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/zerolog"
@@ -17,7 +18,7 @@ import (
 
 // Handlers provides HTTP handlers for rebalancing endpoints
 type Handlers struct {
-	service                 *Service
+	service                 *rebalancing.Service
 	portfolioService        *portfolio.PortfolioService
 	tradernetClient         *tradernet.Client
 	currencyExchangeService *services.CurrencyExchangeService
@@ -188,7 +189,7 @@ type CalculateTradesRequest struct {
 
 // CalculateTradesResponse is the response for calculating trades
 type CalculateTradesResponse struct {
-	Trades []RebalanceRecommendation `json:"trades"`
+	Trades []rebalancing.RebalanceRecommendation `json:"trades"`
 }
 
 // CalculateTrades calculates optimal rebalancing trades

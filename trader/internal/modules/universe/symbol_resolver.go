@@ -53,11 +53,22 @@ func (s *SymbolInfo) HasISIN() bool {
 // Faithful translation from Python: app/modules/universe/domain/symbol_resolver.py -> TRADERNET_SUFFIX_PATTERN
 var tradernetSuffixPattern = regexp.MustCompile(`\.[A-Z]{2,3}$`)
 
-// IsISIN checks if identifier is an ISIN
+// isinPattern is the regex pattern for validating ISIN format
+var isinPattern = regexp.MustCompile(`^[A-Z]{2}[A-Z0-9]{9}[0-9]$`)
+
+// isISIN checks if identifier is a valid ISIN (package-level, unexported)
 // Faithful translation from Python: app/modules/universe/domain/symbol_resolver.py -> is_isin()
-// Note: Uses the same logic as isISIN() in handlers.go, but exported for use outside the package
+func isISIN(identifier string) bool {
+	identifier = strings.TrimSpace(strings.ToUpper(identifier))
+	if len(identifier) != 12 {
+		return false
+	}
+	return isinPattern.MatchString(identifier)
+}
+
+// IsISIN checks if identifier is an ISIN (exported)
+// Faithful translation from Python: app/modules/universe/domain/symbol_resolver.py -> is_isin()
 func IsISIN(identifier string) bool {
-	// Use the existing isISIN function from handlers.go (package-level function)
 	return isISIN(identifier)
 }
 
