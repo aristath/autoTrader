@@ -159,10 +159,6 @@ export const eventHandlers = {
     useAppStore.getState().fetchTradernet();
   },
 
-  MARKETS_STATUS_CHANGED: () => {
-    useAppStore.getState().fetchMarkets();
-  },
-
   // Logs events
   LOG_FILE_CHANGED: (event) => {
     if (!event || !event.data) {
