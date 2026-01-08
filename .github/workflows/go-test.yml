@@ -19,7 +19,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     steps:
     - uses: actions/checkout@v4
@@ -72,9 +76,21 @@ jobs:
 
         echo "✓ Files prepared for embedding"
 
-    - name: Run tests
+    - name: Run tests (shard ${{ matrix.shard }}/4)
+      run: |
+        # Get all packages and split into 4 shards
+        PACKAGES=$(go list ./... | grep -v "/cmd/" | sort)
+        TOTAL=$(echo "$PACKAGES" | wc -l)
+        PER_SHARD=$(( (TOTAL + 3) / 4 ))  # Round up
+        START=$(( (matrix.shard - 1) * PER_SHARD + 1 ))
 
-      run: go test -tags=!integration ./...
+        # Get packages for this shard
+        SHARD_PACKAGES=$(echo "$PACKAGES" | sed -n "${START},$((START + PER_SHARD - 1))p")
+
+        if [ -n "$SHARD_PACKAGES" ]; then
+          echo "Testing shard ${{ matrix.shard }}/4 (packages $START to $((START + PER_SHARD - 1)))"
+          echo "$SHARD_PACKAGES" | xargs go test -tags=!integration
+        fi
       continue-on-error: false
 
     - name: Upload coverage to Codecov
