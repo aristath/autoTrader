@@ -341,22 +341,29 @@ func transformTrades(sdkResult interface{}) ([]Trade, error) {
 }
 
 // transformSecurityInfo transforms SDK FindSymbol to []SecurityInfo
+// Handles both normalized format ({"result": [...]}) and raw API format ({"found": [...]})
+// Maps short field names from API ("t", "nm", "x_curr", etc.) to expected field names
 func transformSecurityInfo(sdkResult interface{}) ([]SecurityInfo, error) {
 	resultMap, ok := sdkResult.(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("invalid SDK result format: expected map[string]interface{}")
 	}
 
-	// Handle empty or null result
-	result, ok := resultMap["result"]
-	if !ok || result == nil {
+	// Handle both "result" (normalized) and "found" (raw API response from tickerFinder)
+	var result interface{}
+	var okResult bool
+	if result, okResult = resultMap["found"]; !okResult || result == nil {
+		// Fallback to "result" for normalized responses
+		result, okResult = resultMap["result"]
+	}
+	if !okResult || result == nil {
 		// Empty result - return empty array
 		return []SecurityInfo{}, nil
 	}
 
 	resultArray, ok := result.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("invalid SDK result format: 'result' must be array, got %T", result)
+		return nil, fmt.Errorf("invalid SDK result format: 'found'/'result' must be array, got %T", result)
 	}
 
 	securities := make([]SecurityInfo, 0, len(resultArray))
@@ -366,38 +373,81 @@ func transformSecurityInfo(sdkResult interface{}) ([]SecurityInfo, error) {
 			continue
 		}
 
-		sec := SecurityInfo{
-			Symbol: getString(itemMap, "symbol"),
+		// Map field names: API uses short names ("t", "nm", "x_curr") but also supports full names
+		// Try short names first (raw API format), fallback to full names (normalized format)
+		symbol := getString(itemMap, "t") // Short form
+		if symbol == "" {
+			symbol = getString(itemMap, "symbol") // Full form (normalized)
 		}
 
-		// Handle optional fields
-		if name, exists := itemMap["name"]; exists && name != nil {
-			if nameStr, ok := name.(string); ok {
+		if symbol == "" {
+			continue // Skip items without symbol
+		}
+
+		sec := SecurityInfo{
+			Symbol: symbol,
+		}
+
+		// Name: "nm" (short) or "name" (full)
+		if nameVal, exists := itemMap["nm"]; exists && nameVal != nil {
+			if nameStr, ok := nameVal.(string); ok && nameStr != "" {
 				sec.Name = &nameStr
 			}
 		}
+		if sec.Name == nil {
+			if nameVal, exists := itemMap["name"]; exists && nameVal != nil {
+				if nameStr, ok := nameVal.(string); ok && nameStr != "" {
+					sec.Name = &nameStr
+				}
+			}
+		}
 
+		// ISIN: same in both formats
 		if isin, exists := itemMap["isin"]; exists && isin != nil {
-			if isinStr, ok := isin.(string); ok {
+			if isinStr, ok := isin.(string); ok && isinStr != "" {
 				sec.ISIN = &isinStr
 			}
 		}
 
-		if currency, exists := itemMap["currency"]; exists && currency != nil {
-			if currencyStr, ok := currency.(string); ok {
-				sec.Currency = &currencyStr
+		// Currency: "x_curr" (short) or "currency" (full)
+		if currVal, exists := itemMap["x_curr"]; exists && currVal != nil {
+			if currStr, ok := currVal.(string); ok && currStr != "" {
+				sec.Currency = &currStr
+			}
+		}
+		if sec.Currency == nil {
+			if currVal, exists := itemMap["currency"]; exists && currVal != nil {
+				if currStr, ok := currVal.(string); ok && currStr != "" {
+					sec.Currency = &currStr
+				}
 			}
 		}
 
-		if market, exists := itemMap["market"]; exists && market != nil {
-			if marketStr, ok := market.(string); ok {
-				sec.Market = &marketStr
+		// Market: "mkt" (short) or "market" (full)
+		if mktVal, exists := itemMap["mkt"]; exists && mktVal != nil {
+			if mktStr, ok := mktVal.(string); ok && mktStr != "" {
+				sec.Market = &mktStr
+			}
+		}
+		if sec.Market == nil {
+			if mktVal, exists := itemMap["market"]; exists && mktVal != nil {
+				if mktStr, ok := mktVal.(string); ok && mktStr != "" {
+					sec.Market = &mktStr
+				}
 			}
 		}
 
-		if exchangeCode, exists := itemMap["exchange_code"]; exists && exchangeCode != nil {
-			if exchangeCodeStr, ok := exchangeCode.(string); ok {
-				sec.ExchangeCode = &exchangeCodeStr
+		// Exchange code: "codesub" (short) or "exchange_code" (full)
+		if exVal, exists := itemMap["codesub"]; exists && exVal != nil {
+			if exStr, ok := exVal.(string); ok && exStr != "" {
+				sec.ExchangeCode = &exStr
+			}
+		}
+		if sec.ExchangeCode == nil {
+			if exVal, exists := itemMap["exchange_code"]; exists && exVal != nil {
+				if exStr, ok := exVal.(string); ok && exStr != "" {
+					sec.ExchangeCode = &exStr
+				}
 			}
 		}
 
