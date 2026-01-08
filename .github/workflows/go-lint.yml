@@ -4,19 +4,19 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'trader/**.go'
-      - 'trader/go.mod'
-      - 'trader/go.sum'
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
       - '.github/workflows/go-lint.yml'
-      - 'trader/.golangci.yml'
+      - '.golangci.yml'
   pull_request:
     branches: [ main ]
     paths:
-      - 'trader/**.go'
-      - 'trader/go.mod'
-      - 'trader/go.sum'
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
       - '.github/workflows/go-lint.yml'
-      - 'trader/.golangci.yml'
+      - '.golangci.yml'
 
 jobs:
   lint:
@@ -29,10 +29,10 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.23.2'
-        cache-dependency-path: trader/go.sum
+        cache-dependency-path: go.sum
 
     - name: Copy files for embedding
-      working-directory: trader
+      working-directory: .
       run: |
         # Copy frontend/dist, display/app, display/app.yaml, and display/sketch into pkg/embedded/ for embedding
         # This allows embed directive to access all files without using .. paths
@@ -64,5 +64,5 @@ jobs:
       uses: golangci/golangci-lint-action@v6
       with:
         version: latest
-        working-directory: trader
+        working-directory: .
         args: --timeout=5m --config .golangci.yml

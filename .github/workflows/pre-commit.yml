@@ -26,7 +26,7 @@ jobs:
         cache-dependency-path: trader/go.sum
 
     - name: Copy files for embedding
-      working-directory: trader
+      working-directory: .
       run: |
         # Copy frontend/dist, display/app, display/app.yaml, and display/sketch into pkg/embedded/ for embedding
         # This allows embed directive to access all files without using .. paths

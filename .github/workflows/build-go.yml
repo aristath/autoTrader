@@ -3,14 +3,22 @@ name: Build Sentinel
 on:
   push:
     paths:
-      - 'trader/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
       - 'display/**'
       - '.github/workflows/build-go.yml'
     branches:
       - main
   pull_request:
     paths:
-      - 'trader/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
       - 'display/**'
       - '.github/workflows/build-go.yml'
     branches:
@@ -30,10 +38,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.2'
-          cache-dependency-path: trader/go.sum
+          cache-dependency-path: go.sum
 
       - name: Copy files for embedding
-        working-directory: trader
         run: |
           # Copy frontend/dist, display/app, display/app.yaml, and display/sketch into pkg/embedded/ for embedding
           # This allows embed directive to access all files without using .. paths
@@ -49,23 +56,23 @@ jobs:
             mkdir -p pkg/embedded/frontend
           fi
 
-          if [ -d "../display/app" ]; then
-            cp -r ../display/app pkg/embedded/display/
+          if [ -d "display/app" ]; then
+            cp -r display/app pkg/embedded/display/
             echo "✓ Copied display/app"
           else
             echo "WARNING: display/app not found - creating empty directory"
             mkdir -p pkg/embedded/display/app
           fi
 
-          if [ -f "../display/app.yaml" ]; then
-            cp ../display/app.yaml pkg/embedded/display/
+          if [ -f "display/app.yaml" ]; then
+            cp display/app.yaml pkg/embedded/display/
             echo "✓ Copied display/app.yaml"
           else
             echo "WARNING: display/app.yaml not found"
           fi
 
-          if [ -d "../display/sketch" ]; then
-            cp -r ../display/sketch pkg/embedded/display/
+          if [ -d "display/sketch" ]; then
+            cp -r display/sketch pkg/embedded/display/
             echo "✓ Copied display/sketch"
           else
             echo "WARNING: display/sketch not found - creating empty directory"
@@ -75,15 +82,12 @@ jobs:
           echo "✓ Files prepared for embedding"
 
       - name: Download dependencies
-        working-directory: trader
         run: go mod download
 
       - name: Tidy dependencies
-        working-directory: trader
         run: go mod tidy
 
       - name: Run tests
-        working-directory: trader
         run: |
           # Skip full test suite in build workflow - tests run in dedicated Go Tests workflow
           # Only run a quick compile check to ensure code builds
@@ -96,7 +100,6 @@ jobs:
           echo "✓ Build verification passed"
 
       - name: Build ARM64 binary for Arduino Uno Q
-        working-directory: trader
         run: |
           # Explicitly set build environment for linux/arm64 cross-compilation
           export GOOS=linux
@@ -119,7 +122,6 @@ jobs:
           echo "✓ Binary created successfully"
 
       - name: Verify binary architecture
-        working-directory: trader
         run: |
           # Verify the binary is built for linux/arm64 using 'file' command
           # This is critical - we MUST ensure the binary is linux/arm64
@@ -157,7 +159,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-arm64
-          path: trader/sentinel-arm64
+          path: sentinel-arm64
           retention-days: 30
           if-no-files-found: error
 
@@ -167,6 +169,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Platform:** Linux ARM64 (Arduino Uno Q)" >> $GITHUB_STEP_SUMMARY
           echo "**Binary:** \`sentinel-arm64\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Size:** $(du -h trader/sentinel-arm64 | cut -f1)" >> $GITHUB_STEP_SUMMARY
+          echo "**Size:** $(du -h sentinel-arm64 | cut -f1)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Download artifact from Actions tab to deploy to Arduino Uno Q" >> $GITHUB_STEP_SUMMARY

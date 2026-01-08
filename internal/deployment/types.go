@@ -41,7 +41,7 @@ func (c *ChangeCategories) HasAnyChanges() bool {
 // GoServiceConfig holds configuration for a Go service
 type GoServiceConfig struct {
 	Name        string // Service identifier: "sentinel"
-	BuildPath   string // Relative path from repo root (e.g., "trader/cmd/server")
+	BuildPath   string // Relative path from repo root (e.g., "cmd/server")
 	BinaryName  string // Output binary name (e.g., "sentinel")
 	ServiceName string // Systemd service name (e.g., "sentinel")
 }
@@ -50,7 +50,7 @@ type GoServiceConfig struct {
 func DefaultTraderConfig() GoServiceConfig {
 	return GoServiceConfig{
 		Name:        "sentinel",
-		BuildPath:   "trader/cmd/server",
+		BuildPath:   "cmd/server",
 		BinaryName:  "sentinel",
 		ServiceName: "sentinel",
 	}

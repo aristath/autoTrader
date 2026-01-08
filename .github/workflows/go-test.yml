@@ -4,16 +4,16 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'trader/**.go'
-      - 'trader/go.mod'
-      - 'trader/go.sum'
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
       - '.github/workflows/go-test.yml'
   pull_request:
     branches: [ main ]
     paths:
-      - 'trader/**.go'
-      - 'trader/go.mod'
-      - 'trader/go.sum'
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
       - '.github/workflows/go-test.yml'
 
 jobs:
@@ -28,10 +28,10 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.23.2'
-        cache-dependency-path: trader/go.sum
+        cache-dependency-path: go.sum
 
     - name: Copy files for embedding
-      working-directory: trader
+
       run: |
         # Copy frontend/dist, display/app, display/app.yaml, and display/sketch into pkg/embedded/ for embedding
         # This allows embed directive to access all files without using .. paths
@@ -47,23 +47,23 @@ jobs:
           mkdir -p pkg/embedded/frontend
         fi
 
-        if [ -d "../display/app" ]; then
-          cp -r ../display/app pkg/embedded/display/
+        if [ -d "display/app" ]; then
+          cp -r display/app pkg/embedded/display/
           echo "✓ Copied display/app"
         else
           echo "WARNING: display/app not found - creating empty directory"
           mkdir -p pkg/embedded/display/app
         fi
 
-        if [ -f "../display/app.yaml" ]; then
-          cp ../display/app.yaml pkg/embedded/display/
+        if [ -f "display/app.yaml" ]; then
+          cp display/app.yaml pkg/embedded/display/
           echo "✓ Copied display/app.yaml"
         else
           echo "WARNING: display/app.yaml not found"
         fi
 
-        if [ -d "../display/sketch" ]; then
-          cp -r ../display/sketch pkg/embedded/display/
+        if [ -d "display/sketch" ]; then
+          cp -r display/sketch pkg/embedded/display/
           echo "✓ Copied display/sketch"
         else
           echo "WARNING: display/sketch not found - creating empty directory"
@@ -73,7 +73,7 @@ jobs:
         echo "✓ Files prepared for embedding"
 
     - name: Run tests
-      working-directory: trader
+
       run: go test -v -race -coverprofile=coverage.out -covermode=atomic -tags=!integration ./...
       continue-on-error: false
 
@@ -82,7 +82,7 @@ jobs:
       if: always()
       continue-on-error: true
       with:
-        files: ./trader/coverage.out
+        files: ./coverage.out
         flags: go
         name: go-coverage
         fail_ci_if_error: false
