@@ -32,8 +32,10 @@ jobs:
             packages: "./internal/modules/display/... ./internal/modules/dividends/... ./internal/modules/evaluation/... ./internal/modules/market_hours ./internal/modules/opportunities/... ./internal/modules/optimization/..."
           - name: "modules-3"
             packages: "./internal/modules/planning/... ./internal/modules/portfolio/... ./internal/modules/quantum ./internal/modules/rebalancing/... ./internal/modules/scoring/..."
-          - name: "modules-4"
-            packages: "./internal/modules/sequences/... ./internal/modules/settings/... ./internal/modules/symbolic_regression/... ./internal/modules/trading/... ./internal/modules/universe/..."
+          - name: "modules-4a"
+            packages: "./internal/modules/sequences/... ./internal/modules/settings/..."
+          - name: "modules-4b"
+            packages: "./internal/modules/symbolic_regression/... ./internal/modules/trading/... ./internal/modules/universe/..."
           - name: "infrastructure"
             packages: "./internal/queue ./internal/reliability ./internal/scheduler ./internal/services ./internal/ticker ./internal/utils ./pkg/..."
 
