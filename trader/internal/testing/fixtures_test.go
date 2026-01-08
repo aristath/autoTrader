@@ -284,4 +284,3 @@ func TestNewISINFuxtures(t *testing.T) {
 		assert.Regexp(t, "^[A-Z]{2}[A-Z0-9]{9}[0-9]$", isin, "ISIN should match format")
 	}
 }
-

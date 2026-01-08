@@ -295,4 +295,3 @@ func TestNewTestDB_SupportsPreparedStatements(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
 }
-

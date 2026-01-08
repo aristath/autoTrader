@@ -399,7 +399,41 @@ func TestTransformSecurityInfo_NullFields(t *testing.T) {
 	assert.Equal(t, "AAPL.US", sec.Symbol)
 	assert.Nil(t, sec.Name)
 	assert.Nil(t, sec.ISIN)
-	assert.Nil(t, sec.Currency)
+}
+
+// TestTransformSecurityInfo_FoundFormat tests transformation with raw API format ("found" key and short field names)
+func TestTransformSecurityInfo_FoundFormat(t *testing.T) {
+	sdkResult := map[string]interface{}{
+		"found": []interface{}{
+			map[string]interface{}{
+				"t":       "RHM.EU",
+				"nm":      "Rheinmetall AG",
+				"n":       "Rheinmetall AG",
+				"isin":    "DE0007030009",
+				"x_curr":  "EUR",
+				"mkt":     "EU",
+				"codesub": "XETRA",
+			},
+		},
+	}
+
+	securities, err := transformSecurityInfo(sdkResult)
+
+	assert.NoError(t, err)
+	assert.Len(t, securities, 1)
+
+	sec := securities[0]
+	assert.Equal(t, "RHM.EU", sec.Symbol)
+	assert.NotNil(t, sec.Name)
+	assert.Equal(t, "Rheinmetall AG", *sec.Name)
+	assert.NotNil(t, sec.ISIN)
+	assert.Equal(t, "DE0007030009", *sec.ISIN)
+	assert.NotNil(t, sec.Currency)
+	assert.Equal(t, "EUR", *sec.Currency)
+	assert.NotNil(t, sec.Market)
+	assert.Equal(t, "EU", *sec.Market)
+	assert.NotNil(t, sec.ExchangeCode)
+	assert.Equal(t, "XETRA", *sec.ExchangeCode)
 }
 
 // TestTransformQuote tests transformation of SDK GetQuotes to Quote

@@ -271,7 +271,7 @@ func TestNewMockPortfolioSummaryProvider(t *testing.T) {
 func TestNewMockPortfolioSummaryProvider_WithSummary(t *testing.T) {
 	mock := NewMockPortfolioSummaryProvider()
 	testSummary := domain.PortfolioSummary{
-		TotalValue: 10000.0,
+		TotalValue:  10000.0,
 		CashBalance: 1000.0,
 		CountryAllocations: []domain.PortfolioAllocation{
 			{Name: "EU", CurrentPct: 0.40},
@@ -314,4 +314,3 @@ func TestNewMockEventManager_EventTracking(t *testing.T) {
 	// For now, it's a placeholder to define the expected interface
 	t.Skip("Mock implementation pending")
 }
-

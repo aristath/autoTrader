@@ -214,4 +214,3 @@ func NewTestDBFromFile(t *testing.T, name string) (*database.DB, func()) {
 func GetRawConnection(db *database.DB) *sql.DB {
 	return db.Conn()
 }
-

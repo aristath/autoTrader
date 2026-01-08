@@ -577,9 +577,9 @@ var _ portfolio.PositionRepositoryInterface = (*MockPositionRepository)(nil)
 
 // MockSecurityRepository is a mock implementation of SecurityRepositoryInterface for testing
 type MockSecurityRepository struct {
-	mu        sync.RWMutex
+	mu         sync.RWMutex
 	securities map[string]*universe.Security // keyed by ISIN
-	err       error
+	err        error
 }
 
 // NewMockSecurityRepository creates a new mock security repository
@@ -778,7 +778,7 @@ func (m *MockSecurityRepository) Update(isin string, updates map[string]interfac
 				if val, ok := value.(string); ok {
 					sec.Name = val
 				}
-			// Add more fields as needed
+				// Add more fields as needed
 			}
 		}
 	}
@@ -811,23 +811,23 @@ func (m *MockSecurityRepository) GetWithScores(portfolioDB *sql.DB) ([]universe.
 	result := make([]universe.SecurityWithScore, 0, len(m.securities))
 	for _, sec := range m.securities {
 		result = append(result, universe.SecurityWithScore{
-			Symbol:           sec.Symbol,
-			ISIN:             sec.ISIN,
-			Name:             sec.Name,
-			Industry:         sec.Industry,
-			Country:          sec.Country,
-			FullExchangeName: sec.FullExchangeName,
-			Currency:         sec.Currency,
-			ProductType:      sec.ProductType,
-			YahooSymbol:      sec.YahooSymbol,
+			Symbol:             sec.Symbol,
+			ISIN:               sec.ISIN,
+			Name:               sec.Name,
+			Industry:           sec.Industry,
+			Country:            sec.Country,
+			FullExchangeName:   sec.FullExchangeName,
+			Currency:           sec.Currency,
+			ProductType:        sec.ProductType,
+			YahooSymbol:        sec.YahooSymbol,
 			PriorityMultiplier: sec.PriorityMultiplier,
 			MaxPortfolioTarget: sec.MaxPortfolioTarget,
 			MinPortfolioTarget: sec.MinPortfolioTarget,
-			MinLot:            sec.MinLot,
-			AllowSell:         sec.AllowSell,
-			AllowBuy:          sec.AllowBuy,
-			Active:            sec.Active,
-			Tags:              sec.Tags,
+			MinLot:             sec.MinLot,
+			AllowSell:          sec.AllowSell,
+			AllowBuy:           sec.AllowBuy,
+			Active:             sec.Active,
+			Tags:               sec.Tags,
 		})
 	}
 	return result, nil
@@ -1017,12 +1017,12 @@ var _ domain.CashManager = (*MockCashManager)(nil)
 
 // MockTradernetClient is a mock implementation of TradernetClientInterface for testing
 type MockTradernetClient struct {
-	mu          sync.RWMutex
-	connected   bool
-	portfolio   []tradernet.Position
+	mu           sync.RWMutex
+	connected    bool
+	portfolio    []tradernet.Position
 	cashBalances []tradernet.CashBalance
-	trades      []tradernet.Trade
-	err         error
+	trades       []tradernet.Trade
+	err          error
 }
 
 // NewMockTradernetClient creates a new mock Tradernet client
@@ -1286,4 +1286,3 @@ func (m *MockPortfolioSummaryProvider) GetPortfolioSummary() (domain.PortfolioSu
 
 // Verify interface implementation
 var _ domain.PortfolioSummaryProvider = (*MockPortfolioSummaryProvider)(nil)
-
