@@ -711,34 +711,21 @@ func (h *SystemHandlers) HandleJobsStatus(w http.ResponseWriter, r *http.Request
 func (h *SystemHandlers) HandleMarketsStatus(w http.ResponseWriter, r *http.Request) {
 	h.log.Debug().Msg("Getting markets status from WebSocket cache")
 
-	// Check if WebSocket client is available
+	// Check if WebSocket client is available - if not, fall back to MarketHoursService
 	if h.marketStatusWS == nil {
-		h.log.Warn().Msg("Market status WebSocket not available")
-		response := MarketsStatusResponse{
-			Markets:     make(map[string]IndividualMarketInfo),
-			OpenCount:   0,
-			ClosedCount: 0,
-			LastUpdated: time.Now().Format(time.RFC3339),
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		h.log.Info().Msg("Market status WebSocket not available, using MarketHoursService fallback")
+		// Use fallback logic (same as when cache is empty)
+		h.returnMarketStatusFallback(w)
 		return
 	}
 
 	// Get cached market statuses from WebSocket
 	cachedMarkets := h.marketStatusWS.GetAllMarketStatuses()
 
-	// If cache is empty, return empty response with warning
+	// If cache is empty, fall back to MarketHoursService
 	if len(cachedMarkets) == 0 {
-		h.log.Warn().Msg("Market status cache is empty (WebSocket may not be connected yet)")
-		response := MarketsStatusResponse{
-			Markets:     make(map[string]IndividualMarketInfo),
-			OpenCount:   0,
-			ClosedCount: 0,
-			LastUpdated: time.Now().Format(time.RFC3339),
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		h.log.Info().Msg("Market status cache is empty, using MarketHoursService fallback")
+		h.returnMarketStatusFallback(w)
 		return
 	}
 
@@ -777,6 +764,76 @@ func (h *SystemHandlers) HandleMarketsStatus(w http.ResponseWriter, r *http.Requ
 		Int("open_count", openCount).
 		Int("closed_count", closedCount).
 		Msg("Returning market statuses from WebSocket cache")
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// returnMarketStatusFallback returns market status using MarketHoursService as fallback
+func (h *SystemHandlers) returnMarketStatusFallback(w http.ResponseWriter) {
+	// List of exchanges to track (matches frontend MarketStatus.jsx)
+	trackedExchanges := []struct {
+		Code string
+		Name string
+	}{
+		{"XNAS", "NASDAQ"},
+		{"XNYS", "NYSE"},
+		{"XETR", "Frankfurt"},
+		{"XLON", "London"},
+		{"XPAR", "Paris"},
+		{"XMIL", "Milan"},
+		{"XAMS", "Amsterdam"},
+		{"XCSE", "Copenhagen"},
+		{"XHKG", "Hong Kong"},
+		{"XSHG", "Shanghai"},
+		{"XTSE", "Tokyo"},
+		{"XASX", "Sydney"},
+	}
+
+	markets := make(map[string]IndividualMarketInfo)
+	openCount := 0
+	closedCount := 0
+	now := time.Now()
+
+	for _, exchange := range trackedExchanges {
+		status, err := h.marketHoursService.GetMarketStatus(exchange.Code, now)
+		if err != nil {
+			h.log.Warn().Err(err).Str("exchange", exchange.Code).Msg("Failed to get market status")
+			continue
+		}
+
+		var statusStr string
+		if status.Open {
+			statusStr = "open"
+			openCount++
+		} else {
+			statusStr = "closed"
+			closedCount++
+		}
+
+		markets[exchange.Code] = IndividualMarketInfo{
+			Name:      exchange.Name,
+			Code:      exchange.Code,
+			Status:    statusStr,
+			OpenTime:  status.OpensAt,
+			CloseTime: status.ClosesAt,
+			Date:      now.Format("2006-01-02"),
+			UpdatedAt: now.Format(time.RFC3339),
+		}
+	}
+
+	response := MarketsStatusResponse{
+		Markets:     markets,
+		OpenCount:   openCount,
+		ClosedCount: closedCount,
+		LastUpdated: now.Format(time.RFC3339),
+	}
+
+	h.log.Debug().
+		Int("market_count", len(markets)).
+		Int("open_count", openCount).
+		Int("closed_count", closedCount).
+		Msg("Returning market statuses from fallback")
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
