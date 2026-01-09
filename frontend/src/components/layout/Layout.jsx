@@ -1,4 +1,4 @@
-import { Container } from '@mantine/core';
+import { Container, Text } from '@mantine/core';
 import { Outlet } from 'react-router-dom';
 import { AppHeader } from './AppHeader';
 import { StatusBar } from './StatusBar';
@@ -10,7 +10,7 @@ import { EditSecurityModal } from '../modals/EditSecurityModal';
 import { SecurityChartModal } from '../modals/SecurityChartModal';
 import { SettingsModal } from '../modals/SettingsModal';
 import { PlannerManagementModal } from '../modals/PlannerManagementModal';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../../stores/appStore';
 import { usePortfolioStore } from '../../stores/portfolioStore';
 import { useSecuritiesStore } from '../../stores/securitiesStore';
@@ -29,6 +29,15 @@ export function Layout() {
   const { fetchSettings } = useSettingsStore();
   const { fetchTrades } = useTradesStore();
   const { fetchAvailableLogFiles, selectedLogFile } = useLogsStore();
+  const [version, setVersion] = useState('loading...');
+
+  // Fetch version on mount
+  useEffect(() => {
+    fetch('/api/version')
+      .then(r => r.json())
+      .then(data => setVersion(data.version))
+      .catch(() => setVersion('unknown'));
+  }, []);
 
   // Load initial data once on mount
   useEffect(() => {
@@ -74,6 +83,16 @@ export function Layout() {
           <Outlet />
         </div>
         <JobFooter />
+        <Text
+          size="xs"
+          c="dimmed"
+          ta="center"
+          mt="md"
+          pb="md"
+          style={{ fontFamily: 'var(--mantine-font-family-monospace)' }}
+        >
+          Sentinel {version}
+        </Text>
       </Container>
 
       {/* Modals */}

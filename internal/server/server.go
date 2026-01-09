@@ -289,6 +289,9 @@ func (s *Server) setupRoutes() {
 
 	// API routes
 	s.router.Route("/api", func(r chi.Router) {
+		// Version endpoint
+		r.Get("/version", s.handleVersion)
+
 		// Unified events stream (SSE) - must be before other routes for proper handling
 		eventsStreamHandler := NewEventsStreamHandler(s.container.EventBus, s.cfg.DataDir, s.log)
 		r.Get("/events/stream", eventsStreamHandler.ServeHTTP)

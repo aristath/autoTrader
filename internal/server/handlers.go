@@ -4,6 +4,8 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/aristath/sentinel/internal/version"
 )
 
 // handleHealth handles health check requests
@@ -12,6 +14,15 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"status":  "healthy",
 		"version": "1.0.0",
 		"service": "sentinel",
+	}
+
+	s.writeJSON(w, http.StatusOK, response)
+}
+
+// handleVersion handles version info requests
+func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
+	response := map[string]interface{}{
+		"version": version.Version,
 	}
 
 	s.writeJSON(w, http.StatusOK, response)

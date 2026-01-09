@@ -216,6 +216,16 @@ repos:
 
 
 
+      # Generate version.go with commit timestamp
+      - id: generate-version
+        name: Generate version.go
+        entry: bash scripts/generate-version.sh
+        language: system
+        files: \.go$
+        pass_filenames: false
+        always_run: false
+        stages: [commit]
+
       - id: golangci-lint
 
         name: golangci-lint
