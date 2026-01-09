@@ -7,6 +7,9 @@ import (
 
 // OpportunityContext contains all data needed by opportunity calculators
 // to identify trading opportunities (buys, sells, rebalancing, etc.).
+//
+// CURRENCY INVARIANT: All monetary values are in EUR.
+// Currency conversion happens at the input boundary before this context is created.
 type OpportunityContext struct {
 	// Portfolio state
 	PortfolioContext       *scoringdomain.PortfolioContext `json:"portfolio_context"`
@@ -15,8 +18,8 @@ type OpportunityContext struct {
 	AvailableCashEUR       float64                         `json:"available_cash_eur"`
 	TotalPortfolioValueEUR float64                         `json:"total_portfolio_value_eur"`
 
-	// Market data
-	CurrentPrices  map[string]float64         `json:"current_prices"`   // Key: ISIN (internal identifier)
+	// Market data (ALL PRICES IN EUR)
+	CurrentPrices  map[string]float64         `json:"current_prices"`   // Key: ISIN, Value: Price in EUR (converted at input boundary)
 	StocksByISIN   map[string]domain.Security `json:"stocks_by_isin"`   // Key: ISIN (primary identifier)
 	StocksBySymbol map[string]domain.Security `json:"stocks_by_symbol"` // Key: Symbol (for backward compatibility, deprecated)
 

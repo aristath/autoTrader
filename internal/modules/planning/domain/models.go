@@ -16,15 +16,19 @@ type ActionCandidate struct {
 }
 
 // HolisticStep represents a single step in a holistic plan.
+//
+// CURRENCY INVARIANT: EstimatedPrice and EstimatedValue are ALWAYS in EUR.
+// The Currency field is metadata only (for display/logging), NOT used in calculations.
+// All currency conversion happens at the INPUT boundary before planning.
 type HolisticStep struct {
 	StepNumber      int      `json:"step_number"`       // Step sequence number (1-based)
 	Side            string   `json:"side"`              // "BUY" or "SELL"
 	Symbol          string   `json:"symbol"`            // Security symbol
 	Name            string   `json:"name"`              // Security name
 	Quantity        int      `json:"quantity"`          // Number of units to trade
-	EstimatedPrice  float64  `json:"estimated_price"`   // Estimated price per unit
-	EstimatedValue  float64  `json:"estimated_value"`   // Estimated total value in EUR
-	Currency        string   `json:"currency"`          // Trading currency
+	EstimatedPrice  float64  `json:"estimated_price"`   // Estimated price per unit (in EUR)
+	EstimatedValue  float64  `json:"estimated_value"`   // Estimated total value (in EUR)
+	Currency        string   `json:"currency"`          // Trading currency (metadata only, not used for calculations)
 	Reason          string   `json:"reason"`            // Why this action is recommended
 	Narrative       string   `json:"narrative"`         // Human-readable explanation
 	IsWindfall      bool     `json:"is_windfall"`       // Whether this is windfall profit-taking

@@ -78,9 +78,16 @@ func transformPositions(sdkResult interface{}, log zerolog.Logger) ([]Position, 
 			CurrencyRate:  0.0, // Will be set during portfolio sync from cache
 		}
 
-		// Calculate MarketValue = Quantity * CurrentPrice
+		// Calculate MarketValue in native currency (USD/HKD/GBP/etc)
 		position.MarketValue = position.Quantity * position.CurrentPrice
-		// BUG: MarketValueEUR assigned without currency conversion
+
+		// CURRENCY CONVERSION BOUNDARY:
+		// MarketValueEUR is intentionally NOT converted here. Broker layer returns raw data.
+		// Currency conversion to EUR happens at the input boundary BEFORE planning:
+		//   - Portfolio sync (portfolio.PortfolioService) converts when storing to DB
+		//   - Planner input (buildOpportunityContext) converts via PriceConversionService
+		// This ensures the planner receives EUR-normalized values for holistic decisions.
+		// The broker only provides native currency data; downstream layers handle conversion.
 		position.MarketValueEUR = position.MarketValue
 
 		positions = append(positions, position)

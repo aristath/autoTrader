@@ -698,7 +698,10 @@ func (s *PortfolioService) SyncFromTradernet() error {
 			dbPos.CurrencyRate = 1.0 // EUR or no currency
 		}
 
-		// Recalculate market value with correct rate
+		// ===== CURRENCY CONVERSION BOUNDARY =====
+		// Convert position market value from native currency to EUR before storing in DB.
+		// This ensures the database always contains EUR-normalized values.
+		// When planner reads from DB, it gets EUR values directly without needing conversion.
 		if dbPos.CurrentPrice > 0 && dbPos.Quantity > 0 {
 			valueInCurrency := dbPos.Quantity * dbPos.CurrentPrice
 			if dbPos.CurrencyRate > 0 && dbPos.CurrencyRate != 1.0 {

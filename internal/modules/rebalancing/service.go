@@ -368,7 +368,10 @@ func (s *Service) fetchCurrentPrices(securities []universe.Security) map[string]
 		}
 	}
 
-	// Convert all prices to EUR using shared service
+	// ===== CURRENCY CONVERSION BOUNDARY =====
+	// Convert all prices from native currencies to EUR before passing to planner.
+	// This mirrors the same conversion done in buildOpportunityContext.
+	// The planner MUST receive EUR-normalized values for correct calculations.
 	var eurPrices map[string]float64
 	if s.priceConversionService != nil {
 		eurPrices = s.priceConversionService.ConvertPricesToEUR(nativePrices, securities)

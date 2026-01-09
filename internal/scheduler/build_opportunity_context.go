@@ -16,6 +16,7 @@ import (
 
 // BuildOpportunityContextJob builds the opportunity context from current portfolio state
 type BuildOpportunityContextJob struct {
+	JobBase
 	log                    zerolog.Logger
 	positionRepo           PositionRepositoryInterface
 	securityRepo           SecurityRepositoryInterface
@@ -477,7 +478,16 @@ func (j *BuildOpportunityContextJob) fetchCurrentPrices(securities []universe.Se
 		}
 	}
 
-	// Convert all prices to EUR using shared service
+	// ===== CURRENCY CONVERSION BOUNDARY =====
+	// Convert all prices from native currencies (USD/HKD/GBP) to EUR before passing to planner.
+	// This is the INPUT BOUNDARY where currency normalization happens.
+	//
+	// WHY: The planner must receive EUR-normalized values to make holistic portfolio decisions
+	// without needing to know which security trades in which currency. This separates concerns:
+	//   - Broker layer: Returns raw native currency data
+	//   - Input layer (HERE): Normalizes everything to EUR
+	//   - Planning layer: Works purely in EUR
+	//   - Execution layer: Broker handles native currency conversion when placing orders
 	if j.priceConversionService != nil {
 		prices = j.priceConversionService.ConvertPricesToEUR(nativePrices, securities)
 		j.log.Info().

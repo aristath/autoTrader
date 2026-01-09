@@ -258,8 +258,17 @@ func (s *TradingService) ExecuteTrade(req TradeRequest) (*TradeResult, error) {
 		s.log.Warn().Msg("Safety service not available - executing trade without validations")
 	}
 
-	// Execute trade via Tradernet microservice
-	// Manual trading uses market orders (limitPrice = 0.0) for immediate execution
+	// ===== EXECUTION BOUNDARY: BROKER HANDLES CURRENCY =====
+	// We pass symbol and quantity to the broker. The broker API handles:
+	//   1. Determining the security's native trading currency (USD/HKD/GBP)
+	//   2. Converting available EUR cash to native currency as needed
+	//   3. Placing the order in the native currency on the exchange
+	//
+	// We don't need to specify currency - the broker knows which currency each security trades in.
+	// This completes the currency conversion cycle:
+	//   Input: Broker returns native currency data → Input layer converts to EUR
+	//   Planning: Planner works purely in EUR
+	//   Output: Broker converts EUR back to native currency for execution
 	orderResult, err := s.brokerClient.PlaceOrder(req.Symbol, req.Side, float64(req.Quantity), 0.0)
 	if err != nil {
 		return &TradeResult{

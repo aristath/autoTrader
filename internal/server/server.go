@@ -39,7 +39,6 @@ import (
 	"github.com/aristath/sentinel/internal/modules/planning/repository"
 	"github.com/aristath/sentinel/internal/modules/portfolio"
 	portfoliohandlers "github.com/aristath/sentinel/internal/modules/portfolio/handlers"
-	rebalancinghandlers "github.com/aristath/sentinel/internal/modules/rebalancing/handlers"
 	scoringhandlers "github.com/aristath/sentinel/internal/modules/scoring/api/handlers"
 	settingshandlers "github.com/aristath/sentinel/internal/modules/settings/handlers"
 	tradinghandlers "github.com/aristath/sentinel/internal/modules/trading/handlers"
@@ -529,24 +528,6 @@ func (s *Server) setupRoutes() {
 			s.log,
 		)
 		cashFlowsHandler.RegisterRoutes(r)
-
-		// Rebalancing module (MIGRATED TO GO!)
-		rebalancingTradernetClient := s.container.BrokerClient
-		rebalancingCurrencyExchangeService := s.container.CurrencyExchangeService
-		rebalancingAllocRepo := s.container.AllocRepo
-		rebalancingCashManager := s.container.CashManager
-		rebalancingPortfolioService := s.container.PortfolioService
-		rebalancingService := s.container.RebalancingService
-		rebalancingHandlers := rebalancinghandlers.NewHandlers(
-			rebalancingService,
-			rebalancingPortfolioService,
-			rebalancingTradernetClient,
-			rebalancingCurrencyExchangeService,
-			rebalancingAllocRepo,
-			rebalancingCashManager,
-			s.log,
-		)
-		rebalancingHandlers.RegisterRoutes(r)
 
 		// Planning module (MIGRATED TO GO!)
 		planningService := s.container.PlanningService
