@@ -34,6 +34,16 @@ type TradeRepositoryInterface interface {
 	IncrementRetryAttempt(id int64) error
 }
 
+// OrderBookServiceInterface defines the interface for order book analysis
+type OrderBookServiceInterface interface {
+	// IsEnabled checks if order book analysis is enabled
+	IsEnabled() bool
+	// CalculateOptimalLimit calculates optimal limit price using order book + Yahoo validation
+	CalculateOptimalLimit(symbol, side string, buffer float64) (float64, error)
+	// ValidateLiquidity checks if sufficient liquidity exists for the trade
+	ValidateLiquidity(symbol, side string, quantity float64) error
+}
+
 // TradeRecommendation represents a simplified trade recommendation for execution
 // Minimal implementation for emergency rebalancing
 type TradeRecommendation struct {
@@ -65,9 +75,10 @@ type TradeExecutionService struct {
 	positionRepo    *portfolio.PositionRepository
 	cashManager     domain.CashManager
 	exchangeService domain.CurrencyExchangeServiceInterface
-	eventManager    *events.Manager
-	settingsService SettingsServiceInterface     // For configuration (fees, price age, etc.)
-	yahooClient     yahoo.FullClientInterface    // For fetching fresh prices
+	eventManager     *events.Manager
+	settingsService  SettingsServiceInterface     // For configuration (fees, price age, etc.)
+	orderBookService OrderBookServiceInterface    // For order book analysis (liquidity validation, optimal limit pricing)
+	yahooClient      yahoo.FullClientInterface    // For fetching fresh prices
 	historyDB       *sql.DB                      // For storing updated prices
 	securityRepo    *universe.SecurityRepository // For ISIN lookup
 	log             zerolog.Logger
@@ -89,6 +100,7 @@ func NewTradeExecutionService(
 	exchangeService domain.CurrencyExchangeServiceInterface,
 	eventManager *events.Manager,
 	settingsService SettingsServiceInterface,
+	orderBookService OrderBookServiceInterface,
 	yahooClient yahoo.FullClientInterface,
 	historyDB *sql.DB,
 	securityRepo *universe.SecurityRepository,
@@ -99,10 +111,11 @@ func NewTradeExecutionService(
 		tradeRepo:       tradeRepo,
 		positionRepo:    positionRepo,
 		cashManager:     cashManager,
-		exchangeService: exchangeService,
-		eventManager:    eventManager,
-		settingsService: settingsService,
-		yahooClient:     yahooClient,
+		exchangeService:  exchangeService,
+		eventManager:     eventManager,
+		settingsService:  settingsService,
+		orderBookService: orderBookService,
+		yahooClient:      yahooClient,
 		historyDB:       historyDB,
 		securityRepo:    securityRepo,
 		log:             log.With().Str("service", "trade_execution").Logger(),
@@ -532,27 +545,51 @@ func (s *TradeExecutionService) validatePriceFreshness(rec TradeRecommendation) 
 // Returns limit price and nil error if successful.
 // Returns 0 and error if Yahoo unavailable (blocks trade for safety).
 func (s *TradeExecutionService) validatePriceAndCalculateLimit(rec TradeRecommendation) (float64, error) {
-	// Get buffer from settings (default 5%)
-	buffer := 0.05
+	// Get buffer from settings (existing logic)
+	buffer := s.getBuffer()
+
+	// Check if order book module available and enabled
+	if s.orderBookService != nil && s.orderBookService.IsEnabled() {
+		// Use order book module (handles everything internally):
+		// - Fetches order book (primary source)
+		// - Fetches Yahoo (validation source)
+		// - Cross-validates with asymmetric validation (blocks if discrepancy >= 50%)
+		// - Calculates limit with buffer
+		limitPrice, err := s.orderBookService.CalculateOptimalLimit(rec.Symbol, rec.Side, buffer)
+		if err != nil {
+			// Order book module failed (liquidity issue or API bug detected)
+			// BLOCK trade - return error
+			return 0, fmt.Errorf("order book analysis failed: %w", err)
+		}
+
+		return limitPrice, nil
+	}
+
+	// Fallback to Yahoo-only (existing behavior)
+	s.log.Debug().
+		Str("symbol", rec.Symbol).
+		Msg("Order book analysis disabled or unavailable - using Yahoo-only fallback")
+	return s.calculateLegacyLimit(rec, buffer)
+}
+
+// getBuffer extracts buffer from settings (existing logic)
+func (s *TradeExecutionService) getBuffer() float64 {
+	buffer := 0.05 // default 5%
 	if s.settingsService != nil {
 		if val, err := s.settingsService.Get("limit_order_buffer_percent"); err == nil {
-			if bufferVal, ok := val.(float64); ok {
-				// Validate buffer is reasonable (0.1% to 20%)
-				if bufferVal >= 0.001 && bufferVal <= 0.20 {
-					buffer = bufferVal
-				} else {
-					s.log.Warn().
-						Float64("invalid_buffer", bufferVal).
-						Float64("using_default", buffer).
-						Msg("Invalid buffer value in settings, using default")
-				}
+			if bufferVal, ok := val.(float64); ok && bufferVal >= 0.001 && bufferVal <= 0.20 {
+				buffer = bufferVal
 			}
 		}
 	}
+	return buffer
+}
 
+// calculateLegacyLimit is the old Yahoo-only logic (fallback)
+func (s *TradeExecutionService) calculateLegacyLimit(rec TradeRecommendation, buffer float64) (float64, error) {
 	// Check if Yahoo client is available
 	if s.yahooClient == nil {
-		return 0, fmt.Errorf("Yahoo Finance client unavailable - cannot validate price for limit order")
+		return 0, fmt.Errorf("Yahoo Finance client unavailable and order book disabled")
 	}
 
 	// Get security for Yahoo symbol override
@@ -564,10 +601,10 @@ func (s *TradeExecutionService) validatePriceAndCalculateLimit(rec TradeRecommen
 		}
 	}
 
-	// Fetch current price from Yahoo Finance (3 retries with exponential backoff)
+	// Fetch current price from Yahoo Finance (3 retries)
 	yahooPrice, err := s.yahooClient.GetCurrentPrice(rec.Symbol, yahooSymbolPtr, 3)
 	if err != nil || yahooPrice == nil {
-		return 0, fmt.Errorf("failed to fetch Yahoo price for %s: %w (blocking trade for safety)", rec.Symbol, err)
+		return 0, fmt.Errorf("failed to fetch Yahoo price for %s: %w", rec.Symbol, err)
 	}
 
 	// Validate price is reasonable
@@ -578,10 +615,8 @@ func (s *TradeExecutionService) validatePriceAndCalculateLimit(rec TradeRecommen
 	// Calculate limit price with buffer
 	var limitPrice float64
 	if rec.Side == "BUY" {
-		// Buy limit: allow paying up to X% more than Yahoo price
 		limitPrice = *yahooPrice * (1 + buffer)
 	} else {
-		// Sell limit: allow receiving at least X% less than Yahoo price
 		limitPrice = *yahooPrice * (1 - buffer)
 	}
 
@@ -591,7 +626,7 @@ func (s *TradeExecutionService) validatePriceAndCalculateLimit(rec TradeRecommen
 		Float64("yahoo_price", *yahooPrice).
 		Float64("limit_price", limitPrice).
 		Float64("buffer_pct", buffer*100).
-		Msg("Calculated limit price from Yahoo Finance")
+		Msg("Calculated limit price from Yahoo Finance (legacy mode)")
 
 	return limitPrice, nil
 }

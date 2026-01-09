@@ -245,6 +245,10 @@ func (m *mockBrokerClientCurrencyTest) FindSymbol(symbol string, exchange *strin
 	return nil, nil
 }
 
+func (m *mockBrokerClientCurrencyTest) GetLevel1Quote(symbol string) (*domain.BrokerOrderBook, error) {
+	return nil, nil
+}
+
 func (m *mockBrokerClientCurrencyTest) GetAllCashFlows(limit int) ([]domain.BrokerCashFlow, error) {
 	return nil, nil
 }

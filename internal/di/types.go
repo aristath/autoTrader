@@ -16,6 +16,7 @@ import (
 	"github.com/aristath/sentinel/internal/modules/dividends"
 	"github.com/aristath/sentinel/internal/modules/market_hours"
 	"github.com/aristath/sentinel/internal/modules/opportunities"
+	"github.com/aristath/sentinel/internal/modules/order_book"
 	"github.com/aristath/sentinel/internal/modules/optimization"
 	"github.com/aristath/sentinel/internal/modules/planning"
 	planningevaluation "github.com/aristath/sentinel/internal/modules/planning/evaluation"
@@ -83,6 +84,7 @@ type Container struct {
 	TagAssigner               *universe.TagAssigner
 	TradeExecutionService     *services.TradeExecutionService
 	SettingsService           *settings.Service
+	OrderBookService          *order_book.Service
 	MarketHoursService        *market_hours.MarketHoursService
 	MarketStateDetector       *market_regime.MarketStateDetector
 	EventBus                  *events.Bus

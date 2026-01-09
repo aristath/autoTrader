@@ -130,6 +130,14 @@ func (m *MockTradernetClient) SetCredentials(apiKey, apiSecret string) {
 	m.Called(apiKey, apiSecret)
 }
 
+func (m *MockTradernetClient) GetLevel1Quote(symbol string) (*domain.BrokerOrderBook, error) {
+	args := m.Called(symbol)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.BrokerOrderBook), args.Error(1)
+}
+
 // MockPositionRepository is a mock position repository for testing
 type MockPositionRepository struct {
 	mock.Mock

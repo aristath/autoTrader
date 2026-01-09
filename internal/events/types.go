@@ -33,6 +33,7 @@ const (
 	TradernetStatusChanged   EventType = "TRADERNET_STATUS_CHANGED"
 	MarketsStatusChanged     EventType = "MARKETS_STATUS_CHANGED"
 	PlanningStatusUpdated    EventType = "PLANNING_STATUS_UPDATED"
+	OrderBookUpdated         EventType = "ORDER_BOOK_UPDATED"
 
 	// Job lifecycle events
 	JobStarted   EventType = "JOB_STARTED"

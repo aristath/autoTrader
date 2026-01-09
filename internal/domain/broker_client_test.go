@@ -85,6 +85,19 @@ func (m *mockBrokerClientForTest) GetQuote(symbol string) (*BrokerQuote, error) 
 	return m.quote, nil
 }
 
+// GetLevel1Quote implements BrokerClient
+func (m *mockBrokerClientForTest) GetLevel1Quote(symbol string) (*BrokerOrderBook, error) {
+	if m.returnError {
+		return nil, errors.New("mock error")
+	}
+	return &BrokerOrderBook{
+		Symbol:    symbol,
+		Bids:      []OrderBookLevel{{Price: 100.0, Quantity: 1000.0, Position: 1}},
+		Asks:      []OrderBookLevel{{Price: 101.0, Quantity: 1000.0, Position: 1}},
+		Timestamp: "2024-01-01T00:00:00Z",
+	}, nil
+}
+
 // GetPendingOrders implements BrokerClient
 func (m *mockBrokerClientForTest) GetPendingOrders() ([]BrokerPendingOrder, error) {
 	if m.returnError {

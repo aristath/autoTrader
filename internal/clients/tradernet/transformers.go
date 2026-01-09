@@ -3,7 +3,9 @@ package tradernet
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 )
@@ -678,4 +680,95 @@ func convertSide(m map[string]interface{}) string {
 	}
 
 	return ""
+}
+
+// transformOrderBook transforms Tradernet quotes response to simplified order book
+// Note: Full order book requires WebSocket. This creates simplified version from quote data.
+// Extracts best bid/ask from quote fields: bbp (bid price), bbs (bid size), bap (ask price), bas (ask size)
+func transformOrderBook(result interface{}, symbol string) (*OrderBook, error) {
+	data, ok := result.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("unexpected response type: %T", result)
+	}
+
+	// Extract result array (getStockQuotesJson returns {"result": {"q": [...]}}
+	resultData, ok := data["result"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid quotes response: missing result map")
+	}
+
+	quotes, ok := resultData["q"].([]interface{})
+	if !ok || len(quotes) == 0 {
+		return nil, fmt.Errorf("invalid quotes response: missing or empty q array")
+	}
+
+	// Get first quote (we only request one symbol)
+	quoteData, ok := quotes[0].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid quote data type: %T", quotes[0])
+	}
+
+	orderBook := &OrderBook{
+		Symbol:    symbol,
+		Bids:      []OrderBookLevel{},
+		Asks:      []OrderBookLevel{},
+		Timestamp: time.Now().Format(time.RFC3339),
+		Count:     2, // Simplified: just best bid and ask
+	}
+
+	// Extract best bid (bbp = best bid price, bbs = best bid size)
+	bidPrice := parsePrice(getString(quoteData, "bbp"))
+	bidSize := parseSize(getString(quoteData, "bbs"))
+	if bidPrice > 0 && bidSize > 0 {
+		orderBook.Bids = append(orderBook.Bids, OrderBookLevel{
+			Price:    bidPrice,
+			Quantity: bidSize,
+			Position: 1,
+			Side:     "B",
+		})
+	}
+
+	// Extract best ask (bap = best ask price, bas = best ask size)
+	askPrice := parsePrice(getString(quoteData, "bap"))
+	askSize := parseSize(getString(quoteData, "bas"))
+	if askPrice > 0 && askSize > 0 {
+		orderBook.Asks = append(orderBook.Asks, OrderBookLevel{
+			Price:    askPrice,
+			Quantity: askSize,
+			Position: 1,
+			Side:     "S",
+		})
+	}
+
+	if len(orderBook.Bids) == 0 && len(orderBook.Asks) == 0 {
+		return nil, fmt.Errorf("no bid/ask data in quote for %s", symbol)
+	}
+
+	return orderBook, nil
+}
+
+// parsePrice parses price string (e.g., "147,39" or "147.39") to float64
+func parsePrice(s string) float64 {
+	if s == "" {
+		return 0
+	}
+	// Replace comma with dot for decimal separator
+	s = strings.Replace(s, ",", ".", 1)
+	val, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0
+	}
+	return val
+}
+
+// parseSize parses size string (e.g., "89170") to float64
+func parseSize(s string) float64 {
+	if s == "" {
+		return 0
+	}
+	val, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0
+	}
+	return val
 }

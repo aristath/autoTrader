@@ -74,6 +74,16 @@ func (a *TradernetBrokerAdapter) GetQuote(symbol string) (*domain.BrokerQuote, e
 	return transformQuoteToDomain(tnQuote), nil
 }
 
+// GetLevel1Quote implements domain.BrokerClient
+// Fetches Level 1 market data (best bid and best ask) from Tradernet
+func (a *TradernetBrokerAdapter) GetLevel1Quote(symbol string) (*domain.BrokerOrderBook, error) {
+	tnOrderBook, err := a.client.GetLevel1Quote(symbol)
+	if err != nil {
+		return nil, err
+	}
+	return transformOrderBookToDomain(tnOrderBook), nil
+}
+
 // FindSymbol implements domain.BrokerClient
 func (a *TradernetBrokerAdapter) FindSymbol(symbol string, exchange *string) ([]domain.BrokerSecurityInfo, error) {
 	tnSecurities, err := a.client.FindSymbol(symbol, exchange)

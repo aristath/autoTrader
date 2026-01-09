@@ -28,6 +28,8 @@ type mockSDKClient struct {
 	findSymbolError           error
 	getQuotesResult           interface{}
 	getQuotesError            error
+	getLevel1QuoteResult      interface{}
+	getLevel1QuoteError       error
 	userInfoResult            interface{}
 	userInfoError             error
 	lastLimitPrice            float64 // Track limit price passed to Buy/Sell
@@ -69,6 +71,10 @@ func (m *mockSDKClient) FindSymbol(symbol string, exchange *string) (interface{}
 
 func (m *mockSDKClient) GetQuotes(symbols []string) (interface{}, error) {
 	return m.getQuotesResult, m.getQuotesError
+}
+
+func (m *mockSDKClient) GetLevel1Quote(symbol string) (interface{}, error) {
+	return m.getLevel1QuoteResult, m.getLevel1QuoteError
 }
 
 func (m *mockSDKClient) UserInfo() (interface{}, error) {

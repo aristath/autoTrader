@@ -20,6 +20,7 @@ import (
 	"github.com/aristath/sentinel/internal/modules/market_hours"
 	"github.com/aristath/sentinel/internal/modules/opportunities"
 	"github.com/aristath/sentinel/internal/modules/optimization"
+	"github.com/aristath/sentinel/internal/modules/order_book"
 	"github.com/aristath/sentinel/internal/modules/planning"
 	planningevaluation "github.com/aristath/sentinel/internal/modules/planning/evaluation"
 	planningplanner "github.com/aristath/sentinel/internal/modules/planning/planner"
@@ -124,6 +125,20 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 	// Settings service (needed for trade safety and other services)
 	container.SettingsService = settings.NewService(container.SettingsRepo, log)
 
+	// Order Book service (validates liquidity and calculates optimal limit prices)
+	// Uses bid-ask midpoint pricing strategy for optimal execution
+	// PriceValidator abstracts the validation source (Yahoo Finance in this case)
+	priceValidator := order_book.NewYahooPriceValidator(
+		container.YahooClient,
+		log.With().Str("component", "yahoo_price_validator").Logger(),
+	)
+	container.OrderBookService = order_book.NewService(
+		container.BrokerClient,
+		priceValidator,
+		container.SettingsService,
+		log.With().Str("service", "order_book").Logger(),
+	)
+
 	// Exchange rate cache service (wraps ExchangeRateAPI + CurrencyExchangeService + Yahoo fallback)
 	container.ExchangeRateCacheService = services.NewExchangeRateCacheService(
 		container.ExchangeRateAPIClient,   // NEW: Primary source (exchangerate-api.com)
@@ -181,6 +196,7 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 		container.CurrencyExchangeService,
 		container.EventManager,
 		container.SettingsService,
+		container.OrderBookService, // NEW: Order book analysis for optimal limit pricing
 		container.YahooClient,
 		container.HistoryDB.Conn(), // Get underlying *sql.DB
 		container.SecurityRepo,

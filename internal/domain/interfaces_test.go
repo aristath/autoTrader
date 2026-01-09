@@ -103,6 +103,10 @@ func (m *mockBrokerClient) HealthCheck() (*BrokerHealthResult, error) {
 func (m *mockBrokerClient) SetCredentials(apiKey, apiSecret string) {
 }
 
+func (m *mockBrokerClient) GetLevel1Quote(symbol string) (*BrokerOrderBook, error) {
+	return nil, nil
+}
+
 type mockCurrencyExchangeService struct{}
 
 func (m *mockCurrencyExchangeService) GetRate(fromCurrency, toCurrency string) (float64, error) {

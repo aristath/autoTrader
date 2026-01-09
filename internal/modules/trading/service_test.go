@@ -54,6 +54,10 @@ func (m *mockTradernetClient) FindSymbol(symbol string, exchange *string) ([]dom
 	return nil, nil
 }
 
+func (m *mockTradernetClient) GetLevel1Quote(symbol string) (*domain.BrokerOrderBook, error) {
+	return nil, nil
+}
+
 func (m *mockTradernetClient) GetAllCashFlows(limit int) ([]domain.BrokerCashFlow, error) {
 	return nil, nil
 }

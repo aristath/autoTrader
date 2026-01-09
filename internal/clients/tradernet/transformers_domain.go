@@ -302,3 +302,35 @@ func getTransactionTypeField(transactionType, typeField string) string {
 	}
 	return typeField
 }
+
+// transformOrderBookToDomain converts Tradernet order book to domain BrokerOrderBook
+func transformOrderBookToDomain(tn *OrderBook) *domain.BrokerOrderBook {
+	if tn == nil {
+		return nil
+	}
+
+	domainBids := make([]domain.OrderBookLevel, len(tn.Bids))
+	for i, level := range tn.Bids {
+		domainBids[i] = domain.OrderBookLevel{
+			Price:    level.Price,
+			Quantity: level.Quantity,
+			Position: level.Position,
+		}
+	}
+
+	domainAsks := make([]domain.OrderBookLevel, len(tn.Asks))
+	for i, level := range tn.Asks {
+		domainAsks[i] = domain.OrderBookLevel{
+			Price:    level.Price,
+			Quantity: level.Quantity,
+			Position: level.Position,
+		}
+	}
+
+	return &domain.BrokerOrderBook{
+		Symbol:    tn.Symbol,
+		Bids:      domainBids,
+		Asks:      domainAsks,
+		Timestamp: tn.Timestamp,
+	}
+}

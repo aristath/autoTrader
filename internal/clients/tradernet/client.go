@@ -422,6 +422,23 @@ type QuoteResponse struct {
 	Quote Quote `json:"quote"`
 }
 
+// OrderBook represents real-time market depth from Tradernet API
+type OrderBook struct {
+	Symbol    string           `json:"symbol"`
+	Bids      []OrderBookLevel `json:"bids"`
+	Asks      []OrderBookLevel `json:"asks"`
+	Count     int              `json:"count"`
+	Timestamp string           `json:"timestamp"`
+}
+
+// OrderBookLevel represents a single price level in the order book
+type OrderBookLevel struct {
+	Price    float64 `json:"p"` // Price at this level (Tradernet: "p")
+	Quantity float64 `json:"q"` // Quantity available (Tradernet: "q")
+	Position int     `json:"k"` // Position in book (Tradernet: "k", 1=best)
+	Side     string  `json:"s"` // Side: "B"=bid, "S"=ask (Tradernet: "s")
+}
+
 // GetQuote gets current quote for a symbol
 func (c *Client) GetQuote(symbol string) (*Quote, error) {
 	if c.sdkClient == nil {
@@ -443,6 +460,29 @@ func (c *Client) GetQuote(symbol string) (*Quote, error) {
 	}
 
 	return quote, nil
+}
+
+// GetLevel1Quote fetches Level 1 market data (best bid and best ask) for a symbol
+// Note: Despite the name change, this still calls getStockQuotesJson which returns Level 1 data only
+func (c *Client) GetLevel1Quote(symbol string) (*OrderBook, error) {
+	if c.sdkClient == nil {
+		return nil, fmt.Errorf("SDK client not initialized")
+	}
+
+	c.log.Debug().Str("symbol", symbol).Msg("GetLevel1Quote: calling SDK")
+	result, err := c.sdkClient.GetLevel1Quote(symbol)
+	if err != nil {
+		c.log.Error().Err(err).Msg("GetLevel1Quote: SDK call failed")
+		return nil, fmt.Errorf("failed to get Level 1 quote: %w", err)
+	}
+
+	orderBook, err := transformOrderBook(result, symbol)
+	if err != nil {
+		c.log.Error().Err(err).Msg("GetLevel1Quote: transformOrderBook failed")
+		return nil, fmt.Errorf("failed to transform Level 1 quote: %w", err)
+	}
+
+	return orderBook, nil
 }
 
 // PendingOrder represents a pending order in the broker

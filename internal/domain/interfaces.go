@@ -32,6 +32,9 @@ type BrokerClient interface {
 
 	// Market data operations
 	GetQuote(symbol string) (*BrokerQuote, error)
+	// GetLevel1Quote fetches Level 1 market data (best bid and best ask only)
+	// Returns BrokerOrderBook with Bids[0] and Asks[0] populated
+	GetLevel1Quote(symbol string) (*BrokerOrderBook, error)
 	FindSymbol(symbol string, exchange *string) ([]BrokerSecurityInfo, error)
 
 	// Cash operations

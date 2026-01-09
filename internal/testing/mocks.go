@@ -1158,6 +1158,21 @@ func (m *MockTradernetClient) FindSymbol(symbol string, exchange *string) ([]dom
 	return []domain.BrokerSecurityInfo{}, nil
 }
 
+// GetLevel1Quote gets Level 1 market data (best bid/ask) - mock implementation
+func (m *MockTradernetClient) GetLevel1Quote(symbol string) (*domain.BrokerOrderBook, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &domain.BrokerOrderBook{
+		Symbol:    symbol,
+		Bids:      []domain.OrderBookLevel{{Price: 100.0, Quantity: 1000.0, Position: 1}},
+		Asks:      []domain.OrderBookLevel{{Price: 101.0, Quantity: 1000.0, Position: 1}},
+		Timestamp: "2024-01-01T00:00:00Z",
+	}, nil
+}
+
 // GetAllCashFlows retrieves cash flows (mock implementation)
 func (m *MockTradernetClient) GetAllCashFlows(limit int) ([]domain.BrokerCashFlow, error) {
 	m.mu.RLock()
@@ -1207,6 +1222,7 @@ type MockBrokerClient struct {
 	pendingOrders  []domain.BrokerPendingOrder
 	cashFlows      []domain.BrokerCashFlow
 	quotes         map[string]*domain.BrokerQuote
+	orderBook      *domain.BrokerOrderBook
 	securities     []domain.BrokerSecurityInfo
 	cashMovements  *domain.BrokerCashMovement
 	healthResult   *domain.BrokerHealthResult
@@ -1276,6 +1292,13 @@ func (m *MockBrokerClient) SetQuote(symbol string, quote *domain.BrokerQuote) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.quotes[symbol] = quote
+}
+
+// SetOrderBook sets the order book to return
+func (m *MockBrokerClient) SetOrderBook(orderBook *domain.BrokerOrderBook) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.orderBook = orderBook
 }
 
 // SetSecurities sets the securities to return
@@ -1389,6 +1412,26 @@ func (m *MockBrokerClient) GetQuote(symbol string) (*domain.BrokerQuote, error) 
 		return nil, fmt.Errorf("no quote configured for symbol: %s", symbol)
 	}
 	return quote, nil
+}
+
+// GetLevel1Quote implements domain.BrokerClient
+// Returns Level 1 market data (best bid and best ask only)
+func (m *MockBrokerClient) GetLevel1Quote(symbol string) (*domain.BrokerOrderBook, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.orderBook != nil {
+		return m.orderBook, nil
+	}
+	// Return a simple default mock Level 1 quote
+	return &domain.BrokerOrderBook{
+		Symbol:    symbol,
+		Bids:      []domain.OrderBookLevel{{Price: 100.0, Quantity: 1000.0, Position: 1}},
+		Asks:      []domain.OrderBookLevel{{Price: 101.0, Quantity: 1000.0, Position: 1}},
+		Timestamp: "2024-01-01T00:00:00Z",
+	}, nil
 }
 
 // FindSymbol implements domain.BrokerClient

@@ -336,6 +336,18 @@ func (c *Client) GetQuotes(symbols []string) (interface{}, error) {
 	return c.authorizedRequest("getStockQuotesJson", params)
 }
 
+// GetLevel1Quote fetches Level 1 market data (best bid and best ask only) for a symbol
+// Note: Full order book (depth) requires WebSocket. This method uses quotes endpoint for Level 1 only.
+// Returns Level 1 quote data with best bid/ask from getStockQuotesJson endpoint
+func (c *Client) GetLevel1Quote(symbol string) (interface{}, error) {
+	// Use getStockQuotesJson to get best bid/ask (Level 1 data)
+	// Full order book depth would require WebSocket subscription
+	params := GetStockQuotesJSONParams{
+		Tickers: symbol,
+	}
+	return c.authorizedRequest("getStockQuotesJson", params)
+}
+
 // GetCandles gets historical OHLC data
 // This matches the Python SDK's get_candles() method exactly
 func (c *Client) GetCandles(symbol string, start, end time.Time, timeframeSeconds int) (interface{}, error) {

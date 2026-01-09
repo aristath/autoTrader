@@ -100,3 +100,18 @@ type BrokerHealthResult struct {
 	Connected bool   // Whether broker is connected
 	Timestamp string // Timestamp of health check
 }
+
+// BrokerOrderBook represents real-time market depth (bid/ask orders at different price levels)
+type BrokerOrderBook struct {
+	Symbol    string           // Security symbol (e.g., "AAPL.US")
+	Bids      []OrderBookLevel // Bid orders (buy side), sorted descending by price
+	Asks      []OrderBookLevel // Ask orders (sell side), sorted ascending by price
+	Timestamp string           // Timestamp when order book was fetched
+}
+
+// OrderBookLevel represents a single price level in the order book
+type OrderBookLevel struct {
+	Price    float64 // Price at this level
+	Quantity float64 // Total quantity available at this price
+	Position int     // Position in book (1=best price, 2=second best, etc.)
+}
