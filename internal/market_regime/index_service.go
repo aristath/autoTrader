@@ -91,12 +91,13 @@ func (s *MarketIndexService) EnsureIndicesExist() error {
 		// Create index as non-tradeable security
 		// Use a placeholder ISIN (indices may not have ISINs)
 		isin := fmt.Sprintf("INDEX-%s", idx.Symbol)
+		now := time.Now().Unix()
 
 		_, err = s.universeDB.Exec(`
 			INSERT INTO securities
 			(isin, symbol, name, product_type, active, allow_buy, allow_sell, created_at, updated_at)
 			VALUES (?, ?, ?, 'INDEX', 1, 0, 0, ?, ?)
-		`, isin, idx.Symbol, idx.Name, time.Now().Format(time.RFC3339), time.Now().Format(time.RFC3339))
+		`, isin, idx.Symbol, idx.Name, now, now)
 		if err != nil {
 			return fmt.Errorf("failed to create index %s: %w", idx.Symbol, err)
 		}
@@ -108,6 +109,89 @@ func (s *MarketIndexService) EnsureIndicesExist() error {
 	}
 
 	return nil
+}
+
+// InitializeMarketIndices ensures market indices are fully set up with historical data
+// This is called once on application startup to bootstrap the market regime system
+func (s *MarketIndexService) InitializeMarketIndices(historicalSync HistoricalSyncService) error {
+	// Step 1: Ensure indices exist in securities table
+	if err := s.EnsureIndicesExist(); err != nil {
+		return fmt.Errorf("failed to create market indices: %w", err)
+	}
+
+	// Step 2: Create Yahoo symbol mappings
+	if err := s.ensureYahooMappings(); err != nil {
+		return fmt.Errorf("failed to create Yahoo mappings: %w", err)
+	}
+
+	// Step 3: Populate historical data for each index
+	indices := s.GetDefaultIndices()
+	for _, idx := range indices {
+		isin := fmt.Sprintf("INDEX-%s", idx.Symbol)
+
+		// Check if we already have recent data (within last 7 days)
+		var hasRecentData bool
+		weekAgo := time.Now().AddDate(0, 0, -7).Unix()
+		err := s.historyDB.QueryRow(`
+			SELECT COUNT(*) > 0 FROM daily_prices
+			WHERE isin = ? AND date > ?
+		`, isin, weekAgo).Scan(&hasRecentData)
+
+		if err == nil && hasRecentData {
+			s.log.Debug().Str("symbol", idx.Symbol).Msg("Index already has recent data")
+			continue
+		}
+
+		// Fetch historical data (10 years initially, then 1 year for updates)
+		// The HistoricalSyncService automatically determines the period based on existing data
+		s.log.Info().Str("symbol", idx.Symbol).Msg("Fetching historical data for index")
+		if err := historicalSync.SyncHistoricalPrices(idx.Symbol); err != nil {
+			s.log.Warn().Err(err).Str("symbol", idx.Symbol).Msg("Failed to fetch index history")
+			// Continue with other indices even if one fails
+			continue
+		}
+
+		s.log.Info().Str("symbol", idx.Symbol).Msg("Successfully populated index historical data")
+	}
+
+	return nil
+}
+
+// ensureYahooMappings creates Yahoo Finance symbol mappings for market indices
+func (s *MarketIndexService) ensureYahooMappings() error {
+	// Map our index ISINs to Yahoo Finance ticker symbols
+	indexMappings := map[string]string{
+		"INDEX-SPX.US":        "^GSPC",  // S&P 500
+		"INDEX-STOXX600.EU":   "^STOXX", // STOXX Europe 600
+		"INDEX-MSCIASIA.ASIA": "^AXJO",  // ASX 200 (Asia proxy)
+	}
+
+	now := time.Now().Unix()
+
+	for isin, yahooSymbol := range indexMappings {
+		// Update the yahoo_symbol column in the securities table
+		_, err := s.universeDB.Exec(`
+			UPDATE securities
+			SET yahoo_symbol = ?, updated_at = ?
+			WHERE isin = ?
+		`, yahooSymbol, now, isin)
+
+		if err != nil {
+			return fmt.Errorf("failed to create mapping for %s: %w", isin, err)
+		}
+
+		s.log.Debug().
+			Str("isin", isin).
+			Str("yahoo_symbol", yahooSymbol).
+			Msg("Set Yahoo symbol mapping")
+	}
+
+	return nil
+}
+
+// HistoricalSyncService interface for dependency injection
+type HistoricalSyncService interface {
+	SyncHistoricalPrices(symbol string) error
 }
 
 // GetCompositeReturns calculates weighted composite returns from market indices

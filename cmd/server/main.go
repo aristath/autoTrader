@@ -74,6 +74,15 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to wire dependencies")
 	}
 
+	// Initialize market indices (creates indices, mappings, fetches 10y history)
+	// This is a one-time bootstrap that's idempotent (safe to call on every startup)
+	log.Info().Msg("Initializing market indices for regime detection...")
+	if err := container.MarketIndexService.InitializeMarketIndices(container.HistoricalSyncService); err != nil {
+		log.Error().Err(err).Msg("Failed to initialize market indices - optimizer may use standard covariance")
+	} else {
+		log.Info().Msg("Market indices initialized successfully")
+	}
+
 	// Cleanup databases on exit
 	defer container.UniverseDB.Close()
 	defer container.ConfigDB.Close()
