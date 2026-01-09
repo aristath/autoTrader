@@ -237,6 +237,15 @@ func main() {
 		log.Info().Msg("Worker pool stopped")
 	}
 
+	// Stop WebSocket client
+	if container.MarketStatusWS != nil {
+		if err := container.MarketStatusWS.Stop(); err != nil {
+			log.Error().Err(err).Msg("Error stopping market status WebSocket")
+		} else {
+			log.Info().Msg("Market status WebSocket stopped")
+		}
+	}
+
 	// Graceful shutdown
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()

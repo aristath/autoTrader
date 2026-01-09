@@ -34,9 +34,9 @@ func TestValidateBackupFilename(t *testing.T) {
 			expectedOut: "sentinel-backup-2026-01-08-143022.tar.gz",
 		},
 		{
-			name:     "absolute path",
-			filename: "/tmp/sentinel-backup-2026-01-08-143022.tar.gz",
-			wantErr:  false, // filepath.Base will extract the filename
+			name:        "absolute path",
+			filename:    "/tmp/sentinel-backup-2026-01-08-143022.tar.gz",
+			wantErr:     false, // filepath.Base will extract the filename
 			expectedOut: "sentinel-backup-2026-01-08-143022.tar.gz",
 		},
 		{

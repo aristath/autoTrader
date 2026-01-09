@@ -449,9 +449,9 @@ func (c *Client) GetClientCpsHistory(dateFrom, dateTo string, cpsDocID, id, limi
 //   - Returns error if order ID is invalid or order cannot be cancelled
 //   - Returns error if API request fails or credentials are invalid
 //   - Returns specific error based on error_code:
-//     - 0: Method error (order not found, already cancelled, etc.)
-//     - 2: Common error
-//     - 12: No permission to cancel this order
+//   - 0: Method error (order not found, already cancelled, etc.)
+//   - 2: Common error
+//   - 12: No permission to cancel this order
 //
 // API Reference: https://freedom24.com/tradernet-api/orders-cancel
 //

@@ -3,6 +3,7 @@ package di
 
 import (
 	"github.com/aristath/sentinel/internal/clients/exchangerate"
+	"github.com/aristath/sentinel/internal/clients/tradernet"
 	"github.com/aristath/sentinel/internal/clients/yahoo"
 	"github.com/aristath/sentinel/internal/database"
 	"github.com/aristath/sentinel/internal/domain"
@@ -51,6 +52,7 @@ type Container struct {
 	BrokerClient          domain.BrokerClient
 	YahooClient           *yahoo.NativeClient
 	ExchangeRateAPIClient *exchangerate.Client
+	MarketStatusWS        *tradernet.MarketStatusWebSocket
 
 	// Repositories
 	PositionRepo       *portfolio.PositionRepository

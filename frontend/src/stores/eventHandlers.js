@@ -159,6 +159,15 @@ export const eventHandlers = {
     useAppStore.getState().fetchTradernet();
   },
 
+  MARKETS_STATUS_CHANGED: (event) => {
+    if (!event || !event.data) {
+      console.warn('MARKETS_STATUS_CHANGED event missing data');
+      return;
+    }
+    // Update markets state with individual market data
+    useAppStore.setState({ markets: event.data.markets || {} });
+  },
+
   // Logs events
   LOG_FILE_CHANGED: (event) => {
     if (!event || !event.data) {

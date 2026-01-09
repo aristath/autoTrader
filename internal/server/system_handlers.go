@@ -10,12 +10,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/aristath/sentinel/internal/clients/tradernet"
 	"github.com/aristath/sentinel/internal/database"
 	"github.com/aristath/sentinel/internal/domain"
 	"github.com/aristath/sentinel/internal/modules/display"
 	"github.com/aristath/sentinel/internal/modules/market_hours"
 	"github.com/aristath/sentinel/internal/modules/settings"
-	"github.com/aristath/sentinel/internal/modules/universe"
 	"github.com/aristath/sentinel/internal/queue"
 	"github.com/aristath/sentinel/internal/scheduler"
 	"github.com/aristath/sentinel/internal/services"
@@ -39,6 +39,7 @@ type SystemHandlers struct {
 	currencyExchangeService *services.CurrencyExchangeService
 	cashManager             domain.CashManager
 	marketHoursService      *market_hours.MarketHoursService
+	marketStatusWS          *tradernet.MarketStatusWebSocket
 	// Jobs (will be set after job registration in main.go)
 	// Original composite jobs
 	healthCheckJob       scheduler.Job
@@ -88,6 +89,7 @@ func NewSystemHandlers(
 	currencyExchangeService *services.CurrencyExchangeService,
 	cashManager domain.CashManager,
 	marketHoursService *market_hours.MarketHoursService,
+	marketStatusWS *tradernet.MarketStatusWebSocket,
 ) *SystemHandlers {
 	// Create portfolio performance service
 	portfolioPerf := display.NewPortfolioPerformanceService(
@@ -116,6 +118,7 @@ func NewSystemHandlers(
 		portfolioDisplayCalc:    portfolioDisplayCalc,
 		displayManager:          displayManager,
 		marketHoursService:      marketHoursService,
+		marketStatusWS:          marketStatusWS,
 		brokerClient:            brokerClient,
 		currencyExchangeService: currencyExchangeService,
 		cashManager:             cashManager,
@@ -283,11 +286,22 @@ type JobInfo struct {
 }
 
 // MarketsStatusResponse represents market status
+// IndividualMarketInfo represents status of a single exchange
+type IndividualMarketInfo struct {
+	Name      string `json:"name"`
+	Code      string `json:"code"`
+	Status    string `json:"status"`     // "open", "closed", "pre_open", "post_close"
+	OpenTime  string `json:"open_time"`  // "09:30"
+	CloseTime string `json:"close_time"` // "16:00"
+	Date      string `json:"date"`       // "2024-01-09"
+	UpdatedAt string `json:"updated_at"` // ISO 8601 timestamp
+}
+
 type MarketsStatusResponse struct {
-	Markets     map[string]MarketRegionInfo `json:"markets"` // Key: "EU", "US", "ASIA"
-	OpenCount   int                         `json:"open_count"`
-	ClosedCount int                         `json:"closed_count"`
-	LastUpdated string                      `json:"last_updated"`
+	Markets     map[string]IndividualMarketInfo `json:"markets"` // Key: exchange code (XNAS, XNYS, etc.)
+	OpenCount   int                             `json:"open_count"`
+	ClosedCount int                             `json:"closed_count"`
+	LastUpdated string                          `json:"last_updated"`
 }
 
 // MarketInfo represents status of a single market (legacy, kept for backward compatibility)
@@ -692,15 +706,15 @@ func (h *SystemHandlers) HandleJobsStatus(w http.ResponseWriter, r *http.Request
 
 // calculateNextOpenCloseTimes removed - market hours functionality removed
 
-// HandleMarketsStatus returns market open/close status grouped by geography
+// HandleMarketsStatus returns individual market status from WebSocket cache
 func (h *SystemHandlers) HandleMarketsStatus(w http.ResponseWriter, r *http.Request) {
-	h.log.Debug().Msg("Getting markets status")
+	h.log.Debug().Msg("Getting markets status from WebSocket cache")
 
-	if h.marketHoursService == nil {
-		h.log.Warn().Msg("Market hours service not available")
-		markets := make(map[string]MarketRegionInfo)
+	// Check if WebSocket client is available
+	if h.marketStatusWS == nil {
+		h.log.Warn().Msg("Market status WebSocket not available")
 		response := MarketsStatusResponse{
-			Markets:     markets,
+			Markets:     make(map[string]IndividualMarketInfo),
 			OpenCount:   0,
 			ClosedCount: 0,
 			LastUpdated: time.Now().Format(time.RFC3339),
@@ -710,19 +724,14 @@ func (h *SystemHandlers) HandleMarketsStatus(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Get distinct exchanges from universe database
-	securityRepo := universe.NewSecurityRepository(h.universeDB.Conn(), h.log)
-	exchanges, err := securityRepo.GetDistinctExchanges()
-	if err != nil {
-		h.log.Warn().Err(err).Msg("Failed to get exchanges from database")
-		exchanges = []string{}
-	}
+	// Get cached market statuses from WebSocket
+	cachedMarkets := h.marketStatusWS.GetAllMarketStatuses()
 
-	// If no exchanges found, return empty response
-	if len(exchanges) == 0 {
-		markets := make(map[string]MarketRegionInfo)
+	// If cache is empty, return empty response with warning
+	if len(cachedMarkets) == 0 {
+		h.log.Warn().Msg("Market status cache is empty (WebSocket may not be connected yet)")
 		response := MarketsStatusResponse{
-			Markets:     markets,
+			Markets:     make(map[string]IndividualMarketInfo),
 			OpenCount:   0,
 			ClosedCount: 0,
 			LastUpdated: time.Now().Format(time.RFC3339),
@@ -732,52 +741,26 @@ func (h *SystemHandlers) HandleMarketsStatus(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Group exchanges by region and get status
-	now := time.Now()
-	markets := make(map[string]MarketRegionInfo)
+	// Convert tradernet.MarketStatusData to IndividualMarketInfo
+	markets := make(map[string]IndividualMarketInfo, len(cachedMarkets))
 	openCount := 0
 	closedCount := 0
 
-	// Group exchanges by region
-	regionMap := make(map[string][]string)
-	for _, exchangeName := range exchanges {
-		region := h.getExchangeRegion(exchangeName)
-		regionMap[region] = append(regionMap[region], exchangeName)
-	}
-
-	// Get status for each region
-	for region, exchangeNames := range regionMap {
-		regionOpen := false
-		var closesAt, opensAt, opensDate string
-
-		// Check if any exchange in region is open
-		for _, exchangeName := range exchangeNames {
-			status, err := h.marketHoursService.GetMarketStatus(exchangeName, now)
-			if err != nil {
-				h.log.Debug().Err(err).Str("exchange", exchangeName).Msg("Failed to get market status")
-				continue
-			}
-
-			if status.Open {
-				regionOpen = true
-				if closesAt == "" {
-					closesAt = status.ClosesAt
-				}
-				openCount++
-			} else {
-				closedCount++
-				if opensAt == "" {
-					opensAt = status.OpensAt
-					opensDate = status.OpensDate
-				}
-			}
+	for code, market := range cachedMarkets {
+		if market.Status == "open" {
+			openCount++
+		} else {
+			closedCount++
 		}
 
-		markets[region] = MarketRegionInfo{
-			Open:      regionOpen,
-			ClosesAt:  closesAt,
-			OpensAt:   opensAt,
-			OpensDate: opensDate,
+		markets[code] = IndividualMarketInfo{
+			Name:      market.Name,
+			Code:      market.Code,
+			Status:    market.Status,
+			OpenTime:  market.OpenTime,
+			CloseTime: market.CloseTime,
+			Date:      market.Date,
+			UpdatedAt: market.UpdatedAt.Format(time.RFC3339),
 		}
 	}
 
@@ -787,6 +770,12 @@ func (h *SystemHandlers) HandleMarketsStatus(w http.ResponseWriter, r *http.Requ
 		ClosedCount: closedCount,
 		LastUpdated: time.Now().Format(time.RFC3339),
 	}
+
+	h.log.Debug().
+		Int("market_count", len(markets)).
+		Int("open_count", openCount).
+		Int("closed_count", closedCount).
+		Msg("Returning market statuses from WebSocket cache")
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)

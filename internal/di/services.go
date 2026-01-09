@@ -94,6 +94,20 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 	container.EventBus = events.NewBus(log)
 	container.EventManager = events.NewManager(container.EventBus, log)
 
+	// Market status WebSocket client
+	container.MarketStatusWS = tradernet.NewMarketStatusWebSocket(
+		"wss://wss.tradernet.com/",
+		"", // Empty string for demo mode (SID not required)
+		container.EventBus,
+		log,
+	)
+
+	// Start WebSocket connection (non-blocking, will auto-retry)
+	if err := container.MarketStatusWS.Start(); err != nil {
+		log.Warn().Err(err).Msg("Market status WebSocket connection failed, will auto-retry")
+		// Don't fail startup - reconnect loop will handle it
+	}
+
 	// Queue system
 	memoryQueue := queue.NewMemoryQueue()
 	jobHistory := queue.NewHistory(container.CacheDB.Conn())

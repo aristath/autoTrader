@@ -127,6 +127,7 @@ func New(cfg Config) *Server {
 		currencyExchangeService,
 		cashManagerForSystem,
 		marketHoursService,
+		cfg.Container.MarketStatusWS,
 	)
 
 	// Initialize R2 backup handlers if R2 is configured

@@ -156,7 +156,6 @@ func (g *GitHubArtifactDeployer) CheckForNewBuild() (string, error) {
 	return "", nil
 }
 
-
 // VerifyBinaryArchitecture verifies that a binary is built for linux/arm64
 // Uses `file` command to check the ELF architecture
 func (g *GitHubArtifactDeployer) VerifyBinaryArchitecture(binaryPath string) error {

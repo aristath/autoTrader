@@ -148,10 +148,23 @@ func (d *TradernetStatusChangedData) EventType() EventType {
 	return TradernetStatusChanged
 }
 
+// MarketStatusData represents individual market status (matches tradernet.MarketStatusData)
+type MarketStatusData struct {
+	Name      string `json:"name"`
+	Code      string `json:"code"`
+	Status    string `json:"status"`     // "open", "closed", "pre_open", "post_close"
+	OpenTime  string `json:"open_time"`  // "09:30"
+	CloseTime string `json:"close_time"` // "16:00"
+	Date      string `json:"date"`       // "2024-01-09"
+	UpdatedAt string `json:"updated_at"` // ISO 8601 timestamp
+}
+
 // MarketsStatusChangedData contains data for MarketsStatusChanged events
 type MarketsStatusChangedData struct {
-	OpenCount int    `json:"open_count"`
-	Timestamp string `json:"timestamp"`
+	Markets     map[string]MarketStatusData `json:"markets"` // Keyed by exchange code (XNAS, XNYS, etc.)
+	OpenCount   int                         `json:"open_count"`
+	ClosedCount int                         `json:"closed_count"`
+	LastUpdated string                      `json:"last_updated"` // ISO 8601 timestamp
 }
 
 // EventType returns the event type for MarketsStatusChangedData

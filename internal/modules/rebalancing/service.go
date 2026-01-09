@@ -88,7 +88,7 @@ func NewService(
 	configRepo *planningrepo.ConfigRepository,
 	recommendationRepo planning.RecommendationRepositoryInterface, // Interface - can be DB or in-memory
 	portfolioDB *sql.DB, // For querying scores and calculations
-	configDB *sql.DB,    // For querying settings
+	configDB *sql.DB, // For querying settings
 	log zerolog.Logger,
 ) *Service {
 	return &Service{
