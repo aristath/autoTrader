@@ -243,11 +243,12 @@ func (rb *RiskModelBuilder) BuildRegimeAwareCovarianceMatrix(
 // fetchPriceHistory fetches historical prices from the database.
 // This function converts symbols to ISINs before querying daily_prices.isin column.
 func (rb *RiskModelBuilder) fetchPriceHistory(symbols []string, days int) (TimeSeriesData, error) {
-	// Calculate start date
-	startDate := time.Now().AddDate(0, 0, -days).Format("2006-01-02")
+	// Calculate start date as Unix timestamp (date column is INTEGER type)
+	startTime := time.Now().AddDate(0, 0, -days)
+	startDate := time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, time.UTC).Unix()
 
 	rb.log.Debug().
-		Str("start_date", startDate).
+		Int64("start_date", startDate).
 		Int("num_symbols", len(symbols)).
 		Msg("Fetching price history from database")
 
