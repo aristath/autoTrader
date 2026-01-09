@@ -460,8 +460,8 @@ func (s *Server) setupRoutes() {
 		tradingSettingsService := s.container.SettingsService
 		tradingSafetyService := s.container.TradeSafetyService
 		tradingRecommendationRepo := s.container.RecommendationRepo
-		// Initialize planner repository for getting evaluated count
-		tradingPlannerRepo := repository.NewPlannerRepository(s.agentsDB, s.log)
+		// Use in-memory planner repository from DI container
+		tradingPlannerRepo := s.container.PlannerRepo
 		tradingHandler := tradinghandlers.NewTradingHandlers(
 			tradingTradeRepo,
 			tradingSecurityFetcher,
