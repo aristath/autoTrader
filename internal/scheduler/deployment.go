@@ -9,6 +9,7 @@ import (
 
 // DeploymentJob handles scheduled deployment checks
 type DeploymentJob struct {
+	JobBase
 	deploymentManager *deployment.Manager
 	log               zerolog.Logger
 	interval          time.Duration

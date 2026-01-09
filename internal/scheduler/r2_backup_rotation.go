@@ -18,6 +18,7 @@ type R2BackupRotationJobConfig struct {
 
 // R2BackupRotationJob performs R2 backup rotation (deletes old backups)
 type R2BackupRotationJob struct {
+	JobBase
 	log             zerolog.Logger
 	service         *reliability.R2BackupService
 	settingsService *settings.Service

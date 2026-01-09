@@ -14,6 +14,7 @@ import (
 // This is the main autonomous trading loop that waits for the planner batch job
 // to complete, then executes the recommended trades (one at a time with 15-min throttle)
 type EventBasedTradingJob struct {
+	JobBase
 	log                zerolog.Logger
 	recommendationRepo planning.RecommendationRepositoryInterface // Interface - can be DB or in-memory
 	tradingService     *trading.TradingService

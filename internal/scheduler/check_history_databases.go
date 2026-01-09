@@ -10,6 +10,7 @@ import (
 
 // CheckHistoryDatabasesJob verifies integrity of consolidated history database
 type CheckHistoryDatabasesJob struct {
+	JobBase
 	log       zerolog.Logger
 	historyDB *database.DB
 }

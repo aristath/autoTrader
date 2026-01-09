@@ -7,10 +7,16 @@ import (
 	"github.com/aristath/sentinel/internal/clients/yahoo"
 )
 
+// ProgressReporter interface for progress reporting (avoids import cycle)
+type ProgressReporter interface {
+	Report(current, total int, message string)
+}
+
 // SyncServiceInterface defines the contract for sync service operations
 // Used by UniverseService to enable testing with mocks
 type SyncServiceInterface interface {
 	SyncAllPrices() (int, error)
+	SyncAllPricesWithReporter(reporter ProgressReporter) (int, error)
 	SyncPricesForSymbols(symbolMap map[string]*string) (int, error)
 }
 

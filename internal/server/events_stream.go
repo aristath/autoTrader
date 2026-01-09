@@ -121,6 +121,11 @@ func (h *EventsStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		events.SettingsChanged,
 		events.PlannerConfigChanged,
 		events.LogFileChanged,
+		// Job lifecycle events
+		events.JobStarted,
+		events.JobProgress,
+		events.JobCompleted,
+		events.JobFailed,
 	}
 
 	// Subscribe to all event types (or just the ones in filter)

@@ -6,12 +6,14 @@ import (
 
 	"github.com/aristath/sentinel/internal/events"
 	"github.com/aristath/sentinel/internal/modules/display"
+	"github.com/aristath/sentinel/internal/queue"
 	"github.com/rs/zerolog"
 )
 
 // SyncCycleJob orchestrates all data synchronization tasks by running individual sync jobs
 // Runs every 5 minutes to keep portfolio, cash, and prices up to date
 type SyncCycleJob struct {
+	JobBase
 	log            zerolog.Logger
 	displayManager *display.StateManager
 	eventManager   EventManagerInterface
@@ -67,10 +69,19 @@ func (j *SyncCycleJob) Run() error {
 	j.log.Info().Msg("Starting sync cycle")
 	startTime := time.Now()
 
+	var reporter *queue.ProgressReporter
+	if r := j.GetProgressReporter(); r != nil {
+		reporter, _ = r.(*queue.ProgressReporter)
+	}
+	const totalSteps = 7
+
 	// Set LED to blue (syncing indicator)
 	j.setDisplaySyncing()
 
 	// Step 1: Sync trades from Tradernet (non-critical)
+	if reporter != nil {
+		reporter.Report(1, totalSteps, "Syncing trades")
+	}
 	if j.syncTradesJob != nil {
 		if err := j.syncTradesJob.Run(); err != nil {
 			j.log.Error().Err(err).Msg("Trade sync failed (non-critical)")
@@ -79,6 +90,9 @@ func (j *SyncCycleJob) Run() error {
 	}
 
 	// Step 2: Sync cash flows from Tradernet (non-critical)
+	if reporter != nil {
+		reporter.Report(2, totalSteps, "Syncing cash flows")
+	}
 	if j.syncCashFlowsJob != nil {
 		if err := j.syncCashFlowsJob.Run(); err != nil {
 			j.log.Error().Err(err).Msg("Cash flow sync failed (non-critical)")
@@ -87,6 +101,9 @@ func (j *SyncCycleJob) Run() error {
 	}
 
 	// Step 3: Sync portfolio positions (CRITICAL)
+	if reporter != nil {
+		reporter.Report(3, totalSteps, "Syncing portfolio")
+	}
 	if j.syncPortfolioJob != nil {
 		if err := j.syncPortfolioJob.Run(); err != nil {
 			j.log.Error().Err(err).Msg("CRITICAL: Portfolio sync failed")
@@ -99,7 +116,10 @@ func (j *SyncCycleJob) Run() error {
 		return fmt.Errorf("portfolio sync job not available")
 	}
 
-	// Step 3.5: Sync exchange rates (non-critical)
+	// Step 4: Sync exchange rates (non-critical)
+	if reporter != nil {
+		reporter.Report(4, totalSteps, "Syncing exchange rates")
+	}
 	if j.syncExchangeRatesJob != nil {
 		if err := j.syncExchangeRatesJob.Run(); err != nil {
 			j.log.Error().Err(err).Msg("Exchange rate sync failed (non-critical)")
@@ -107,7 +127,10 @@ func (j *SyncCycleJob) Run() error {
 		}
 	}
 
-	// Step 4: Check for negative balances and trigger emergency rebalance
+	// Step 5: Check for negative balances and trigger emergency rebalance
+	if reporter != nil {
+		reporter.Report(5, totalSteps, "Checking balances")
+	}
 	if j.checkNegativeBalancesJob != nil {
 		if err := j.checkNegativeBalancesJob.Run(); err != nil {
 			j.log.Error().Err(err).Msg("Negative balance check failed (non-critical)")
@@ -115,7 +138,10 @@ func (j *SyncCycleJob) Run() error {
 		}
 	}
 
-	// Step 5: Sync prices for all securities
+	// Step 6: Sync prices for all securities
+	if reporter != nil {
+		reporter.Report(6, totalSteps, "Syncing prices")
+	}
 	if j.syncPricesJob != nil {
 		if err := j.syncPricesJob.Run(); err != nil {
 			j.log.Error().Err(err).Msg("Price sync failed (non-critical)")
@@ -123,7 +149,10 @@ func (j *SyncCycleJob) Run() error {
 		}
 	}
 
-	// Step 6: Update LED display ticker
+	// Step 7: Update LED display ticker
+	if reporter != nil {
+		reporter.Report(7, totalSteps, "Updating display")
+	}
 	if j.updateDisplayTickerJob != nil {
 		if err := j.updateDisplayTickerJob.Run(); err != nil {
 			j.log.Error().Err(err).Msg("Display ticker update failed (non-critical)")

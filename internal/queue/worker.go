@@ -1,22 +1,25 @@
 package queue
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
+	"github.com/aristath/sentinel/internal/events"
 	"github.com/rs/zerolog"
 )
 
 // WorkerPool manages workers that process jobs
 type WorkerPool struct {
-	manager  *Manager
-	registry *Registry
-	workers  int
-	stop     chan struct{}
-	log      zerolog.Logger
-	stopped  bool
-	started  bool
-	mu       sync.Mutex
+	manager      *Manager
+	registry     *Registry
+	workers      int
+	stop         chan struct{}
+	log          zerolog.Logger
+	stopped      bool
+	started      bool
+	mu           sync.Mutex
+	eventManager *events.Manager
 }
 
 // NewWorkerPool creates a new worker pool
@@ -33,6 +36,11 @@ func NewWorkerPool(manager *Manager, registry *Registry, workers int) *WorkerPoo
 // SetLogger sets the logger for the worker pool
 func (wp *WorkerPool) SetLogger(log zerolog.Logger) {
 	wp.log = log.With().Str("component", "worker_pool").Logger()
+}
+
+// SetEventManager sets the event manager for the worker pool
+func (wp *WorkerPool) SetEventManager(em *events.Manager) {
+	wp.eventManager = em
 }
 
 // Start starts the worker pool
@@ -92,14 +100,48 @@ func (wp *WorkerPool) worker(id int) {
 }
 
 func (wp *WorkerPool) processJob(job *Job) {
+	startTime := time.Now()
+
+	// Inject progress reporter
+	if wp.eventManager != nil {
+		job.progressReporter = NewProgressReporter(wp.eventManager, job.ID, job.Type)
+	}
+
+	// Emit JOB_STARTED event
+	if wp.eventManager != nil {
+		wp.eventManager.EmitTyped(events.JobStarted, "queue", &events.JobStatusData{
+			JobID:       job.ID,
+			JobType:     string(job.Type),
+			Status:      "started",
+			Description: GetJobDescription(job.Type),
+			Timestamp:   startTime,
+		})
+	}
+
 	// Recover from panics in job handlers
 	defer func() {
 		if r := recover(); r != nil {
+			duration := time.Since(startTime).Seconds()
 			wp.log.Error().
 				Interface("panic", r).
 				Str("job_id", job.ID).
 				Str("job_type", string(job.Type)).
+				Float64("duration", duration).
 				Msg("Job handler panicked")
+
+			// Emit JOB_FAILED event for panic
+			if wp.eventManager != nil {
+				wp.eventManager.EmitTyped(events.JobFailed, "queue", &events.JobStatusData{
+					JobID:       job.ID,
+					JobType:     string(job.Type),
+					Status:      "failed",
+					Description: GetJobDescription(job.Type),
+					Error:       fmt.Sprintf("panic: %v", r),
+					Duration:    duration,
+					Timestamp:   time.Now(),
+				})
+			}
+
 			if err := wp.manager.RecordExecution(job.Type, "failed"); err != nil {
 				wp.log.Error().Err(err).Str("job_type", string(job.Type)).Msg("Failed to record execution after panic")
 			}
@@ -124,12 +166,15 @@ func (wp *WorkerPool) processJob(job *Job) {
 	}
 
 	err := handler(job)
+	duration := time.Since(startTime).Seconds()
+
 	if err != nil {
 		wp.log.Error().
 			Err(err).
 			Str("job_id", job.ID).
 			Str("job_type", string(job.Type)).
 			Int("retries", job.Retries).
+			Float64("duration", duration).
 			Msg("Job failed")
 
 		// Retry if not exceeded max retries
@@ -144,18 +189,46 @@ func (wp *WorkerPool) processJob(job *Job) {
 				if recordErr := wp.manager.RecordExecution(job.Type, "failed"); recordErr != nil {
 					wp.log.Error().Err(recordErr).Str("job_type", string(job.Type)).Msg("Failed to record execution after enqueue failure")
 				}
+
+				// Emit JOB_FAILED event since we can't retry
+				if wp.eventManager != nil {
+					wp.eventManager.EmitTyped(events.JobFailed, "queue", &events.JobStatusData{
+						JobID:       job.ID,
+						JobType:     string(job.Type),
+						Status:      "failed",
+						Description: GetJobDescription(job.Type),
+						Error:       err.Error(),
+						Duration:    duration,
+						Timestamp:   time.Now(),
+					})
+				}
 			} else {
 				wp.log.Debug().
 					Str("job_id", job.ID).
 					Int("retries", job.Retries).
 					Dur("delay", delay).
 					Msg("Retrying job")
+				// Don't emit failure event for retries - will emit new started event when retried
 			}
 		} else {
 			wp.log.Error().
 				Str("job_id", job.ID).
 				Str("job_type", string(job.Type)).
 				Msg("Job failed after max retries")
+
+			// Emit JOB_FAILED event after max retries
+			if wp.eventManager != nil {
+				wp.eventManager.EmitTyped(events.JobFailed, "queue", &events.JobStatusData{
+					JobID:       job.ID,
+					JobType:     string(job.Type),
+					Status:      "failed",
+					Description: GetJobDescription(job.Type),
+					Error:       err.Error(),
+					Duration:    duration,
+					Timestamp:   time.Now(),
+				})
+			}
+
 			if err := wp.manager.RecordExecution(job.Type, "failed"); err != nil {
 				wp.log.Error().Err(err).Str("job_type", string(job.Type)).Msg("Failed to record execution after max retries")
 			}
@@ -166,7 +239,20 @@ func (wp *WorkerPool) processJob(job *Job) {
 	wp.log.Debug().
 		Str("job_id", job.ID).
 		Str("job_type", string(job.Type)).
+		Float64("duration", duration).
 		Msg("Job completed successfully")
+
+	// Emit JOB_COMPLETED event
+	if wp.eventManager != nil {
+		wp.eventManager.EmitTyped(events.JobCompleted, "queue", &events.JobStatusData{
+			JobID:       job.ID,
+			JobType:     string(job.Type),
+			Status:      "completed",
+			Description: GetJobDescription(job.Type),
+			Duration:    duration,
+			Timestamp:   time.Now(),
+		})
+	}
 
 	if err := wp.manager.RecordExecution(job.Type, "success"); err != nil {
 		wp.log.Error().Err(err).Str("job_type", string(job.Type)).Msg("Failed to record successful execution")

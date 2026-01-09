@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aristath/sentinel/internal/modules/settings"
+	"github.com/aristath/sentinel/internal/queue"
 	"github.com/aristath/sentinel/internal/reliability"
 	"github.com/rs/zerolog"
 )
@@ -19,6 +20,7 @@ type R2BackupJobConfig struct {
 
 // R2BackupJob performs R2 cloud backups
 type R2BackupJob struct {
+	JobBase
 	log             zerolog.Logger
 	service         *reliability.R2BackupService
 	settingsService *settings.Service
@@ -67,7 +69,24 @@ func (j *R2BackupJob) Run() error {
 
 	j.log.Info().Msg("Starting R2 backup job")
 
+	// Get progress reporter
+	var reporter *queue.ProgressReporter
+	if r := j.GetProgressReporter(); r != nil {
+		reporter, _ = r.(*queue.ProgressReporter)
+	}
+	const totalSteps = 2
+
+	// Step 1: Prepare backup
+	if reporter != nil {
+		reporter.Report(1, totalSteps, "Preparing backup")
+	}
+
 	ctx := context.Background()
+
+	// Step 2: Upload to cloud
+	if reporter != nil {
+		reporter.Report(2, totalSteps, "Uploading to cloud")
+	}
 
 	if err := j.service.CreateAndUploadBackup(ctx); err != nil {
 		j.log.Error().Err(err).Msg("R2 backup failed")

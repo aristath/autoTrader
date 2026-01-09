@@ -535,6 +535,12 @@ func RegisterJobs(container *Container, cfg *config.Config, displayManager *disp
 	}
 
 	// ==========================================
+	// Configure Worker Pool
+	// ==========================================
+	// Set event manager for job status broadcasting
+	container.WorkerPool.SetEventManager(container.EventManager)
+
+	// ==========================================
 	// Start Queue System
 	// ==========================================
 	container.WorkerPool.Start()

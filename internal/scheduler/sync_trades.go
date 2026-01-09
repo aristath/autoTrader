@@ -8,6 +8,7 @@ import (
 
 // SyncTradesJob syncs trades from Tradernet
 type SyncTradesJob struct {
+	JobBase
 	log            zerolog.Logger
 	tradingService TradingServiceInterface
 }

@@ -9,6 +9,7 @@ import (
 // SyncPortfolioJob syncs portfolio positions from Tradernet
 // CRITICAL - errors are returned and stop execution
 type SyncPortfolioJob struct {
+	JobBase
 	log              zerolog.Logger
 	portfolioService PortfolioServiceInterface
 }

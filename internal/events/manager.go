@@ -101,6 +101,11 @@ func (e *Event) GetTypedData() EventData {
 		if err := convertMapToStruct(e.Data, &data); err == nil {
 			return &data
 		}
+	case JobStarted, JobProgress, JobCompleted, JobFailed:
+		var data JobStatusData
+		if err := convertMapToStruct(e.Data, &data); err == nil {
+			return &data
+		}
 	}
 
 	return nil

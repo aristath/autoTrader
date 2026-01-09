@@ -10,6 +10,7 @@ import (
 
 // CheckCoreDatabasesJob verifies integrity of core SQLite databases
 type CheckCoreDatabasesJob struct {
+	JobBase
 	log         zerolog.Logger
 	universeDB  *database.DB
 	configDB    *database.DB

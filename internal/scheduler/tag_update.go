@@ -16,6 +16,7 @@ import (
 // TagUpdateJob re-evaluates and updates tags for all securities daily
 // Runs at 3:00 AM daily to update tags based on current conditions
 type TagUpdateJob struct {
+	JobBase
 	log          zerolog.Logger
 	securityRepo *universe.SecurityRepository
 	scoreRepo    *universe.ScoreRepository

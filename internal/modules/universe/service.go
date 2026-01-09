@@ -112,12 +112,17 @@ func (s *UniverseService) ReactivateSecurity(symbol string) error {
 
 // SyncPrices synchronizes current prices for all active securities
 func (s *UniverseService) SyncPrices() error {
+	return s.SyncPricesWithReporter(nil)
+}
+
+// SyncPricesWithReporter synchronizes current prices with progress reporting
+func (s *UniverseService) SyncPricesWithReporter(reporter ProgressReporter) error {
 	if s.syncService == nil {
 		s.log.Warn().Msg("SyncService not available, skipping price sync")
 		return nil
 	}
 
-	updated, err := s.syncService.SyncAllPrices()
+	updated, err := s.syncService.SyncAllPricesWithReporter(reporter)
 	if err != nil {
 		return fmt.Errorf("price sync failed: %w", err)
 	}

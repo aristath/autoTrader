@@ -15,6 +15,7 @@ type SymbolDividendInfoForGroup struct {
 
 // GroupDividendsBySymbolJob groups dividends by symbol and sums amounts
 type GroupDividendsBySymbolJob struct {
+	JobBase
 	log              zerolog.Logger
 	dividendRecords  []dividends.DividendRecord
 	groupedDividends map[string]SymbolDividendInfoForGroup

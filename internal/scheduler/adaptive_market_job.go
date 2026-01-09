@@ -14,6 +14,7 @@ import (
 // AdaptiveMarketJob checks for regime changes and triggers adaptation
 // Runs daily to monitor market conditions and adapt portfolio strategy
 type AdaptiveMarketJob struct {
+	JobBase
 	log                 zerolog.Logger
 	regimeDetector      *market_regime.MarketRegimeDetector
 	regimePersistence   *market_regime.RegimePersistence

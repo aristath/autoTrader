@@ -348,6 +348,152 @@ func TestPlannerConfigChangedData(t *testing.T) {
 	assert.Equal(t, data.Action, unmarshaled.Action)
 }
 
+// TestJobProgressInfo tests JobProgressInfo struct
+func TestJobProgressInfo(t *testing.T) {
+	progress := JobProgressInfo{
+		Current: 45,
+		Total:   100,
+		Message: "Processing items",
+	}
+
+	// Test JSON marshaling
+	jsonData, err := json.Marshal(progress)
+	require.NoError(t, err)
+	assert.Contains(t, string(jsonData), "45")
+	assert.Contains(t, string(jsonData), "100")
+	assert.Contains(t, string(jsonData), "Processing items")
+
+	// Test JSON unmarshaling
+	var unmarshaled JobProgressInfo
+	err = json.Unmarshal(jsonData, &unmarshaled)
+	require.NoError(t, err)
+	assert.Equal(t, progress.Current, unmarshaled.Current)
+	assert.Equal(t, progress.Total, unmarshaled.Total)
+	assert.Equal(t, progress.Message, unmarshaled.Message)
+}
+
+// TestJobStatusData tests JobStatusData struct
+func TestJobStatusData(t *testing.T) {
+	now := time.Now()
+	progress := &JobProgressInfo{
+		Current: 5,
+		Total:   10,
+		Message: "Step 5 of 10",
+	}
+
+	data := JobStatusData{
+		JobID:       "job_123",
+		JobType:     "planner_batch",
+		Status:      "progress",
+		Description: "Generating trading recommendations",
+		Progress:    progress,
+		Duration:    15.5,
+		Metadata: map[string]interface{}{
+			"step": "optimizer",
+		},
+		Timestamp: now,
+	}
+
+	// Test JSON marshaling
+	jsonData, err := json.Marshal(data)
+	require.NoError(t, err)
+	assert.Contains(t, string(jsonData), "job_123")
+	assert.Contains(t, string(jsonData), "planner_batch")
+	assert.Contains(t, string(jsonData), "progress")
+	assert.Contains(t, string(jsonData), "Generating trading recommendations")
+	assert.Contains(t, string(jsonData), "5")
+	assert.Contains(t, string(jsonData), "10")
+	assert.Contains(t, string(jsonData), "15.5")
+
+	// Test JSON unmarshaling
+	var unmarshaled JobStatusData
+	err = json.Unmarshal(jsonData, &unmarshaled)
+	require.NoError(t, err)
+	assert.Equal(t, data.JobID, unmarshaled.JobID)
+	assert.Equal(t, data.JobType, unmarshaled.JobType)
+	assert.Equal(t, data.Status, unmarshaled.Status)
+	assert.Equal(t, data.Description, unmarshaled.Description)
+	assert.Equal(t, data.Duration, unmarshaled.Duration)
+	require.NotNil(t, unmarshaled.Progress)
+	assert.Equal(t, progress.Current, unmarshaled.Progress.Current)
+	assert.Equal(t, progress.Total, unmarshaled.Progress.Total)
+	assert.Equal(t, progress.Message, unmarshaled.Progress.Message)
+}
+
+// TestJobStatusData_EventType tests EventType() returns correct type based on Status
+func TestJobStatusData_EventType(t *testing.T) {
+	testCases := []struct {
+		status       string
+		expectedType EventType
+	}{
+		{"started", JobStarted},
+		{"progress", JobProgress},
+		{"completed", JobCompleted},
+		{"failed", JobFailed},
+		{"unknown", JobStarted}, // Fallback to JobStarted
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.status, func(t *testing.T) {
+			data := &JobStatusData{Status: tc.status}
+			assert.Equal(t, tc.expectedType, data.EventType())
+		})
+	}
+}
+
+// TestJobStatusData_WithError tests JobStatusData with error field
+func TestJobStatusData_WithError(t *testing.T) {
+	data := JobStatusData{
+		JobID:       "job_456",
+		JobType:     "sync_cycle",
+		Status:      "failed",
+		Description: "Syncing all data from broker",
+		Error:       "connection timeout",
+		Duration:    5.2,
+		Timestamp:   time.Now(),
+	}
+
+	// Test JSON marshaling
+	jsonData, err := json.Marshal(data)
+	require.NoError(t, err)
+	assert.Contains(t, string(jsonData), "job_456")
+	assert.Contains(t, string(jsonData), "failed")
+	assert.Contains(t, string(jsonData), "connection timeout")
+
+	// Test JSON unmarshaling
+	var unmarshaled JobStatusData
+	err = json.Unmarshal(jsonData, &unmarshaled)
+	require.NoError(t, err)
+	assert.Equal(t, data.JobID, unmarshaled.JobID)
+	assert.Equal(t, data.Status, unmarshaled.Status)
+	assert.Equal(t, data.Error, unmarshaled.Error)
+}
+
+// TestJobStatusData_WithoutProgress tests JobStatusData with nil progress
+func TestJobStatusData_WithoutProgress(t *testing.T) {
+	data := JobStatusData{
+		JobID:       "job_789",
+		JobType:     "hourly_backup",
+		Status:      "started",
+		Description: "Creating hourly backup",
+		Progress:    nil,
+		Timestamp:   time.Now(),
+	}
+
+	// Test JSON marshaling
+	jsonData, err := json.Marshal(data)
+	require.NoError(t, err)
+	assert.Contains(t, string(jsonData), "job_789")
+	assert.Contains(t, string(jsonData), "started")
+
+	// Test JSON unmarshaling
+	var unmarshaled JobStatusData
+	err = json.Unmarshal(jsonData, &unmarshaled)
+	require.NoError(t, err)
+	assert.Equal(t, data.JobID, unmarshaled.JobID)
+	assert.Nil(t, unmarshaled.Progress)
+}
+
 // TestEventDataInterface tests that EventData can be used with different types
 func TestEventDataInterface(t *testing.T) {
 	// Test that different event data types can be marshaled
@@ -379,6 +525,16 @@ func TestEventDataInterface(t *testing.T) {
 				ISIN:   "US5949181045",
 			},
 			contains: []string{"MSFT", "US5949181045"},
+		},
+		{
+			name: "JobStatusData",
+			data: &JobStatusData{
+				JobID:       "test_job",
+				JobType:     "test_type",
+				Status:      "started",
+				Description: "Test job",
+			},
+			contains: []string{"test_job", "test_type", "started"},
 		},
 	}
 

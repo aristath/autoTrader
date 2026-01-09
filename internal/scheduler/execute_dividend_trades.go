@@ -7,6 +7,7 @@ import (
 
 // ExecuteDividendTradesJob executes dividend reinvestment trades and marks dividends as reinvested
 type ExecuteDividendTradesJob struct {
+	JobBase
 	log                   zerolog.Logger
 	dividendRepo          DividendRepositoryInterface
 	tradeExecutionService TradeExecutionServiceInterface

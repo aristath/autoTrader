@@ -19,6 +19,11 @@ func (m *MockSyncService) SyncAllPrices() (int, error) {
 	return args.Int(0), args.Error(1)
 }
 
+func (m *MockSyncService) SyncAllPricesWithReporter(reporter ProgressReporter) (int, error) {
+	args := m.Called(reporter)
+	return args.Int(0), args.Error(1)
+}
+
 func (m *MockSyncService) SyncPricesForSymbols(symbolMap map[string]*string) (int, error) {
 	args := m.Called(symbolMap)
 	return args.Int(0), args.Error(1)
@@ -68,8 +73,8 @@ func TestSyncPrices_Success(t *testing.T) {
 		log:         log,
 	}
 
-	// Mock expectations
-	mockSyncService.On("SyncAllPrices").Return(10, nil)
+	// Mock expectations - SyncPrices() calls SyncPricesWithReporter(nil)
+	mockSyncService.On("SyncAllPricesWithReporter", (ProgressReporter)(nil)).Return(10, nil)
 
 	// Execute
 	err := service.SyncPrices()
@@ -89,8 +94,8 @@ func TestSyncPrices_Error(t *testing.T) {
 		log:         log,
 	}
 
-	// Mock expectations
-	mockSyncService.On("SyncAllPrices").Return(0, errors.New("yahoo api error"))
+	// Mock expectations - SyncPrices() calls SyncPricesWithReporter(nil)
+	mockSyncService.On("SyncAllPricesWithReporter", (ProgressReporter)(nil)).Return(0, errors.New("yahoo api error"))
 
 	// Execute
 	err := service.SyncPrices()

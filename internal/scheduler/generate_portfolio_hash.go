@@ -27,6 +27,7 @@ type AllocationRepositoryForHash interface {
 
 // GeneratePortfolioHashJob generates and stores portfolio hash
 type GeneratePortfolioHashJob struct {
+	JobBase
 	log               zerolog.Logger
 	positionRepo      PositionRepositoryForHash
 	securityRepo      SecurityRepositoryForHash

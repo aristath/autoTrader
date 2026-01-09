@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aristath/sentinel/internal/database"
+	"github.com/aristath/sentinel/internal/scheduler/base"
 	"github.com/rs/zerolog"
 )
 
@@ -544,6 +545,7 @@ func (s *BackupService) findMostRecentBackup(baseDir, filename, pattern string) 
 
 // HourlyBackupJob wraps BackupService.HourlyBackup for scheduler
 type HourlyBackupJob struct {
+	base.JobBase
 	service *BackupService
 }
 
@@ -564,6 +566,7 @@ func (j *HourlyBackupJob) Name() string {
 
 // DailyBackupJob wraps BackupService.DailyBackup for scheduler
 type DailyBackupJob struct {
+	base.JobBase
 	service *BackupService
 }
 
@@ -584,6 +587,7 @@ func (j *DailyBackupJob) Name() string {
 
 // WeeklyBackupJob wraps BackupService.WeeklyBackup for scheduler
 type WeeklyBackupJob struct {
+	base.JobBase
 	service *BackupService
 }
 
@@ -604,6 +608,7 @@ func (j *WeeklyBackupJob) Name() string {
 
 // MonthlyBackupJob wraps BackupService.MonthlyBackup for scheduler
 type MonthlyBackupJob struct {
+	base.JobBase
 	service *BackupService
 }
 

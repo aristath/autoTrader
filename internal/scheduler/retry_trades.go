@@ -10,6 +10,7 @@ import (
 
 // RetryTradesJob processes pending trade retries (7-hour interval, max 3 attempts)
 type RetryTradesJob struct {
+	JobBase
 	log                   zerolog.Logger
 	tradeRepo             *trading.TradeRepository
 	tradeExecutionService *services.TradeExecutionService

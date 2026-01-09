@@ -9,6 +9,7 @@ import (
 
 // GetUnreinvestedDividendsJob retrieves all unreinvested dividends
 type GetUnreinvestedDividendsJob struct {
+	JobBase
 	log          zerolog.Logger
 	dividendRepo DividendRepositoryInterface
 	dividends    []dividends.DividendRecord

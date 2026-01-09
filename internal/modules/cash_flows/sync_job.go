@@ -7,11 +7,13 @@ import (
 
 	"github.com/aristath/sentinel/internal/events"
 	"github.com/aristath/sentinel/internal/modules/display"
+	"github.com/aristath/sentinel/internal/scheduler/base"
 	"github.com/rs/zerolog"
 )
 
 // SyncJob handles background cash flow synchronization
 type SyncJob struct {
+	base.JobBase
 	repo             *Repository
 	depositProcessor *DepositProcessor
 	dividendCreator  *DividendCreator

@@ -9,6 +9,7 @@ import (
 
 // StoreRecommendationsJob stores a generated plan as recommendations
 type StoreRecommendationsJob struct {
+	JobBase
 	log                zerolog.Logger
 	recommendationRepo RecommendationRepositoryInterface
 	portfolioHash      string

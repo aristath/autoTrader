@@ -339,9 +339,19 @@ func (s *SyncService) updateLastSynced(isin string) error {
 //
 // This gets current quotes from Yahoo Finance and updates position prices.
 func (s *SyncService) SyncAllPrices() (int, error) {
+	return s.SyncAllPricesWithReporter(nil)
+}
+
+func (s *SyncService) SyncAllPricesWithReporter(reporter ProgressReporter) (int, error) {
 	s.log.Info().Msg("Starting price sync for all active securities")
 
-	// 1. Get all active securities
+	const totalSteps = 3
+
+	// Step 1: Get all active securities
+	if reporter != nil {
+		reporter.Report(1, totalSteps, "Getting securities")
+	}
+
 	securities, err := s.securityRepo.GetAllActive()
 	if err != nil {
 		return 0, fmt.Errorf("failed to get active securities: %w", err)
@@ -352,7 +362,11 @@ func (s *SyncService) SyncAllPrices() (int, error) {
 		return 0, nil
 	}
 
-	// 2. Build symbol map (tradernet_symbol -> yahoo_override) and symbol->ISIN mapping
+	// Step 2: Build symbol map (tradernet_symbol -> yahoo_override) and symbol->ISIN mapping
+	if reporter != nil {
+		reporter.Report(2, totalSteps, "Fetching prices")
+	}
+
 	symbolMap := make(map[string]*string)
 	symbolToISIN := make(map[string]string) // Map symbol -> ISIN for position updates
 	for _, security := range securities {
@@ -374,7 +388,11 @@ func (s *SyncService) SyncAllPrices() (int, error) {
 		return 0, fmt.Errorf("failed to fetch batch quotes: %w", err)
 	}
 
-	// 4. Update position prices in state.db (using ISIN)
+	// Step 3: Update position prices in state.db (using ISIN)
+	if reporter != nil {
+		reporter.Report(3, totalSteps, "Updating positions")
+	}
+
 	updated := 0
 	now := time.Now().Unix() // Convert to Unix timestamp (INTEGER)
 

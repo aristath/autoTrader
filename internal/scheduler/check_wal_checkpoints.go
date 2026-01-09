@@ -7,6 +7,7 @@ import (
 
 // CheckWALCheckpointsJob monitors WAL checkpoint status
 type CheckWALCheckpointsJob struct {
+	JobBase
 	log         zerolog.Logger
 	universeDB  *database.DB
 	configDB    *database.DB

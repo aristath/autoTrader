@@ -4,12 +4,14 @@ import (
 	"time"
 
 	"github.com/aristath/sentinel/internal/modules/symbolic_regression"
+	"github.com/aristath/sentinel/internal/queue"
 	"github.com/rs/zerolog"
 )
 
 // FormulaDiscoveryJob handles periodic formula re-discovery
 // Runs monthly/quarterly to update formulas as market conditions change
 type FormulaDiscoveryJob struct {
+	JobBase
 	scheduler      *symbolic_regression.Scheduler
 	log            zerolog.Logger
 	intervalMonths int // How often to run (1 = monthly, 3 = quarterly)
@@ -43,6 +45,23 @@ func (j *FormulaDiscoveryJob) Name() string {
 func (j *FormulaDiscoveryJob) Run() error {
 	j.log.Info().Msg("Starting periodic formula discovery")
 	startTime := time.Now()
+
+	// Get progress reporter
+	var reporter *queue.ProgressReporter
+	if r := j.GetProgressReporter(); r != nil {
+		reporter, _ = r.(*queue.ProgressReporter)
+	}
+	const totalSteps = 2
+
+	// Step 1: Preparing formulas
+	if reporter != nil {
+		reporter.Report(1, totalSteps, "Preparing formulas")
+	}
+
+	// Step 2: Running discoveries
+	if reporter != nil {
+		reporter.Report(2, totalSteps, "Running discoveries")
+	}
 
 	// Run all scheduled discoveries
 	err := j.scheduler.RunAllScheduledDiscoveries(j.intervalMonths, j.forwardMonths)

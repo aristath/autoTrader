@@ -1,15 +1,14 @@
 package scheduler
 
 import (
+	"github.com/aristath/sentinel/internal/scheduler/iface"
 	"github.com/robfig/cron/v3"
 	"github.com/rs/zerolog"
 )
 
-// Job represents a scheduled job
-type Job interface {
-	Run() error
-	Name() string
-}
+// Job re-exports the job interface from iface package
+// This breaks import cycles between scheduler and queue packages
+type Job = iface.Job
 
 // Scheduler manages background jobs
 type Scheduler struct {

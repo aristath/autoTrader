@@ -10,6 +10,7 @@ import (
 // HealthCheckJob orchestrates individual health check jobs
 // Runs every 6 hours to ensure database health
 type HealthCheckJob struct {
+	JobBase
 	log                      zerolog.Logger
 	checkCoreDatabasesJob    Job
 	checkHistoryDatabasesJob Job

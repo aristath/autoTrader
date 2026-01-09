@@ -6,6 +6,7 @@ import (
 
 // CheckNegativeBalancesJob checks for negative cash balances and triggers emergency rebalance
 type CheckNegativeBalancesJob struct {
+	JobBase
 	log                zerolog.Logger
 	balanceService     BalanceServiceInterface
 	emergencyRebalance func() error

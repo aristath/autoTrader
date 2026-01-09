@@ -13,6 +13,10 @@ export const useAppStore = create((set, get) => ({
   // Planner status
   plannerStatus: null,
 
+  // Job status tracking
+  runningJobs: {},     // Map: jobId -> { jobType, status, description, startedAt, progress }
+  completedJobs: {},   // Map: jobId -> { jobType, status, description, completedAt, duration }
+
   // Recommendations
   recommendations: null,
 
@@ -198,6 +202,77 @@ export const useAppStore = create((set, get) => ({
   // Planner status update (called by event handler)
   updatePlannerStatus: (status) => {
     set({ plannerStatus: status });
+  },
+
+  // Job status management (called by event handlers)
+  addRunningJob: (job) => {
+    const { jobId, jobType, status, description, startedAt } = job;
+    set((state) => ({
+      runningJobs: {
+        ...state.runningJobs,
+        [jobId]: {
+          jobId,
+          jobType,
+          status,
+          description,
+          startedAt,
+          progress: null,
+        },
+      },
+    }));
+  },
+
+  updateJobProgress: (jobId, progress) => {
+    set((state) => {
+      const job = state.runningJobs[jobId];
+      if (!job) return state;
+
+      return {
+        runningJobs: {
+          ...state.runningJobs,
+          [jobId]: {
+            ...job,
+            progress,
+          },
+        },
+      };
+    });
+  },
+
+  completeJob: (jobId, completion) => {
+    const { status, error, duration } = completion;
+
+    set((state) => {
+      const job = state.runningJobs[jobId];
+      if (!job) return state;
+
+      // Move from running to completed
+      const { [jobId]: completedJob, ...remainingRunning } = state.runningJobs;
+
+      const completedJobData = {
+        ...completedJob,
+        status,
+        error,
+        duration,
+        completedAt: Date.now(),
+      };
+
+      // Clear completed job after 4 seconds (linger with checkmark)
+      setTimeout(() => {
+        set((state) => {
+          const { [jobId]: _, ...remaining } = state.completedJobs;
+          return { completedJobs: remaining };
+        });
+      }, 4000);
+
+      return {
+        runningJobs: remainingRunning,
+        completedJobs: {
+          ...state.completedJobs,
+          [jobId]: completedJobData,
+        },
+      };
+    });
   },
 
   // Polling fallback mechanism

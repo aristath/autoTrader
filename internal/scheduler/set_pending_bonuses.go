@@ -9,6 +9,7 @@ import (
 
 // SetPendingBonusesJob sets pending bonuses for dividends that are too small to reinvest
 type SetPendingBonusesJob struct {
+	JobBase
 	log             zerolog.Logger
 	dividendRepo    DividendRepositoryInterface
 	dividendRecords []dividends.DividendRecord

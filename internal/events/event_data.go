@@ -206,6 +206,43 @@ func (d *ErrorEventData) EventType() EventType {
 	return ErrorOccurred
 }
 
+// JobProgressInfo contains progress information for a job
+type JobProgressInfo struct {
+	Current int    `json:"current"`
+	Total   int    `json:"total"`
+	Message string `json:"message,omitempty"`
+}
+
+// JobStatusData contains data for job lifecycle events
+type JobStatusData struct {
+	JobID       string                 `json:"job_id"`
+	JobType     string                 `json:"job_type"`
+	Status      string                 `json:"status"` // "started", "progress", "completed", "failed"
+	Description string                 `json:"description"`
+	Progress    *JobProgressInfo       `json:"progress,omitempty"`
+	Error       string                 `json:"error,omitempty"`
+	Duration    float64                `json:"duration,omitempty"`
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	Timestamp   time.Time              `json:"timestamp"`
+}
+
+// EventType returns the event type for JobStatusData
+// Note: The actual event type is determined by the Status field
+func (d *JobStatusData) EventType() EventType {
+	switch d.Status {
+	case "started":
+		return JobStarted
+	case "progress":
+		return JobProgress
+	case "completed":
+		return JobCompleted
+	case "failed":
+		return JobFailed
+	default:
+		return JobStarted
+	}
+}
+
 // EventWithData represents an event with typed data
 type EventWithData struct {
 	Type      EventType `json:"type"`
@@ -284,6 +321,8 @@ func (e *EventWithData) UnmarshalJSON(data []byte) error {
 			eventData = &PlannerConfigChangedData{}
 		case ErrorOccurred:
 			eventData = &ErrorEventData{}
+		case JobStarted, JobProgress, JobCompleted, JobFailed:
+			eventData = &JobStatusData{}
 		default:
 			// For unknown types, use raw map
 			var rawData map[string]interface{}

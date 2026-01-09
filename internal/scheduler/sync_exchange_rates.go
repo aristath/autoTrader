@@ -8,6 +8,7 @@ import (
 // SyncExchangeRatesJob syncs exchange rates from external APIs
 // Non-critical - errors logged but don't block sync_cycle
 type SyncExchangeRatesJob struct {
+	JobBase
 	log                      zerolog.Logger
 	exchangeRateCacheService *services.ExchangeRateCacheService
 }

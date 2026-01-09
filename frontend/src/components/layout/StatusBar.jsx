@@ -1,14 +1,18 @@
-import { Paper, Group, Text, NumberInput } from '@mantine/core';
+import { Paper, Group, Text, NumberInput, Badge, Loader } from '@mantine/core';
+import { IconCheck, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useAppStore } from '../../stores/appStore';
 import { usePortfolioStore } from '../../stores/portfolioStore';
 import { formatCurrency, formatNumber, formatTimestamp } from '../../utils/formatters';
 
 export function StatusBar() {
-  const { status, showMessage } = useAppStore();
+  const { status, showMessage, runningJobs, completedJobs } = useAppStore();
   const { allocation, cashBreakdown, updateTestCash } = usePortfolioStore();
   const [editingTestCash, setEditingTestCash] = useState(false);
   const [testCashValue, setTestCashValue] = useState(null);
+
+  // Check if there's any job activity
+  const hasActivity = Object.keys(runningJobs).length > 0 || Object.keys(completedJobs).length > 0;
 
   return (
     <Paper
@@ -19,7 +23,7 @@ export function StatusBar() {
       }}
     >
       {/* System Status Row */}
-      <Group justify="space-between" mb="xs">
+      <Group justify="space-between" mb={hasActivity ? "xs" : 0}>
         <Group gap="md">
           <Group gap="xs">
             <div
@@ -40,6 +44,45 @@ export function StatusBar() {
           </Text>
         </Group>
       </Group>
+
+      {/* Activity Row */}
+      {hasActivity && (
+        <Group gap="sm" wrap="wrap" mb="xs">
+          <Text size="xs" c="dimmed" fw={500} ff="var(--mantine-font-family)">
+            Activity:
+          </Text>
+          {Object.values(runningJobs).map((job) => (
+            <Badge
+              key={job.jobId}
+              size="sm"
+              variant="light"
+              color="blue"
+              leftSection={<Loader size={10} />}
+              style={{ fontFamily: 'var(--mantine-font-family)' }}
+            >
+              {job.description}
+              {job.progress && job.progress.total > 0 &&
+                ` (${job.progress.current}/${job.progress.total})`}
+            </Badge>
+          ))}
+          {Object.values(completedJobs).map((job) => (
+            <Badge
+              key={job.jobId}
+              size="sm"
+              variant="light"
+              color={job.status === 'completed' ? 'green' : 'red'}
+              leftSection={
+                job.status === 'completed' ?
+                  <IconCheck size={12} /> :
+                  <IconX size={12} />
+              }
+              style={{ fontFamily: 'var(--mantine-font-family)' }}
+            >
+              {job.description}
+            </Badge>
+          ))}
+        </Group>
+      )}
 
       {/* Portfolio Summary Row */}
       <Group justify="space-between">

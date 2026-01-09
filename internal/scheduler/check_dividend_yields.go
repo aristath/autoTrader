@@ -15,6 +15,7 @@ type DividendYieldResult struct {
 
 // CheckDividendYieldsJob checks dividend yields for symbols
 type CheckDividendYieldsJob struct {
+	JobBase
 	log              zerolog.Logger
 	securityRepo     SecurityRepositoryForDividendsInterface
 	yahooClient      YahooClientForDividendsInterface

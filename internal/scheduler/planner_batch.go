@@ -5,11 +5,13 @@ import (
 	"time"
 
 	"github.com/aristath/sentinel/internal/events"
+	"github.com/aristath/sentinel/internal/queue"
 	"github.com/rs/zerolog"
 )
 
 // PlannerBatchJob orchestrates individual planning jobs to generate trading recommendations
 type PlannerBatchJob struct {
+	JobBase
 	log               zerolog.Logger
 	eventManager      EventManagerInterface
 	lastPortfolioHash string
@@ -55,7 +57,16 @@ func (j *PlannerBatchJob) Run() error {
 	j.log.Info().Msg("Starting planner batch generation")
 	startTime := time.Now()
 
+	var reporter *queue.ProgressReporter
+	if r := j.GetProgressReporter(); r != nil {
+		reporter, _ = r.(*queue.ProgressReporter)
+	}
+	const totalSteps = 5
+
 	// Step 1: Generate portfolio hash
+	if reporter != nil {
+		reporter.Report(1, totalSteps, "Generating portfolio hash")
+	}
 	if j.generatePortfolioHashJob == nil {
 		return fmt.Errorf("generate portfolio hash job not available")
 	}
@@ -84,6 +95,9 @@ func (j *PlannerBatchJob) Run() error {
 		Msg("Portfolio changed, generating new plan")
 
 	// Step 2: Get optimizer weights (optional - if available)
+	if reporter != nil {
+		reporter.Report(2, totalSteps, "Getting optimizer weights")
+	}
 	var optimizerWeights map[string]float64
 	if j.getOptimizerWeightsJob != nil {
 		if err := j.getOptimizerWeightsJob.Run(); err != nil {
@@ -98,6 +112,9 @@ func (j *PlannerBatchJob) Run() error {
 	}
 
 	// Step 3: Build opportunity context
+	if reporter != nil {
+		reporter.Report(3, totalSteps, "Building opportunity context")
+	}
 	if j.buildOpportunityContextJob == nil {
 		return fmt.Errorf("build opportunity context job not available")
 	}
@@ -120,6 +137,9 @@ func (j *PlannerBatchJob) Run() error {
 	}
 
 	// Step 4: Create trade plan
+	if reporter != nil {
+		reporter.Report(4, totalSteps, "Creating trade plan")
+	}
 	if j.createTradePlanJob == nil {
 		return fmt.Errorf("create trade plan job not available")
 	}
@@ -139,6 +159,9 @@ func (j *PlannerBatchJob) Run() error {
 	}
 
 	// Step 5: Store recommendations
+	if reporter != nil {
+		reporter.Report(5, totalSteps, "Storing recommendations")
+	}
 	if j.storeRecommendationsJob == nil {
 		return fmt.Errorf("store recommendations job not available")
 	}

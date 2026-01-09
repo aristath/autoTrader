@@ -6,11 +6,13 @@ import (
 
 	"github.com/aristath/sentinel/internal/modules/dividends"
 	planningdomain "github.com/aristath/sentinel/internal/modules/planning/domain"
+	"github.com/aristath/sentinel/internal/queue"
 	"github.com/rs/zerolog"
 )
 
 // DividendReinvestmentJob orchestrates individual dividend jobs to automatically reinvest dividends
 type DividendReinvestmentJob struct {
+	JobBase
 	log                              zerolog.Logger
 	getUnreinvestedDividendsJob      Job
 	groupDividendsBySymbolJob        Job
@@ -55,7 +57,16 @@ func (j *DividendReinvestmentJob) Run() error {
 	j.log.Info().Msg("Starting automatic dividend reinvestment")
 	startTime := time.Now()
 
+	var reporter *queue.ProgressReporter
+	if r := j.GetProgressReporter(); r != nil {
+		reporter, _ = r.(*queue.ProgressReporter)
+	}
+	const totalSteps = 6
+
 	// Step 1: Get all unreinvested dividends
+	if reporter != nil {
+		reporter.Report(1, totalSteps, "Getting unreinvested dividends")
+	}
 	if j.getUnreinvestedDividendsJob == nil {
 		return fmt.Errorf("get unreinvested dividends job not available")
 	}
@@ -76,6 +87,9 @@ func (j *DividendReinvestmentJob) Run() error {
 	}
 
 	// Step 2: Group dividends by symbol
+	if reporter != nil {
+		reporter.Report(2, totalSteps, "Grouping dividends by symbol")
+	}
 	if j.groupDividendsBySymbolJob == nil {
 		return fmt.Errorf("group dividends by symbol job not available")
 	}
@@ -90,6 +104,9 @@ func (j *DividendReinvestmentJob) Run() error {
 	groupedDividends := groupJob.GetGroupedDividends()
 
 	// Step 3: Check dividend yields
+	if reporter != nil {
+		reporter.Report(3, totalSteps, "Checking dividend yields")
+	}
 	if j.checkDividendYieldsJob == nil {
 		return fmt.Errorf("check dividend yields job not available")
 	}
@@ -105,6 +122,9 @@ func (j *DividendReinvestmentJob) Run() error {
 	lowYieldSymbols := yieldsJob.GetLowYieldSymbols()
 
 	// Step 4: Create recommendations for high-yield dividends
+	if reporter != nil {
+		reporter.Report(4, totalSteps, "Creating dividend recommendations")
+	}
 	var recommendations []planningdomain.HolisticStep
 	var dividendsToMark map[string][]int
 	if len(highYieldSymbols) > 0 {
@@ -124,6 +144,9 @@ func (j *DividendReinvestmentJob) Run() error {
 	}
 
 	// Step 5: Set pending bonuses for low-yield dividends
+	if reporter != nil {
+		reporter.Report(5, totalSteps, "Setting pending bonuses")
+	}
 	if len(lowYieldSymbols) > 0 {
 		if j.setPendingBonusesJob != nil {
 			setJob, ok := j.setPendingBonusesJob.(*SetPendingBonusesJob)
@@ -143,6 +166,9 @@ func (j *DividendReinvestmentJob) Run() error {
 	}
 
 	// Step 6: Execute trades if any
+	if reporter != nil {
+		reporter.Report(6, totalSteps, "Executing dividend trades")
+	}
 	if len(recommendations) > 0 {
 		if j.executeDividendTradesJob == nil {
 			return fmt.Errorf("execute dividend trades job not available")

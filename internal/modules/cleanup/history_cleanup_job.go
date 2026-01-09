@@ -5,12 +5,14 @@ import (
 	"fmt"
 
 	"github.com/aristath/sentinel/internal/database"
+	"github.com/aristath/sentinel/internal/scheduler/base"
 	"github.com/rs/zerolog"
 )
 
 // HistoryCleanupJob implements automatic cleanup of orphaned securities
 // Runs daily to clean up historical data for symbols not in the universe
 type HistoryCleanupJob struct {
+	base.JobBase
 	historyDB   *database.DB
 	portfolioDB *database.DB
 	universeDB  *database.DB
@@ -31,6 +33,18 @@ func NewHistoryCleanupJob(historyDB, portfolioDB, universeDB *database.DB, log z
 func (j *HistoryCleanupJob) Run() error {
 	j.log.Info().Msg("Starting history cleanup job")
 
+	// Get progress reporter
+	var reporter interface {
+		Report(current, total int, message string)
+	}
+	if r := j.GetProgressReporter(); r != nil {
+		if pr, ok := r.(interface {
+			Report(current, total int, message string)
+		}); ok {
+			reporter = pr
+		}
+	}
+
 	// Find and cleanup orphaned data (ISINs in history/portfolio but not in universe)
 	orphaned, err := j.findOrphanedSymbols()
 	if err != nil {
@@ -47,8 +61,14 @@ func (j *HistoryCleanupJob) Run() error {
 	// Clean up each orphaned ISIN immediately
 	cleaned := 0
 	errors := 0
+	total := len(orphaned)
 
-	for _, isin := range orphaned {
+	for i, isin := range orphaned {
+		// Report progress every 5 ISINs or at the end
+		if reporter != nil && (i%5 == 0 || i == total-1) {
+			reporter.Report(i+1, total, "")
+		}
+
 		if err := j.cleanupSymbol(isin); err != nil {
 			j.log.Error().
 				Err(err).

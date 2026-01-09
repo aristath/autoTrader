@@ -8,6 +8,7 @@ import (
 
 // SyncCashFlowsJob syncs cash flows from Tradernet
 type SyncCashFlowsJob struct {
+	JobBase
 	log              zerolog.Logger
 	cashFlowsService CashFlowsServiceInterface
 }

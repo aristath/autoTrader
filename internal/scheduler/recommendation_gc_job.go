@@ -8,6 +8,7 @@ import (
 )
 
 type RecommendationGCJob struct {
+	JobBase
 	recommendationRepo planning.RecommendationRepositoryInterface
 	maxAge             time.Duration
 	log                zerolog.Logger

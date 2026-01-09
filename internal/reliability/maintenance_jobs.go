@@ -9,12 +9,14 @@ import (
 	"time"
 
 	"github.com/aristath/sentinel/internal/database"
+	"github.com/aristath/sentinel/internal/scheduler/base"
 	"github.com/rs/zerolog"
 )
 
 // DailyMaintenanceJob performs daily database maintenance (2 AM)
 // Implements comprehensive daily maintenance as specified in architecture plan
 type DailyMaintenanceJob struct {
+	base.JobBase
 	databases      map[string]*database.DB
 	healthServices map[string]*DatabaseHealthService
 	backupDir      string
@@ -205,6 +207,7 @@ func (j *DailyMaintenanceJob) analyzeDatabaseGrowth() {
 
 // WeeklyMaintenanceJob performs weekly database maintenance (Sunday 3 AM)
 type WeeklyMaintenanceJob struct {
+	base.JobBase
 	databases map[string]*database.DB
 	historyDB *database.DB
 	log       zerolog.Logger
@@ -290,6 +293,7 @@ func (j *WeeklyMaintenanceJob) vacuumDatabase(db *database.DB, name string) erro
 
 // MonthlyMaintenanceJob performs monthly database maintenance (1st day, 4 AM)
 type MonthlyMaintenanceJob struct {
+	base.JobBase
 	databases      map[string]*database.DB
 	healthServices map[string]*DatabaseHealthService
 	agentsDB       *database.DB

@@ -9,6 +9,7 @@ import (
 
 // CreateTradePlanJob creates a holistic trade plan from opportunity context
 type CreateTradePlanJob struct {
+	JobBase
 	log                zerolog.Logger
 	plannerService     PlannerServiceInterface
 	configRepo         ConfigRepositoryInterface

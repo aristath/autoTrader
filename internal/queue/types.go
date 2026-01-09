@@ -82,6 +82,14 @@ type Job struct {
 	AvailableAt time.Time
 	Retries     int
 	MaxRetries  int
+
+	// Progress reporting (injected by WorkerPool)
+	progressReporter *ProgressReporter
+}
+
+// GetProgressReporter returns the progress reporter for this job
+func (j *Job) GetProgressReporter() *ProgressReporter {
+	return j.progressReporter
 }
 
 // Queue interface for job queue operations
@@ -89,4 +97,91 @@ type Queue interface {
 	Enqueue(job *Job) error
 	Dequeue() (*Job, error)
 	Size() int
+}
+
+// BaseJob provides a base implementation for scheduler jobs that need progress reporting
+type BaseJob struct {
+	queueJob *Job
+}
+
+// SetJob injects the queue.Job reference (satisfies scheduler.Job interface)
+func (b *BaseJob) SetJob(j interface{}) {
+	if qj, ok := j.(*Job); ok {
+		b.queueJob = qj
+	}
+}
+
+// GetProgressReporter returns the progress reporter for this job
+func (b *BaseJob) GetProgressReporter() *ProgressReporter {
+	if b.queueJob == nil {
+		return nil
+	}
+	return b.queueJob.GetProgressReporter()
+}
+
+// GetJobDescription returns a human-readable description for a job type
+func GetJobDescription(jobType JobType) string {
+	descriptions := map[JobType]string{
+		// Composite jobs
+		JobTypePlannerBatch:       "Generating trading recommendations",
+		JobTypeEventBasedTrading:  "Executing trade",
+		JobTypeTagUpdate:          "Updating security tags",
+		JobTypeSyncCycle:          "Syncing all data from broker",
+		JobTypeDividendReinvest:   "Processing dividend reinvestment",
+		JobTypeHealthCheck:        "Running health check",
+		JobTypeHourlyBackup:       "Creating hourly backup",
+		JobTypeDailyBackup:        "Creating daily backup",
+		JobTypeDailyMaintenance:   "Running daily maintenance",
+		JobTypeWeeklyBackup:       "Creating weekly backup",
+		JobTypeWeeklyMaintenance:  "Running weekly maintenance",
+		JobTypeMonthlyBackup:      "Creating monthly backup",
+		JobTypeMonthlyMaintenance: "Running monthly maintenance",
+		JobTypeFormulaDiscovery:   "Discovering optimal formulas",
+		JobTypeAdaptiveMarket:     "Checking market regime",
+		JobTypeHistoryCleanup:     "Cleaning up historical data",
+		JobTypeRecommendationGC:   "Cleaning up old recommendations",
+		JobTypeDeployment:         "Checking for system updates",
+		JobTypeR2Backup:           "Uploading backup to cloud",
+		JobTypeR2BackupRotation:   "Rotating cloud backups",
+
+		// Sync jobs
+		JobTypeSyncTrades:            "Syncing trades from broker",
+		JobTypeSyncCashFlows:         "Syncing cash flows",
+		JobTypeSyncPortfolio:         "Syncing portfolio positions",
+		JobTypeCheckNegativeBalances: "Checking account balances",
+		JobTypeSyncPrices:            "Updating security prices",
+		JobTypeSyncExchangeRates:     "Updating exchange rates",
+		JobTypeUpdateDisplayTicker:   "Updating LED display",
+		JobTypeRetryTrades:           "Retrying pending trades",
+
+		// Planning jobs
+		JobTypeGeneratePortfolioHash:   "Generating portfolio hash",
+		JobTypeGetOptimizerWeights:     "Running portfolio optimizer",
+		JobTypeBuildOpportunityContext: "Building opportunity context",
+		JobTypeIdentifyOpportunities:   "Identifying opportunities",
+		JobTypeGenerateSequences:       "Generating trade sequences",
+		JobTypeEvaluateSequences:       "Evaluating trade sequences",
+		JobTypeCreateTradePlan:         "Creating trade plan",
+		JobTypeStoreRecommendations:    "Storing recommendations",
+
+		// Dividend jobs
+		JobTypeGetUnreinvestedDividends:      "Getting unreinvested dividends",
+		JobTypeGroupDividendsBySymbol:        "Grouping dividends by symbol",
+		JobTypeCheckDividendYields:           "Checking dividend yields",
+		JobTypeCreateDividendRecommendations: "Creating dividend recommendations",
+		JobTypeSetPendingBonuses:             "Setting pending bonuses",
+		JobTypeExecuteDividendTrades:         "Executing dividend trades",
+
+		// Health check jobs
+		JobTypeCheckCoreDatabases:    "Checking core databases",
+		JobTypeCheckHistoryDatabases: "Checking history databases",
+		JobTypeCheckWALCheckpoints:   "Checking WAL checkpoints",
+	}
+
+	if desc, exists := descriptions[jobType]; exists {
+		return desc
+	}
+
+	// Fallback to job type string
+	return string(jobType)
 }

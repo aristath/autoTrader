@@ -12,6 +12,7 @@ import (
 
 // GetOptimizerWeightsJob fetches optimizer target weights for the current portfolio
 type GetOptimizerWeightsJob struct {
+	JobBase
 	log                    zerolog.Logger
 	positionRepo           PositionRepositoryInterface
 	securityRepo           SecurityRepositoryInterface

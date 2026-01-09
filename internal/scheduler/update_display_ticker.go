@@ -8,6 +8,7 @@ import (
 
 // UpdateDisplayTickerJob updates the LED display ticker
 type UpdateDisplayTickerJob struct {
+	JobBase
 	log                 zerolog.Logger
 	updateDisplayTicker func() error
 }

@@ -9,6 +9,7 @@ import (
 
 // CreateDividendRecommendationsJob creates recommendations for high-yield dividend reinvestments
 type CreateDividendRecommendationsJob struct {
+	JobBase
 	log              zerolog.Logger
 	securityRepo     SecurityRepositoryForDividendsInterface
 	yahooClient      YahooClientForDividendsInterface

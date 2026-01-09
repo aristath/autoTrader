@@ -12,6 +12,58 @@ export function setSecurityChartRefreshFn(fn) {
   securityChartRefreshFn = fn;
 }
 
+// Job type to human-readable description mapping (mirrors backend)
+function getJobDescription(jobType) {
+  const descriptions = {
+    'planner_batch': 'Generating trading recommendations',
+    'event_based_trading': 'Executing trade',
+    'sync_trades': 'Syncing trades from broker',
+    'sync_portfolio': 'Syncing portfolio positions',
+    'sync_prices': 'Updating security prices',
+    'sync_cash_flows': 'Syncing cash flows',
+    'sync_exchange_rates': 'Updating exchange rates',
+    'check_negative_balances': 'Checking account balances',
+    'hourly_backup': 'Creating hourly backup',
+    'daily_backup': 'Creating daily backup',
+    'weekly_backup': 'Creating weekly backup',
+    'monthly_backup': 'Creating monthly backup',
+    'r2_backup': 'Uploading backup to cloud',
+    'r2_backup_rotation': 'Rotating cloud backups',
+    'dividend_reinvestment': 'Processing dividend reinvestment',
+    'deployment': 'Checking for system updates',
+    'generate_sequences': 'Generating trade sequences',
+    'evaluate_sequences': 'Evaluating trade sequences',
+    'get_optimizer_weights': 'Running portfolio optimizer',
+    'identify_opportunities': 'Identifying opportunities',
+    'create_trade_plan': 'Creating trade plan',
+    'store_recommendations': 'Storing recommendations',
+    'tag_update': 'Updating security tags',
+    'retry_trades': 'Retrying pending trades',
+    'update_display_ticker': 'Updating LED display',
+    'recommendation_gc': 'Cleaning up old recommendations',
+    'daily_maintenance': 'Running daily maintenance',
+    'weekly_maintenance': 'Running weekly maintenance',
+    'monthly_maintenance': 'Running monthly maintenance',
+    'health_check': 'Running health check',
+    'adaptive_market_check': 'Checking market regime',
+    'formula_discovery': 'Discovering optimal formulas',
+    'history_cleanup': 'Cleaning up historical data',
+    'sync_cycle': 'Syncing all data from broker',
+    'generate_portfolio_hash': 'Generating portfolio hash',
+    'build_opportunity_context': 'Building opportunity context',
+    'get_unreinvested_dividends': 'Getting unreinvested dividends',
+    'group_dividends_by_symbol': 'Grouping dividends by symbol',
+    'check_dividend_yields': 'Checking dividend yields',
+    'create_dividend_recommendations': 'Creating dividend recommendations',
+    'set_pending_bonuses': 'Setting pending bonuses',
+    'execute_dividend_trades': 'Executing dividend trades',
+    'check_core_databases': 'Checking core databases',
+    'check_history_databases': 'Checking history databases',
+    'check_wal_checkpoints': 'Checking WAL checkpoints',
+  };
+  return descriptions[jobType] || jobType;
+}
+
 // Debounce utility
 const debounceMap = new Map();
 const MAX_DEBOUNCE_ENTRIES = 50; // Prevent unbounded growth
@@ -190,6 +242,58 @@ export const eventHandlers = {
     // Planner modal will refetch on open, or emit custom event
     // For now, just log it
     console.log('Planner config changed');
+  },
+
+  // Job lifecycle events
+  JOB_STARTED: (event) => {
+    if (!event || !event.data) {
+      console.warn('JOB_STARTED event missing data');
+      return;
+    }
+    const { job_id, job_type, description, timestamp } = event.data;
+    useAppStore.getState().addRunningJob({
+      jobId: job_id,
+      jobType: job_type,
+      status: 'running',
+      description: description || getJobDescription(job_type),
+      startedAt: new Date(timestamp).getTime(),
+    });
+  },
+
+  JOB_PROGRESS: (event) => {
+    if (!event || !event.data) {
+      console.warn('JOB_PROGRESS event missing data');
+      return;
+    }
+    const { job_id, progress } = event.data;
+    if (progress) {
+      useAppStore.getState().updateJobProgress(job_id, progress);
+    }
+  },
+
+  JOB_COMPLETED: (event) => {
+    if (!event || !event.data) {
+      console.warn('JOB_COMPLETED event missing data');
+      return;
+    }
+    const { job_id, duration } = event.data;
+    useAppStore.getState().completeJob(job_id, {
+      status: 'completed',
+      duration,
+    });
+  },
+
+  JOB_FAILED: (event) => {
+    if (!event || !event.data) {
+      console.warn('JOB_FAILED event missing data');
+      return;
+    }
+    const { job_id, error, duration } = event.data;
+    useAppStore.getState().completeJob(job_id, {
+      status: 'failed',
+      error,
+      duration,
+    });
   },
 
   // Heartbeat - no action needed
