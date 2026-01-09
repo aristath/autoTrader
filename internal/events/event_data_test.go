@@ -264,22 +264,49 @@ func TestTradernetStatusChangedData(t *testing.T) {
 
 // TestMarketsStatusChangedData tests MarketsStatusChangedData struct
 func TestMarketsStatusChangedData(t *testing.T) {
+	now := time.Now().Format(time.RFC3339)
 	data := MarketsStatusChangedData{
-		OpenCount: 5,
-		Timestamp: time.Now().Format(time.RFC3339),
+		Markets: map[string]MarketStatusData{
+			"XNAS": {
+				Name:      "NASDAQ",
+				Code:      "XNAS",
+				Status:    "open",
+				OpenTime:  "09:30",
+				CloseTime: "16:00",
+				Date:      "2024-01-09",
+				UpdatedAt: now,
+			},
+			"XNYS": {
+				Name:      "NYSE",
+				Code:      "XNYS",
+				Status:    "closed",
+				OpenTime:  "09:30",
+				CloseTime: "16:00",
+				Date:      "2024-01-09",
+				UpdatedAt: now,
+			},
+		},
+		OpenCount:   1,
+		ClosedCount: 1,
+		LastUpdated: now,
 	}
 
 	// Test JSON marshaling
 	jsonData, err := json.Marshal(data)
 	require.NoError(t, err)
-	assert.Contains(t, string(jsonData), "5")
+	assert.Contains(t, string(jsonData), "XNAS")
+	assert.Contains(t, string(jsonData), "NASDAQ")
 
 	// Test JSON unmarshaling
 	var unmarshaled MarketsStatusChangedData
 	err = json.Unmarshal(jsonData, &unmarshaled)
 	require.NoError(t, err)
 	assert.Equal(t, data.OpenCount, unmarshaled.OpenCount)
-	assert.Equal(t, data.Timestamp, unmarshaled.Timestamp)
+	assert.Equal(t, data.ClosedCount, unmarshaled.ClosedCount)
+	assert.Equal(t, data.LastUpdated, unmarshaled.LastUpdated)
+	assert.Equal(t, 2, len(unmarshaled.Markets))
+	assert.Equal(t, "NASDAQ", unmarshaled.Markets["XNAS"].Name)
+	assert.Equal(t, "open", unmarshaled.Markets["XNAS"].Status)
 }
 
 // TestAllocationTargetsChangedData tests AllocationTargetsChangedData struct
