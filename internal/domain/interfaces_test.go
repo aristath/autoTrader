@@ -68,7 +68,7 @@ func (m *mockBrokerClient) GetExecutedTrades(limit int) ([]BrokerTrade, error) {
 	return nil, nil
 }
 
-func (m *mockBrokerClient) PlaceOrder(symbol, side string, quantity float64) (*BrokerOrderResult, error) {
+func (m *mockBrokerClient) PlaceOrder(symbol, side string, quantity, limitPrice float64) (*BrokerOrderResult, error) {
 	return nil, nil
 }
 

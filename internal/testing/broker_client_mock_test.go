@@ -69,14 +69,14 @@ func TestMockBrokerClient_PlaceOrder(t *testing.T) {
 			Quantity: 5,
 		})
 
-		result, err := mock.PlaceOrder("MSFT", "BUY", 5)
+		result, err := mock.PlaceOrder("MSFT", "BUY", 5, 0.0)
 		require.NoError(t, err)
 		assert.Equal(t, "custom-123", result.OrderID)
 	})
 
 	t.Run("with default result", func(t *testing.T) {
 		mock.SetOrderResult(nil) // Clear custom result
-		result, err := mock.PlaceOrder("AAPL", "SELL", 3)
+		result, err := mock.PlaceOrder("AAPL", "SELL", 3, 0.0)
 		require.NoError(t, err)
 		assert.Equal(t, "mock_order_AAPL", result.OrderID)
 		assert.Equal(t, "AAPL", result.Symbol)

@@ -3,6 +3,8 @@ package services
 import (
 	"testing"
 
+	"github.com/aristath/sentinel/internal/domain"
+	"github.com/aristath/sentinel/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -179,4 +181,110 @@ func TestCurrencyExchangeService_findRateSymbol(t *testing.T) {
 			assert.Equal(t, tt.expectedInverse, inverse, tt.description)
 		})
 	}
+}
+
+// ============================================================================
+// TDD Phase 1: Currency Exchange Tests - Market Orders
+// ============================================================================
+
+// Mock Broker Client that captures limit price
+type mockBrokerClientCurrencyTest struct {
+	capturedLimitPrice float64
+	placeOrderCalled   bool
+	placeOrderErr      error
+	capturedSymbol     string
+	capturedSide       string
+	capturedQuantity   float64
+}
+
+func (m *mockBrokerClientCurrencyTest) PlaceOrder(symbol, side string, quantity, limitPrice float64) (*domain.BrokerOrderResult, error) {
+	m.placeOrderCalled = true
+	m.capturedSymbol = symbol
+	m.capturedSide = side
+	m.capturedQuantity = quantity
+	m.capturedLimitPrice = limitPrice
+
+	if m.placeOrderErr != nil {
+		return nil, m.placeOrderErr
+	}
+
+	return &domain.BrokerOrderResult{
+		OrderID:  "fx-order-123",
+		Symbol:   symbol,
+		Side:     side,
+		Quantity: quantity,
+		Price:    1.1, // Mock exchange rate
+	}, nil
+}
+
+func (m *mockBrokerClientCurrencyTest) IsConnected() bool {
+	return true
+}
+
+func (m *mockBrokerClientCurrencyTest) GetPortfolio() ([]domain.BrokerPosition, error) {
+	return nil, nil
+}
+
+func (m *mockBrokerClientCurrencyTest) GetCashBalances() ([]domain.BrokerCashBalance, error) {
+	return nil, nil
+}
+
+func (m *mockBrokerClientCurrencyTest) GetExecutedTrades(limit int) ([]domain.BrokerTrade, error) {
+	return nil, nil
+}
+
+func (m *mockBrokerClientCurrencyTest) GetPendingOrders() ([]domain.BrokerPendingOrder, error) {
+	return nil, nil
+}
+
+func (m *mockBrokerClientCurrencyTest) GetQuote(symbol string) (*domain.BrokerQuote, error) {
+	return nil, nil
+}
+
+func (m *mockBrokerClientCurrencyTest) FindSymbol(symbol string, exchange *string) ([]domain.BrokerSecurityInfo, error) {
+	return nil, nil
+}
+
+func (m *mockBrokerClientCurrencyTest) GetAllCashFlows(limit int) ([]domain.BrokerCashFlow, error) {
+	return nil, nil
+}
+
+func (m *mockBrokerClientCurrencyTest) GetCashMovements() (*domain.BrokerCashMovement, error) {
+	return nil, nil
+}
+
+func (m *mockBrokerClientCurrencyTest) HealthCheck() (*domain.BrokerHealthResult, error) {
+	return &domain.BrokerHealthResult{Connected: true}, nil
+}
+
+func (m *mockBrokerClientCurrencyTest) SetCredentials(apiKey, apiSecret string) {
+}
+
+// TestExecuteStep_MarketOrder tests that FX conversions use market orders
+func TestExecuteStep_MarketOrder(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Pretty: false})
+
+	mockBroker := &mockBrokerClientCurrencyTest{
+		capturedLimitPrice: -1, // Sentinel value
+	}
+
+	service := &CurrencyExchangeService{
+		brokerClient: mockBroker,
+		log:          log,
+	}
+
+	step := ConversionStep{
+		Symbol:       "EURUSD_T0.ITS",
+		Action:       "BUY",
+		FromCurrency: "EUR",
+		ToCurrency:   "USD",
+	}
+
+	err := service.executeStep(step, 100.0)
+
+	assert.NoError(t, err)
+	assert.True(t, mockBroker.placeOrderCalled, "PlaceOrder should have been called")
+	assert.Equal(t, 0.0, mockBroker.capturedLimitPrice, "FX conversion should use market order (limitPrice = 0.0)")
+	assert.Equal(t, "EURUSD_T0.ITS", mockBroker.capturedSymbol)
+	assert.Equal(t, "BUY", mockBroker.capturedSide)
 }

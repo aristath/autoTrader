@@ -30,6 +30,7 @@ type mockSDKClient struct {
 	getQuotesError            error
 	userInfoResult            interface{}
 	userInfoError             error
+	lastLimitPrice            float64 // Track limit price passed to Buy/Sell
 }
 
 func (m *mockSDKClient) AccountSummary() (interface{}, error) {
@@ -37,10 +38,12 @@ func (m *mockSDKClient) AccountSummary() (interface{}, error) {
 }
 
 func (m *mockSDKClient) Buy(symbol string, quantity int, price float64, duration string, useMargin bool, customOrderID *int) (interface{}, error) {
+	m.lastLimitPrice = price
 	return m.buyResult, m.buyError
 }
 
 func (m *mockSDKClient) Sell(symbol string, quantity int, price float64, duration string, useMargin bool, customOrderID *int) (interface{}, error) {
+	m.lastLimitPrice = price
 	return m.sellResult, m.sellError
 }
 
@@ -177,7 +180,7 @@ func TestClient_PlaceOrder_Buy(t *testing.T) {
 		log:       log,
 	}
 
-	orderResult, err := client.PlaceOrder("AAPL.US", "BUY", 10.0)
+	orderResult, err := client.PlaceOrder("AAPL.US", "BUY", 10.0, 0.0) // Market order
 
 	assert.NoError(t, err)
 	assert.NotNil(t, orderResult)
@@ -204,7 +207,7 @@ func TestClient_PlaceOrder_Sell(t *testing.T) {
 		log:       log,
 	}
 
-	orderResult, err := client.PlaceOrder("TSLA.US", "SELL", 5.0)
+	orderResult, err := client.PlaceOrder("TSLA.US", "SELL", 5.0, 0.0) // Market order
 
 	assert.NoError(t, err)
 	assert.NotNil(t, orderResult)

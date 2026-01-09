@@ -116,7 +116,7 @@ func TestTradernetBrokerAdapter_GetCashBalances(t *testing.T) {
 func TestTradernetBrokerAdapter_PlaceOrder(t *testing.T) {
 	log := zerolog.New(nil).Level(zerolog.Disabled)
 
-	t.Run("buy success", func(t *testing.T) {
+	t.Run("buy success with limit price", func(t *testing.T) {
 		mockSDK := &mockSDKClient{
 			buyResult: map[string]interface{}{
 				"id":    "order-123",
@@ -127,15 +127,33 @@ func TestTradernetBrokerAdapter_PlaceOrder(t *testing.T) {
 		client := NewClientWithSDK(mockSDK, log)
 		adapter := &TradernetBrokerAdapter{client: client}
 
-		result, err := adapter.PlaceOrder("AAPL", "BUY", 5.0)
+		result, err := adapter.PlaceOrder("AAPL", "BUY", 5.0, 155.0)
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, "order-123", result.OrderID)
 		assert.Equal(t, "AAPL", result.Symbol)
 		assert.Equal(t, "BUY", result.Side)
+		assert.Equal(t, 155.0, mockSDK.lastLimitPrice)
 	})
 
-	t.Run("sell success", func(t *testing.T) {
+	t.Run("buy market order (limit price 0)", func(t *testing.T) {
+		mockSDK := &mockSDKClient{
+			buyResult: map[string]interface{}{
+				"id":    "order-789",
+				"price": 150.50,
+			},
+		}
+
+		client := NewClientWithSDK(mockSDK, log)
+		adapter := &TradernetBrokerAdapter{client: client}
+
+		result, err := adapter.PlaceOrder("AAPL", "BUY", 5.0, 0.0)
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 0.0, mockSDK.lastLimitPrice)
+	})
+
+	t.Run("sell success with limit price", func(t *testing.T) {
 		mockSDK := &mockSDKClient{
 			sellResult: map[string]interface{}{
 				"id":    "order-456",
@@ -146,12 +164,30 @@ func TestTradernetBrokerAdapter_PlaceOrder(t *testing.T) {
 		client := NewClientWithSDK(mockSDK, log)
 		adapter := &TradernetBrokerAdapter{client: client}
 
-		result, err := adapter.PlaceOrder("MSFT", "SELL", 3.0)
+		result, err := adapter.PlaceOrder("MSFT", "SELL", 3.0, 315.0)
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, "order-456", result.OrderID)
 		assert.Equal(t, "MSFT", result.Symbol)
 		assert.Equal(t, "SELL", result.Side)
+		assert.Equal(t, 315.0, mockSDK.lastLimitPrice)
+	})
+
+	t.Run("sell market order (limit price 0)", func(t *testing.T) {
+		mockSDK := &mockSDKClient{
+			sellResult: map[string]interface{}{
+				"id":    "order-999",
+				"price": 320.75,
+			},
+		}
+
+		client := NewClientWithSDK(mockSDK, log)
+		adapter := &TradernetBrokerAdapter{client: client}
+
+		result, err := adapter.PlaceOrder("MSFT", "SELL", 3.0, 0.0)
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 0.0, mockSDK.lastLimitPrice)
 	})
 
 	t.Run("sdk error", func(t *testing.T) {
@@ -162,7 +198,7 @@ func TestTradernetBrokerAdapter_PlaceOrder(t *testing.T) {
 		client := NewClientWithSDK(mockSDK, log)
 		adapter := &TradernetBrokerAdapter{client: client}
 
-		result, err := adapter.PlaceOrder("AAPL", "BUY", 5.0)
+		result, err := adapter.PlaceOrder("AAPL", "BUY", 5.0, 155.0)
 		assert.Error(t, err)
 		assert.Nil(t, result)
 	})

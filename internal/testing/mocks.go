@@ -1105,7 +1105,7 @@ func (m *MockTradernetClient) GetExecutedTrades(limit int) ([]domain.BrokerTrade
 }
 
 // PlaceOrder places an order via Tradernet
-func (m *MockTradernetClient) PlaceOrder(symbol, side string, quantity float64) (*domain.BrokerOrderResult, error) {
+func (m *MockTradernetClient) PlaceOrder(symbol, side string, quantity, limitPrice float64) (*domain.BrokerOrderResult, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.err != nil {
@@ -1334,7 +1334,7 @@ func (m *MockBrokerClient) GetCashBalances() ([]domain.BrokerCashBalance, error)
 }
 
 // PlaceOrder implements domain.BrokerClient
-func (m *MockBrokerClient) PlaceOrder(symbol, side string, quantity float64) (*domain.BrokerOrderResult, error) {
+func (m *MockBrokerClient) PlaceOrder(symbol, side string, quantity, limitPrice float64) (*domain.BrokerOrderResult, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.err != nil {

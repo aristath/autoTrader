@@ -176,6 +176,21 @@ func (s *TradeExecutionService) executeSingleTrade(rec TradeRecommendation) Exec
 		return *validationErr
 	}
 
+	// Price validation and limit calculation
+	limitPrice, err := s.validatePriceAndCalculateLimit(rec)
+	if err != nil {
+		s.log.Error().
+			Err(err).
+			Str("symbol", rec.Symbol).
+			Msg("Trade blocked by price validation failure")
+		errMsg := err.Error()
+		return ExecuteResult{
+			Symbol: rec.Symbol,
+			Status: "blocked",
+			Error:  &errMsg,
+		}
+	}
+
 	// Pre-trade validation for BUY orders
 	if rec.Side == "BUY" {
 		if validationErr := s.validateBuyCashBalance(rec); validationErr != nil {
@@ -187,11 +202,12 @@ func (s *TradeExecutionService) executeSingleTrade(rec TradeRecommendation) Exec
 		}
 	}
 
-	// Place order via Tradernet
+	// Place LIMIT order via Tradernet
 	orderResult, err := s.brokerClient.PlaceOrder(
 		rec.Symbol,
 		rec.Side, // "BUY" or "SELL"
 		rec.Quantity,
+		limitPrice, // Pass calculated limit price
 	)
 
 	if err != nil {
@@ -544,6 +560,78 @@ func (s *TradeExecutionService) validatePriceFreshness(rec TradeRecommendation) 
 
 	// Fresh price obtained, allow trade to proceed
 	return nil
+}
+
+// validatePriceAndCalculateLimit fetches trusted price from Yahoo Finance and calculates limit price.
+//
+// For BUY orders: limit = yahooPrice × (1 + buffer)  // Allow buying slightly above
+// For SELL orders: limit = yahooPrice × (1 - buffer) // Allow selling slightly below
+//
+// Returns limit price and nil error if successful.
+// Returns 0 and error if Yahoo unavailable (blocks trade for safety).
+func (s *TradeExecutionService) validatePriceAndCalculateLimit(rec TradeRecommendation) (float64, error) {
+	// Get buffer from settings (default 5%)
+	buffer := 0.05
+	if s.settingsService != nil {
+		if val, err := s.settingsService.Get("limit_order_buffer_percent"); err == nil {
+			if bufferVal, ok := val.(float64); ok {
+				// Validate buffer is reasonable (0.1% to 20%)
+				if bufferVal >= 0.001 && bufferVal <= 0.20 {
+					buffer = bufferVal
+				} else {
+					s.log.Warn().
+						Float64("invalid_buffer", bufferVal).
+						Float64("using_default", buffer).
+						Msg("Invalid buffer value in settings, using default")
+				}
+			}
+		}
+	}
+
+	// Check if Yahoo client is available
+	if s.yahooClient == nil {
+		return 0, fmt.Errorf("Yahoo Finance client unavailable - cannot validate price for limit order")
+	}
+
+	// Get security for Yahoo symbol override
+	var yahooSymbolPtr *string
+	if s.securityRepo != nil {
+		security, err := s.securityRepo.GetBySymbol(rec.Symbol)
+		if err == nil && security != nil && security.YahooSymbol != "" {
+			yahooSymbolPtr = &security.YahooSymbol
+		}
+	}
+
+	// Fetch current price from Yahoo Finance (3 retries with exponential backoff)
+	yahooPrice, err := s.yahooClient.GetCurrentPrice(rec.Symbol, yahooSymbolPtr, 3)
+	if err != nil || yahooPrice == nil {
+		return 0, fmt.Errorf("failed to fetch Yahoo price for %s: %w (blocking trade for safety)", rec.Symbol, err)
+	}
+
+	// Validate price is reasonable
+	if *yahooPrice <= 0 {
+		return 0, fmt.Errorf("invalid Yahoo price for %s: %.2f (must be positive)", rec.Symbol, *yahooPrice)
+	}
+
+	// Calculate limit price with buffer
+	var limitPrice float64
+	if rec.Side == "BUY" {
+		// Buy limit: allow paying up to X% more than Yahoo price
+		limitPrice = *yahooPrice * (1 + buffer)
+	} else {
+		// Sell limit: allow receiving at least X% less than Yahoo price
+		limitPrice = *yahooPrice * (1 - buffer)
+	}
+
+	s.log.Info().
+		Str("symbol", rec.Symbol).
+		Str("side", rec.Side).
+		Float64("yahoo_price", *yahooPrice).
+		Float64("limit_price", limitPrice).
+		Float64("buffer_pct", buffer*100).
+		Msg("Calculated limit price from Yahoo Finance")
+
+	return limitPrice, nil
 }
 
 // isMarketHoursError checks if an error message indicates a market hours issue

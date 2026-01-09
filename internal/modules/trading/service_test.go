@@ -24,7 +24,7 @@ func (m *mockTradernetClient) GetExecutedTrades(limit int) ([]domain.BrokerTrade
 	return m.trades, nil
 }
 
-func (m *mockTradernetClient) PlaceOrder(symbol, side string, quantity float64) (*domain.BrokerOrderResult, error) {
+func (m *mockTradernetClient) PlaceOrder(symbol, side string, quantity, limitPrice float64) (*domain.BrokerOrderResult, error) {
 	return &domain.BrokerOrderResult{
 		OrderID:  "ORDER-" + symbol,
 		Symbol:   symbol,

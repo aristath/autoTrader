@@ -259,7 +259,8 @@ func (s *TradingService) ExecuteTrade(req TradeRequest) (*TradeResult, error) {
 	}
 
 	// Execute trade via Tradernet microservice
-	orderResult, err := s.brokerClient.PlaceOrder(req.Symbol, req.Side, float64(req.Quantity))
+	// Manual trading uses market orders (limitPrice = 0.0) for immediate execution
+	orderResult, err := s.brokerClient.PlaceOrder(req.Symbol, req.Side, float64(req.Quantity), 0.0)
 	if err != nil {
 		return &TradeResult{
 			Success: false,

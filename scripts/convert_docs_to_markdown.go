@@ -312,8 +312,8 @@ func convertHTMLToMarkdown(html string) string {
 
 		// Skip remaining HTML tags
 		if strings.Contains(trimmedLine, "<br>") || strings.Contains(trimmedLine, "</li>") ||
-		   strings.Contains(trimmedLine, "<span") || strings.Contains(trimmedLine, "</a>") ||
-		   strings.Contains(trimmedLine, "<a href") {
+			strings.Contains(trimmedLine, "<span") || strings.Contains(trimmedLine, "</a>") ||
+			strings.Contains(trimmedLine, "<a href") {
 			continue
 		}
 	}
@@ -403,30 +403,30 @@ func countLeadingSpaces(s string) int {
 
 func decodeHTMLEntities(text string) string {
 	replacements := map[string]string{
-		"&nbsp;":    " ",
-		"&amp;":     "&",
-		"&lt;":      "<",
-		"&gt;":      ">",
-		"&quot;":    "\"",
-		"&#160;":    " ",
-		"&lsaquo;":  "<",
-		"&rsaquo;":  ">",
-		"&laquo;":   "«",
-		"&raquo;":   "»",
-		"&apos;":    "'",
-		"&#39;":     "'",
-		"&#x27;":    "'",
-		"&mdash;":   "—",
-		"&ndash;":   "–",
-		"&hellip;":  "...",
-		"&times;":   "×",
-		"&divide;":  "÷",
-		"&copy;":    "©",
-		"&reg;":     "®",
-		"&trade;":   "™",
-		"&euro;":    "€",
-		"&pound;":   "£",
-		"&yen;":     "¥",
+		"&nbsp;":   " ",
+		"&amp;":    "&",
+		"&lt;":     "<",
+		"&gt;":     ">",
+		"&quot;":   "\"",
+		"&#160;":   " ",
+		"&lsaquo;": "<",
+		"&rsaquo;": ">",
+		"&laquo;":  "«",
+		"&raquo;":  "»",
+		"&apos;":   "'",
+		"&#39;":    "'",
+		"&#x27;":   "'",
+		"&mdash;":  "—",
+		"&ndash;":  "–",
+		"&hellip;": "...",
+		"&times;":  "×",
+		"&divide;": "÷",
+		"&copy;":   "©",
+		"&reg;":    "®",
+		"&trade;":  "™",
+		"&euro;":   "€",
+		"&pound;":  "£",
+		"&yen;":    "¥",
 	}
 
 	for entity, replacement := range replacements {

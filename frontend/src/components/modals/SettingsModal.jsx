@@ -259,6 +259,38 @@ export function SettingsModal() {
               </Stack>
             </Paper>
 
+            {/* Limit Order Protection */}
+            <Paper p="md" withBorder>
+              <Text size="sm" fw={500} mb="xs" tt="uppercase">Limit Order Protection</Text>
+              <Stack gap="sm">
+                <Group justify="space-between">
+                  <div>
+                    <Text size="sm">Limit Order Buffer</Text>
+                    <Text size="xs" c="dimmed">Price protection buffer for limit orders</Text>
+                  </div>
+                  <Group gap="xs">
+                    <NumberInput
+                      value={(getSetting('limit_order_buffer_percent', 0.05) * 100).toFixed(1)}
+                      onChange={(val) => handleUpdateSetting('limit_order_buffer_percent', (val || 0) / 100)}
+                      min={1}
+                      max={15}
+                      step={0.5}
+                      precision={1}
+                      w={80}
+                      size="sm"
+                    />
+                    <Text size="sm" c="dimmed">%</Text>
+                  </Group>
+                </Group>
+                <Alert color="blue" variant="light" styles={{message: {fontSize: '12px'}}}>
+                  <Text size="xs">
+                    <strong>Example:</strong> If Yahoo shows €30 and buffer is 5%, buy limit is €31.50.
+                    If Tradernet real price is €600 (error), order won't fill. Money safe!
+                  </Text>
+                </Alert>
+              </Stack>
+            </Paper>
+
             {/* Scoring Parameters */}
             <Paper p="md" withBorder>
               <Text size="sm" fw={500} mb="xs" tt="uppercase">Scoring Parameters</Text>

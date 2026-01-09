@@ -154,6 +154,9 @@ var SettingDefaults = map[string]interface{}{
 
 	// UI Preferences
 	"security_table_visible_columns": `{"chart":true,"company":true,"country":true,"exchange":true,"sector":true,"tags":true,"value":true,"score":true,"mult":true,"bs":true,"priority":true}`, // JSON string with column visibility preferences
+
+	// Limit Order Protection
+	"limit_order_buffer_percent": 0.05, // 5% buffer for limit orders (buy up to 5% above Yahoo price, sell down to 5% below)
 }
 
 // StringSettings defines which settings should be treated as strings rather than floats
@@ -172,6 +175,11 @@ var StringSettings = map[string]bool{
 	"r2_secret_access_key":           true,
 	"r2_bucket_name":                 true,
 	"r2_backup_schedule":             true,
+}
+
+// SettingDescriptions holds human-readable descriptions for all settings
+var SettingDescriptions = map[string]string{
+	"limit_order_buffer_percent": "Buffer percentage for limit orders (5% = buy up to 5% above Yahoo price, sell down to 5% below)",
 }
 
 // SettingUpdate represents a setting value update request

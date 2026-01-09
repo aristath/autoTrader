@@ -75,21 +75,26 @@ type OrderResult struct {
 }
 
 // PlaceOrder executes a trade order
-func (c *Client) PlaceOrder(symbol, side string, quantity float64) (*OrderResult, error) {
+func (c *Client) PlaceOrder(symbol, side string, quantity, limitPrice float64) (*OrderResult, error) {
 	if c.sdkClient == nil {
 		return nil, fmt.Errorf("SDK client not initialized")
 	}
 
-	c.log.Debug().Str("symbol", symbol).Str("side", side).Float64("quantity", quantity).Msg("PlaceOrder: calling SDK")
+	c.log.Debug().
+		Str("symbol", symbol).
+		Str("side", side).
+		Float64("quantity", quantity).
+		Float64("limit_price", limitPrice).
+		Msg("PlaceOrder: calling SDK")
 
 	quantityInt := int(quantity)
 	var result interface{}
 	var err error
 
 	if side == "BUY" {
-		result, err = c.sdkClient.Buy(symbol, quantityInt, 0.0, "day", false, nil)
+		result, err = c.sdkClient.Buy(symbol, quantityInt, limitPrice, "day", false, nil)
 	} else if side == "SELL" {
-		result, err = c.sdkClient.Sell(symbol, quantityInt, 0.0, "day", false, nil)
+		result, err = c.sdkClient.Sell(symbol, quantityInt, limitPrice, "day", false, nil)
 	} else {
 		return nil, fmt.Errorf("invalid side: %s (must be BUY or SELL)", side)
 	}

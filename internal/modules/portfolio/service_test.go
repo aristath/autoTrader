@@ -65,8 +65,8 @@ func (m *MockTradernetClient) GetExecutedTrades(limit int) ([]domain.BrokerTrade
 	return args.Get(0).([]domain.BrokerTrade), args.Error(1)
 }
 
-func (m *MockTradernetClient) PlaceOrder(symbol, side string, quantity float64) (*domain.BrokerOrderResult, error) {
-	args := m.Called(symbol, side, quantity)
+func (m *MockTradernetClient) PlaceOrder(symbol, side string, quantity, limitPrice float64) (*domain.BrokerOrderResult, error) {
+	args := m.Called(symbol, side, quantity, limitPrice)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}

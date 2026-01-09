@@ -26,7 +26,7 @@ type BrokerClient interface {
 	GetCashBalances() ([]BrokerCashBalance, error)
 
 	// Trading operations
-	PlaceOrder(symbol, side string, quantity float64) (*BrokerOrderResult, error)
+	PlaceOrder(symbol, side string, quantity, limitPrice float64) (*BrokerOrderResult, error)
 	GetExecutedTrades(limit int) ([]BrokerTrade, error)
 	GetPendingOrders() ([]BrokerPendingOrder, error)
 

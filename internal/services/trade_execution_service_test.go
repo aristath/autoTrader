@@ -2,11 +2,15 @@ package services
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 
+	"github.com/aristath/sentinel/internal/clients/yahoo"
 	"github.com/aristath/sentinel/internal/domain"
 	"github.com/aristath/sentinel/internal/modules/trading"
+	"github.com/aristath/sentinel/internal/modules/universe"
 	"github.com/aristath/sentinel/pkg/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 // Mock implementations for testing
@@ -372,7 +376,7 @@ func (m *mockTradernetClient) HealthCheck() (*domain.BrokerHealthResult, error) 
 func (m *mockTradernetClient) SetCredentials(apiKey, apiSecret string) {
 }
 
-func (m *mockTradernetClient) PlaceOrder(symbol, side string, quantity float64) (*domain.BrokerOrderResult, error) {
+func (m *mockTradernetClient) PlaceOrder(symbol, side string, quantity, limitPrice float64) (*domain.BrokerOrderResult, error) {
 	if m.placeOrderErr != nil {
 		return nil, m.placeOrderErr
 	}
@@ -477,6 +481,8 @@ func TestExecuteTrades_TradernetNotConnected(t *testing.T) {
 func TestExecuteTrades_SingleBuySuccess(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Pretty: false})
 
+	yahooPrice := 150.0
+	mockYahoo := &mockYahooClient{currentPrice: &yahooPrice}
 	mockClient := newMockTradernetClient(true)
 	mockTradeRepo := newMockTradeRepository()
 	cashManager := newMockCashManager(map[string]float64{"EUR": 2000.0})
@@ -484,6 +490,7 @@ func TestExecuteTrades_SingleBuySuccess(t *testing.T) {
 
 	service := &TradeExecutionService{
 		brokerClient:    mockClient,
+		yahooClient:     mockYahoo,
 		tradeRepo:       mockTradeRepo,
 		cashManager:     cashManager,
 		exchangeService: exchangeService,
@@ -527,11 +534,14 @@ func TestExecuteTrades_SingleBuySuccess(t *testing.T) {
 func TestExecuteTrades_SingleSellSuccess(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Pretty: false})
 
+	yahooPrice := 150.0
+	mockYahoo := &mockYahooClient{currentPrice: &yahooPrice}
 	mockClient := newMockTradernetClient(true)
 	mockTradeRepo := newMockTradeRepository()
 
 	service := &TradeExecutionService{
 		brokerClient: mockClient,
+		yahooClient:  mockYahoo,
 		tradeRepo:    mockTradeRepo,
 		log:          log,
 	}
@@ -645,6 +655,8 @@ func TestExecuteTrades_BuyBlockedByInsufficientFunds(t *testing.T) {
 func TestExecuteTrades_PlaceOrderFailure(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Pretty: false})
 
+	yahooPrice := 150.0
+	mockYahoo := &mockYahooClient{currentPrice: &yahooPrice}
 	mockClient := newMockTradernetClient(true)
 	mockClient.placeOrderErr = fmt.Errorf("market closed")
 
@@ -653,6 +665,7 @@ func TestExecuteTrades_PlaceOrderFailure(t *testing.T) {
 
 	service := &TradeExecutionService{
 		brokerClient:    mockClient,
+		yahooClient:     mockYahoo,
 		cashManager:     cashManager,
 		exchangeService: exchangeService,
 		log:             log,
@@ -688,6 +701,8 @@ func TestExecuteTrades_PlaceOrderFailure(t *testing.T) {
 func TestExecuteTrades_MultipleTrades_MixedResults(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Pretty: false})
 
+	yahooPrice := 100.0 // Generic price for all symbols
+	mockYahoo := &mockYahooClient{currentPrice: &yahooPrice}
 	mockClient := newMockTradernetClient(true)
 	mockTradeRepo := newMockTradeRepository()
 	cashManager := newMockCashManager(map[string]float64{
@@ -698,6 +713,7 @@ func TestExecuteTrades_MultipleTrades_MixedResults(t *testing.T) {
 
 	service := &TradeExecutionService{
 		brokerClient:    mockClient,
+		yahooClient:     mockYahoo,
 		tradeRepo:       mockTradeRepo,
 		cashManager:     cashManager,
 		exchangeService: exchangeService,
@@ -770,6 +786,8 @@ func TestExecuteTrades_MultipleTrades_MixedResults(t *testing.T) {
 func TestExecuteTrades_TradeRecordingFailure(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Pretty: false})
 
+	yahooPrice := 150.0
+	mockYahoo := &mockYahooClient{currentPrice: &yahooPrice}
 	mockClient := newMockTradernetClient(true)
 	mockTradeRepo := newMockTradeRepository()
 	mockTradeRepo.createErr = fmt.Errorf("database connection lost")
@@ -779,6 +797,7 @@ func TestExecuteTrades_TradeRecordingFailure(t *testing.T) {
 
 	service := &TradeExecutionService{
 		brokerClient:    mockClient,
+		yahooClient:     mockYahoo,
 		tradeRepo:       mockTradeRepo,
 		cashManager:     cashManager,
 		exchangeService: exchangeService,
@@ -839,4 +858,499 @@ func findSubstring(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// ============================================================================
+// TDD Phase 1: Price Validation and Limit Order Tests
+// ============================================================================
+
+// Mock Yahoo Finance Client for testing
+type mockYahooClient struct {
+	currentPrice     *float64
+	currentPriceErr  error
+	callCount        int
+	lastSymbolUsed   string
+	lastOverrideUsed *string
+}
+
+func (m *mockYahooClient) GetCurrentPrice(symbol string, yahooSymbolOverride *string, maxRetries int) (*float64, error) {
+	m.callCount++
+	m.lastSymbolUsed = symbol
+	m.lastOverrideUsed = yahooSymbolOverride
+
+	if m.currentPriceErr != nil {
+		return nil, m.currentPriceErr
+	}
+	return m.currentPrice, nil
+}
+
+// Stub methods to satisfy yahoo.FullClientInterface
+func (m *mockYahooClient) GetBatchQuotes(symbolMap map[string]*string) (map[string]*float64, error) {
+	return nil, nil
+}
+
+func (m *mockYahooClient) GetExchangeRate(fromCurrency, toCurrency string) (float64, error) {
+	return 0, nil
+}
+
+func (m *mockYahooClient) GetHistoricalPrices(symbol string, yahooSymbolOverride *string, period string) ([]yahoo.HistoricalPrice, error) {
+	return nil, nil
+}
+
+func (m *mockYahooClient) GetFundamentalData(symbol string, yahooSymbolOverride *string) (*yahoo.FundamentalData, error) {
+	return nil, nil
+}
+
+func (m *mockYahooClient) GetAnalystData(symbol string, yahooSymbolOverride *string) (*yahoo.AnalystData, error) {
+	return nil, nil
+}
+
+func (m *mockYahooClient) GetSecurityIndustry(symbol string, yahooSymbolOverride *string) (*string, error) {
+	return nil, nil
+}
+
+func (m *mockYahooClient) GetSecurityCountryAndExchange(symbol string, yahooSymbolOverride *string) (*string, *string, error) {
+	return nil, nil, nil
+}
+
+func (m *mockYahooClient) GetQuoteName(symbol string, yahooSymbolOverride *string) (*string, error) {
+	return nil, nil
+}
+
+func (m *mockYahooClient) GetQuoteType(symbol string, yahooSymbolOverride *string) (string, error) {
+	return "", nil
+}
+
+func (m *mockYahooClient) LookupTickerFromISIN(isin string) (string, error) {
+	return "", nil
+}
+
+// Mock Settings Service for testing
+type mockSettingsService struct {
+	settings map[string]interface{}
+	mu       sync.RWMutex
+}
+
+func newMockSettingsService() *mockSettingsService {
+	return &mockSettingsService{
+		settings: make(map[string]interface{}),
+	}
+}
+
+func (m *mockSettingsService) Get(key string) (interface{}, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if val, exists := m.settings[key]; exists {
+		return val, nil
+	}
+	return nil, fmt.Errorf("setting not found: %s", key)
+}
+
+func (m *mockSettingsService) Set(key string, value interface{}) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.settings[key] = value
+	return true, nil
+}
+
+// Mock Security Repository for testing
+type mockSecurityRepository struct {
+	security *universe.Security
+	err      error
+}
+
+func (m *mockSecurityRepository) GetBySymbol(symbol string) (*universe.Security, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.security, nil
+}
+
+// Test Suite: Price Validation and Limit Calculation for BUY Orders
+func TestValidatePriceAndCalculateLimit_BuyOrders(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Pretty: false})
+
+	tests := []struct {
+		name          string
+		yahooPrice    float64
+		expectedLimit float64
+	}{
+		{
+			name:          "BUY with 5% buffer (default)",
+			yahooPrice:    100.0,
+			expectedLimit: 105.0,
+		},
+		{
+			name:          "BUY large cap stock",
+			yahooPrice:    200.0,
+			expectedLimit: 210.0,
+		},
+		{
+			name:          "BUY European stock",
+			yahooPrice:    30.0,
+			expectedLimit: 31.5,
+		},
+		{
+			name:          "BUY European stock with decimal price",
+			yahooPrice:    29.50,
+			expectedLimit: 30.975,
+		},
+		{
+			name:          "BUY penny stock",
+			yahooPrice:    0.15,
+			expectedLimit: 0.1575,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockYahoo := &mockYahooClient{
+				currentPrice: &tt.yahooPrice,
+			}
+
+			service := &TradeExecutionService{
+				log: log,
+			}
+			service.yahooClient = mockYahoo
+
+			rec := TradeRecommendation{
+				Symbol:         "TEST",
+				Side:           "BUY",
+				Quantity:       10,
+				EstimatedPrice: 100.0,
+				Currency:       "USD",
+			}
+
+			limit, err := service.validatePriceAndCalculateLimit(rec)
+
+			assert.NoError(t, err)
+			assert.InDelta(t, tt.expectedLimit, limit, 0.001)
+		})
+	}
+}
+
+// Test Suite: Price Validation and Limit Calculation for SELL Orders
+func TestValidatePriceAndCalculateLimit_SellOrders(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Pretty: false})
+
+	tests := []struct {
+		name          string
+		yahooPrice    float64
+		expectedLimit float64
+	}{
+		{"SELL with 5% buffer (default)", 100.0, 95.0},
+		{"SELL large cap stock", 200.0, 190.0},
+		{"SELL European stock", 30.0, 28.5},
+		{"SELL European stock with decimal", 29.50, 28.025},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockYahoo := &mockYahooClient{
+				currentPrice: &tt.yahooPrice,
+			}
+
+			service := &TradeExecutionService{
+				log: log,
+			}
+			service.yahooClient = mockYahoo
+
+			rec := TradeRecommendation{
+				Symbol:         "TEST",
+				Side:           "SELL",
+				Quantity:       10,
+				EstimatedPrice: 100.0,
+				Currency:       "USD",
+			}
+
+			limit, err := service.validatePriceAndCalculateLimit(rec)
+
+			assert.NoError(t, err)
+			assert.InDelta(t, tt.expectedLimit, limit, 0.001)
+		})
+	}
+}
+
+// Test: Default buffer is used when setting unavailable
+func TestValidatePriceAndCalculateLimit_DefaultBuffer(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Pretty: false})
+
+	yahooPrice := 100.0
+	mockYahoo := &mockYahooClient{
+		currentPrice: &yahooPrice,
+	}
+
+	// No settings service - should use default 5%
+	service := &TradeExecutionService{
+		yahooClient:     mockYahoo,
+		settingsService: nil,
+		log:             log,
+	}
+
+	rec := TradeRecommendation{
+		Symbol: "TEST",
+		Side:   "BUY",
+	}
+
+	limit, err := service.validatePriceAndCalculateLimit(rec)
+
+	assert.NoError(t, err)
+	assert.InDelta(t, 105.0, limit, 0.001) // 100 * 1.05
+}
+
+// Test: Error when Yahoo client is nil
+func TestValidatePriceAndCalculateLimit_YahooUnavailable(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Pretty: false})
+
+	service := &TradeExecutionService{
+		yahooClient: nil,
+		log:         log,
+	}
+
+	rec := TradeRecommendation{
+		Symbol: "TEST",
+		Side:   "BUY",
+	}
+
+	limit, err := service.validatePriceAndCalculateLimit(rec)
+
+	assert.Error(t, err)
+	assert.Equal(t, 0.0, limit)
+	assert.Contains(t, err.Error(), "unavailable")
+	assert.Contains(t, err.Error(), "Yahoo")
+}
+
+// Test: Error when Yahoo fetch fails
+func TestValidatePriceAndCalculateLimit_YahooFetchError(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Pretty: false})
+
+	mockYahoo := &mockYahooClient{
+		currentPriceErr: fmt.Errorf("network timeout"),
+	}
+
+	service := &TradeExecutionService{
+		yahooClient: mockYahoo,
+		log:         log,
+	}
+
+	rec := TradeRecommendation{
+		Symbol: "TEST",
+		Side:   "BUY",
+	}
+
+	limit, err := service.validatePriceAndCalculateLimit(rec)
+
+	assert.Error(t, err)
+	assert.Equal(t, 0.0, limit)
+	assert.Contains(t, err.Error(), "failed to fetch Yahoo price")
+	assert.Contains(t, err.Error(), "TEST")
+}
+
+// Test: Invalid prices are rejected
+func TestValidatePriceAndCalculateLimit_InvalidPrice(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Pretty: false})
+
+	tests := []struct {
+		name       string
+		price      float64
+		shouldFail bool
+	}{
+		{"zero price", 0.0, true},
+		{"negative price", -10.0, true},
+		{"valid small price", 0.01, false},
+		{"valid normal price", 100.0, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockYahoo := &mockYahooClient{
+				currentPrice: &tt.price,
+			}
+
+			service := &TradeExecutionService{
+				yahooClient: mockYahoo,
+				log:         log,
+			}
+
+			rec := TradeRecommendation{
+				Symbol: "TEST",
+				Side:   "BUY",
+			}
+
+			limit, err := service.validatePriceAndCalculateLimit(rec)
+
+			if tt.shouldFail {
+				assert.Error(t, err)
+				assert.Equal(t, 0.0, limit)
+				assert.Contains(t, err.Error(), "invalid Yahoo price")
+			} else {
+				assert.NoError(t, err)
+				assert.Greater(t, limit, 0.0)
+			}
+		})
+	}
+}
+
+// Test: Yahoo symbol works without security repository
+func TestValidatePriceAndCalculateLimit_WithoutSecurityRepo(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Pretty: false})
+
+	yahooPrice := 100.0
+	mockYahoo := &mockYahooClient{
+		currentPrice:   &yahooPrice,
+		lastSymbolUsed: "",
+	}
+
+	service := &TradeExecutionService{
+		yahooClient:  mockYahoo,
+		securityRepo: nil, // No security repo - should still work
+		log:          log,
+	}
+
+	rec := TradeRecommendation{
+		Symbol: "TEST.US",
+		Side:   "BUY",
+	}
+
+	limit, err := service.validatePriceAndCalculateLimit(rec)
+
+	assert.NoError(t, err)
+	assert.Greater(t, limit, 0.0)
+	// Yahoo client was called with the symbol directly (no override)
+	assert.Equal(t, "TEST.US", mockYahoo.lastSymbolUsed)
+}
+
+// Test Suite: Integration tests verifying limit price is passed to broker
+func TestExecuteSingleTrade_WithLimitPrice(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Pretty: false})
+
+	yahooPrice := 100.0
+	expectedLimit := 105.0 // 100 * 1.05 (default 5% buffer)
+
+	mockYahoo := &mockYahooClient{
+		currentPrice: &yahooPrice,
+	}
+
+	// Create updated mock that captures limit price
+	mockBroker := &mockTradernetClientWithLimit{
+		mockTradernetClient: mockTradernetClient{
+			connected: true,
+			placeOrderResp: &domain.BrokerOrderResult{
+				OrderID:  "12345",
+				Symbol:   "AAPL.US",
+				Side:     "BUY",
+				Quantity: 10,
+				Price:    100.5,
+			},
+		},
+		capturedLimitPrice: 0,
+	}
+
+	mockCashManager := newMockCashManager(map[string]float64{
+		"USD": 5000.0,
+	})
+
+	exchangeService := newMockCurrencyExchangeService(map[string]float64{})
+
+	mockTradeRepo := newMockTradeRepository()
+
+	service := &TradeExecutionService{
+		brokerClient:    mockBroker,
+		yahooClient:     mockYahoo,
+		settingsService: nil, // Use default 5% buffer
+		securityRepo:    nil, // No security repo needed for this test
+		cashManager:     mockCashManager,
+		exchangeService: exchangeService,
+		tradeRepo:       mockTradeRepo,
+		eventManager:    nil, // No event manager needed for this test
+		log:             log,
+	}
+
+	rec := TradeRecommendation{
+		Symbol:         "AAPL.US",
+		Side:           "BUY",
+		Quantity:       10,
+		EstimatedPrice: 100.0,
+		Currency:       "USD",
+	}
+
+	result := service.executeSingleTrade(rec)
+
+	assert.Equal(t, "success", result.Status)
+	assert.Nil(t, result.Error)
+
+	// Verify limit price was passed to broker
+	assert.InDelta(t, expectedLimit, mockBroker.capturedLimitPrice, 0.001)
+}
+
+// Test: Trade is blocked when Yahoo fails
+func TestExecuteSingleTrade_YahooFailureBlocksTrade(t *testing.T) {
+	log := logger.New(logger.Config{Level: "error", Pretty: false})
+
+	mockYahoo := &mockYahooClient{
+		currentPriceErr: fmt.Errorf("network error"),
+	}
+
+	mockBroker := &mockTradernetClientWithLimit{
+		mockTradernetClient: mockTradernetClient{
+			connected: true,
+		},
+	}
+
+	service := &TradeExecutionService{
+		brokerClient: mockBroker,
+		yahooClient:  mockYahoo,
+		log:          log,
+	}
+
+	rec := TradeRecommendation{
+		Symbol:         "AAPL.US",
+		Side:           "BUY",
+		Quantity:       10,    // Must have valid quantity
+		EstimatedPrice: 100.0, // Must have estimated price
+		Currency:       "USD", // Must have currency
+	}
+
+	result := service.executeSingleTrade(rec)
+
+	assert.Equal(t, "blocked", result.Status)
+	assert.NotNil(t, result.Error)
+	assert.Contains(t, *result.Error, "failed to fetch Yahoo price")
+
+	// Verify broker was never called
+	assert.False(t, mockBroker.placeOrderCalled)
+}
+
+// Extended mock that captures limit price
+type mockTradernetClientWithLimit struct {
+	mockTradernetClient
+	capturedLimitPrice float64
+	capturedSymbol     string
+	capturedSide       string
+	capturedQuantity   float64
+	placeOrderCalled   bool
+}
+
+func (m *mockTradernetClientWithLimit) PlaceOrder(symbol, side string, quantity, limitPrice float64) (*domain.BrokerOrderResult, error) {
+	m.placeOrderCalled = true
+	m.capturedSymbol = symbol
+	m.capturedSide = side
+	m.capturedQuantity = quantity
+	m.capturedLimitPrice = limitPrice
+
+	if m.placeOrderErr != nil {
+		return nil, m.placeOrderErr
+	}
+	if m.placeOrderResp != nil {
+		return m.placeOrderResp, nil
+	}
+	return &domain.BrokerOrderResult{
+		OrderID:  "ORDER-" + symbol,
+		Symbol:   symbol,
+		Side:     side,
+		Quantity: quantity,
+		Price:    100.0,
+	}, nil
 }

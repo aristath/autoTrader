@@ -289,7 +289,9 @@ func (s *CurrencyExchangeService) executeStep(step ConversionStep, amount float6
 		Str("to", step.ToCurrency).
 		Msg("Executing FX conversion")
 
-	_, err := s.brokerClient.PlaceOrder(step.Symbol, step.Action, amount)
+	// Currency exchange uses market orders (limitPrice = 0.0)
+	// FX pairs are highly liquid with tight spreads, no limit needed
+	_, err := s.brokerClient.PlaceOrder(step.Symbol, step.Action, amount, 0.0)
 	return err
 }
 

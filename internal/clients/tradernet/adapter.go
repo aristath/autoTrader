@@ -39,8 +39,8 @@ func (a *TradernetBrokerAdapter) GetCashBalances() ([]domain.BrokerCashBalance, 
 }
 
 // PlaceOrder implements domain.BrokerClient
-func (a *TradernetBrokerAdapter) PlaceOrder(symbol, side string, quantity float64) (*domain.BrokerOrderResult, error) {
-	tnResult, err := a.client.PlaceOrder(symbol, side, quantity)
+func (a *TradernetBrokerAdapter) PlaceOrder(symbol, side string, quantity, limitPrice float64) (*domain.BrokerOrderResult, error) {
+	tnResult, err := a.client.PlaceOrder(symbol, side, quantity, limitPrice)
 	if err != nil {
 		return nil, err
 	}

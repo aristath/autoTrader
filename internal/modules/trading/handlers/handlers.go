@@ -194,7 +194,8 @@ func (h *TradingHandlers) HandleExecuteTrade(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Execute trade via Tradernet microservice
-	result, err := h.brokerClient.PlaceOrder(req.Symbol, req.Side, req.Quantity)
+	// Manual trading uses market orders (limitPrice = 0.0) for immediate execution
+	result, err := h.brokerClient.PlaceOrder(req.Symbol, req.Side, req.Quantity, 0.0)
 	if err != nil {
 		h.log.Error().Err(err).Msg("Failed to place order")
 		h.writeError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to place order: %v", err))

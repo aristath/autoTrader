@@ -9,6 +9,7 @@ export const useSettingsStore = create((set, get) => ({
     transaction_cost_fixed: 2.0,
     transaction_cost_percent: 0.002,
     min_cash_reserve: 500.0,
+    limit_order_buffer_percent: 0.05,
   },
   tradingMode: 'research',
 

@@ -49,7 +49,7 @@ func (m *mockBrokerClientForTest) GetExecutedTrades(limit int) ([]BrokerTrade, e
 }
 
 // PlaceOrder implements BrokerClient
-func (m *mockBrokerClientForTest) PlaceOrder(symbol, side string, quantity float64) (*BrokerOrderResult, error) {
+func (m *mockBrokerClientForTest) PlaceOrder(symbol, side string, quantity, limitPrice float64) (*BrokerOrderResult, error) {
 	if m.returnError {
 		return nil, errors.New("mock error")
 	}
@@ -155,7 +155,7 @@ func TestBrokerClientInterface_PlaceOrder(t *testing.T) {
 		},
 	}
 
-	result, err := mock.PlaceOrder("MSFT", "BUY", 5.0)
+	result, err := mock.PlaceOrder("MSFT", "BUY", 5.0, 0.0)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, "order-123", result.OrderID)
@@ -292,7 +292,7 @@ func TestBrokerClientInterface_ErrorHandling(t *testing.T) {
 	_, err = mock.GetCashBalances()
 	assert.Error(t, err)
 
-	_, err = mock.PlaceOrder("TEST", "BUY", 1.0)
+	_, err = mock.PlaceOrder("TEST", "BUY", 1.0, 0.0)
 	assert.Error(t, err)
 
 	_, err = mock.GetExecutedTrades(100)
