@@ -65,6 +65,15 @@ func TestBackupMetadataJSON(t *testing.T) {
 		t.Errorf("expected version 1.0.0, got %s", metadata.Version)
 	}
 
+	if metadata.SentinelVersion != "0.1.0" {
+		t.Errorf("expected sentinel version 0.1.0, got %s", metadata.SentinelVersion)
+	}
+
+	expectedTimestamp := time.Date(2026, 1, 8, 14, 30, 0, 0, time.UTC)
+	if !metadata.Timestamp.Equal(expectedTimestamp) {
+		t.Errorf("expected timestamp %v, got %v", expectedTimestamp, metadata.Timestamp)
+	}
+
 	if len(metadata.Databases) != 2 {
 		t.Errorf("expected 2 databases, got %d", len(metadata.Databases))
 	}
@@ -235,6 +244,10 @@ func TestDatabaseMetadata(t *testing.T) {
 
 	if db.Name != "universe" {
 		t.Errorf("expected name 'universe', got %s", db.Name)
+	}
+
+	if db.Filename != "universe.db" {
+		t.Errorf("expected filename 'universe.db', got %s", db.Filename)
 	}
 
 	if db.SizeBytes != 1024*1024 {

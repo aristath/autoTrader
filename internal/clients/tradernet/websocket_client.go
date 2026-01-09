@@ -125,16 +125,22 @@ func (ws *MarketStatusWebSocket) Connect() error {
 	ws.connected = true
 
 	// Configure connection
-	conn.SetReadDeadline(time.Now().Add(pongWait))
+	if err := conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+		ws.log.Warn().Err(err).Msg("Failed to set initial read deadline")
+	}
 	conn.SetPongHandler(func(string) error {
 		// Note: Pong handler uses local conn variable to avoid race with Disconnect()
-		conn.SetReadDeadline(time.Now().Add(pongWait))
+		if err := conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+			ws.log.Warn().Err(err).Msg("Failed to set read deadline in pong handler")
+		}
 		return nil
 	})
 
 	// Subscribe to markets channel
 	if err := ws.subscribe(); err != nil {
-		ws.Disconnect()
+		if disconnectErr := ws.Disconnect(); disconnectErr != nil {
+			ws.log.Warn().Err(disconnectErr).Msg("Failed to disconnect after subscribe error")
+		}
 		return fmt.Errorf("failed to subscribe to markets: %w", err)
 	}
 

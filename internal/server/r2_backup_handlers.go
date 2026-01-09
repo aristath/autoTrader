@@ -362,7 +362,10 @@ func (h *R2BackupHandlers) HandleDownloadBackup(w http.ResponseWriter, r *http.R
 	}
 
 	// Seek back to start
-	tmpFile.Seek(0, 0)
+	if _, err := tmpFile.Seek(0, 0); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to seek file: %v", err), http.StatusInternalServerError)
+		return
+	}
 
 	// Set headers for download
 	w.Header().Set("Content-Type", "application/gzip")

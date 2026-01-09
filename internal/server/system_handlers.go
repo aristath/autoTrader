@@ -781,32 +781,6 @@ func (h *SystemHandlers) HandleMarketsStatus(w http.ResponseWriter, r *http.Requ
 	json.NewEncoder(w).Encode(response)
 }
 
-// getExchangeRegion returns the geographic region for an exchange
-func (h *SystemHandlers) getExchangeRegion(exchangeName string) string {
-	exchangeCode := market_hours.GetExchangeCode(exchangeName)
-
-	// US exchanges
-	if exchangeCode == "XNYS" || exchangeCode == "XNAS" {
-		return "US"
-	}
-
-	// European exchanges
-	if exchangeCode == "XETR" || exchangeCode == "XLON" || exchangeCode == "XPAR" ||
-		exchangeCode == "XMIL" || exchangeCode == "XAMS" || exchangeCode == "XCSE" ||
-		exchangeCode == "ASEX" {
-		return "EU"
-	}
-
-	// Asian exchanges
-	if exchangeCode == "XHKG" || exchangeCode == "XSHG" || exchangeCode == "XTSE" ||
-		exchangeCode == "XASX" {
-		return "ASIA"
-	}
-
-	// Default to US
-	return "US"
-}
-
 // HandleDatabaseStats returns database statistics
 func (h *SystemHandlers) HandleDatabaseStats(w http.ResponseWriter, r *http.Request) {
 	h.log.Debug().Msg("Getting database stats")
