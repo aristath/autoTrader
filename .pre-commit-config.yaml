@@ -221,9 +221,8 @@ repos:
         name: Generate version.go
         entry: bash scripts/generate-version.sh
         language: system
-        files: \.go$
         pass_filenames: false
-        always_run: false
+        always_run: true
         stages: [commit]
 
       - id: golangci-lint
