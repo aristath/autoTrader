@@ -218,6 +218,22 @@ func sanitizeFilename(s string) string {
 	return s
 }
 
+// toTitle converts a string to title case (capitalizes first letter of each word)
+// This is a simple ASCII-only replacement for the deprecated strings.Title
+func toTitle(s string) string {
+	if s == "" {
+		return s
+	}
+
+	words := strings.Fields(s)
+	for i, word := range words {
+		if len(word) > 0 {
+			words[i] = strings.ToUpper(word[:1]) + word[1:]
+		}
+	}
+	return strings.Join(words, " ")
+}
+
 func createREADME() error {
 	readme := `# Tradernet API Documentation
 
@@ -250,7 +266,7 @@ The documentation is organized into the following categories:
 		for _, sectionID := range sections {
 			// Convert ID to readable title
 			title := strings.ReplaceAll(sectionID, "-", " ")
-			title = strings.Title(title)
+			title = toTitle(title)
 			readme += fmt.Sprintf("- [%s](./%s/%s.html)\n", title, categoryDir, sectionID)
 		}
 		readme += "\n"

@@ -1,3 +1,4 @@
+// Package base provides base implementation for scheduler jobs.
 package base
 
 // JobBase provides a default SetJob implementation and progress reporter access

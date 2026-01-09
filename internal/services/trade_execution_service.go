@@ -589,7 +589,7 @@ func (s *TradeExecutionService) getBuffer() float64 {
 func (s *TradeExecutionService) calculateLegacyLimit(rec TradeRecommendation, buffer float64) (float64, error) {
 	// Check if Yahoo client is available
 	if s.yahooClient == nil {
-		return 0, fmt.Errorf("Yahoo Finance client unavailable and order book disabled")
+		return 0, fmt.Errorf("yahoo Finance client unavailable and order book disabled")
 	}
 
 	// Get security for Yahoo symbol override
