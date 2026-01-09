@@ -66,6 +66,11 @@ func (e *Event) GetTypedData() EventData {
 		if err := convertMapToStruct(e.Data, &data); err == nil {
 			return &data
 		}
+	case StateChanged:
+		var data StateChangedData
+		if err := convertMapToStruct(e.Data, &data); err == nil {
+			return &data
+		}
 	case SettingsChanged:
 		var data SettingsChangedData
 		if err := convertMapToStruct(e.Data, &data); err == nil {

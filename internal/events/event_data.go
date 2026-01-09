@@ -115,6 +115,17 @@ func (d *ScoreUpdatedData) EventType() EventType {
 	return ScoreUpdated
 }
 
+// StateChangedData contains data for StateChanged events
+type StateChangedData struct {
+	OldHash string `json:"old_hash"`
+	NewHash string `json:"new_hash"`
+}
+
+// EventType returns the event type for StateChangedData
+func (d *StateChangedData) EventType() EventType {
+	return StateChanged
+}
+
 // SettingsChangedData contains data for SettingsChanged events
 type SettingsChangedData struct {
 	Key   string      `json:"key"`

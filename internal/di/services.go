@@ -23,7 +23,9 @@ import (
 	"github.com/aristath/sentinel/internal/modules/order_book"
 	"github.com/aristath/sentinel/internal/modules/planning"
 	planningevaluation "github.com/aristath/sentinel/internal/modules/planning/evaluation"
+	planninghash "github.com/aristath/sentinel/internal/modules/planning/hash"
 	planningplanner "github.com/aristath/sentinel/internal/modules/planning/planner"
+	planningstatemonitor "github.com/aristath/sentinel/internal/modules/planning/state_monitor"
 	planninguniverse "github.com/aristath/sentinel/internal/modules/planning/universe_monitor"
 	"github.com/aristath/sentinel/internal/modules/portfolio"
 	"github.com/aristath/sentinel/internal/modules/rebalancing"
@@ -354,6 +356,9 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 	)
 
 	// Universe monitor (monitors state changes and invalidates recommendations)
+	// DEPRECATED: Now replaced by StateMonitor with unified state hashing
+	// Kept for backward compatibility but not started
+	// TODO: Remove once StateMonitor is confirmed working
 	container.UniverseMonitor = planninguniverse.NewUniverseMonitor(
 		container.SecurityRepo,
 		container.PositionRepo,
@@ -364,10 +369,30 @@ func InitializeServices(container *Container, cfg *config.Config, displayManager
 		container.ConfigDB.Conn(),
 		log,
 	)
+	log.Info().Msg("Universe monitor initialized (not started - replaced by StateMonitor)")
 
-	// Start universe monitor (runs every minute)
-	container.UniverseMonitor.Start()
-	log.Info().Msg("Universe monitor initialized and started")
+	// State hash service (calculates unified state hash for change detection)
+	container.StateHashService = planninghash.NewStateHashService(
+		container.PositionRepo,
+		container.SecurityRepo,
+		container.ScoreRepo,
+		container.CashManager,
+		container.SettingsRepo,
+		container.AllocRepo,
+		container.CurrencyExchangeService,
+		container.BrokerClient,
+		log,
+	)
+	log.Info().Msg("State hash service initialized")
+
+	// State monitor (monitors unified state hash and emits events on changes)
+	// NOTE: Not started here - will be started in main.go after all services initialized
+	container.StateMonitor = planningstatemonitor.NewStateMonitor(
+		container.StateHashService,
+		container.EventManager,
+		log,
+	)
+	log.Info().Msg("State monitor initialized (not started yet)")
 
 	// ==========================================
 	// STEP 9: Initialize Optimization Services

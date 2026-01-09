@@ -21,6 +21,7 @@ const (
 	PlanGenerated        EventType = "PLAN_GENERATED"
 	SecuritySynced       EventType = "SECURITY_SYNCED"
 	ScoreUpdated         EventType = "SCORE_UPDATED"
+	StateChanged         EventType = "STATE_CHANGED"
 
 	// Additional event types for reactive UI
 	TradeExecuted            EventType = "TRADE_EXECUTED"

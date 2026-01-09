@@ -385,6 +385,8 @@ func RegisterJobs(container *Container, cfg *config.Config, displayManager *disp
 	plannerBatch := scheduler.NewPlannerBatchJob(scheduler.PlannerBatchConfig{
 		Log:                        log,
 		EventManager:               container.EventManager,
+		RecommendationRepo:         container.RecommendationRepo,
+		PlannerRepo:                container.PlannerRepo,
 		GeneratePortfolioHashJob:   generatePortfolioHash,
 		GetOptimizerWeightsJob:     instances.GetOptimizerWeights,
 		BuildOpportunityContextJob: buildOpportunityContext,

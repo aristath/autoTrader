@@ -201,6 +201,11 @@ func main() {
 
 	log.Info().Int("port", cfg.Port).Msg("Server started successfully")
 
+	// Start state monitor (monitors unified state hash and triggers recommendations)
+	// Runs every minute, emits StateChanged event when hash changes
+	container.StateMonitor.Start()
+	log.Info().Msg("State monitor started (checking every minute)")
+
 	// Start LED status monitors
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -226,6 +231,12 @@ func main() {
 	log.Info().Msg("Stopping LED monitors...")
 
 	log.Info().Msg("Shutting down server...")
+
+	// Stop state monitor
+	if container.StateMonitor != nil {
+		container.StateMonitor.Stop()
+		log.Info().Msg("State monitor stopped")
+	}
 
 	// Stop queue system components
 	if container.TimeScheduler != nil {

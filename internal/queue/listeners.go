@@ -10,7 +10,42 @@ import (
 // RegisterListeners registers event listeners that enqueue jobs
 func RegisterListeners(bus *events.Bus, manager *Manager, registry *Registry, log zerolog.Logger) {
 	log = log.With().Str("component", "event_listeners").Logger()
+
+	// StateChanged -> planner_batch (CRITICAL priority - unified state monitoring)
+	// This is the new primary trigger for recommendation regeneration
+	// Replaces separate PortfolioChanged, ScoreUpdated, and other triggers
+	bus.Subscribe(events.StateChanged, func(event *events.Event) {
+		job := &Job{
+			ID:          fmt.Sprintf("%s-%d", JobTypePlannerBatch, event.Timestamp.UnixNano()),
+			Type:        JobTypePlannerBatch,
+			Priority:    PriorityCritical,
+			Payload:     event.Data,
+			CreatedAt:   event.Timestamp,
+			AvailableAt: event.Timestamp,
+			Retries:     0,
+			MaxRetries:  3,
+		}
+		if err := manager.Enqueue(job); err != nil {
+			log.Error().
+				Err(err).
+				Str("event_type", string(events.StateChanged)).
+				Str("job_type", string(JobTypePlannerBatch)).
+				Str("job_id", job.ID).
+				Msg("Failed to enqueue planner_batch from StateChanged event")
+		} else {
+			// Extract hashes for logging
+			oldHash, _ := event.Data["old_hash"].(string)
+			newHash, _ := event.Data["new_hash"].(string)
+			log.Info().
+				Str("old_hash", oldHash).
+				Str("new_hash", newHash).
+				Msg("Enqueued planner_batch due to state change")
+		}
+	})
+
 	// PortfolioChanged -> planner_batch (HIGH priority)
+	// NOTE: This is now redundant with StateChanged but kept for backward compatibility
+	// TODO: Remove once StateMonitor is confirmed working
 	bus.Subscribe(events.PortfolioChanged, func(event *events.Event) {
 		job := &Job{
 			ID:          fmt.Sprintf("%s-%d", JobTypePlannerBatch, event.Timestamp.UnixNano()),

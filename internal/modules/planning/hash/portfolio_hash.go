@@ -216,6 +216,9 @@ func GeneratePortfolioHash(
 			"max_portfolio_target": maxTarget,
 			"country":              country,
 			"industry":             industry,
+			"min_lot":              security.MinLot,
+			"priority_multiplier":  security.PriorityMultiplier,
+			"active":               security.Active,
 		}
 	}
 
@@ -241,10 +244,13 @@ func GeneratePortfolioHash(
 				"max_portfolio_target": "",
 				"country":              "",
 				"industry":             "",
+				"min_lot":              1,
+				"priority_multiplier":  1.0,
+				"active":               true,
 			}
 		}
 
-		part := fmt.Sprintf("%s:%d:%v:%v:%s:%s:%s:%s",
+		part := fmt.Sprintf("%s:%d:%v:%v:%s:%s:%s:%s:%d:%.2f:%v",
 			symbol,
 			quantity,
 			config["allow_buy"],
@@ -253,6 +259,9 @@ func GeneratePortfolioHash(
 			config["max_portfolio_target"],
 			config["country"],
 			config["industry"],
+			config["min_lot"],
+			config["priority_multiplier"],
+			config["active"],
 		)
 		parts = append(parts, part)
 	}
@@ -356,6 +365,114 @@ func GenerateAllocationsHash(allocations map[string]float64) string {
 	hash := md5.Sum([]byte(canonical))
 	fullHash := fmt.Sprintf("%x", hash)
 	return fullHash[:8]
+}
+
+// GenerateScoresHash generates a deterministic hash from security scores.
+// Only includes scores that affect recommendations (total, opportunity, quality)
+//
+// Args:
+//   - scores: List of SecurityScore objects
+//
+// Returns:
+//   - 8-character hex hash (first 8 chars of MD5)
+func GenerateScoresHash(scores []universe.SecurityScore) string {
+	if len(scores) == 0 {
+		return "00000000"
+	}
+
+	// Sort by ISIN for deterministic ordering
+	sortedScores := make([]universe.SecurityScore, len(scores))
+	copy(sortedScores, scores)
+	sort.Slice(sortedScores, func(i, j int) bool {
+		return sortedScores[i].ISIN < sortedScores[j].ISIN
+	})
+
+	// Build canonical string: "ISIN:total:opportunity:quality"
+	// Round scores to 2 decimals for stability
+	parts := make([]string, 0, len(sortedScores))
+	for _, score := range sortedScores {
+		total := math.Round(score.TotalScore*100) / 100
+		opportunity := math.Round(score.OpportunityScore*100) / 100
+		quality := math.Round(score.QualityScore*100) / 100
+
+		parts = append(parts, fmt.Sprintf("%s:%.2f:%.2f:%.2f",
+			score.ISIN, total, opportunity, quality))
+	}
+
+	canonical := strings.Join(parts, ",")
+	hash := md5.Sum([]byte(canonical))
+	fullHash := fmt.Sprintf("%x", hash)
+	return fullHash[:8]
+}
+
+// GenerateExchangeRatesHash generates a deterministic hash from exchange rates.
+// Rounds rates to 1 decimal place for stability
+//
+// Args:
+//   - rates: Map of currency pair (e.g., "EUR/USD") to exchange rate
+//
+// Returns:
+//   - 8-character hex hash (first 8 chars of MD5)
+func GenerateExchangeRatesHash(rates map[string]float64) string {
+	if len(rates) == 0 {
+		return "00000000"
+	}
+
+	// Sort currency pairs for deterministic ordering
+	sortedPairs := make([]string, 0, len(rates))
+	for pair := range rates {
+		sortedPairs = append(sortedPairs, pair)
+	}
+	sort.Strings(sortedPairs)
+
+	// Build canonical string: "PAIR:rate"
+	// Round to 1 decimal place for stability
+	parts := make([]string, 0, len(sortedPairs))
+	for _, pair := range sortedPairs {
+		rate := rates[pair]
+		rounded := math.Round(rate*10) / 10
+		parts = append(parts, fmt.Sprintf("%s:%.1f", pair, rounded))
+	}
+
+	canonical := strings.Join(parts, ",")
+	hash := md5.Sum([]byte(canonical))
+	fullHash := fmt.Sprintf("%x", hash)
+	return fullHash[:8]
+}
+
+// GenerateUnifiedStateHash generates comprehensive hash from ALL state.
+// Includes: portfolio, securities config, scores, exchange rates, settings, allocations
+//
+// Args:
+//   - positions: List of positions with symbol and quantity
+//   - securities: List of Security objects in universe
+//   - cashBalances: Map of currency -> amount
+//   - pendingOrders: List of pending orders
+//   - scores: List of SecurityScore objects
+//   - exchangeRates: Map of currency pair -> rate
+//   - settings: Map of settings values
+//   - allocations: Map of allocation targets
+//
+// Returns:
+//   - Combined hash: "portfolio:settings:allocations:scores:rates" (40 chars)
+func GenerateUnifiedStateHash(
+	positions []Position,
+	securities []*universe.Security,
+	cashBalances map[string]float64,
+	pendingOrders []PendingOrder,
+	scores []universe.SecurityScore,
+	exchangeRates map[string]float64,
+	settings map[string]interface{},
+	allocations map[string]float64,
+) string {
+	portfolioHash := GeneratePortfolioHash(positions, securities, cashBalances, pendingOrders)
+	settingsHash := GenerateSettingsHash(settings)
+	allocationsHash := GenerateAllocationsHash(allocations)
+	scoresHash := GenerateScoresHash(scores)
+	ratesHash := GenerateExchangeRatesHash(exchangeRates)
+
+	return fmt.Sprintf("%s:%s:%s:%s:%s",
+		portfolioHash, settingsHash, allocationsHash, scoresHash, ratesHash)
 }
 
 // GenerateRecommendationCacheKey generates a cache key from portfolio state, settings, and allocations.

@@ -16,12 +16,14 @@ import (
 	"github.com/aristath/sentinel/internal/modules/dividends"
 	"github.com/aristath/sentinel/internal/modules/market_hours"
 	"github.com/aristath/sentinel/internal/modules/opportunities"
-	"github.com/aristath/sentinel/internal/modules/order_book"
 	"github.com/aristath/sentinel/internal/modules/optimization"
+	"github.com/aristath/sentinel/internal/modules/order_book"
 	"github.com/aristath/sentinel/internal/modules/planning"
 	planningevaluation "github.com/aristath/sentinel/internal/modules/planning/evaluation"
+	planninghash "github.com/aristath/sentinel/internal/modules/planning/hash"
 	planningplanner "github.com/aristath/sentinel/internal/modules/planning/planner"
 	planningrepo "github.com/aristath/sentinel/internal/modules/planning/repository"
+	planningstatemonitor "github.com/aristath/sentinel/internal/modules/planning/state_monitor"
 	planninguniverse "github.com/aristath/sentinel/internal/modules/planning/universe_monitor"
 	"github.com/aristath/sentinel/internal/modules/portfolio"
 	"github.com/aristath/sentinel/internal/modules/rebalancing"
@@ -128,6 +130,8 @@ type Container struct {
 	HealthServices            map[string]*reliability.DatabaseHealthService
 	FactorExposureTracker     *analytics.FactorExposureTracker
 	UniverseMonitor           *planninguniverse.UniverseMonitor
+	StateHashService          *planninghash.StateHashService
+	StateMonitor              *planningstatemonitor.StateMonitor
 	R2Client                  *reliability.R2Client
 	R2BackupService           *reliability.R2BackupService
 	RestoreService            *reliability.RestoreService

@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/aristath/sentinel/internal/events"
+	"github.com/aristath/sentinel/internal/modules/planning"
+	planningrepo "github.com/aristath/sentinel/internal/modules/planning/repository"
 	"github.com/aristath/sentinel/internal/queue"
 	"github.com/rs/zerolog"
 )
@@ -12,9 +14,10 @@ import (
 // PlannerBatchJob orchestrates individual planning jobs to generate trading recommendations
 type PlannerBatchJob struct {
 	JobBase
-	log               zerolog.Logger
-	eventManager      EventManagerInterface
-	lastPortfolioHash string
+	log                zerolog.Logger
+	eventManager       EventManagerInterface
+	recommendationRepo planning.RecommendationRepositoryInterface
+	plannerRepo        planningrepo.PlannerRepositoryInterface
 	// Individual planning jobs
 	generatePortfolioHashJob   Job
 	getOptimizerWeightsJob     Job
@@ -27,6 +30,8 @@ type PlannerBatchJob struct {
 type PlannerBatchConfig struct {
 	Log                        zerolog.Logger
 	EventManager               EventManagerInterface
+	RecommendationRepo         planning.RecommendationRepositoryInterface
+	PlannerRepo                planningrepo.PlannerRepositoryInterface
 	GeneratePortfolioHashJob   Job
 	GetOptimizerWeightsJob     Job
 	BuildOpportunityContextJob Job
@@ -39,6 +44,8 @@ func NewPlannerBatchJob(cfg PlannerBatchConfig) *PlannerBatchJob {
 	return &PlannerBatchJob{
 		log:                        cfg.Log.With().Str("job", "planner_batch").Logger(),
 		eventManager:               cfg.EventManager,
+		recommendationRepo:         cfg.RecommendationRepo,
+		plannerRepo:                cfg.PlannerRepo,
 		generatePortfolioHashJob:   cfg.GeneratePortfolioHashJob,
 		getOptimizerWeightsJob:     cfg.GetOptimizerWeightsJob,
 		buildOpportunityContextJob: cfg.BuildOpportunityContextJob,
@@ -54,8 +61,25 @@ func (j *PlannerBatchJob) Name() string {
 
 // Run executes the planner batch job by orchestrating individual planning jobs
 func (j *PlannerBatchJob) Run() error {
-	j.log.Info().Msg("Starting planner batch generation")
+	j.log.Info().Msg("Starting planner batch generation (triggered by state change)")
 	startTime := time.Now()
+
+	// ALWAYS invalidate when running (we only run when state changed)
+	j.log.Info().Msg("Invalidating all sequences, evaluations, and recommendations")
+
+	// Dismiss all pending recommendations
+	if j.recommendationRepo != nil {
+		count, _ := j.recommendationRepo.DismissAllPending()
+		j.log.Info().Int("count", count).Msg("Dismissed pending recommendations")
+	}
+
+	// Delete all sequences and evaluations
+	if j.plannerRepo != nil {
+		_ = j.plannerRepo.DeleteAllSequences()
+		_ = j.plannerRepo.DeleteAllEvaluations()
+		_ = j.plannerRepo.DeleteAllBestResults()
+		j.log.Info().Msg("Cleared all sequences and evaluations")
+	}
 
 	var reporter *queue.ProgressReporter
 	if r := j.GetProgressReporter(); r != nil {
@@ -63,7 +87,7 @@ func (j *PlannerBatchJob) Run() error {
 	}
 	const totalSteps = 5
 
-	// Step 1: Generate portfolio hash
+	// Step 1: Generate portfolio hash (still needed for plan metadata)
 	if reporter != nil {
 		reporter.Report(1, totalSteps, "Generating portfolio hash")
 	}
@@ -74,25 +98,16 @@ func (j *PlannerBatchJob) Run() error {
 		return fmt.Errorf("failed to generate portfolio hash: %w", err)
 	}
 
-	// Get portfolio hash from job
+	// Get portfolio hash from job (for metadata/logging only, not for skip logic)
 	hashJob, ok := j.generatePortfolioHashJob.(*GeneratePortfolioHashJob)
 	if !ok {
 		return fmt.Errorf("generate portfolio hash job has wrong type")
 	}
 	portfolioHash := hashJob.GetLastPortfolioHash()
 
-	// Check if portfolio has changed
-	if portfolioHash == j.lastPortfolioHash && j.lastPortfolioHash != "" {
-		j.log.Info().
-			Str("portfolio_hash", portfolioHash).
-			Msg("Portfolio unchanged, skipping planning")
-		return nil
-	}
-
 	j.log.Info().
 		Str("portfolio_hash", portfolioHash).
-		Str("prev_hash", j.lastPortfolioHash).
-		Msg("Portfolio changed, generating new plan")
+		Msg("Generating new plan")
 
 	// Step 2: Get optimizer weights (optional - if available)
 	if reporter != nil {
@@ -174,9 +189,6 @@ func (j *PlannerBatchJob) Run() error {
 	if err := j.storeRecommendationsJob.Run(); err != nil {
 		return fmt.Errorf("failed to store recommendations: %w", err)
 	}
-
-	// Update state
-	j.lastPortfolioHash = portfolioHash
 
 	// Emit events
 	if j.eventManager != nil {
