@@ -988,7 +988,7 @@ func TestValidatePriceAndCalculateLimit_YahooUnavailable(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, 0.0, limit)
 	assert.Contains(t, err.Error(), "unavailable")
-	assert.Contains(t, err.Error(), "Yahoo")
+	assert.Contains(t, err.Error(), "yahoo")
 }
 
 // Test: Error when Yahoo fetch fails
