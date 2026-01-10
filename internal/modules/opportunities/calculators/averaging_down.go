@@ -296,7 +296,7 @@ func (c *AveragingDownCalculator) Calculate(
 			if quantity == 0 {
 				quantity = 1
 			}
-			valueEUR = float64(quantity) * currentPrice
+			// Note: valueEUR will be recalculated after lot size rounding below
 		}
 
 		// Round quantity to lot size and validate

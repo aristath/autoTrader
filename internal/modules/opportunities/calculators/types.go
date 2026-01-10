@@ -1,3 +1,6 @@
+// Package calculators implements opportunity identification calculators for portfolio management.
+// Each calculator identifies specific types of trading opportunities (profit taking, averaging down,
+// rebalancing, etc.) based on current portfolio state and market conditions.
 package calculators
 
 import (

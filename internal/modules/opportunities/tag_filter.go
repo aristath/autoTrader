@@ -229,7 +229,7 @@ func (f *TagBasedFilter) selectSellTags(ctx *domain.OpportunityContext) []string
 	return tags
 }
 
-// isMarketVolatile determines if market conditions are volatile.
+// IsMarketVolatile determines if market conditions are volatile.
 // Checks if many securities have volatility-spike tag as a proxy for market volatility.
 // Falls back to checking all securities if tags are disabled.
 func (f *TagBasedFilter) IsMarketVolatile(ctx *domain.OpportunityContext, config *domain.PlannerConfiguration) bool {

@@ -302,7 +302,7 @@ func (j *GetOptimizerWeightsJob) fetchCurrentPrices(securities []universe.Securi
 	}
 
 	// Convert all prices to EUR using shared service (still Symbol-keyed)
-	eurPricesSymbol := make(map[string]float64)
+	var eurPricesSymbol map[string]float64
 	if j.priceConversionService != nil {
 		eurPricesSymbol = j.priceConversionService.ConvertPricesToEUR(nativePrices, securities)
 	} else {
