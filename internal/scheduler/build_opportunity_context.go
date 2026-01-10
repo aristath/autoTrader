@@ -214,7 +214,7 @@ func (j *BuildOpportunityContextJob) buildOpportunityContext(
 	totalValue := availableCashEUR
 	positionAvgPrices := make(map[string]float64)
 	for _, pos := range positions {
-		if price, ok := currentPrices[pos.Symbol]; ok {
+		if price, ok := currentPrices[pos.ISIN]; ok { // Use ISIN key (currentPrices is ISIN-keyed)
 			// Calculate value in position's currency
 			valueInCurrency := price * float64(pos.Quantity)
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/aristath/sentinel/internal/clients/yahoo"
 	"github.com/aristath/sentinel/internal/domain"
+	planningdomain "github.com/aristath/sentinel/internal/modules/planning/domain"
 	"github.com/aristath/sentinel/internal/modules/trading"
 	"github.com/aristath/sentinel/pkg/logger"
 	"github.com/stretchr/testify/assert"
@@ -310,6 +311,36 @@ func (m *mockTradeRepository) UpdateRetryStatus(id int64, status string) error {
 
 func (m *mockTradeRepository) IncrementRetryAttempt(id int64) error {
 	return nil
+}
+
+// Mock Planner Config Repository for testing
+type mockPlannerConfigRepo struct {
+	config *planningdomain.PlannerConfiguration
+	err    error
+}
+
+func newMockPlannerConfigRepo(fixedCost, percentCost float64) *mockPlannerConfigRepo {
+	return &mockPlannerConfigRepo{
+		config: &planningdomain.PlannerConfiguration{
+			TransactionCostFixed:   fixedCost,
+			TransactionCostPercent: percentCost,
+		},
+	}
+}
+
+func (m *mockPlannerConfigRepo) GetDefaultConfig() (*planningdomain.PlannerConfiguration, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.config, nil
+}
+
+func (m *mockPlannerConfigRepo) SaveConfig(config *planningdomain.PlannerConfiguration) error {
+	return nil
+}
+
+func (m *mockPlannerConfigRepo) GetConfig(name string) (*planningdomain.PlannerConfiguration, error) {
+	return m.config, m.err
 }
 
 // Test ExecuteTrades orchestration
@@ -1421,21 +1452,19 @@ func TestExecuteTrades_SELL_NoConversionNeeded(t *testing.T) {
 // Configurable Trading Fees Tests
 // ============================================================================
 
-// TestCalculateCommission_ConfigurableFees tests commission calculation with custom fees from settings
+// TestCalculateCommission_ConfigurableFees tests commission calculation with custom fees from planner config
 func TestCalculateCommission_ConfigurableFees(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Pretty: false})
 
-	// Mock settings service with custom fees
-	mockSettings := newMockSettingsService()
-	mockSettings.Set("transaction_cost_fixed", 3.0)      // Custom: 3 EUR instead of 2
-	mockSettings.Set("transaction_cost_percent", 0.0025) // Custom: 0.25% (as decimal) instead of 0.2%
+	// Mock planner config repo with custom fees
+	mockConfigRepo := newMockPlannerConfigRepo(3.0, 0.0025) // 3 EUR fixed, 0.25% variable
 
 	exchangeService := newMockCurrencyExchangeService(map[string]float64{})
 
 	service := &TradeExecutionService{
-		exchangeService: exchangeService,
-		settingsService: mockSettings,
-		log:             log,
+		exchangeService:   exchangeService,
+		plannerConfigRepo: mockConfigRepo,
+		log:               log,
 	}
 
 	// Trade value: 1000 EUR
@@ -1478,10 +1507,8 @@ func TestCalculateCommission_DefaultFallback(t *testing.T) {
 func TestCalculateCommission_ConfigurableFees_USD(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Pretty: false})
 
-	// Mock settings service with custom fees
-	mockSettings := newMockSettingsService()
-	mockSettings.Set("transaction_cost_fixed", 5.0)     // Custom: 5 EUR
-	mockSettings.Set("transaction_cost_percent", 0.003) // Custom: 0.3% (as decimal)
+	// Mock planner config repo with custom fees
+	mockConfigRepo := newMockPlannerConfigRepo(5.0, 0.003) // 5 EUR fixed, 0.3% variable
 
 	// EUR:USD rate = 1.1 (1 EUR = 1.1 USD)
 	exchangeService := newMockCurrencyExchangeService(map[string]float64{
@@ -1489,9 +1516,9 @@ func TestCalculateCommission_ConfigurableFees_USD(t *testing.T) {
 	})
 
 	service := &TradeExecutionService{
-		exchangeService: exchangeService,
-		settingsService: mockSettings,
-		log:             log,
+		exchangeService:   exchangeService,
+		plannerConfigRepo: mockConfigRepo,
+		log:               log,
 	}
 
 	// Trade value: 1000 USD
@@ -1505,21 +1532,19 @@ func TestCalculateCommission_ConfigurableFees_USD(t *testing.T) {
 	assert.Equal(t, 8.5, commission, "Commission should use configured fees with currency conversion")
 }
 
-// TestCalculateCommission_PartialSettings tests graceful fallback when only some settings are configured
+// TestCalculateCommission_PartialSettings tests graceful fallback when only fixed cost is custom
 func TestCalculateCommission_PartialSettings(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Pretty: false})
 
-	// Mock settings service with only fixed commission configured
-	mockSettings := newMockSettingsService()
-	mockSettings.Set("transaction_cost_fixed", 3.0) // Custom fixed
-	// Variable commission not set - should use default 0.2% (0.002)
+	// Mock planner config repo with custom fixed but default variable
+	mockConfigRepo := newMockPlannerConfigRepo(3.0, 0.002) // 3 EUR fixed (custom), 0.2% variable (default)
 
 	exchangeService := newMockCurrencyExchangeService(map[string]float64{})
 
 	service := &TradeExecutionService{
-		exchangeService: exchangeService,
-		settingsService: mockSettings,
-		log:             log,
+		exchangeService:   exchangeService,
+		plannerConfigRepo: mockConfigRepo,
+		log:               log,
 	}
 
 	// Trade value: 1000 EUR

@@ -479,8 +479,9 @@ func TestFetchCurrentPrices_USD_Conversion(t *testing.T) {
 
 // TestFetchCurrentPrices_MissingRate_FallbackToNative verifies graceful fallback when rate unavailable
 func TestFetchCurrentPrices_MissingRate_FallbackToNative(t *testing.T) {
+	isin := "HK0000093390" // Tencent ISIN
 	securities := []universe.Security{
-		{Symbol: "0700.HK", Currency: "HKD"},
+		{Symbol: "0700.HK", ISIN: isin, Currency: "HKD"},
 	}
 
 	hkdPrice := 90.0
@@ -506,13 +507,14 @@ func TestFetchCurrentPrices_MissingRate_FallbackToNative(t *testing.T) {
 	prices := job.fetchCurrentPrices(securities)
 
 	// Should fallback to native price (logged warning in real implementation)
-	assert.Equal(t, 90.0, prices["0700.HK"], "Should use native price when rate unavailable")
+	assert.Equal(t, 90.0, prices[isin], "Should use native price when rate unavailable")
 }
 
 // TestFetchCurrentPrices_NilPriceConversionService verifies graceful handling of nil service
 func TestFetchCurrentPrices_NilPriceConversionService(t *testing.T) {
+	isin := "KYG2108Y1052" // CAT ISIN
 	securities := []universe.Security{
-		{Symbol: "CAT.3750.AS", Currency: "HKD"},
+		{Symbol: "CAT.3750.AS", ISIN: isin, Currency: "HKD"},
 	}
 
 	hkdPrice := 497.4
@@ -530,16 +532,21 @@ func TestFetchCurrentPrices_NilPriceConversionService(t *testing.T) {
 	prices := job.fetchCurrentPrices(securities)
 
 	// Should use native price when conversion service is nil (logged warning in real implementation)
-	assert.Equal(t, 497.4, prices["CAT.3750.AS"], "Should use native price when conversion service nil")
+	assert.Equal(t, 497.4, prices[isin], "Should use native price when conversion service nil")
 }
 
 // TestFetchCurrentPrices_MultipleCurrencies verifies multiple currencies in single batch
 func TestFetchCurrentPrices_MultipleCurrencies(t *testing.T) {
+	vwsISIN := "NL0000009082"    // VWS ISIN
+	aaplISIN := "US0378331005"   // AAPL ISIN
+	tencentISIN := "HK0000093390" // Tencent ISIN
+	barcISIN := "GB0031348658"   // Barclays ISIN
+
 	securities := []universe.Security{
-		{Symbol: "VWS.AS", Currency: "EUR"},
-		{Symbol: "AAPL", Currency: "USD"},
-		{Symbol: "0700.HK", Currency: "HKD"},
-		{Symbol: "BARC.L", Currency: "GBP"},
+		{Symbol: "VWS.AS", ISIN: vwsISIN, Currency: "EUR"},
+		{Symbol: "AAPL", ISIN: aaplISIN, Currency: "USD"},
+		{Symbol: "0700.HK", ISIN: tencentISIN, Currency: "HKD"},
+		{Symbol: "BARC.L", ISIN: barcISIN, Currency: "GBP"},
 	}
 
 	eurPrice := 42.5
@@ -585,9 +592,9 @@ func TestFetchCurrentPrices_MultipleCurrencies(t *testing.T) {
 
 	prices := job.fetchCurrentPrices(securities)
 
-	// Verify all conversions
-	assert.Equal(t, 42.5, prices["VWS.AS"], "EUR unchanged")
-	assert.InDelta(t, 139.5, prices["AAPL"], 0.01, "USD converted")
-	assert.InDelta(t, 9.9, prices["0700.HK"], 0.01, "HKD converted")
-	assert.InDelta(t, 29.25, prices["BARC.L"], 0.01, "GBP converted")
+	// Verify all conversions (prices map uses ISIN keys)
+	assert.Equal(t, 42.5, prices[vwsISIN], "EUR unchanged")
+	assert.InDelta(t, 139.5, prices[aaplISIN], 0.01, "USD converted")
+	assert.InDelta(t, 9.9, prices[tencentISIN], 0.01, "HKD converted")
+	assert.InDelta(t, 29.25, prices[barcISIN], 0.01, "GBP converted")
 }
