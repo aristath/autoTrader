@@ -45,6 +45,7 @@ func (c *WeightBasedCalculator) Calculate(
 	maxValuePerTrade := GetFloatParam(params, "max_value_per_trade", 500.0)
 	maxBuyPositions := GetIntParam(params, "max_buy_positions", 5)
 	maxSellPositions := GetIntParam(params, "max_sell_positions", 5)
+	maxSellPercentage := GetFloatParam(params, "max_sell_percentage", 1.0) // Risk management cap
 
 	// Calculate minimum trade amount based on transaction costs (default: 1% max cost ratio)
 	maxCostRatio := GetFloatParam(params, "max_cost_ratio", 0.01) // Default 1% max cost
@@ -432,6 +433,14 @@ func (c *WeightBasedCalculator) Calculate(
 			}
 			if float64(quantity) > foundPosition.Quantity {
 				quantity = int(foundPosition.Quantity)
+			}
+
+			// Cap at MaxSellPercentage (risk management)
+			if maxSellPercentage < 1.0 {
+				maxAllowed := int(foundPosition.Quantity * maxSellPercentage)
+				if quantity > maxAllowed {
+					quantity = maxAllowed
+				}
 			}
 
 			// Round quantity to lot size and validate

@@ -236,7 +236,7 @@ func (c *PlannerConfiguration) GetCalculatorParams(name string) map[string]inter
 	params := make(map[string]interface{})
 
 	// Pass risk management settings to sell calculators
-	if name == "profit_taking" || name == "rebalance_sells" {
+	if name == "profit_taking" || name == "rebalance_sells" || name == "weight_based" {
 		params["max_sell_percentage"] = c.MaxSellPercentage
 		params["min_hold_days"] = float64(c.MinHoldDays)
 	}

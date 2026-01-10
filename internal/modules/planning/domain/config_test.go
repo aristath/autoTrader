@@ -161,6 +161,15 @@ func TestGetCalculatorParams(t *testing.T) {
 		assert.Equal(t, float64(90), params["min_hold_days"])
 	})
 
+	t.Run("weight_based calculator", func(t *testing.T) {
+		params := config.GetCalculatorParams("weight_based")
+		assert.NotNil(t, params)
+		assert.Contains(t, params, "max_sell_percentage")
+		assert.Equal(t, 0.28, params["max_sell_percentage"])
+		assert.Contains(t, params, "min_hold_days")
+		assert.Equal(t, float64(90), params["min_hold_days"])
+	})
+
 	// Buy calculators should return empty map
 	t.Run("non-sell calculator", func(t *testing.T) {
 		params := config.GetCalculatorParams("opportunity_buys")
