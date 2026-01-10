@@ -31,6 +31,7 @@ func TestEnforcer_EnforceConstraints_AllowSellFalse(t *testing.T) {
 	// Create action to sell BYD (allow_sell=false)
 	action := planningdomain.ActionCandidate{
 		Side:     "SELL",
+		ISIN:     "KYG1170T1067",
 		Symbol:   "BYD.285.AS",
 		Name:     "BYD Electronic",
 		Quantity: 13,
@@ -68,6 +69,7 @@ func TestEnforcer_EnforceConstraints_AllowBuyFalse(t *testing.T) {
 
 	action := planningdomain.ActionCandidate{
 		Side:     "BUY",
+		ISIN:     "US1234567890",
 		Symbol:   "TEST.US",
 		Name:     "Test Security",
 		Quantity: 10,
@@ -104,6 +106,7 @@ func TestEnforcer_EnforceConstraints_LotSizeRoundingDown(t *testing.T) {
 	// 1200 shares with minLot=500 should round down to 1000
 	action := planningdomain.ActionCandidate{
 		Side:     "SELL",
+		ISIN:     "US1234567890",
 		Symbol:   "TEST.US",
 		Name:     "Test Security",
 		Quantity: 1200,
@@ -141,6 +144,7 @@ func TestEnforcer_EnforceConstraints_LotSizeRoundingUp(t *testing.T) {
 	// 13 shares with minLot=500 should round up to 500 (since rounding down gives 0)
 	action := planningdomain.ActionCandidate{
 		Side:     "SELL",
+		ISIN:     "KYG1170T1067",
 		Symbol:   "BYD.285.AS",
 		Name:     "BYD Electronic",
 		Quantity: 13,
@@ -178,6 +182,7 @@ func TestEnforcer_EnforceConstraints_LotSizeExactMatch(t *testing.T) {
 	// 500 shares with minLot=500 should stay 500
 	action := planningdomain.ActionCandidate{
 		Side:     "SELL",
+		ISIN:     "US1234567890",
 		Symbol:   "TEST.US",
 		Name:     "Test Security",
 		Quantity: 500,
@@ -215,6 +220,7 @@ func TestEnforcer_EnforceConstraints_LotSizeMultiple(t *testing.T) {
 	// 1500 shares with minLot=500 should stay 1500 (already a multiple)
 	action := planningdomain.ActionCandidate{
 		Side:     "SELL",
+		ISIN:     "US1234567890",
 		Symbol:   "TEST.US",
 		Name:     "Test Security",
 		Quantity: 1500,
@@ -252,6 +258,7 @@ func TestEnforcer_EnforceConstraints_ValueRecalculation(t *testing.T) {
 	// Quantity changes from 13 to 500, value should be recalculated
 	action := planningdomain.ActionCandidate{
 		Side:     "SELL",
+		ISIN:     "US1234567890",
 		Symbol:   "TEST.US",
 		Name:     "Test Security",
 		Quantity: 13,
@@ -336,6 +343,7 @@ func TestEnforcer_EnforceConstraints_MissingSecurity(t *testing.T) {
 
 	action := planningdomain.ActionCandidate{
 		Side:     "SELL",
+		ISIN:     "US0000000000",
 		Symbol:   "UNKNOWN.US",
 		Name:     "Unknown Security",
 		Quantity: 100,
@@ -377,6 +385,7 @@ func TestEnforcer_EnforceConstraints_ZeroLotSize(t *testing.T) {
 	// Zero or negative lot size should be treated as 1 (no rounding)
 	action := planningdomain.ActionCandidate{
 		Side:     "SELL",
+		ISIN:     "US1234567890",
 		Symbol:   "TEST.US",
 		Name:     "Test Security",
 		Quantity: 13,
@@ -501,6 +510,7 @@ func TestEnforcer_EnforceConstraints_MaxSellPercentage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			action := planningdomain.ActionCandidate{
 				Side:     "SELL",
+				ISIN:     "GR1234567890",
 				Symbol:   "PPA.GR",
 				Name:     "PPA Security",
 				Quantity: tt.sellQuantity,
@@ -557,6 +567,7 @@ func TestEnforcer_EnforceConstraints_MaxSellPercentage_BuyNotAffected(t *testing
 	// MaxSellPercentage should NOT affect BUY actions
 	action := planningdomain.ActionCandidate{
 		Side:     "BUY",
+		ISIN:     "US1234567890",
 		Symbol:   "TEST.US",
 		Name:     "Test Security",
 		Quantity: 1000, // Large buy amount
@@ -606,6 +617,7 @@ func TestEnforcer_EnforceConstraints_MaxSellPercentage_NoPosition(t *testing.T) 
 	// Trying to sell a security we don't own
 	action := planningdomain.ActionCandidate{
 		Side:     "SELL",
+		ISIN:     "US1234567890",
 		Symbol:   "TEST.US",
 		Name:     "Test Security",
 		Quantity: 100,
@@ -677,6 +689,7 @@ func TestEnforcer_EnforceConstraints_InvalidPrice(t *testing.T) {
 
 	action := planningdomain.ActionCandidate{
 		Side:     "SELL",
+		ISIN:     "US1234567890",
 		Symbol:   "TEST.US",
 		Name:     "Test Security",
 		Quantity: 13,  // Will be rounded to 500
