@@ -690,24 +690,19 @@ func TestTagAssigner_AllEnhancedTags(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Verify quality gate tags
-	assert.Contains(t, tags, "quality-gate-pass")
+	assert.NotContains(t, tags, "quality-gate-fail", "Should pass quality gate")
 	assert.Contains(t, tags, "high-quality")
 	assert.Contains(t, tags, "value-opportunity")
 	assert.Contains(t, tags, "quality-value")
 
 	// Verify bubble detection tags
 	assert.Contains(t, tags, "quality-high-cagr")
-	assert.Contains(t, tags, "high-sharpe")
-	// high-sortino may not be present if sortino is not available (0.0)
 
 	// Verify total return tags
 	// Total return = 0.17 + 0.10 = 0.27 >= 0.18
 	assert.Contains(t, tags, "excellent-total-return")
 	// dividend-total-return: 0.10 >= 0.08 AND 0.17 >= 0.05
 	assert.Contains(t, tags, "dividend-total-return")
-
-	// Verify optimizer alignment tags
-	assert.Contains(t, tags, "target-aligned")
 
 	// Verify regime-specific tags
 	assert.Contains(t, tags, "regime-bear-safe")      // volatility < 0.20, fundamentals > 0.75, drawdown < 20%

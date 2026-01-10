@@ -282,6 +282,7 @@ func TestEnforcer_EnforceConstraints_MultipleActions(t *testing.T) {
 	actions := []planningdomain.ActionCandidate{
 		{
 			Side:     "SELL",
+			ISIN:     "KYG1170T1067",
 			Symbol:   "BYD.285.AS",
 			Name:     "BYD Electronic",
 			Quantity: 13,
@@ -293,6 +294,7 @@ func TestEnforcer_EnforceConstraints_MultipleActions(t *testing.T) {
 		},
 		{
 			Side:     "BUY",
+			ISIN:     "US9876543210",
 			Symbol:   "VALID.US",
 			Name:     "Valid Security",
 			Quantity: 100,
