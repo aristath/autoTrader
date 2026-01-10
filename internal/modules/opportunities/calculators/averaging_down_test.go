@@ -323,7 +323,7 @@ func TestAveragingDownCalculator_KellyBasedQuantity_WhenAvailable(t *testing.T) 
 		IneligibleISINs:        map[string]bool{},
 		RecentlyBoughtISINs:    map[string]bool{},
 		AllowBuy:               true,
-		KellySizes:             map[string]float64{"TEST.US": 0.20}, // Kelly says 20% of portfolio
+		KellySizes:             map[string]float64{"US1234567890": 0.20}, // Kelly says 20% of portfolio (ISIN-keyed)
 	}
 
 	config := planningdomain.NewDefaultConfiguration()
@@ -502,7 +502,7 @@ func TestAveragingDownCalculator_SkipsAveragingDown_WhenAtKellyOptimal(t *testin
 		IneligibleISINs:        map[string]bool{},
 		RecentlyBoughtISINs:    map[string]bool{},
 		AllowBuy:               true,
-		KellySizes:             map[string]float64{"TEST.US": 0.20}, // Kelly says 20% = ~133 shares at $15
+		KellySizes:             map[string]float64{"US1234567890": 0.20}, // Kelly says 20% = ~133 shares at $15 (ISIN-keyed)
 	}
 
 	config := planningdomain.NewDefaultConfiguration()

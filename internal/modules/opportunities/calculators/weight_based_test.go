@@ -76,10 +76,10 @@ func TestWeightBasedCalculator_MaxSellPercentage(t *testing.T) {
 			ctx := &planningdomain.OpportunityContext{
 				Positions:              []domain.Position{position},
 				Securities:             []domain.Security{security},
-				CurrentPrices:          map[string]float64{"TEST.US": currentPrice}, // WeightBased uses Symbol as key
+				CurrentPrices:          map[string]float64{"US1234567890": currentPrice}, // ISIN key ✅
 				StocksByISIN:           map[string]domain.Security{"US1234567890": security},
-				TotalPortfolioValueEUR: tt.positionQuantity * currentPrice,  // All in one position
-				TargetWeights:          map[string]float64{"TEST.US": 0.40}, // Target 40%
+				TotalPortfolioValueEUR: tt.positionQuantity * currentPrice,       // All in one position
+				TargetWeights:          map[string]float64{"US1234567890": 0.40}, // Target 40% (ISIN key ✅)
 				IneligibleISINs:        map[string]bool{},
 				RecentlySoldISINs:      map[string]bool{},
 				AllowSell:              true,
@@ -123,10 +123,10 @@ func TestWeightBasedCalculator_MaxSellPercentage_MultiplePositions(t *testing.T)
 	ctx := &planningdomain.OpportunityContext{
 		Positions:              positions,
 		Securities:             securities,
-		CurrentPrices:          map[string]float64{"STOCK_A.US": 10.0, "STOCK_B.US": 10.0}, // Use Symbol as key
+		CurrentPrices:          map[string]float64{"US1111111111": 10.0, "US2222222222": 10.0}, // ISIN keys ✅
 		StocksByISIN:           map[string]domain.Security{"US1111111111": securities[0], "US2222222222": securities[1]},
 		TotalPortfolioValueEUR: 15000,
-		TargetWeights:          map[string]float64{"STOCK_A.US": 0.40, "STOCK_B.US": 0.20},
+		TargetWeights:          map[string]float64{"US1111111111": 0.40, "US2222222222": 0.20}, // ISIN keys ✅
 		IneligibleISINs:        map[string]bool{},
 		RecentlySoldISINs:      map[string]bool{},
 		AllowSell:              true,

@@ -8,6 +8,7 @@ import (
 
 func TestSimulateSequence_BuyAction(t *testing.T) {
 	// Setup
+	isin := "US0378331005" // AAPL ISIN
 	initialCash := 1000.0
 	portfolioContext := PortfolioContext{
 		Positions:       make(map[string]float64),
@@ -18,6 +19,7 @@ func TestSimulateSequence_BuyAction(t *testing.T) {
 
 	securities := []Security{
 		{
+			ISIN:    isin,
 			Symbol:  "AAPL",
 			Name:    "Apple Inc.",
 			Country: stringPtr("United States"),
@@ -27,6 +29,7 @@ func TestSimulateSequence_BuyAction(t *testing.T) {
 	// Create a BUY action
 	buyAction := ActionCandidate{
 		Side:     TradeSideBuy,
+		ISIN:     isin,
 		Symbol:   "AAPL",
 		Quantity: 10,
 		Price:    150.0,
@@ -48,11 +51,12 @@ func TestSimulateSequence_BuyAction(t *testing.T) {
 	// Can't afford the full amount (only 1000 EUR available, need 1500)
 	// Should skip the action
 	assert.Equal(t, initialCash, endCash, "Cash should remain unchanged when buy is unaffordable")
-	assert.Equal(t, 0.0, endPortfolio.Positions["AAPL"], "Position should not be created")
+	assert.Equal(t, 0.0, endPortfolio.Positions[isin], "Position should not be created")
 }
 
 func TestSimulateSequence_AffordableBuy(t *testing.T) {
 	// Setup
+	isin := "US0378331005" // AAPL ISIN
 	initialCash := 2000.0
 	portfolioContext := PortfolioContext{
 		Positions:       make(map[string]float64),
@@ -63,6 +67,7 @@ func TestSimulateSequence_AffordableBuy(t *testing.T) {
 
 	securities := []Security{
 		{
+			ISIN:    isin,
 			Symbol:  "AAPL",
 			Name:    "Apple Inc.",
 			Country: stringPtr("United States"),
@@ -72,6 +77,7 @@ func TestSimulateSequence_AffordableBuy(t *testing.T) {
 	// Create an affordable BUY action
 	buyAction := ActionCandidate{
 		Side:     TradeSideBuy,
+		ISIN:     isin,
 		Symbol:   "AAPL",
 		Quantity: 10,
 		Price:    150.0,
@@ -92,27 +98,29 @@ func TestSimulateSequence_AffordableBuy(t *testing.T) {
 
 	// Assertions
 	assert.Equal(t, 500.0, endCash, "Cash should decrease by buy value")
-	assert.Equal(t, 1500.0, endPortfolio.Positions["AAPL"], "Position should be created with correct value")
-	assert.Equal(t, "United States", endPortfolio.SecurityCountries["AAPL"], "Country should be set")
+	assert.Equal(t, 1500.0, endPortfolio.Positions[isin], "Position should be created with correct value")
+	assert.Equal(t, "United States", endPortfolio.SecurityCountries[isin], "Country should be set")
 }
 
 func TestSimulateSequence_SellAction(t *testing.T) {
 	// Setup - portfolio with existing position
+	isin := "US0378331005" // AAPL ISIN
 	initialCash := 1000.0
 	portfolioContext := PortfolioContext{
 		Positions: map[string]float64{
-			"AAPL": 2000.0, // Existing position worth 2000 EUR
+			isin: 2000.0, // Existing position worth 2000 EUR
 		},
 		TotalValue:      3000.0,
 		CountryWeights:  make(map[string]float64),
 		IndustryWeights: make(map[string]float64),
 		SecurityCountries: map[string]string{
-			"AAPL": "United States",
+			isin: "United States",
 		},
 	}
 
 	securities := []Security{
 		{
+			ISIN:    isin,
 			Symbol:  "AAPL",
 			Name:    "Apple Inc.",
 			Country: stringPtr("United States"),
@@ -122,6 +130,7 @@ func TestSimulateSequence_SellAction(t *testing.T) {
 	// Create a SELL action
 	sellAction := ActionCandidate{
 		Side:     TradeSideSell,
+		ISIN:     isin,
 		Symbol:   "AAPL",
 		Quantity: 5,
 		Price:    150.0,
@@ -142,15 +151,16 @@ func TestSimulateSequence_SellAction(t *testing.T) {
 
 	// Assertions
 	assert.Equal(t, 1750.0, endCash, "Cash should increase by sell value")
-	assert.Equal(t, 1250.0, endPortfolio.Positions["AAPL"], "Position should decrease by sell value")
+	assert.Equal(t, 1250.0, endPortfolio.Positions[isin], "Position should decrease by sell value")
 }
 
 func TestSimulateSequence_SellEntirePosition(t *testing.T) {
 	// Setup
+	isin := "US0378331005" // AAPL ISIN
 	initialCash := 1000.0
 	portfolioContext := PortfolioContext{
 		Positions: map[string]float64{
-			"AAPL": 1500.0,
+			isin: 1500.0,
 		},
 		TotalValue:      2500.0,
 		CountryWeights:  make(map[string]float64),
@@ -159,6 +169,7 @@ func TestSimulateSequence_SellEntirePosition(t *testing.T) {
 
 	securities := []Security{
 		{
+			ISIN:    isin,
 			Symbol:  "AAPL",
 			Name:    "Apple Inc.",
 			Country: stringPtr("United States"),
@@ -168,6 +179,7 @@ func TestSimulateSequence_SellEntirePosition(t *testing.T) {
 	// Sell entire position
 	sellAction := ActionCandidate{
 		Side:     TradeSideSell,
+		ISIN:     isin,
 		Symbol:   "AAPL",
 		Quantity: 10,
 		Price:    150.0,
@@ -188,7 +200,7 @@ func TestSimulateSequence_SellEntirePosition(t *testing.T) {
 
 	// Assertions
 	assert.Equal(t, 2500.0, endCash, "Cash should increase by full sell value")
-	_, exists := endPortfolio.Positions["AAPL"]
+	_, exists := endPortfolio.Positions[isin]
 	assert.False(t, exists, "Position should be removed when sold entirely")
 }
 

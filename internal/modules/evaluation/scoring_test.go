@@ -168,6 +168,7 @@ func TestEvaluateEndState_WithCostPenalty(t *testing.T) {
 }
 
 func TestEvaluateSequence_Feasible(t *testing.T) {
+	isin := "US0378331005" // AAPL ISIN
 	context := EvaluationContext{
 		PortfolioContext: PortfolioContext{
 			Positions:       make(map[string]float64),
@@ -175,8 +176,14 @@ func TestEvaluateSequence_Feasible(t *testing.T) {
 			CountryWeights:  make(map[string]float64),
 			IndustryWeights: make(map[string]float64),
 		},
-		AvailableCashEUR:       1000.0,
-		Securities:             []Security{},
+		AvailableCashEUR: 1000.0,
+		Securities: []Security{
+			{
+				ISIN:   isin,
+				Symbol: "AAPL",
+				Name:   "Apple Inc.",
+			},
+		},
 		TransactionCostFixed:   2.0,
 		TransactionCostPercent: 0.002,
 	}
@@ -184,6 +191,7 @@ func TestEvaluateSequence_Feasible(t *testing.T) {
 	sequence := []ActionCandidate{
 		{
 			Side:     TradeSideBuy,
+			ISIN:     isin,
 			Symbol:   "AAPL",
 			ValueEUR: 500.0,
 		},
