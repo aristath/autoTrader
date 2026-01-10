@@ -382,9 +382,7 @@ func TestOpportunityContext_EnrichedPositions_Present(t *testing.T) {
 	}
 
 	ctx := &OpportunityContext{
-		EnrichedPositions:      enrichedPositions,
-		AvailableCashEUR:       1000.0,
-		TotalPortfolioValueEUR: 16000.0,
+		EnrichedPositions: enrichedPositions,
 	}
 
 	// Verify field exists and is accessible

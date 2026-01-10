@@ -252,11 +252,6 @@ func (p *Planner) CreatePlanWithRejections(ctx *domain.OpportunityContext, confi
 	}, nil
 }
 
-func (p *Planner) convertToPlan(sequence domain.ActionSequence, ctx *domain.OpportunityContext, config *domain.PlannerConfiguration, currentScore float64, endScore float64) *domain.HolisticPlan {
-	plan, _ := p.convertToPlanWithFiltered(sequence, ctx, config, currentScore, endScore)
-	return plan
-}
-
 func (p *Planner) convertToPlanWithFiltered(sequence domain.ActionSequence, ctx *domain.OpportunityContext, config *domain.PlannerConfiguration, currentScore float64, endScore float64) (*domain.HolisticPlan, []planningconstraints.FilteredAction) {
 	// Enforce constraints on actions before creating steps
 	validatedActions, filteredActions := p.constraintEnforcer.EnforceConstraints(sequence.Actions, ctx, config)

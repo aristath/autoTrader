@@ -136,7 +136,7 @@ func TestPlanner_ConstraintEnforcement_BYDSellFiltered(t *testing.T) {
 	ctx := createTestOpportunityContext(bydSecurity, validSecurity)
 
 	// Convert to plan (this will apply constraint enforcement)
-	plan := planner.convertToPlan(sequence, ctx, 0.0, 100.0)
+	plan, _ := planner.convertToPlanWithFiltered(sequence, ctx, nil, 0.0, 100.0)
 
 	// Verify: BYD sell should be filtered out, only AAPL buy should remain
 	require.NotNil(t, plan)
@@ -190,7 +190,7 @@ func TestPlanner_ConstraintEnforcement_LotSizeAdjusted(t *testing.T) {
 	ctx := createTestOpportunityContext(security)
 
 	// Convert to plan
-	plan := planner.convertToPlan(sequence, ctx, 0.0, 100.0)
+	plan, _ := planner.convertToPlanWithFiltered(sequence, ctx, nil, 0.0, 100.0)
 
 	// Verify: Quantity should be adjusted to 500, value recalculated
 	require.NotNil(t, plan)
@@ -293,7 +293,7 @@ func TestPlanner_ConstraintEnforcement_MultipleConstraints(t *testing.T) {
 	}
 	testPlanner := createTestPlannerWithLookup(nil, nil, nil, securityLookup, log)
 
-	plan := testPlanner.convertToPlan(sequence, ctx, 0.0, 100.0)
+	plan, _ := testPlanner.convertToPlanWithFiltered(sequence, ctx, nil, 0.0, 100.0)
 
 	// Verify: BYD filtered out, LOT adjusted, VALID unchanged
 	require.NotNil(t, plan)
