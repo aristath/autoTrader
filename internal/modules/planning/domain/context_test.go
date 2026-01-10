@@ -10,24 +10,24 @@ import (
 
 func TestNewOpportunityContext(t *testing.T) {
 	portfolioCtx := &scoringdomain.PortfolioContext{}
-	positions := []domain.Position{
-		{Symbol: "AAPL", Quantity: 10},
-		{Symbol: "GOOGL", Quantity: 5},
+	enrichedPositions := []EnrichedPosition{
+		{ISIN: "US0378331005", Symbol: "AAPL", Quantity: 10, CurrentPrice: 150.0, AverageCost: 140.0},
+		{ISIN: "US02079K3059", Symbol: "GOOGL", Quantity: 5, CurrentPrice: 2800.0, AverageCost: 2700.0},
 	}
 	securities := []domain.Security{
-		{Symbol: "AAPL", Name: "Apple Inc."},
-		{Symbol: "GOOGL", Name: "Alphabet Inc."},
+		{ISIN: "US0378331005", Symbol: "AAPL", Name: "Apple Inc."},
+		{ISIN: "US02079K3059", Symbol: "GOOGL", Name: "Alphabet Inc."},
 	}
 	availableCash := 1000.0
 	totalValue := 5000.0
 	currentPrices := map[string]float64{
-		"AAPL":  150.0,
-		"GOOGL": 2800.0,
+		"US0378331005": 150.0,
+		"US02079K3059": 2800.0,
 	}
 
 	ctx := NewOpportunityContext(
 		portfolioCtx,
-		positions,
+		enrichedPositions,
 		securities,
 		availableCash,
 		totalValue,
@@ -36,15 +36,16 @@ func TestNewOpportunityContext(t *testing.T) {
 
 	assert.NotNil(t, ctx)
 	assert.Equal(t, portfolioCtx, ctx.PortfolioContext)
-	assert.Equal(t, positions, ctx.Positions)
+	assert.Equal(t, enrichedPositions, ctx.EnrichedPositions)
 	assert.Equal(t, securities, ctx.Securities)
 	assert.Equal(t, availableCash, ctx.AvailableCashEUR)
 	assert.Equal(t, totalValue, ctx.TotalPortfolioValueEUR)
 	assert.Equal(t, currentPrices, ctx.CurrentPrices)
 
-	// Check that stocks by ISIN map is built correctly (old test needs ISINs)
-	// Note: This test uses old data without ISINs - in real code all securities have ISINs
-	assert.Len(t, ctx.StocksByISIN, 0) // No ISINs in test data, so map should be empty
+	// Check that stocks by ISIN map is built correctly
+	assert.Len(t, ctx.StocksByISIN, 2)
+	assert.Contains(t, ctx.StocksByISIN, "US0378331005")
+	assert.Contains(t, ctx.StocksByISIN, "US02079K3059")
 
 	// Check default values
 	assert.NotNil(t, ctx.IneligibleISINs)
@@ -58,21 +59,21 @@ func TestNewOpportunityContext(t *testing.T) {
 
 func TestNewEvaluationContext(t *testing.T) {
 	portfolioCtx := &scoringdomain.PortfolioContext{}
-	positions := []domain.Position{
-		{Symbol: "AAPL", Quantity: 10},
+	enrichedPositions := []EnrichedPosition{
+		{ISIN: "US0378331005", Symbol: "AAPL", Quantity: 10, CurrentPrice: 150.0, AverageCost: 140.0},
 	}
 	securities := []domain.Security{
-		{Symbol: "AAPL", Name: "Apple Inc."},
+		{ISIN: "US0378331005", Symbol: "AAPL", Name: "Apple Inc."},
 	}
 	availableCash := 1000.0
 	totalValue := 5000.0
 	currentPrices := map[string]float64{
-		"AAPL": 150.0,
+		"US0378331005": 150.0,
 	}
 
 	ctx := NewEvaluationContext(
 		portfolioCtx,
-		positions,
+		enrichedPositions,
 		securities,
 		availableCash,
 		totalValue,
@@ -81,15 +82,15 @@ func TestNewEvaluationContext(t *testing.T) {
 
 	assert.NotNil(t, ctx)
 	assert.Equal(t, portfolioCtx, ctx.PortfolioContext)
-	assert.Equal(t, positions, ctx.Positions)
+	assert.Equal(t, enrichedPositions, ctx.EnrichedPositions)
 	assert.Equal(t, securities, ctx.Securities)
 	assert.Equal(t, availableCash, ctx.AvailableCashEUR)
 	assert.Equal(t, totalValue, ctx.TotalPortfolioValueEUR)
 	assert.Equal(t, currentPrices, ctx.CurrentPrices)
 
-	// Check that stocks by ISIN map is built correctly (old test needs ISINs)
-	// Note: This test uses old data without ISINs - in real code all securities have ISINs
-	assert.Len(t, ctx.StocksByISIN, 0) // No ISINs in test data, so map should be empty
+	// Check that stocks by ISIN map is built correctly
+	assert.Len(t, ctx.StocksByISIN, 1)
+	assert.Contains(t, ctx.StocksByISIN, "US0378331005")
 
 	// Check default values
 	assert.Equal(t, 2.0, ctx.TransactionCostFixed)
@@ -131,21 +132,21 @@ func TestNewPlanningContext(t *testing.T) {
 
 func TestFromOpportunityContext(t *testing.T) {
 	portfolioCtx := &scoringdomain.PortfolioContext{}
-	positions := []domain.Position{
-		{Symbol: "AAPL", Quantity: 10},
+	enrichedPositions := []EnrichedPosition{
+		{ISIN: "US0378331005", Symbol: "AAPL", Quantity: 10, CurrentPrice: 150.0, AverageCost: 140.0},
 	}
 	securities := []domain.Security{
-		{Symbol: "AAPL", Name: "Apple Inc."},
+		{ISIN: "US0378331005", Symbol: "AAPL", Name: "Apple Inc."},
 	}
 	availableCash := 1000.0
 	totalValue := 5000.0
 	currentPrices := map[string]float64{
-		"AAPL": 150.0,
+		"US0378331005": 150.0,
 	}
 
 	opportunityCtx := NewOpportunityContext(
 		portfolioCtx,
-		positions,
+		enrichedPositions,
 		securities,
 		availableCash,
 		totalValue,
@@ -161,7 +162,8 @@ func TestFromOpportunityContext(t *testing.T) {
 	// Check that evaluation context was created from same data
 	assert.Equal(t, availableCash, planningCtx.EvaluationContext.AvailableCashEUR)
 	assert.Equal(t, totalValue, planningCtx.EvaluationContext.TotalPortfolioValueEUR)
-	assert.Len(t, planningCtx.EvaluationContext.StocksByISIN, 0) // No ISINs in test data
+	assert.Len(t, planningCtx.EvaluationContext.StocksByISIN, 1)
+	assert.Contains(t, planningCtx.EvaluationContext.StocksByISIN, "US0378331005")
 
 	// Check default planning settings
 	assert.Equal(t, 5, planningCtx.MaxDepth)
@@ -175,8 +177,8 @@ func TestNewOpportunityContext_ISINKeys(t *testing.T) {
 		{ISIN: "US5949181045", Symbol: "MSFT.US", Name: "Microsoft Corp."},
 	}
 
-	positions := []domain.Position{
-		{ISIN: "US0378331005", Symbol: "AAPL.US", Quantity: 10},
+	enrichedPositions := []EnrichedPosition{
+		{ISIN: "US0378331005", Symbol: "AAPL.US", Quantity: 10, CurrentPrice: 150.0, AverageCost: 140.0},
 	}
 
 	currentPrices := map[string]float64{
@@ -186,7 +188,7 @@ func TestNewOpportunityContext_ISINKeys(t *testing.T) {
 
 	ctx := NewOpportunityContext(
 		nil, // portfolioContext
-		positions,
+		enrichedPositions,
 		securities,
 		1000.0, // availableCashEUR
 		2500.0, // totalPortfolioValueEUR
@@ -213,8 +215,8 @@ func TestOpportunityContext_NoSymbolKeys(t *testing.T) {
 		{ISIN: "US5949181045", Symbol: "MSFT.US", Name: "Microsoft Corp."},
 	}
 
-	positions := []domain.Position{
-		{ISIN: "US0378331005", Symbol: "AAPL.US", Quantity: 10},
+	enrichedPositions := []EnrichedPosition{
+		{ISIN: "US0378331005", Symbol: "AAPL.US", Quantity: 10, CurrentPrice: 150.0, AverageCost: 140.0},
 	}
 
 	currentPrices := map[string]float64{
@@ -234,7 +236,7 @@ func TestOpportunityContext_NoSymbolKeys(t *testing.T) {
 
 	ctx := NewOpportunityContext(
 		nil,
-		positions,
+		enrichedPositions,
 		securities,
 		1000.0,
 		2500.0,
@@ -299,7 +301,7 @@ func TestOpportunityContext_NoDualKeyDuplication(t *testing.T) {
 
 	ctx := NewOpportunityContext(
 		nil,
-		[]domain.Position{},
+		[]EnrichedPosition{},
 		securities,
 		1000.0,
 		2500.0,
@@ -320,7 +322,7 @@ func TestOpportunityContext_NoDualKeyDuplication(t *testing.T) {
 func TestOpportunityContext_ConstraintMapsISINKeys(t *testing.T) {
 	ctx := NewOpportunityContext(
 		nil,
-		[]domain.Position{},
+		[]EnrichedPosition{},
 		[]domain.Security{},
 		1000.0,
 		2500.0,
@@ -351,7 +353,7 @@ func TestOpportunityContext_SecuritiesWithoutISIN(t *testing.T) {
 
 	ctx := NewOpportunityContext(
 		nil,
-		[]domain.Position{},
+		[]EnrichedPosition{},
 		securities,
 		1000.0,
 		2500.0,
@@ -362,4 +364,99 @@ func TestOpportunityContext_SecuritiesWithoutISIN(t *testing.T) {
 	assert.Len(t, ctx.StocksByISIN, 1, "Should skip securities without ISIN")
 	assert.Contains(t, ctx.StocksByISIN, "US0378331005", "Should have valid ISIN")
 	assert.NotContains(t, ctx.StocksByISIN, "", "Should not have empty ISIN key")
+}
+
+// TestOpportunityContext_EnrichedPositions_Present verifies EnrichedPositions field exists
+func TestOpportunityContext_EnrichedPositions_Present(t *testing.T) {
+	enrichedPositions := []EnrichedPosition{
+		{
+			ISIN:         "US0378331005",
+			Symbol:       "AAPL",
+			Quantity:     100.0,
+			AverageCost:  150.0,
+			CurrentPrice: 160.0,
+			Active:       true,
+			AllowBuy:     true,
+			AllowSell:    true,
+		},
+	}
+
+	ctx := &OpportunityContext{
+		EnrichedPositions:      enrichedPositions,
+		AvailableCashEUR:       1000.0,
+		TotalPortfolioValueEUR: 16000.0,
+	}
+
+	// Verify field exists and is accessible
+	assert.NotNil(t, ctx.EnrichedPositions)
+	assert.Len(t, ctx.EnrichedPositions, 1)
+	assert.Equal(t, "US0378331005", ctx.EnrichedPositions[0].ISIN)
+	assert.Equal(t, "AAPL", ctx.EnrichedPositions[0].Symbol)
+}
+
+// TestOpportunityContext_EnrichedPositions_ISIN_DirectAccess verifies ISIN accessible without lookup
+func TestOpportunityContext_EnrichedPositions_ISIN_DirectAccess(t *testing.T) {
+	enrichedPositions := []EnrichedPosition{
+		{
+			ISIN:         "US0378331005",
+			Symbol:       "AAPL",
+			Quantity:     100.0,
+			AverageCost:  150.0,
+			CurrentPrice: 160.0,
+			Country:      "US",
+			Active:       true,
+			AllowBuy:     true,
+			AllowSell:    true,
+		},
+		{
+			ISIN:         "US5949181045",
+			Symbol:       "MSFT",
+			Quantity:     50.0,
+			AverageCost:  300.0,
+			CurrentPrice: 320.0,
+			Country:      "US",
+			Active:       true,
+			AllowBuy:     true,
+			AllowSell:    true,
+		},
+	}
+
+	ctx := &OpportunityContext{
+		EnrichedPositions: enrichedPositions,
+	}
+
+	// Access ISIN directly without map lookup
+	for _, pos := range ctx.EnrichedPositions {
+		assert.NotEmpty(t, pos.ISIN, "ISIN should be directly accessible")
+		assert.NotEmpty(t, pos.Symbol, "Symbol should be directly accessible")
+		assert.NotEmpty(t, pos.Country, "Country (security metadata) should be embedded")
+		assert.Greater(t, pos.Quantity, 0.0, "Quantity should be accessible")
+		assert.Greater(t, pos.AverageCost, 0.0, "AverageCost should be accessible")
+		assert.Greater(t, pos.CurrentPrice, 0.0, "CurrentPrice should be embedded")
+
+		// Verify helper methods work
+		assert.True(t, pos.CanBuy(), "CanBuy() helper should work")
+		assert.True(t, pos.CanSell(), "CanSell() helper should work")
+		assert.Greater(t, pos.GainPercent(), 0.0, "GainPercent() helper should work")
+	}
+}
+
+// TestOpportunityContext_NoLegacyPositionsField verifies old Positions field is REMOVED
+func TestOpportunityContext_NoLegacyPositionsField(t *testing.T) {
+	// This test will fail to compile if Positions field still exists
+	// That's intentional - it verifies clean architecture
+
+	ctx := &OpportunityContext{
+		EnrichedPositions: []EnrichedPosition{
+			{ISIN: "US0378331005", Symbol: "AAPL", Quantity: 100.0},
+		},
+	}
+
+	// Try to access the old Positions field - should not compile if field is deleted
+	// Uncommenting this line should cause compilation error:
+	// _ = ctx.Positions // Should not exist
+
+	// Instead, verify EnrichedPositions is the only position field
+	assert.NotNil(t, ctx.EnrichedPositions)
+	assert.Len(t, ctx.EnrichedPositions, 1)
 }

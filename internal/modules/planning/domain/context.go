@@ -13,7 +13,7 @@ import (
 type OpportunityContext struct {
 	// Portfolio state
 	PortfolioContext       *scoringdomain.PortfolioContext `json:"portfolio_context"`
-	Positions              []domain.Position               `json:"positions"`
+	EnrichedPositions      []EnrichedPosition              `json:"enriched_positions"` // REPLACES old Positions field
 	Securities             []domain.Security               `json:"securities"`
 	AvailableCashEUR       float64                         `json:"available_cash_eur"`
 	TotalPortfolioValueEUR float64                         `json:"total_portfolio_value_eur"`
@@ -62,7 +62,7 @@ type OpportunityContext struct {
 // NewOpportunityContext creates a new OpportunityContext with defaults.
 func NewOpportunityContext(
 	portfolioContext *scoringdomain.PortfolioContext,
-	positions []domain.Position,
+	enrichedPositions []EnrichedPosition,
 	securities []domain.Security,
 	availableCashEUR float64,
 	totalPortfolioValueEUR float64,
@@ -78,7 +78,7 @@ func NewOpportunityContext(
 
 	return &OpportunityContext{
 		PortfolioContext:       portfolioContext,
-		Positions:              positions,
+		EnrichedPositions:      enrichedPositions,
 		Securities:             securities,
 		AvailableCashEUR:       availableCashEUR,
 		TotalPortfolioValueEUR: totalPortfolioValueEUR,
@@ -137,7 +137,7 @@ func (ctx *OpportunityContext) CalculateMinTradeAmount(maxCostRatio float64) flo
 type EvaluationContext struct {
 	// Portfolio state (same as OpportunityContext)
 	PortfolioContext       *scoringdomain.PortfolioContext `json:"portfolio_context"`
-	Positions              []domain.Position               `json:"positions"`
+	EnrichedPositions      []EnrichedPosition              `json:"enriched_positions"` // REPLACES old Positions field
 	Securities             []domain.Security               `json:"securities"`
 	AvailableCashEUR       float64                         `json:"available_cash_eur"`
 	TotalPortfolioValueEUR float64                         `json:"total_portfolio_value_eur"`
@@ -157,7 +157,7 @@ type EvaluationContext struct {
 // NewEvaluationContext creates a new EvaluationContext with defaults.
 func NewEvaluationContext(
 	portfolioContext *scoringdomain.PortfolioContext,
-	positions []domain.Position,
+	enrichedPositions []EnrichedPosition,
 	securities []domain.Security,
 	availableCashEUR float64,
 	totalPortfolioValueEUR float64,
@@ -173,7 +173,7 @@ func NewEvaluationContext(
 
 	return &EvaluationContext{
 		PortfolioContext:       portfolioContext,
-		Positions:              positions,
+		EnrichedPositions:      enrichedPositions,
 		Securities:             securities,
 		AvailableCashEUR:       availableCashEUR,
 		TotalPortfolioValueEUR: totalPortfolioValueEUR,
@@ -242,7 +242,7 @@ func NewPlanningContext(
 func FromOpportunityContext(opportunityCtx *OpportunityContext) *PlanningContext {
 	evaluationCtx := NewEvaluationContext(
 		opportunityCtx.PortfolioContext,
-		opportunityCtx.Positions,
+		opportunityCtx.EnrichedPositions,
 		opportunityCtx.Securities,
 		opportunityCtx.AvailableCashEUR,
 		opportunityCtx.TotalPortfolioValueEUR,

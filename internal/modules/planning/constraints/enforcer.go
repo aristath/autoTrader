@@ -4,7 +4,6 @@ package constraints
 import (
 	"fmt"
 
-	"github.com/aristath/sentinel/internal/domain"
 	planningdomain "github.com/aristath/sentinel/internal/modules/planning/domain"
 	"github.com/aristath/sentinel/internal/modules/universe"
 	"github.com/rs/zerolog"
@@ -92,9 +91,9 @@ func (e *Enforcer) validateAndAdjustAction(
 		// Validate MaxSellPercentage for SELL actions (safety net)
 		if config != nil && config.MaxSellPercentage > 0 && config.MaxSellPercentage < 1.0 {
 			// Find the position for this symbol/ISIN
-			var position *domain.Position
-			for i := range ctx.Positions {
-				pos := &ctx.Positions[i]
+			var position *planningdomain.EnrichedPosition
+			for i := range ctx.EnrichedPositions {
+				pos := &ctx.EnrichedPositions[i]
 				if pos.Symbol == action.Symbol || (isin != "" && pos.ISIN == isin) {
 					position = pos
 					break

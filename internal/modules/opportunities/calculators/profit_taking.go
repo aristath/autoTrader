@@ -57,7 +57,7 @@ func (c *ProfitTakingCalculator) Calculate(
 		return nil, nil
 	}
 
-	if len(ctx.Positions) == 0 {
+	if len(ctx.EnrichedPositions) == 0 {
 		c.log.Debug().Msg("No positions available for profit taking")
 		return nil, nil
 	}
@@ -103,20 +103,14 @@ func (c *ProfitTakingCalculator) Calculate(
 		Bool("tag_filtering_enabled", config.EnableTagFiltering).
 		Msg("Calculating profit-taking opportunities")
 
-	for _, position := range ctx.Positions {
+	for _, position := range ctx.EnrichedPositions {
 		// Skip if not in tag-filtered candidates (when tag filtering enabled)
 		if candidateMap != nil && !candidateMap[position.Symbol] {
 			continue
 		}
 
-		// Get ISIN for internal operations
+		// ISIN always present in EnrichedPosition (validated during enrichment)
 		isin := position.ISIN
-		if isin == "" {
-			c.log.Warn().
-				Str("symbol", position.Symbol).
-				Msg("Position missing ISIN, skipping")
-			continue
-		}
 
 		// Skip if ineligible (ISIN lookup)
 		if ctx.IneligibleISINs[isin] { // ISIN key ✅
@@ -128,28 +122,18 @@ func (c *ProfitTakingCalculator) Calculate(
 			continue
 		}
 
-		// Get security info (direct ISIN lookup)
-		security, ok := ctx.StocksByISIN[isin] // ISIN key ✅
-		if !ok {
-			c.log.Debug().
-				Str("isin", isin).
-				Str("symbol", position.Symbol).
-				Msg("Security not found in StocksByISIN, skipping")
-			continue
-		}
-
-		// Check per-security constraint: AllowSell must be true
-		if !security.AllowSell {
+		// Check per-security constraint: AllowSell embedded in position
+		if !position.CanSell() {
 			c.log.Debug().
 				Str("symbol", position.Symbol).
 				Str("isin", isin).
-				Msg("Skipping security: allow_sell=false")
+				Msg("Skipping security: allow_sell=false or inactive")
 			continue
 		}
 
-		// Get current price (direct ISIN lookup)
-		currentPrice, ok := ctx.CurrentPrices[isin] // ISIN key ✅
-		if !ok || currentPrice <= 0 {
+		// Current price embedded in position (no lookup needed)
+		currentPrice := position.CurrentPrice
+		if currentPrice <= 0 {
 			c.log.Debug().
 				Str("symbol", position.Symbol).
 				Str("isin", isin).
@@ -157,13 +141,13 @@ func (c *ProfitTakingCalculator) Calculate(
 			continue
 		}
 
-		// Calculate gain
+		// Calculate gain using embedded helper (no map lookups)
 		costBasis := position.AverageCost
 		if costBasis <= 0 {
 			continue
 		}
 
-		gainPercent := (currentPrice - costBasis) / costBasis
+		gainPercent := position.GainPercent()
 
 		// Check if gain meets threshold
 		if gainPercent < minGainThreshold {
@@ -188,11 +172,11 @@ func (c *ProfitTakingCalculator) Calculate(
 
 		// Round quantity to lot size and validate
 		quantityInt := int(quantity)
-		quantityInt = RoundToLotSize(quantityInt, security.MinLot)
+		quantityInt = RoundToLotSize(quantityInt, position.MinLot)
 		if quantityInt <= 0 {
 			c.log.Debug().
 				Str("symbol", position.Symbol).
-				Int("min_lot", security.MinLot).
+				Int("min_lot", position.MinLot).
 				Msg("Skipping security: quantity below minimum lot size after rounding")
 			continue
 		}
@@ -255,13 +239,13 @@ func (c *ProfitTakingCalculator) Calculate(
 
 		candidate := domain.ActionCandidate{
 			Side:     "SELL",
-			ISIN:     isin,            // PRIMARY identifier ✅
-			Symbol:   position.Symbol, // BOUNDARY identifier
-			Name:     security.Name,
+			ISIN:     isin,                 // PRIMARY identifier ✅
+			Symbol:   position.Symbol,      // BOUNDARY identifier
+			Name:     position.SecurityName, // Embedded security metadata
 			Quantity: int(quantity),
 			Price:    currentPrice,
 			ValueEUR: netValueEUR,
-			Currency: string(security.Currency),
+			Currency: position.Currency, // Embedded from position
 			Priority: priority,
 			Reason:   reason,
 			Tags:     tags,

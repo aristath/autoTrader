@@ -3,7 +3,6 @@ package scheduler
 import (
 	"testing"
 
-	"github.com/aristath/sentinel/internal/domain"
 	planningdomain "github.com/aristath/sentinel/internal/modules/planning/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,7 +63,7 @@ func TestCreateTradePlanJob_Run_Success(t *testing.T) {
 	}
 
 	opportunityContext := &planningdomain.OpportunityContext{
-		Positions: []domain.Position{},
+		EnrichedPositions: []planningdomain.EnrichedPosition{},
 	}
 
 	job := NewCreateTradePlanJob(mockPlannerService, mockConfigRepo)
@@ -84,7 +83,7 @@ func TestCreateTradePlanJob_Run_Success(t *testing.T) {
 func TestCreateTradePlanJob_Run_NoPlannerService(t *testing.T) {
 	job := NewCreateTradePlanJob(nil, nil)
 	job.SetOpportunityContext(&planningdomain.OpportunityContext{
-		Positions: []domain.Position{},
+		EnrichedPositions: []planningdomain.EnrichedPosition{},
 	})
 
 	err := job.Run()
@@ -112,7 +111,7 @@ func TestCreateTradePlanJob_Run_PlannerServiceError(t *testing.T) {
 
 	job := NewCreateTradePlanJob(mockPlannerService, nil)
 	job.SetOpportunityContext(&planningdomain.OpportunityContext{
-		Positions: []domain.Position{},
+		EnrichedPositions: []planningdomain.EnrichedPosition{},
 	})
 
 	err := job.Run()
@@ -138,7 +137,7 @@ func TestCreateTradePlanJob_Run_ConfigRepoError(t *testing.T) {
 
 	job := NewCreateTradePlanJob(mockPlannerService, mockConfigRepo)
 	job.SetOpportunityContext(&planningdomain.OpportunityContext{
-		Positions: []domain.Position{},
+		EnrichedPositions: []planningdomain.EnrichedPosition{},
 	})
 
 	// Should use default config when repo fails
@@ -156,7 +155,7 @@ func TestCreateTradePlanJob_Run_InvalidPlanType(t *testing.T) {
 
 	job := NewCreateTradePlanJob(mockPlannerService, nil)
 	job.SetOpportunityContext(&planningdomain.OpportunityContext{
-		Positions: []domain.Position{},
+		EnrichedPositions: []planningdomain.EnrichedPosition{},
 	})
 
 	err := job.Run()

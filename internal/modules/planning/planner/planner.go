@@ -254,9 +254,9 @@ func (p *Planner) convertToPlan(sequence domain.ActionSequence, ctx *domain.Oppo
 
 // generatePortfolioHash creates a hash representing the portfolio state.
 func (p *Planner) generatePortfolioHash(ctx *domain.OpportunityContext) string {
-	// Convert domain.Position to hash.Position
-	positions := make([]hash.Position, 0, len(ctx.Positions))
-	for _, pos := range ctx.Positions {
+	// Convert EnrichedPosition to hash.Position
+	positions := make([]hash.Position, 0, len(ctx.EnrichedPositions))
+	for _, pos := range ctx.EnrichedPositions {
 		positions = append(positions, hash.Position{
 			Symbol:   pos.Symbol,
 			Quantity: int(pos.Quantity),

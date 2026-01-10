@@ -60,7 +60,7 @@ func (c *AveragingDownCalculator) Calculate(
 		return nil, nil
 	}
 
-	if len(ctx.Positions) == 0 {
+	if len(ctx.EnrichedPositions) == 0 {
 		c.log.Debug().Msg("No positions available for averaging down")
 		return nil, nil
 	}
@@ -106,48 +106,32 @@ func (c *AveragingDownCalculator) Calculate(
 		Bool("tag_filtering_enabled", config.EnableTagFiltering).
 		Msg("Calculating averaging-down opportunities")
 
-	for _, position := range ctx.Positions {
+	for _, position := range ctx.EnrichedPositions {
 		// Skip if not in tag-filtered candidates (when tag filtering enabled)
 		if candidateMap != nil && !candidateMap[position.Symbol] {
 			continue
 		}
 
-		// Get ISIN for internal operations
+		// ISIN always present in EnrichedPosition (validated during enrichment)
 		isin := position.ISIN
-		if isin == "" {
-			c.log.Warn().
-				Str("symbol", position.Symbol).
-				Msg("Position missing ISIN, skipping")
-			continue
-		}
 
 		// Skip if recently bought (ISIN lookup)
 		if ctx.RecentlyBoughtISINs[isin] { // ISIN key ✅
 			continue
 		}
 
-		// Get security info (direct ISIN lookup)
-		security, ok := ctx.StocksByISIN[isin] // ISIN key ✅
-		if !ok {
-			c.log.Debug().
-				Str("isin", isin).
-				Str("symbol", position.Symbol).
-				Msg("Security not found in StocksByISIN, skipping")
-			continue
-		}
-
-		// Check per-security constraint: AllowBuy must be true
-		if !security.AllowBuy {
+		// Check per-security constraint: AllowBuy embedded in position
+		if !position.CanBuy() {
 			c.log.Debug().
 				Str("symbol", position.Symbol).
 				Str("isin", isin).
-				Msg("Skipping security: allow_buy=false")
+				Msg("Skipping security: allow_buy=false or inactive")
 			continue
 		}
 
-		// Get current price (direct ISIN lookup)
-		currentPrice, ok := ctx.CurrentPrices[isin] // ISIN key ✅
-		if !ok || currentPrice <= 0 {
+		// Current price embedded in position (no lookup needed)
+		currentPrice := position.CurrentPrice
+		if currentPrice <= 0 {
 			c.log.Debug().
 				Str("symbol", position.Symbol).
 				Str("isin", isin).
@@ -155,13 +139,13 @@ func (c *AveragingDownCalculator) Calculate(
 			continue
 		}
 
-		// Calculate loss
+		// Calculate loss using embedded data (no map lookups)
 		costBasis := position.AverageCost
 		if costBasis <= 0 {
 			continue
 		}
 
-		lossPercent := (currentPrice - costBasis) / costBasis
+		lossPercent := position.GainPercent()
 
 		// CRITICAL: Only average down on positions with losses
 		// Must be between minLossThreshold and maxLossThreshold
@@ -301,11 +285,11 @@ func (c *AveragingDownCalculator) Calculate(
 
 		// Round quantity to lot size and validate
 		quantityInt := quantity
-		quantityInt = RoundToLotSize(quantityInt, security.MinLot)
+		quantityInt = RoundToLotSize(quantityInt, position.MinLot)
 		if quantityInt <= 0 {
 			c.log.Debug().
 				Str("symbol", position.Symbol).
-				Int("min_lot", security.MinLot).
+				Int("min_lot", position.MinLot).
 				Msg("Skipping security: quantity below minimum lot size after rounding")
 			continue
 		}
@@ -368,13 +352,13 @@ func (c *AveragingDownCalculator) Calculate(
 
 		candidate := domain.ActionCandidate{
 			Side:     "BUY",
-			ISIN:     isin,            // PRIMARY identifier ✅
-			Symbol:   position.Symbol, // BOUNDARY identifier
-			Name:     security.Name,
+			ISIN:     isin,                 // PRIMARY identifier ✅
+			Symbol:   position.Symbol,      // BOUNDARY identifier
+			Name:     position.SecurityName, // Embedded security metadata
 			Quantity: quantity,
 			Price:    currentPrice,
 			ValueEUR: totalCostEUR,
-			Currency: string(security.Currency),
+			Currency: position.Currency, // Embedded from position
 			Priority: priority,
 			Reason:   reason,
 			Tags:     tags,

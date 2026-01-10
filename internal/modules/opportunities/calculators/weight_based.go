@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/aristath/sentinel/internal/domain"
 	planningdomain "github.com/aristath/sentinel/internal/modules/planning/domain"
 	"github.com/rs/zerolog"
 )
@@ -67,21 +66,10 @@ func (c *WeightBasedCalculator) Calculate(
 		Msg("Calculating weight-based opportunities")
 
 	// Calculate current weights (use ISIN for internal tracking)
+	// WeightInPortfolio is pre-calculated in EnrichedPosition (no lookup needed)
 	currentWeights := make(map[string]float64)
-	for _, position := range ctx.Positions {
-		isin := position.ISIN
-		if isin == "" {
-			c.log.Warn().
-				Str("symbol", position.Symbol).
-				Msg("Position missing ISIN, skipping in weight calculation")
-			continue
-		}
-		currentPrice, ok := ctx.CurrentPrices[isin] // ISIN key ✅
-		if !ok || currentPrice <= 0 {
-			continue
-		}
-		positionValue := float64(position.Quantity) * currentPrice
-		currentWeights[isin] = positionValue / ctx.TotalPortfolioValueEUR // ISIN key ✅
+	for _, position := range ctx.EnrichedPositions {
+		currentWeights[position.ISIN] = position.WeightInPortfolio // ISIN key ✅
 	}
 
 	// Identify weight differences
@@ -212,7 +200,7 @@ func (c *WeightBasedCalculator) Calculate(
 					// Require quality gate pass for new positions
 					// Check if this is a new position (not in current positions)
 					isNewPosition := true
-					for _, pos := range ctx.Positions {
+					for _, pos := range ctx.EnrichedPositions {
 						if pos.ISIN == isin { // ISIN comparison ✅
 							isNewPosition = false
 							break
@@ -230,7 +218,7 @@ func (c *WeightBasedCalculator) Calculate(
 					// Use score-based checks (when tags are disabled or unavailable)
 					// Check if this is a new position
 					isNewPosition := true
-					for _, pos := range ctx.Positions {
+					for _, pos := range ctx.EnrichedPositions {
 						if pos.ISIN == isin { // ISIN comparison ✅
 							isNewPosition = false
 							break
@@ -416,10 +404,10 @@ func (c *WeightBasedCalculator) Calculate(
 			}
 
 			// Find position by ISIN
-			var foundPosition *domain.Position
-			for i := range ctx.Positions {
-				if ctx.Positions[i].ISIN == isin { // ISIN comparison ✅
-					pos := ctx.Positions[i]
+			var foundPosition *planningdomain.EnrichedPosition
+			for i := range ctx.EnrichedPositions {
+				if ctx.EnrichedPositions[i].ISIN == isin { // ISIN comparison ✅
+					pos := ctx.EnrichedPositions[i]
 					foundPosition = &pos
 					break
 				}

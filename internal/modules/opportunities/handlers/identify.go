@@ -77,7 +77,7 @@ func (h *IdentifyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	h.log.Info().
 		Float64("available_cash", req.OpportunityContext.AvailableCashEUR).
-		Int("positions", len(req.OpportunityContext.Positions)).
+		Int("positions", len(req.OpportunityContext.EnrichedPositions)).
 		Msg("Identifying opportunities")
 
 	// Identify opportunities

@@ -104,15 +104,9 @@ func (c *RebalanceSellsCalculator) Calculate(
 
 	var candidates []domain.ActionCandidate
 
-	for _, position := range ctx.Positions {
-		// Get ISIN for internal operations
+	for _, position := range ctx.EnrichedPositions {
+		// ISIN always present in EnrichedPosition (validated during enrichment)
 		isin := position.ISIN
-		if isin == "" {
-			c.log.Warn().
-				Str("symbol", position.Symbol).
-				Msg("Position missing ISIN, skipping")
-			continue
-		}
 
 		// Skip if ineligible (ISIN lookup)
 		if ctx.IneligibleISINs[isin] { // ISIN key ✅
@@ -124,27 +118,17 @@ func (c *RebalanceSellsCalculator) Calculate(
 			continue
 		}
 
-		// Get security info (direct ISIN lookup)
-		security, ok := ctx.StocksByISIN[isin] // ISIN key ✅
-		if !ok {
-			c.log.Debug().
-				Str("isin", isin).
-				Str("symbol", position.Symbol).
-				Msg("Security not found in StocksByISIN, skipping")
-			continue
-		}
-
-		// Check per-security constraint: AllowSell must be true
-		if !security.AllowSell {
+		// Check per-security constraint: AllowSell embedded in position
+		if !position.CanSell() {
 			c.log.Debug().
 				Str("symbol", position.Symbol).
 				Str("isin", isin).
-				Msg("Skipping security: allow_sell=false")
+				Msg("Skipping security: allow_sell=false or inactive")
 			continue
 		}
 
-		// Get country from security
-		country := security.Country
+		// Get country from embedded security metadata
+		country := position.Country
 		if country == "" {
 			continue // Skip securities without country
 		}
@@ -165,9 +149,9 @@ func (c *RebalanceSellsCalculator) Calculate(
 			continue
 		}
 
-		// Get current price (direct ISIN lookup)
-		currentPrice, ok := ctx.CurrentPrices[isin] // ISIN key ✅
-		if !ok || currentPrice <= 0 {
+		// Current price embedded in position (no lookup needed)
+		currentPrice := position.CurrentPrice
+		if currentPrice <= 0 {
 			c.log.Warn().
 				Str("symbol", position.Symbol).
 				Str("isin", isin).
@@ -190,11 +174,11 @@ func (c *RebalanceSellsCalculator) Calculate(
 		}
 
 		// Round quantity to lot size and validate
-		quantity = RoundToLotSize(quantity, security.MinLot)
+		quantity = RoundToLotSize(quantity, position.MinLot)
 		if quantity <= 0 {
 			c.log.Debug().
 				Str("symbol", position.Symbol).
-				Int("min_lot", security.MinLot).
+				Int("min_lot", position.MinLot).
 				Msg("Skipping security: quantity below minimum lot size after rounding")
 			continue
 		}
@@ -226,13 +210,13 @@ func (c *RebalanceSellsCalculator) Calculate(
 
 		candidate := domain.ActionCandidate{
 			Side:     "SELL",
-			ISIN:     isin,            // PRIMARY identifier ✅
-			Symbol:   position.Symbol, // BOUNDARY identifier
-			Name:     security.Name,
+			ISIN:     isin,                 // PRIMARY identifier ✅
+			Symbol:   position.Symbol,      // BOUNDARY identifier
+			Name:     position.SecurityName, // Embedded security metadata
 			Quantity: quantity,
-			Price:    currentPrice,
+			Price:    position.CurrentPrice,
 			ValueEUR: netValueEUR,
-			Currency: string(security.Currency),
+			Currency: position.Currency, // Embedded from position
 			Priority: priority,
 			Reason:   reason,
 			Tags:     tags,

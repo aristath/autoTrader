@@ -79,7 +79,7 @@ func (c *OpportunityBuysCalculator) Calculate(
 
 	// Check which positions we already have (use ISIN for internal tracking)
 	existingPositions := make(map[string]bool)
-	for _, position := range ctx.Positions {
+	for _, position := range ctx.EnrichedPositions {
 		if position.ISIN != "" {
 			existingPositions[position.ISIN] = true // ISIN key ✅
 		}

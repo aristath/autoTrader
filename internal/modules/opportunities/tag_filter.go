@@ -86,13 +86,13 @@ func (f *TagBasedFilter) GetOpportunityCandidates(ctx *domain.OpportunityContext
 // Returns a list of security symbols from positions that match sell-related tags.
 // If config is provided and EnableTagFiltering is false, returns all position symbols.
 func (f *TagBasedFilter) GetSellCandidates(ctx *domain.OpportunityContext, config *domain.PlannerConfiguration) ([]string, error) {
-	if ctx == nil || len(ctx.Positions) == 0 {
+	if ctx == nil || len(ctx.EnrichedPositions) == 0 {
 		return []string{}, nil
 	}
 
 	// Get position symbols
-	positionSymbols := make([]string, 0, len(ctx.Positions))
-	for _, pos := range ctx.Positions {
+	positionSymbols := make([]string, 0, len(ctx.EnrichedPositions))
+	for _, pos := range ctx.EnrichedPositions {
 		if pos.Symbol != "" {
 			positionSymbols = append(positionSymbols, pos.Symbol)
 		}

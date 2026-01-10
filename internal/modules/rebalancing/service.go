@@ -238,16 +238,8 @@ func (s *Service) buildOpportunityContext(availableCash float64) (*planningdomai
 		return nil, fmt.Errorf("failed to get allocations: %w", err)
 	}
 
-	// Convert positions to domain format
-	domainPositions := make([]domain.Position, 0, len(positions))
-	for _, pos := range positions {
-		domainPositions = append(domainPositions, domain.Position{
-			Symbol:   pos.Symbol,
-			ISIN:     pos.ISIN, // Include ISIN (primary identifier)
-			Quantity: float64(pos.Quantity),
-			Currency: domain.Currency(pos.Currency),
-		})
-	}
+	// Store positions for later enrichment
+	portfolioPositions := positions
 
 	// Convert securities to domain format
 	domainSecurities := make([]domain.Security, 0, len(securities))
@@ -269,14 +261,56 @@ func (s *Service) buildOpportunityContext(availableCash float64) (*planningdomai
 	// Fetch current prices
 	currentPrices := s.fetchCurrentPrices(securities)
 
-	// Calculate total portfolio value
+	// Calculate total portfolio value and create enriched positions
 	totalValue := availableCash
-	for _, pos := range domainPositions {
-		if pos.ISIN == "" {
+	enrichedPositions := make([]planningdomain.EnrichedPosition, 0, len(portfolioPositions))
+
+	for _, pos := range portfolioPositions {
+		isin := pos.ISIN
+		if isin == "" {
 			continue
 		}
-		if price, ok := currentPrices[pos.ISIN]; ok { // ISIN lookup ✅
-			totalValue += price * pos.Quantity
+
+		// Get security
+		security, ok := stocksByISIN[isin]
+		if !ok {
+			continue
+		}
+
+		// Get current price
+		currentPrice, ok := currentPrices[isin]
+		if !ok || currentPrice <= 0 {
+			continue
+		}
+
+		// Calculate total value
+		totalValue += currentPrice * float64(pos.Quantity)
+
+		// Create enriched position
+		enriched := planningdomain.EnrichedPosition{
+			ISIN:         isin,
+			Symbol:       pos.Symbol,
+			Quantity:     float64(pos.Quantity),
+			Currency:     pos.Currency,
+			SecurityName: security.Name,
+			Country:      security.Country,
+			Active:       security.Active,
+			AllowBuy:     security.AllowBuy,
+			AllowSell:    security.AllowSell,
+			MinLot:       security.MinLot,
+			CurrentPrice: currentPrice,
+		}
+		enrichedPositions = append(enrichedPositions, enriched)
+	}
+
+	// Calculate WeightInPortfolio for each position
+	if totalValue > 0 {
+		for i := range enrichedPositions {
+			pos := &enrichedPositions[i]
+			positionValue := pos.CurrentPrice * pos.Quantity
+			if positionValue > 0 {
+				pos.WeightInPortfolio = positionValue / totalValue
+			}
 		}
 	}
 
@@ -287,7 +321,7 @@ func (s *Service) buildOpportunityContext(availableCash float64) (*planningdomai
 
 	// Create OpportunityContext
 	ctx := &planningdomain.OpportunityContext{
-		Positions:                domainPositions,
+		EnrichedPositions:        enrichedPositions,
 		Securities:               domainSecurities,
 		StocksByISIN:             stocksByISIN, // ISIN-keyed only ✅
 		AvailableCashEUR:         availableCash,
@@ -309,7 +343,7 @@ func (s *Service) buildOpportunityContext(availableCash float64) (*planningdomai
 	}
 
 	s.log.Debug().
-		Int("positions", len(domainPositions)).
+		Int("positions", len(enrichedPositions)).
 		Int("securities", len(domainSecurities)).
 		Float64("cash", availableCash).
 		Float64("total_value", totalValue).

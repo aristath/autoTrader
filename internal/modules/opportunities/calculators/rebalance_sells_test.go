@@ -82,7 +82,9 @@ func TestRebalanceSellsCalculator_MaxSellPercentage(t *testing.T) {
 			currentPrice := 10.0
 
 			ctx := &planningdomain.OpportunityContext{
-				Positions:              []domain.Position{position},
+				EnrichedPositions:              []planningdomain.EnrichedPosition{
+			createEnrichedPosition(position, security, 15.0),
+		},
 				Securities:             []domain.Security{security},
 				CurrentPrices:          map[string]float64{"US1234567890": currentPrice},
 				StocksByISIN:           map[string]domain.Security{"US1234567890": security},
@@ -117,31 +119,29 @@ func TestRebalanceSellsCalculator_MaxSellPercentage_MultiplePositions(t *testing
 	calc := NewRebalanceSellsCalculator(nil, nil, log)
 
 	// Test that max_sell_percentage applies per-position
-	positions := []domain.Position{
-		{Symbol: "STOCK_A.US", ISIN: "US1111111111", Quantity: 1000},
-		{Symbol: "STOCK_B.US", ISIN: "US2222222222", Quantity: 500},
+	position1 := domain.Position{Symbol: "STOCK_A.US", ISIN: "US1111111111", Quantity: 1000}
+	position2 := domain.Position{Symbol: "STOCK_B.US", ISIN: "US2222222222", Quantity: 500}
+
+	security1 := domain.Security{
+		Symbol:    "STOCK_A.US",
+		Name:      "Stock A",
+		ISIN:      "US1111111111",
+		Country:   "US",
+		Active:    true,
+		AllowSell: true,
+		Currency:  "EUR",
+	}
+	security2 := domain.Security{
+		Symbol:    "STOCK_B.US",
+		Name:      "Stock B",
+		ISIN:      "US2222222222",
+		Country:   "US",
+		Active:    true,
+		AllowSell: true,
+		Currency:  "EUR",
 	}
 
-	securities := []domain.Security{
-		{
-			Symbol:    "STOCK_A.US",
-			Name:      "Stock A",
-			ISIN:      "US1111111111",
-			Country:   "US",
-			Active:    true,
-			AllowSell: true,
-			Currency:  "EUR",
-		},
-		{
-			Symbol:    "STOCK_B.US",
-			Name:      "Stock B",
-			ISIN:      "US2222222222",
-			Country:   "US",
-			Active:    true,
-			AllowSell: true,
-			Currency:  "EUR",
-		},
-	}
+	securities := []domain.Security{security1, security2}
 
 	countryAllocations := map[string]float64{
 		"US": 0.60, // Overweight by 10%
@@ -152,10 +152,13 @@ func TestRebalanceSellsCalculator_MaxSellPercentage_MultiplePositions(t *testing
 	}
 
 	ctx := &planningdomain.OpportunityContext{
-		Positions:              positions,
+		EnrichedPositions:              []planningdomain.EnrichedPosition{
+			createEnrichedPosition(position1, security1, 10.0),
+			createEnrichedPosition(position2, security2, 20.0),
+		},
 		Securities:             securities,
 		CurrentPrices:          map[string]float64{"US1111111111": 10.0, "US2222222222": 20.0},
-		StocksByISIN:           map[string]domain.Security{"US1111111111": securities[0], "US2222222222": securities[1]},
+		StocksByISIN:           map[string]domain.Security{"US1111111111": security1, "US2222222222": security2},
 		CountryAllocations:     countryAllocations,
 		CountryWeights:         countryWeights,
 		IneligibleISINs:        map[string]bool{},
@@ -214,7 +217,9 @@ func TestRebalanceSellsCalculator_NoMaxSellPercentage_DefaultsToHardcodedCap(t *
 	}
 
 	ctx := &planningdomain.OpportunityContext{
-		Positions:              []domain.Position{position},
+		EnrichedPositions:              []planningdomain.EnrichedPosition{
+			createEnrichedPosition(position, security, 15.0),
+		},
 		Securities:             []domain.Security{security},
 		CurrentPrices:          map[string]float64{"US1234567890": 10.0},
 		StocksByISIN:           map[string]domain.Security{"US1234567890": security},

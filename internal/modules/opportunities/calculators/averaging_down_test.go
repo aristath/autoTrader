@@ -92,7 +92,10 @@ func TestAveragingDownCalculator_WithTagFiltering_PreFiltersPositions(t *testing
 	}
 
 	ctx := &planningdomain.OpportunityContext{
-		Positions:           []domain.Position{position1, position2},
+		EnrichedPositions:   []planningdomain.EnrichedPosition{
+			createEnrichedPosition(position1, security1, 15.0),
+			createEnrichedPosition(position2, security2, 15.0),
+		},
 		Securities:          []domain.Security{security1, security2},
 		CurrentPrices:       map[string]float64{"US1234567890": 15.0, "US0987654321": 15.0}, // 25% loss
 		StocksByISIN:        map[string]domain.Security{"US1234567890": security1, "US0987654321": security2},
@@ -160,7 +163,10 @@ func TestAveragingDownCalculator_WithoutTagFiltering_ProcessesAllPositions(t *te
 	}
 
 	ctx := &planningdomain.OpportunityContext{
-		Positions:           []domain.Position{position1, position2},
+		EnrichedPositions:           []planningdomain.EnrichedPosition{
+			createEnrichedPosition(position1, security1, 15.0),
+			createEnrichedPosition(position2, security2, 15.0),
+		},
 		Securities:          []domain.Security{security1, security2},
 		CurrentPrices:       map[string]float64{"US1234567890": 15.0, "US0987654321": 15.0},
 		StocksByISIN:        map[string]domain.Security{"US1234567890": security1, "US0987654321": security2},
@@ -211,7 +217,9 @@ func TestAveragingDownCalculator_EnforcesAllowBuy(t *testing.T) {
 	}
 
 	ctx := &planningdomain.OpportunityContext{
-		Positions:           []domain.Position{position},
+		EnrichedPositions:           []planningdomain.EnrichedPosition{
+			createEnrichedPosition(position, security, 15.0),
+		},
 		Securities:          []domain.Security{security},
 		CurrentPrices:       map[string]float64{"US1234567890": 15.0},
 		StocksByISIN:        map[string]domain.Security{"US1234567890": security},
@@ -259,7 +267,9 @@ func TestAveragingDownCalculator_RoundsToLotSize(t *testing.T) {
 	}
 
 	ctx := &planningdomain.OpportunityContext{
-		Positions:              []domain.Position{position},
+		EnrichedPositions:              []planningdomain.EnrichedPosition{
+			createEnrichedPosition(position, security, 15.0),
+		},
 		Securities:             []domain.Security{security},
 		CurrentPrices:          map[string]float64{"US1234567890": 15.0},
 		StocksByISIN:           map[string]domain.Security{"US1234567890": security},
@@ -314,7 +324,9 @@ func TestAveragingDownCalculator_KellyBasedQuantity_WhenAvailable(t *testing.T) 
 	}
 
 	ctx := &planningdomain.OpportunityContext{
-		Positions:              []domain.Position{position},
+		EnrichedPositions:              []planningdomain.EnrichedPosition{
+			createEnrichedPosition(position, security, 15.0),
+		},
 		Securities:             []domain.Security{security},
 		CurrentPrices:          map[string]float64{"US1234567890": 15.0},
 		StocksByISIN:           map[string]domain.Security{"US1234567890": security},
@@ -372,7 +384,9 @@ func TestAveragingDownCalculator_PercentageBasedQuantity_Fallback(t *testing.T) 
 	}
 
 	ctx := &planningdomain.OpportunityContext{
-		Positions:              []domain.Position{position},
+		EnrichedPositions:              []planningdomain.EnrichedPosition{
+			createEnrichedPosition(position, security, 15.0),
+		},
 		Securities:             []domain.Security{security},
 		CurrentPrices:          map[string]float64{"US1234567890": 15.0},
 		StocksByISIN:           map[string]domain.Security{"US1234567890": security},
@@ -426,7 +440,9 @@ func TestAveragingDownCalculator_UsesConfigurablePercent_NotHardcoded(t *testing
 	}
 
 	ctx := &planningdomain.OpportunityContext{
-		Positions:           []domain.Position{position},
+		EnrichedPositions:           []planningdomain.EnrichedPosition{
+			createEnrichedPosition(position, security, 15.0),
+		},
 		Securities:          []domain.Security{security},
 		CurrentPrices:       map[string]float64{"US1234567890": 15.0},
 		StocksByISIN:        map[string]domain.Security{"US1234567890": security},
@@ -493,7 +509,9 @@ func TestAveragingDownCalculator_SkipsAveragingDown_WhenAtKellyOptimal(t *testin
 	}
 
 	ctx := &planningdomain.OpportunityContext{
-		Positions:              []domain.Position{position},
+		EnrichedPositions:              []planningdomain.EnrichedPosition{
+			createEnrichedPosition(position, security, 15.0),
+		},
 		Securities:             []domain.Security{security},
 		CurrentPrices:          map[string]float64{"US1234567890": 15.0},
 		StocksByISIN:           map[string]domain.Security{"US1234567890": security},
@@ -549,7 +567,9 @@ func TestAveragingDownCalculator_TagBasedQualityGates_ValueTrap(t *testing.T) {
 	}
 
 	ctx := &planningdomain.OpportunityContext{
-		Positions:           []domain.Position{position},
+		EnrichedPositions:           []planningdomain.EnrichedPosition{
+			createEnrichedPosition(position, security, 15.0),
+		},
 		Securities:          []domain.Security{security},
 		CurrentPrices:       map[string]float64{"US1234567890": 15.0},
 		StocksByISIN:        map[string]domain.Security{"US1234567890": security},
@@ -619,7 +639,10 @@ func TestAveragingDownCalculator_TagBasedPriorityBoosting_QualityValue(t *testin
 	}
 
 	ctx := &planningdomain.OpportunityContext{
-		Positions:           []domain.Position{position1, position2},
+		EnrichedPositions:           []planningdomain.EnrichedPosition{
+			createEnrichedPosition(position1, security1, 15.0),
+			createEnrichedPosition(position2, security2, 15.0),
+		},
 		Securities:          []domain.Security{security1, security2},
 		CurrentPrices:       map[string]float64{"US1111111111": 15.0, "US2222222222": 15.0}, // Same loss
 		StocksByISIN:        map[string]domain.Security{"US1111111111": security1, "US2222222222": security2},
@@ -693,7 +716,10 @@ func TestAveragingDownCalculator_SortsByPriorityDescending(t *testing.T) {
 	}
 
 	ctx := &planningdomain.OpportunityContext{
-		Positions:           []domain.Position{position1, position2},
+		EnrichedPositions: []planningdomain.EnrichedPosition{
+			createEnrichedPosition(position1, security1, 12.0), // 40% loss
+			createEnrichedPosition(position2, security2, 18.0), // 10% loss
+		},
 		Securities:          []domain.Security{security1, security2},
 		CurrentPrices:       map[string]float64{"US1111111111": 12.0, "US2222222222": 18.0}, // 40% vs 10% loss
 		StocksByISIN:        map[string]domain.Security{"US1111111111": security1, "US2222222222": security2},
@@ -737,7 +763,7 @@ func TestAveragingDownCalculator_RespectsMaxPositionsLimit(t *testing.T) {
 	}
 	calc := NewAveragingDownCalculator(tagFilter, securityRepo, log)
 
-	positions := []domain.Position{}
+	enrichedPositions := []planningdomain.EnrichedPosition{}
 	securities := []domain.Security{}
 	prices := map[string]float64{}
 	stocksByISIN := map[string]domain.Security{}
@@ -746,12 +772,12 @@ func TestAveragingDownCalculator_RespectsMaxPositionsLimit(t *testing.T) {
 	symbols := []string{"A.US", "B.US", "C.US", "D.US", "E.US"}
 	for i, symbol := range symbols {
 		isin := fmt.Sprintf("US%d", i)
-		positions = append(positions, domain.Position{
+		position := domain.Position{
 			Symbol:      symbol,
 			ISIN:        isin,
 			Quantity:    100,
 			AverageCost: 20.0,
-		})
+		}
 		security := domain.Security{
 			Symbol:   symbol,
 			Name:     symbol,
@@ -761,6 +787,7 @@ func TestAveragingDownCalculator_RespectsMaxPositionsLimit(t *testing.T) {
 			Currency: "EUR",
 			MinLot:   1,
 		}
+		enrichedPositions = append(enrichedPositions, createEnrichedPosition(position, security, 15.0))
 		securities = append(securities, security)
 		prices[isin] = 15.0
 		stocksByISIN[isin] = security
@@ -768,7 +795,7 @@ func TestAveragingDownCalculator_RespectsMaxPositionsLimit(t *testing.T) {
 	}
 
 	ctx := &planningdomain.OpportunityContext{
-		Positions:           positions,
+		EnrichedPositions:           enrichedPositions,
 		Securities:          securities,
 		CurrentPrices:       prices,
 		StocksByISIN:        stocksByISIN,

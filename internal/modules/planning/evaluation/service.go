@@ -141,8 +141,8 @@ func (s *Service) BatchEvaluate(ctx context.Context, sequences []domain.ActionSe
 		}
 
 		// Convert positions
-		evalPositions = make([]models.Position, 0, len(opportunityCtx.Positions))
-		for _, pos := range opportunityCtx.Positions {
+		evalPositions = make([]models.Position, 0, len(opportunityCtx.EnrichedPositions))
+		for _, pos := range opportunityCtx.EnrichedPositions {
 			// Get current price for position value calculation
 			currentPrice := 0.0
 			if opportunityCtx.CurrentPrices != nil {

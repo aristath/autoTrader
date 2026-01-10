@@ -3,8 +3,47 @@ package calculators
 import (
 	"testing"
 
+	"github.com/aristath/sentinel/internal/domain"
+	planningdomain "github.com/aristath/sentinel/internal/modules/planning/domain"
 	"github.com/stretchr/testify/assert"
 )
+
+// createEnrichedPosition is a test helper that creates an EnrichedPosition from a Position and Security.
+// This simplifies test data setup by combining the old fragmented data into the new unified format.
+func createEnrichedPosition(pos domain.Position, sec domain.Security, currentPrice float64) planningdomain.EnrichedPosition {
+	return planningdomain.EnrichedPosition{
+		ISIN:         pos.ISIN,
+		Symbol:       pos.Symbol,
+		Quantity:     float64(pos.Quantity),
+		AverageCost:  pos.AverageCost,
+		Currency:     string(sec.Currency),
+		SecurityName: sec.Name,
+		Country:      sec.Country,
+		Exchange:     sec.Exchange,
+		Active:       sec.Active,
+		AllowBuy:     sec.AllowBuy,
+		AllowSell:    sec.AllowSell,
+		MinLot:       sec.MinLot,
+		CurrentPrice: currentPrice,
+	}
+}
+
+// createEnrichedPositionWithWeight creates an EnrichedPosition with WeightInPortfolio set.
+func createEnrichedPositionWithWeight(pos domain.Position, sec domain.Security, currentPrice, weight float64) planningdomain.EnrichedPosition {
+	enriched := createEnrichedPosition(pos, sec, currentPrice)
+	enriched.WeightInPortfolio = weight
+	return enriched
+}
+
+// createEnrichedPositionWithPrice is a test helper that creates an EnrichedPosition and looks up the price.
+// Looks up currentPrice from a CurrentPrices map using the position's ISIN.
+func createEnrichedPositionWithPrice(pos domain.Position, sec domain.Security, prices map[string]float64) planningdomain.EnrichedPosition {
+	currentPrice := 0.0
+	if p, ok := prices[pos.ISIN]; ok {
+		currentPrice = p
+	}
+	return createEnrichedPosition(pos, sec, currentPrice)
+}
 
 func TestAbs(t *testing.T) {
 	tests := []struct {
