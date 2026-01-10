@@ -21,7 +21,7 @@ func (m *MockRecommendationRepoForStoreTyped) StorePlan(plan *planningdomain.Hol
 }
 
 func TestStoreRecommendationsJob_SetPlan_Typed(t *testing.T) {
-	job := NewStoreRecommendationsJob(nil, "")
+	job := NewStoreRecommendationsJob(nil, nil, "")
 
 	plan := &planningdomain.HolisticPlan{
 		Steps:         []planningdomain.HolisticStep{},
@@ -69,7 +69,7 @@ func TestStoreRecommendationsJob_Run_Typed_Success(t *testing.T) {
 	}
 	portfolioHash := "test-hash-123"
 
-	job := NewStoreRecommendationsJob(nil, portfolioHash)
+	job := NewStoreRecommendationsJob(nil, nil, portfolioHash)
 	job.SetPlan(plan)
 
 	// Update the repository interface to use typed plan
@@ -86,7 +86,7 @@ func TestStoreRecommendationsJob_Run_Typed_Success(t *testing.T) {
 func TestStoreRecommendationsJob_Run_Typed_NilPlan(t *testing.T) {
 	mockRepo := &MockRecommendationRepoForStoreTyped{}
 
-	job := NewStoreRecommendationsJob(nil, "test-hash")
+	job := NewStoreRecommendationsJob(nil, nil, "test-hash")
 	job.recommendationRepo = mockRepo
 	// Don't set plan
 
@@ -107,7 +107,7 @@ func TestStoreRecommendationsJob_Run_Typed_RepositoryError(t *testing.T) {
 		Feasible: true,
 	}
 
-	job := NewStoreRecommendationsJob(nil, "test-hash")
+	job := NewStoreRecommendationsJob(nil, nil, "test-hash")
 	job.SetPlan(plan)
 	job.recommendationRepo = mockRepo
 
@@ -117,7 +117,7 @@ func TestStoreRecommendationsJob_Run_Typed_RepositoryError(t *testing.T) {
 }
 
 func TestStoreRecommendationsJob_GetPlan_Typed(t *testing.T) {
-	job := NewStoreRecommendationsJob(nil, "")
+	job := NewStoreRecommendationsJob(nil, nil, "")
 
 	assert.Nil(t, job.GetPlan(), "Initial plan should be nil")
 

@@ -21,7 +21,7 @@ func (m *MockRecommendationRepoForStore) StorePlan(plan *planningdomain.Holistic
 }
 
 func TestStoreRecommendationsJob_Name(t *testing.T) {
-	job := NewStoreRecommendationsJob(nil, "")
+	job := NewStoreRecommendationsJob(nil, nil, "")
 	assert.Equal(t, "store_recommendations", job.Name())
 }
 
@@ -45,7 +45,7 @@ func TestStoreRecommendationsJob_Run_Success(t *testing.T) {
 	}
 	portfolioHash := "test-hash-123"
 
-	job := NewStoreRecommendationsJob(mockRepo, portfolioHash)
+	job := NewStoreRecommendationsJob(mockRepo, nil, portfolioHash)
 	job.SetPlan(plan)
 
 	err := job.Run()
@@ -56,7 +56,7 @@ func TestStoreRecommendationsJob_Run_Success(t *testing.T) {
 }
 
 func TestStoreRecommendationsJob_Run_NoRepository(t *testing.T) {
-	job := NewStoreRecommendationsJob(nil, "test-hash")
+	job := NewStoreRecommendationsJob(nil, nil, "test-hash")
 	job.SetPlan(&planningdomain.HolisticPlan{
 		Steps:    []planningdomain.HolisticStep{},
 		Feasible: true,
@@ -70,7 +70,7 @@ func TestStoreRecommendationsJob_Run_NoRepository(t *testing.T) {
 func TestStoreRecommendationsJob_Run_NoPlan(t *testing.T) {
 	mockRepo := &MockRecommendationRepoForStore{}
 
-	job := NewStoreRecommendationsJob(mockRepo, "test-hash")
+	job := NewStoreRecommendationsJob(mockRepo, nil, "test-hash")
 	// Don't set plan
 
 	err := job.Run()
@@ -85,7 +85,7 @@ func TestStoreRecommendationsJob_Run_RepositoryError(t *testing.T) {
 		},
 	}
 
-	job := NewStoreRecommendationsJob(mockRepo, "test-hash")
+	job := NewStoreRecommendationsJob(mockRepo, nil, "test-hash")
 	job.SetPlan(&planningdomain.HolisticPlan{
 		Steps:    []planningdomain.HolisticStep{},
 		Feasible: true,

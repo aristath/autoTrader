@@ -376,7 +376,7 @@ func RegisterJobs(container *Container, cfg *config.Config, displayManager *disp
 	instances.CreateTradePlan = createTradePlan
 
 	// Store Recommendations Job
-	storeRecommendations := scheduler.NewStoreRecommendationsJob(container.RecommendationRepo, "")
+	storeRecommendations := scheduler.NewStoreRecommendationsJob(container.RecommendationRepo, container.EventManager, "")
 	storeRecommendations.SetLogger(log)
 	container.JobRegistry.Register(queue.JobTypeStoreRecommendations, queue.JobToHandler(storeRecommendations))
 	instances.StoreRecommendations = storeRecommendations

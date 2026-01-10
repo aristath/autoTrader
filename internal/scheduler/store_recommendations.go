@@ -3,6 +3,7 @@ package scheduler
 import (
 	"fmt"
 
+	"github.com/aristath/sentinel/internal/events"
 	planningdomain "github.com/aristath/sentinel/internal/modules/planning/domain"
 	"github.com/rs/zerolog"
 )
@@ -11,6 +12,7 @@ import (
 type StoreRecommendationsJob struct {
 	JobBase
 	log                zerolog.Logger
+	eventManager       EventManagerInterface
 	recommendationRepo RecommendationRepositoryInterface
 	portfolioHash      string
 	plan               *planningdomain.HolisticPlan
@@ -19,10 +21,12 @@ type StoreRecommendationsJob struct {
 // NewStoreRecommendationsJob creates a new StoreRecommendationsJob
 func NewStoreRecommendationsJob(
 	recommendationRepo RecommendationRepositoryInterface,
+	eventManager EventManagerInterface,
 	portfolioHash string,
 ) *StoreRecommendationsJob {
 	return &StoreRecommendationsJob{
 		log:                zerolog.Nop(),
+		eventManager:       eventManager,
 		recommendationRepo: recommendationRepo,
 		portfolioHash:      portfolioHash,
 	}
@@ -71,7 +75,20 @@ func (j *StoreRecommendationsJob) Run() error {
 
 	j.log.Info().
 		Str("portfolio_hash", j.portfolioHash).
+		Int("steps", len(j.plan.Steps)).
 		Msg("Successfully stored recommendations")
+
+	// Emit event to notify UI that recommendations are ready
+	if j.eventManager != nil && len(j.plan.Steps) > 0 {
+		j.eventManager.EmitTyped(events.RecommendationsReady, "planner", &events.RecommendationsReadyData{
+			PortfolioHash: j.portfolioHash,
+			Count:         len(j.plan.Steps),
+		})
+		j.log.Debug().
+			Str("portfolio_hash", j.portfolioHash).
+			Int("count", len(j.plan.Steps)).
+			Msg("Emitted RECOMMENDATIONS_READY event")
+	}
 
 	return nil
 }
