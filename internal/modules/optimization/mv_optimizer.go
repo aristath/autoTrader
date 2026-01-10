@@ -38,11 +38,11 @@ func NewMVOptimizer(cvarCalculator *CVaRCalculator, settingsService *settings.Se
 //   - lower_i ≤ w_i ≤ upper_i (bounds from minWeights/maxWeights maps)
 //   - Σ(w in sector) ≥ sector_lower, ≤ sector_upper (sector constraints)
 func (mvo *MVOptimizer) Optimize(
-	expectedReturns map[string]float64,  // ISIN-keyed ✅
+	expectedReturns map[string]float64, // ISIN-keyed ✅
 	covMatrix [][]float64,
-	isins []string,                      // ISIN array ✅ (renamed from symbols)
-	minWeights map[string]float64,      // ISIN-keyed ✅ (replaces bounds array)
-	maxWeights map[string]float64,      // ISIN-keyed ✅ (replaces bounds array)
+	isins []string, // ISIN array ✅ (renamed from symbols)
+	minWeights map[string]float64, // ISIN-keyed ✅ (replaces bounds array)
+	maxWeights map[string]float64, // ISIN-keyed ✅ (replaces bounds array)
 	sectorConstraints []SectorConstraint,
 	strategy string,
 	targetReturn *float64,
@@ -106,7 +106,7 @@ func (mvo *MVOptimizer) Optimize(
 func (mvo *MVOptimizer) optimizeEfficientReturn(
 	mu []float64,
 	sigma *mat.Dense,
-	isins []string,              // ISIN array ✅
+	isins []string, // ISIN array ✅
 	minWeights map[string]float64, // ISIN-keyed ✅
 	maxWeights map[string]float64, // ISIN-keyed ✅
 	sectorConstraints []SectorConstraint,
@@ -254,7 +254,7 @@ func (mvo *MVOptimizer) optimizeEfficientReturn(
 func (mvo *MVOptimizer) optimizeMinVolatility(
 	mu []float64,
 	sigma *mat.Dense,
-	isins []string,                // ISIN array ✅
+	isins []string, // ISIN array ✅
 	minWeights map[string]float64, // ISIN-keyed ✅
 	maxWeights map[string]float64, // ISIN-keyed ✅
 	sectorConstraints []SectorConstraint,
@@ -359,7 +359,7 @@ func (mvo *MVOptimizer) optimizeMinVolatility(
 func (mvo *MVOptimizer) optimizeMaxSharpe(
 	mu []float64,
 	sigma *mat.Dense,
-	isins []string,                // ISIN array ✅
+	isins []string, // ISIN array ✅
 	minWeights map[string]float64, // ISIN-keyed ✅
 	maxWeights map[string]float64, // ISIN-keyed ✅
 	sectorConstraints []SectorConstraint,
@@ -476,7 +476,7 @@ func (mvo *MVOptimizer) optimizeMaxSharpe(
 func (mvo *MVOptimizer) optimizeEfficientRisk(
 	mu []float64,
 	sigma *mat.Dense,
-	isins []string,                // ISIN array ✅
+	isins []string, // ISIN array ✅
 	minWeights map[string]float64, // ISIN-keyed ✅
 	maxWeights map[string]float64, // ISIN-keyed ✅
 	sectorConstraints []SectorConstraint,
@@ -715,7 +715,7 @@ func (mvo *MVOptimizer) addSectorConstraintPenaltyGradient(
 // validateCVaR validates that portfolio CVaR doesn't exceed maximum threshold.
 // Returns error if CVaR validation fails or threshold is exceeded.
 func (mvo *MVOptimizer) validateCVaR(
-	weights map[string]float64,  // ISIN-keyed ✅
+	weights map[string]float64, // ISIN-keyed ✅
 	mu []float64,
 	sigma *mat.Dense,
 	isins []string, // ISIN array ✅ (renamed from symbols)

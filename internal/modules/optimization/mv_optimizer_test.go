@@ -18,7 +18,7 @@ func TestMVOptimizer_EfficientReturn(t *testing.T) {
 		{0.04, 0.01},
 		{0.01, 0.03},
 	}
-	isins := []string{"A", "B"} // Use ISIN array (test IDs)
+	isins := []string{"A", "B"}       // Use ISIN array (test IDs)
 	minWeights := map[string]float64{ // ISIN-keyed maps ✅
 		"A": 0.0,
 		"B": 0.0,
@@ -347,9 +347,9 @@ func TestMVOptimizer_OptimizeISINs(t *testing.T) {
 	weights, achievedReturn, err := optimizer.Optimize(
 		expectedReturns,
 		covMatrix,
-		isins,              // ISIN array ✅
-		minWeights,         // ISIN-keyed ✅
-		maxWeights,         // ISIN-keyed ✅
+		isins,      // ISIN array ✅
+		minWeights, // ISIN-keyed ✅
+		maxWeights, // ISIN-keyed ✅
 		sectorConstraints,
 		"min_volatility",
 		nil,

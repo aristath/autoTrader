@@ -509,11 +509,11 @@ func (os *OptimizerService) runMeanVariance(
 		}
 
 		weights, achievedReturn, err := os.mvOptimizer.Optimize(
-			expectedReturns,                // ISIN-keyed ✅
+			expectedReturns, // ISIN-keyed ✅
 			covMatrix,
-			constraints.ISINs,              // ISIN array ✅ (renamed from Symbols)
-			constraints.MinWeights,         // ISIN-keyed ✅ (replaces WeightBounds)
-			constraints.MaxWeights,         // ISIN-keyed ✅ (replaces WeightBounds)
+			constraints.ISINs,      // ISIN array ✅ (renamed from Symbols)
+			constraints.MinWeights, // ISIN-keyed ✅ (replaces WeightBounds)
+			constraints.MaxWeights, // ISIN-keyed ✅ (replaces WeightBounds)
 			constraints.SectorConstraints,
 			strategy,
 			targetRet,
@@ -602,7 +602,7 @@ func (os *OptimizerService) blendWeights(
 
 // clampWeightsToBounds clamps weights to their constraint bounds.
 func (os *OptimizerService) clampWeightsToBounds(
-	weights map[string]float64,  // ISIN-keyed ✅
+	weights map[string]float64, // ISIN-keyed ✅
 	constraints Constraints,
 ) map[string]float64 {
 	clamped := make(map[string]float64)

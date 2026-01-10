@@ -45,11 +45,11 @@ func (cm *ConstraintsManager) SetKellySizer(kellySizer *KellyPositionSizer) {
 // ALL PARAMETERS USE ISIN KEYS (not Symbol keys).
 func (cm *ConstraintsManager) BuildConstraints(
 	securities []Security,
-	positions map[string]Position,      // ISIN-keyed ✅
+	positions map[string]Position, // ISIN-keyed ✅
 	countryTargets map[string]float64,
 	industryTargets map[string]float64,
 	portfolioValue float64,
-	currentPrices map[string]float64,   // ISIN-keyed ✅
+	currentPrices map[string]float64, // ISIN-keyed ✅
 	expectedReturns map[string]float64, // ISIN-keyed ✅
 	covMatrix [][]float64,
 	isins []string, // ISIN array ✅ (renamed from symbols)
@@ -58,9 +58,9 @@ func (cm *ConstraintsManager) BuildConstraints(
 	// Calculate weight bounds for each security (returns ISIN-keyed maps)
 	minWeights, maxWeights, isins := cm.calculateWeightBounds(
 		securities,
-		positions,      // ISIN-keyed ✅
+		positions, // ISIN-keyed ✅
 		portfolioValue,
-		currentPrices,  // ISIN-keyed ✅
+		currentPrices,   // ISIN-keyed ✅
 		expectedReturns, // ISIN-keyed ✅
 		covMatrix,
 		isins, // ISIN array ✅
@@ -87,9 +87,9 @@ func (cm *ConstraintsManager) BuildConstraints(
 // Returns ISIN-keyed maps for min/max weights, and ISIN array.
 func (cm *ConstraintsManager) calculateWeightBounds(
 	securities []Security,
-	positions map[string]Position,      // ISIN-keyed ✅
+	positions map[string]Position, // ISIN-keyed ✅
 	portfolioValue float64,
-	currentPrices map[string]float64,   // ISIN-keyed ✅
+	currentPrices map[string]float64, // ISIN-keyed ✅
 	expectedReturns map[string]float64, // ISIN-keyed ✅
 	covMatrix [][]float64,
 	isins []string, // ISIN array ✅
@@ -105,10 +105,10 @@ func (cm *ConstraintsManager) calculateWeightBounds(
 		Msg("Calculating weight bounds")
 
 	for _, security := range securities {
-		isin := security.ISIN                     // Use ISIN ✅
-		symbol := security.Symbol                  // Keep Symbol for logging only
-		position, hasPosition := positions[isin]   // ISIN lookup ✅
-		currentPrice := currentPrices[isin]        // ISIN lookup ✅
+		isin := security.ISIN                    // Use ISIN ✅
+		symbol := security.Symbol                // Keep Symbol for logging only
+		position, hasPosition := positions[isin] // ISIN lookup ✅
+		currentPrice := currentPrices[isin]      // ISIN lookup ✅
 
 		// Calculate current weight
 		var currentWeight float64
@@ -141,8 +141,8 @@ func (cm *ConstraintsManager) calculateWeightBounds(
 				// Use Kelly size as upper bound, but cap at max concentration
 				upper = math.Min(kellySize, upper)
 				cm.log.Debug().
-					Str("isin", isin).       // Log ISIN ✅
-					Str("symbol", symbol).    // Also log Symbol for readability
+					Str("isin", isin).     // Log ISIN ✅
+					Str("symbol", symbol). // Also log Symbol for readability
 					Float64("kelly_size", kellySize).
 					Float64("max_concentration", cm.getMaxConcentration(security.ProductType)).
 					Float64("final_upper", upper).
@@ -203,8 +203,8 @@ func (cm *ConstraintsManager) calculateWeightBounds(
 		if lower > upper {
 			// Constraint conflict - keep current weight
 			cm.log.Warn().
-				Str("isin", isin).       // Log ISIN ✅
-				Str("symbol", symbol).    // Also log Symbol for readability
+				Str("isin", isin).     // Log ISIN ✅
+				Str("symbol", symbol). // Also log Symbol for readability
 				Float64("lower", lower).
 				Float64("upper", upper).
 				Float64("current_weight", currentWeight).
