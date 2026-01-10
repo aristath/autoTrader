@@ -183,10 +183,9 @@ func TestTagBasedFilter_GetOpportunityCandidates_NoCash(t *testing.T) {
 	_, err = db.Exec(`
 		INSERT INTO security_tags (isin, tag_id, created_at, updated_at)
 		VALUES
-			('US0378331005', 'quality-gate-pass', ?, ?),
 			('US0378331005', 'high-quality', ?, ?),
-			('US5949181045', 'quality-gate-pass', ?, ?)
-	`, now, now, now, now, now, now)
+			('US5949181045', 'high-quality', ?, ?)
+	`, now, now, now, now)
 	require.NoError(t, err)
 
 	// Create opportunity context with low cash

@@ -52,8 +52,8 @@ func TestAveragingDownCalculator_WithTagFiltering_PreFiltersPositions(t *testing
 	}
 	securityRepo := &mockSecurityRepoAveragingDown{
 		tags: map[string][]string{
-			"TEST.US":  {"quality-gate-pass", "quality-value"},
-			"OTHER.US": {"quality-gate-pass"},
+			"TEST.US":  {"quality-value"}, // No quality-gate-fail means it passes
+			"OTHER.US": {},                 // No quality-gate-fail means it passes
 		},
 	}
 	calc := NewAveragingDownCalculator(tagFilter, securityRepo, log)
@@ -190,7 +190,7 @@ func TestAveragingDownCalculator_WithoutTagFiltering_ProcessesAllPositions(t *te
 func TestAveragingDownCalculator_EnforcesAllowBuy(t *testing.T) {
 	log := zerolog.Nop()
 	tagFilter := &mockTagFilterAveragingDown{opportunityCandidates: []string{"TEST.US"}}
-	securityRepo := &mockSecurityRepoAveragingDown{tags: map[string][]string{"TEST.US": {"quality-gate-pass"}}}
+	securityRepo := &mockSecurityRepoAveragingDown{tags: map[string][]string{"TEST.US": {}}}
 	calc := NewAveragingDownCalculator(tagFilter, securityRepo, log)
 
 	position := domain.Position{
@@ -238,7 +238,7 @@ func TestAveragingDownCalculator_EnforcesAllowBuy(t *testing.T) {
 func TestAveragingDownCalculator_RoundsToLotSize(t *testing.T) {
 	log := zerolog.Nop()
 	tagFilter := &mockTagFilterAveragingDown{opportunityCandidates: []string{"TEST.US"}}
-	securityRepo := &mockSecurityRepoAveragingDown{tags: map[string][]string{"TEST.US": {"quality-gate-pass"}}}
+	securityRepo := &mockSecurityRepoAveragingDown{tags: map[string][]string{"TEST.US": {}}}
 	calc := NewAveragingDownCalculator(tagFilter, securityRepo, log)
 
 	position := domain.Position{
@@ -293,7 +293,7 @@ func TestAveragingDownCalculator_RoundsToLotSize(t *testing.T) {
 func TestAveragingDownCalculator_KellyBasedQuantity_WhenAvailable(t *testing.T) {
 	log := zerolog.Nop()
 	tagFilter := &mockTagFilterAveragingDown{opportunityCandidates: []string{"TEST.US"}}
-	securityRepo := &mockSecurityRepoAveragingDown{tags: map[string][]string{"TEST.US": {"quality-gate-pass"}}}
+	securityRepo := &mockSecurityRepoAveragingDown{tags: map[string][]string{"TEST.US": {}}}
 	calc := NewAveragingDownCalculator(tagFilter, securityRepo, log)
 
 	position := domain.Position{
@@ -351,7 +351,7 @@ func TestAveragingDownCalculator_KellyBasedQuantity_WhenAvailable(t *testing.T) 
 func TestAveragingDownCalculator_PercentageBasedQuantity_Fallback(t *testing.T) {
 	log := zerolog.Nop()
 	tagFilter := &mockTagFilterAveragingDown{opportunityCandidates: []string{"TEST.US"}}
-	securityRepo := &mockSecurityRepoAveragingDown{tags: map[string][]string{"TEST.US": {"quality-gate-pass"}}}
+	securityRepo := &mockSecurityRepoAveragingDown{tags: map[string][]string{"TEST.US": {}}}
 	calc := NewAveragingDownCalculator(tagFilter, securityRepo, log)
 
 	position := domain.Position{
@@ -405,7 +405,7 @@ func TestAveragingDownCalculator_PercentageBasedQuantity_Fallback(t *testing.T) 
 func TestAveragingDownCalculator_UsesConfigurablePercent_NotHardcoded(t *testing.T) {
 	log := zerolog.Nop()
 	tagFilter := &mockTagFilterAveragingDown{opportunityCandidates: []string{"TEST.US"}}
-	securityRepo := &mockSecurityRepoAveragingDown{tags: map[string][]string{"TEST.US": {"quality-gate-pass"}}}
+	securityRepo := &mockSecurityRepoAveragingDown{tags: map[string][]string{"TEST.US": {}}}
 	calc := NewAveragingDownCalculator(tagFilter, securityRepo, log)
 
 	position := domain.Position{
@@ -472,7 +472,7 @@ func TestAveragingDownCalculator_UsesConfigurablePercent_NotHardcoded(t *testing
 func TestAveragingDownCalculator_SkipsAveragingDown_WhenAtKellyOptimal(t *testing.T) {
 	log := zerolog.Nop()
 	tagFilter := &mockTagFilterAveragingDown{opportunityCandidates: []string{"TEST.US"}}
-	securityRepo := &mockSecurityRepoAveragingDown{tags: map[string][]string{"TEST.US": {"quality-gate-pass"}}}
+	securityRepo := &mockSecurityRepoAveragingDown{tags: map[string][]string{"TEST.US": {}}}
 	calc := NewAveragingDownCalculator(tagFilter, securityRepo, log)
 
 	position := domain.Position{
@@ -526,7 +526,7 @@ func TestAveragingDownCalculator_TagBasedQualityGates_ValueTrap(t *testing.T) {
 	tagFilter := &mockTagFilterAveragingDown{opportunityCandidates: []string{"TEST.US"}}
 	securityRepo := &mockSecurityRepoAveragingDown{
 		tags: map[string][]string{
-			"TEST.US": {"value-trap", "quality-gate-pass"}, // Value trap should exclude
+			"TEST.US": {"value-trap"}, // Value trap should exclude
 		},
 	}
 	calc := NewAveragingDownCalculator(tagFilter, securityRepo, log)
@@ -580,8 +580,8 @@ func TestAveragingDownCalculator_TagBasedPriorityBoosting_QualityValue(t *testin
 	}
 	securityRepo := &mockSecurityRepoAveragingDown{
 		tags: map[string][]string{
-			"QUALITY.US": {"quality-gate-pass", "quality-value"},
-			"NORMAL.US":  {"quality-gate-pass"},
+			"QUALITY.US": {"quality-value"},
+			"NORMAL.US":  {},
 		},
 	}
 	calc := NewAveragingDownCalculator(tagFilter, securityRepo, log)
@@ -654,8 +654,8 @@ func TestAveragingDownCalculator_SortsByPriorityDescending(t *testing.T) {
 	}
 	securityRepo := &mockSecurityRepoAveragingDown{
 		tags: map[string][]string{
-			"DEEP.US":    {"quality-gate-pass"},
-			"SHALLOW.US": {"quality-gate-pass"},
+			"DEEP.US":    {},
+			"SHALLOW.US": {},
 		},
 	}
 	calc := NewAveragingDownCalculator(tagFilter, securityRepo, log)
@@ -728,11 +728,11 @@ func TestAveragingDownCalculator_RespectsMaxPositionsLimit(t *testing.T) {
 	}
 	securityRepo := &mockSecurityRepoAveragingDown{
 		tags: map[string][]string{
-			"A.US": {"quality-gate-pass"},
-			"B.US": {"quality-gate-pass"},
-			"C.US": {"quality-gate-pass"},
-			"D.US": {"quality-gate-pass"},
-			"E.US": {"quality-gate-pass"},
+			"A.US": {},
+			"B.US": {},
+			"C.US": {},
+			"D.US": {},
+			"E.US": {},
 		},
 	}
 	calc := NewAveragingDownCalculator(tagFilter, securityRepo, log)

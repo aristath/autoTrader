@@ -301,9 +301,9 @@ func (s *Service) buildOpportunityContext(availableCash float64) (*planningdomai
 		TransactionCostPercent:   0.002,
 		AllowSell:                false, // Rebalancing only buys
 		AllowBuy:                 true,
-		CAGRs:                    cagrs,                // ISIN-keyed ✅
-		LongTermScores:           longTermScores,       // ISIN-keyed ✅
-		FundamentalsScores:       fundamentalsScores,   // ISIN-keyed ✅
+		CAGRs:                    cagrs,              // ISIN-keyed ✅
+		LongTermScores:           longTermScores,     // ISIN-keyed ✅
+		FundamentalsScores:       fundamentalsScores, // ISIN-keyed ✅
 		TargetReturn:             targetReturn,
 		TargetReturnThresholdPct: targetReturnThresholdPct,
 	}

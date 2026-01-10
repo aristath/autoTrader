@@ -463,11 +463,11 @@ func TestEnforcer_EnforceConstraints_MaxSellPercentage(t *testing.T) {
 	enforcer := NewEnforcer(log, securityLookup)
 
 	tests := []struct {
-		name                 string
-		sellQuantity         int
-		expectedValid        bool
-		expectedMaxQuantity  int
-		description          string
+		name                string
+		sellQuantity        int
+		expectedValid       bool
+		expectedMaxQuantity int
+		description         string
 	}{
 		{
 			name:                "441 shares exceeds 28% of 888.8 (max 248)",
