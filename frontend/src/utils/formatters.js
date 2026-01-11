@@ -38,5 +38,10 @@ export function formatTimestamp(timestamp) {
   if (!timestamp) return '-';
   // Unix timestamps are in seconds, JavaScript Date expects milliseconds
   const d = new Date(timestamp * 1000);
-  return d.toLocaleString();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
