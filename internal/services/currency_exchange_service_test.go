@@ -368,6 +368,7 @@ func TestCurrencyExchangeService_GetRate_MultiStep(t *testing.T) {
 	// For multi-step, getRateViaPath calls GetRate recursively
 	// The implementation handles this correctly by calling GetRate for each path step
 	_, err = service.GetRate("GBP", "HKD")
+	assert.NoError(t, err, "Multi-step path should work correctly")
 	// Note: This test validates the recursive GetRate calls work correctly
 }
 
