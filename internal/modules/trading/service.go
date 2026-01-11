@@ -132,6 +132,8 @@ func (s *TradingService) SyncFromTradernet() error {
 		return fmt.Errorf("failed to get trades from Tradernet: %w", err)
 	}
 
+	s.log.Info().Int("trades_count", len(trades)).Msg("Fetched trades from Tradernet")
+
 	// Sync trades to database
 	syncedCount := 0
 	for _, trade := range trades {

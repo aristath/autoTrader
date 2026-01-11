@@ -273,15 +273,26 @@ type ExecutedTradesResponse struct {
 }
 
 // GetExecutedTrades gets executed trade history
+// The Tradernet API requires beginDate and endDate parameters in YYYY-MM-DD format
+// Uses a wide date range (2010-01-01 to today) to retrieve all executed trades
 func (c *Client) GetExecutedTrades(limit int) ([]Trade, error) {
 	if c.sdkClient == nil {
 		return nil, fmt.Errorf("SDK client not initialized")
 	}
 
-	c.log.Debug().Int("limit", limit).Msg("GetExecutedTrades: calling SDK GetTradesHistory")
+	// API requires beginDate and endDate in YYYY-MM-DD format
+	// Using a wide range to capture all executed trades since account creation
+	beginDate := "2010-01-01"
+	endDate := time.Now().Format("2006-01-02")
+
+	c.log.Debug().
+		Int("limit", limit).
+		Str("beginDate", beginDate).
+		Str("endDate", endDate).
+		Msg("GetExecutedTrades: calling SDK GetTradesHistory")
 
 	limitPtr := &limit
-	result, err := c.sdkClient.GetTradesHistory("", "", nil, limitPtr, nil, nil, nil)
+	result, err := c.sdkClient.GetTradesHistory(beginDate, endDate, nil, limitPtr, nil, nil, nil)
 	if err != nil {
 		c.log.Error().Err(err).Msg("GetExecutedTrades: SDK GetTradesHistory failed")
 		return nil, fmt.Errorf("failed to get executed trades: %w", err)

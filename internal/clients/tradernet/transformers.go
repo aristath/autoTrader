@@ -295,20 +295,15 @@ func transformCashFlows(sdkResult interface{}) ([]CashFlowTransaction, error) {
 		return nil, fmt.Errorf("invalid SDK result format: expected map[string]interface{}")
 	}
 
-	// Handle empty or null result
-	result, ok := resultMap["result"]
-	if !ok || result == nil {
+	// Handle API response structure: {"cps": [...], "total": ...}
+	cpsArray, ok := resultMap["cps"].([]interface{})
+	if !ok || cpsArray == nil {
 		// Empty result - return empty array
 		return []CashFlowTransaction{}, nil
 	}
 
-	resultArray, ok := result.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("invalid SDK result format: 'result' must be array, got %T", result)
-	}
-
-	transactions := make([]CashFlowTransaction, 0, len(resultArray))
-	for _, item := range resultArray {
+	transactions := make([]CashFlowTransaction, 0, len(cpsArray))
+	for _, item := range cpsArray {
 		itemMap, ok := item.(map[string]interface{})
 		if !ok {
 			continue
@@ -357,20 +352,33 @@ func transformTrades(sdkResult interface{}) ([]Trade, error) {
 		return nil, fmt.Errorf("invalid SDK result format: expected map[string]interface{}")
 	}
 
-	// Handle empty or null result
-	result, ok := resultMap["result"]
-	if !ok || result == nil {
+	// DEBUG: Log the raw response structure for diagnostics
+	responseKeys := make([]string, 0)
+	for key := range resultMap {
+		responseKeys = append(responseKeys, key)
+	}
+
+	// Handle API response structure: {"trades": {"trade": [...], "max_trade_id": [...]}}
+	tradesObj, ok := resultMap["trades"]
+	if !ok || tradesObj == nil {
 		// Empty result - return empty array
 		return []Trade{}, nil
 	}
 
-	resultArray, ok := result.([]interface{})
+	tradesMap, ok := tradesObj.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("invalid SDK result format: 'result' must be array, got %T", result)
+		return nil, fmt.Errorf("invalid SDK result format: 'trades' must be object, got %T", tradesObj)
 	}
 
-	trades := make([]Trade, 0, len(resultArray))
-	for _, item := range resultArray {
+	// Extract trade array
+	tradeArray, ok := tradesMap["trade"].([]interface{})
+	if !ok {
+		// No trades in response - return empty array
+		return []Trade{}, nil
+	}
+
+	trades := make([]Trade, 0, len(tradeArray))
+	for _, item := range tradeArray {
 		itemMap, ok := item.(map[string]interface{})
 		if !ok {
 			continue

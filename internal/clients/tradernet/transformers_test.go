@@ -286,7 +286,7 @@ func TestTransformCashMovements(t *testing.T) {
 // TestTransformCashFlows tests transformation of SDK responses to []CashFlowTransaction
 func TestTransformCashFlows(t *testing.T) {
 	sdkResult := map[string]interface{}{
-		"result": []interface{}{
+		"cps": []interface{}{
 			map[string]interface{}{
 				"id":               "tx1",
 				"transaction_id":   "tx1",
@@ -307,6 +307,7 @@ func TestTransformCashFlows(t *testing.T) {
 				"params":           map[string]interface{}{},
 			},
 		},
+		"total": float64(1),
 	}
 
 	transactions, err := transformCashFlows(sdkResult)
@@ -326,15 +327,22 @@ func TestTransformCashFlows(t *testing.T) {
 // TestTransformTrades tests transformation of SDK GetTradesHistory to []Trade
 func TestTransformTrades(t *testing.T) {
 	sdkResult := map[string]interface{}{
-		"result": []interface{}{
-			map[string]interface{}{
-				"order_id":    float64(111),
-				"id":          float64(111),
-				"i":           "AAPL.US",
-				"q":           float64(10),
-				"p":           float64(150.5),
-				"executed_at": "2024-01-15T10:00:00Z",
-				"side":        "BUY",
+		"trades": map[string]interface{}{
+			"trade": []interface{}{
+				map[string]interface{}{
+					"order_id": float64(111),
+					"id":       float64(111),
+					"instr_nm": "AAPL.US",
+					"q":        float64(10),
+					"p":        float64(150.5),
+					"date":     "2024-01-15T10:00:00Z",
+					"type":     float64(1), // 1 = Buy, 2 = Sell
+				},
+			},
+			"max_trade_id": []interface{}{
+				map[string]interface{}{
+					"@text": "111",
+				},
 			},
 		},
 	}
@@ -713,7 +721,6 @@ func TestGetFloat64FromValue(t *testing.T) {
 		})
 	}
 }
-
 
 // TestTransformCrossRates tests transformation of SDK getCrossRatesForDate response to map[string]float64
 func TestTransformCrossRates(t *testing.T) {

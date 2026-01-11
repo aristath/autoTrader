@@ -285,93 +285,22 @@ The planner configuration is stored in `config.db` and managed through the UI wi
 
 ## API Reference
 
-### System
+Complete REST API documentation is available in [docs/api/README.md](docs/api/README.md).
 
-- `GET /health` - Health check
-- `GET /api/system/status` - System status & metrics
-- `GET /api/system/jobs` - Background job status
-- `POST /api/system/jobs/{job_name}/run` - Trigger job manually
-- `GET /api/system/logs` - Recent logs
-- `POST /api/system/restart` - Restart services
+The API provides endpoints organized by category:
+- **System** - Health checks, status monitoring, logs, job management
+- **Portfolio** - Positions, performance, allocation, analytics
+- **Trading** - Trade execution, validation, recommendations
+- **Planning** - Trade plan generation, configuration management
+- **Allocation** - Target allocation management, rebalancing
+- **Securities** - Universe management, security data
+- **Dividends** - Dividend tracking, reinvestment
+- **Analytics** - Performance metrics, risk analysis
+- **Charts** - Historical data visualization
+- **Settings** - Configuration management
+- And many more categories...
 
-### Portfolio
-
-- `GET /api/portfolio/summary` - Portfolio summary with positions
-- `GET /api/portfolio/positions` - All positions
-- `GET /api/portfolio/positions/{isin}` - Position details
-- `GET /api/portfolio/allocation` - Current allocation
-- `GET /api/portfolio/performance` - Performance metrics
-- `GET /api/portfolio/cash-balances` - Cash by currency
-- `GET /api/portfolio/total-value` - Total portfolio value (EUR)
-
-### Trading
-
-- `GET /api/trades` - Trade history
-- `GET /api/trades/{id}` - Trade details
-- `POST /api/trades/execute` - Execute manual trade (with 7-layer safety validation)
-- `GET /api/trades/pending` - Pending orders
-
-### Planning & Recommendations
-
-- `GET /api/planning/recommendations` - Current recommendations
-- `POST /api/planning/recommendations` - Generate new recommendations
-- `GET /api/planning/status` - Planning job status
-- `GET /api/planning/configs` - List planner configurations
-- `POST /api/planning/configs` - Create planner configuration
-- `GET /api/planning/configs/{id}` - Get planner configuration
-- `PUT /api/planning/configs/{id}` - Update planner configuration
-- `DELETE /api/planning/configs/{id}` - Delete planner configuration
-- `POST /api/planning/configs/validate` - Validate planner configuration
-- `GET /api/planning/configs/{id}/history` - Configuration history
-- `POST /api/planning/batch` - Batch plan generation
-- `POST /api/planning/execute` - Execute plan
-- `GET /api/planning/stream` - SSE stream for planning events
-
-### Allocation
-
-- `GET /api/allocation/status` - Allocation status
-- `GET /api/allocation/targets` - Target allocations
-- `POST /api/allocation/targets` - Update targets
-- `GET /api/allocation/rebalance` - Rebalancing suggestions
-- `POST /api/allocation/rebalance/execute` - Execute rebalancing
-
-### Securities (Universe)
-
-- `GET /api/securities` - List all securities
-- `GET /api/securities/{isin}` - Security details
-- `POST /api/securities` - Create security
-- `POST /api/securities/add-by-identifier` - Add by symbol/ISIN
-- `PUT /api/securities/{isin}` - Update security
-- `POST /api/securities/{isin}/refresh-data` - Refresh security data
-- `DELETE /api/securities/{isin}` - Remove security
-
-### Dividends
-
-- `GET /api/dividends` - Dividend history
-- `GET /api/dividends/pending` - Pending dividends
-- `POST /api/dividends/reinvest` - Manual DRIP trigger
-- `GET /api/dividends/settings` - DRIP settings
-- `POST /api/dividends/settings` - Update DRIP settings
-
-### Analytics
-
-- `GET /api/analytics/performance` - Performance metrics
-- `GET /api/analytics/risk` - Risk metrics
-- `GET /api/analytics/attribution` - Performance attribution
-- `GET /api/analytics/concentration` - Concentration analysis
-
-### Charts
-
-- `GET /api/charts/sparklines` - Sparkline data for dashboard
-- `GET /api/charts/historical/{isin}` - Historical price chart
-
-### Settings
-
-- `GET /api/settings` - All settings
-- `GET /api/settings/{key}` - Get setting
-- `POST /api/settings/{key}` - Update setting
-- `POST /api/settings/trading-mode` - Switch trading mode (live/research)
-- `GET /api/settings/cache/clear` - Clear caches
+See [docs/api/README.md](docs/api/README.md) for the complete API documentation organized by category.
 
 
 ---

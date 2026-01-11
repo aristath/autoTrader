@@ -84,7 +84,6 @@ var DirectPairs = map[string]struct {
 	"HKD:USD": {"HKD/USD", "SELL"},
 }
 
-
 // NewCurrencyExchangeService creates a new currency exchange service
 func NewCurrencyExchangeService(brokerClient domain.BrokerClient, log zerolog.Logger) *CurrencyExchangeService {
 	return &CurrencyExchangeService{
@@ -197,7 +196,7 @@ func (s *CurrencyExchangeService) GetConversionPath(fromCurrency, toCurrency str
 
 // GetRate returns the current exchange rate between two currencies
 //
-// Returns how many units of toCurrency per 1 fromCurrency
+// # Returns how many units of toCurrency per 1 fromCurrency
 //
 // Uses in-memory cache to reduce API calls. Cache entries expire after 5 minutes.
 func (s *CurrencyExchangeService) GetRate(fromCurrency, toCurrency string) (float64, error) {

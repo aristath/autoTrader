@@ -130,24 +130,23 @@ func TestCurrencyExchangeService_GetConversionPath(t *testing.T) {
 	}
 }
 
-
 // ============================================================================
 // TDD Phase 1: Currency Exchange Tests - Market Orders
 // ============================================================================
 
 // Mock Broker Client that captures limit price
 type mockBrokerClientCurrencyTest struct {
-	capturedLimitPrice  float64
-	placeOrderCalled    bool
-	placeOrderErr       error
-	capturedSymbol      string
-	capturedSide        string
-	capturedQuantity    float64
-	getFXRatesResult    map[string]float64
-	getFXRatesError     error
-	getFXRatesBaseCurr  string
+	capturedLimitPrice   float64
+	placeOrderCalled     bool
+	placeOrderErr        error
+	capturedSymbol       string
+	capturedSide         string
+	capturedQuantity     float64
+	getFXRatesResult     map[string]float64
+	getFXRatesError      error
+	getFXRatesBaseCurr   string
 	getFXRatesCurrencies []string
-	getFXRatesCalled    bool
+	getFXRatesCalled     bool
 }
 
 func (m *mockBrokerClientCurrencyTest) PlaceOrder(symbol, side string, quantity, limitPrice float64) (*domain.BrokerOrderResult, error) {
@@ -261,13 +260,13 @@ func TestCurrencyExchangeService_GetRate_DirectPair(t *testing.T) {
 	log := logger.New(logger.Config{Level: "error", Pretty: false})
 
 	tests := []struct {
-		name            string
-		from            string
-		to              string
-		fxRatesResult   map[string]float64
-		expectedRate    float64
-		expectedError   bool
-		description     string
+		name          string
+		from          string
+		to            string
+		fxRatesResult map[string]float64
+		expectedRate  float64
+		expectedError bool
+		description   string
 	}{
 		{
 			name:          "EUR to USD",
