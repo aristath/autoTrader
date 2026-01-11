@@ -462,6 +462,37 @@ func (c *Client) GetQuote(symbol string) (*Quote, error) {
 	return quote, nil
 }
 
+// GetFXRates retrieves currency exchange rates for today's date
+// This wraps SDK's GetCrossRatesForDate and always uses today's date
+func (c *Client) GetFXRates(baseCurrency string, currencies []string) (map[string]float64, error) {
+	if c.sdkClient == nil {
+		return nil, fmt.Errorf("SDK client not initialized")
+	}
+
+	// Format today's date as "YYYY-MM-DD"
+	today := time.Now().Format("2006-01-02")
+
+	c.log.Debug().
+		Str("base_currency", baseCurrency).
+		Strs("currencies", currencies).
+		Str("date", today).
+		Msg("GetFXRates: calling SDK GetCrossRatesForDate")
+
+	result, err := c.sdkClient.GetCrossRatesForDate(baseCurrency, currencies, &today)
+	if err != nil {
+		c.log.Error().Err(err).Msg("GetFXRates: SDK GetCrossRatesForDate failed")
+		return nil, fmt.Errorf("failed to get FX rates: %w", err)
+	}
+
+	rates, err := transformCrossRates(result)
+	if err != nil {
+		c.log.Error().Err(err).Msg("GetFXRates: transformCrossRates failed")
+		return nil, fmt.Errorf("failed to transform rates: %w", err)
+	}
+
+	return rates, nil
+}
+
 // GetLevel1Quote fetches Level 1 market data (best bid and best ask) for a symbol
 // Note: Despite the name change, this still calls getStockQuotesJson which returns Level 1 data only
 func (c *Client) GetLevel1Quote(symbol string) (*OrderBook, error) {

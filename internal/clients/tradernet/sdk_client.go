@@ -14,5 +14,6 @@ type SDKClient interface {
 	GetQuotes(symbols []string) (interface{}, error)
 	// GetLevel1Quote fetches Level 1 market data (best bid/ask only)
 	GetLevel1Quote(symbol string) (interface{}, error)
+	GetCrossRatesForDate(baseCurrency string, currencies []string, date *string) (interface{}, error)
 	UserInfo() (interface{}, error)
 }

@@ -207,3 +207,155 @@ func TestUserInfo_EmptyParams(t *testing.T) {
 	// Verify empty params are sent as empty JSON object
 	assert.Equal(t, "{}", capturedBody, "Empty params should be sent as '{}'")
 }
+
+// TestGetCrossRatesForDate_CallsCorrectEndpoint tests that GetCrossRatesForDate() calls the correct API endpoint
+func TestGetCrossRatesForDate_CallsCorrectEndpoint(t *testing.T) {
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+
+	var capturedURL string
+	var capturedMethod string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedURL = r.URL.Path
+		capturedMethod = r.Method
+
+		response := map[string]interface{}{
+			"rates": map[string]interface{}{
+				"EUR": 0.9226,
+				"HKD": 7.8070,
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client := &Client{
+		publicKey:  "test_public",
+		privateKey: "test_private",
+		baseURL:    server.URL,
+		httpClient: &http.Client{},
+		log:        log,
+	}
+
+	date := "2024-05-01"
+	result, err := client.GetCrossRatesForDate("USD", []string{"EUR", "HKD"}, &date)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "POST", capturedMethod, "GetCrossRatesForDate should use POST method")
+	assert.Equal(t, "/api/getCrossRatesForDate", capturedURL, "GetCrossRatesForDate should call /api/getCrossRatesForDate endpoint")
+}
+
+// TestGetCrossRatesForDate_WithDate tests that GetCrossRatesForDate() works with date parameter
+func TestGetCrossRatesForDate_WithDate(t *testing.T) {
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response := map[string]interface{}{
+			"rates": map[string]interface{}{
+				"EUR": 0.92261342533093,
+				"HKD": 7.8070160113905,
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client := &Client{
+		publicKey:  "test_public",
+		privateKey: "test_private",
+		baseURL:    server.URL,
+		httpClient: &http.Client{},
+		log:        log,
+	}
+
+	date := "2024-05-01"
+	result, err := client.GetCrossRatesForDate("USD", []string{"EUR", "HKD"}, &date)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	resultMap, ok := result.(map[string]interface{})
+	assert.True(t, ok, "Result should be a map")
+
+	rates, ok := resultMap["rates"].(map[string]interface{})
+	assert.True(t, ok, "Result should have 'rates' key")
+
+	assert.Equal(t, 0.92261342533093, rates["EUR"], "EUR rate should match")
+	assert.Equal(t, 7.8070160113905, rates["HKD"], "HKD rate should match")
+}
+
+// TestGetCrossRatesForDate_WithNilDate tests that GetCrossRatesForDate() works with nil date (current date)
+func TestGetCrossRatesForDate_WithNilDate(t *testing.T) {
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response := map[string]interface{}{
+			"rates": map[string]interface{}{
+				"EUR": 0.9226,
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client := &Client{
+		publicKey:  "test_public",
+		privateKey: "test_private",
+		baseURL:    server.URL,
+		httpClient: &http.Client{},
+		log:        log,
+	}
+
+	result, err := client.GetCrossRatesForDate("USD", []string{"EUR"}, nil)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	resultMap, ok := result.(map[string]interface{})
+	assert.True(t, ok, "Result should be a map")
+
+	rates, ok := resultMap["rates"].(map[string]interface{})
+	assert.True(t, ok, "Result should have 'rates' key")
+
+	assert.Equal(t, 0.9226, rates["EUR"], "EUR rate should match")
+}
+
+// TestGetCrossRatesForDate_ErrorHandling tests that GetCrossRatesForDate() handles API errors correctly
+func TestGetCrossRatesForDate_ErrorHandling(t *testing.T) {
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response := map[string]interface{}{
+			"errMsg": "Bad parameters",
+			"code":   2,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client := &Client{
+		publicKey:  "test_public",
+		privateKey: "test_private",
+		baseURL:    server.URL,
+		httpClient: &http.Client{},
+		log:        log,
+	}
+
+	date := "2024-05-01"
+	result, err := client.GetCrossRatesForDate("USD", []string{"EUR"}, &date)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	resultMap, ok := result.(map[string]interface{})
+	assert.True(t, ok)
+
+	errMsg, ok := resultMap["errMsg"].(string)
+	assert.True(t, ok, "Response should have errMsg key")
+	assert.Equal(t, "Bad parameters", errMsg, "Error message should be 'Bad parameters'")
+}

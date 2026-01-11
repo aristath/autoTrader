@@ -107,6 +107,10 @@ func (m *mockBrokerClient) GetLevel1Quote(symbol string) (*BrokerOrderBook, erro
 	return nil, nil
 }
 
+func (m *mockBrokerClient) GetFXRates(baseCurrency string, currencies []string) (map[string]float64, error) {
+	return map[string]float64{}, nil
+}
+
 type mockCurrencyExchangeService struct{}
 
 func (m *mockCurrencyExchangeService) GetRate(fromCurrency, toCurrency string) (float64, error) {

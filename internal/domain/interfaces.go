@@ -36,6 +36,9 @@ type BrokerClient interface {
 	// Returns BrokerOrderBook with Bids[0] and Asks[0] populated
 	GetLevel1Quote(symbol string) (*BrokerOrderBook, error)
 	FindSymbol(symbol string, exchange *string) ([]BrokerSecurityInfo, error)
+	// GetFXRates retrieves currency exchange rates for today's date
+	// Returns a map of currency codes to exchange rates relative to baseCurrency
+	GetFXRates(baseCurrency string, currencies []string) (map[string]float64, error)
 
 	// Cash operations
 	GetAllCashFlows(limit int) ([]BrokerCashFlow, error)

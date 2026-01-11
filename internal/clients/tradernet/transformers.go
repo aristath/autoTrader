@@ -615,6 +615,27 @@ func getString(m map[string]interface{}, key string) string {
 }
 
 // getFloat64 safely extracts a float64 value from a map
+// transformCrossRates transforms SDK getCrossRatesForDate response to map[string]float64
+func transformCrossRates(sdkResult interface{}) (map[string]float64, error) {
+	resultMap, ok := sdkResult.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid SDK result format: expected map[string]interface{}")
+	}
+
+	ratesMap, ok := resultMap["rates"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid SDK result format: missing or invalid 'rates' key")
+	}
+
+	rates := make(map[string]float64, len(ratesMap))
+	for currency, rateVal := range ratesMap {
+		rate := getFloat64FromValue(rateVal)
+		rates[currency] = rate
+	}
+
+	return rates, nil
+}
+
 func getFloat64(m map[string]interface{}, key string) float64 {
 	if val, exists := m[key]; exists {
 		return getFloat64FromValue(val)

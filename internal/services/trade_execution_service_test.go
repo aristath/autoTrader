@@ -243,6 +243,10 @@ func (m *mockTradernetClient) GetLevel1Quote(symbol string) (*domain.BrokerOrder
 	return nil, nil
 }
 
+func (m *mockTradernetClient) GetFXRates(baseCurrency string, currencies []string) (map[string]float64, error) {
+	return nil, nil
+}
+
 func (m *mockTradernetClient) GetAllCashFlows(limit int) ([]domain.BrokerCashFlow, error) {
 	return nil, nil
 }

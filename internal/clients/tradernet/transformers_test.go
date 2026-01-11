@@ -713,3 +713,74 @@ func TestGetFloat64FromValue(t *testing.T) {
 		})
 	}
 }
+
+
+// TestTransformCrossRates tests transformation of SDK getCrossRatesForDate response to map[string]float64
+func TestTransformCrossRates(t *testing.T) {
+	sdkResult := map[string]interface{}{
+		"rates": map[string]interface{}{
+			"EUR": 0.92261342533093,
+			"HKD": 7.8070160113905,
+		},
+	}
+
+	rates, err := transformCrossRates(sdkResult)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, rates)
+	assert.Len(t, rates, 2)
+	assert.Equal(t, 0.92261342533093, rates["EUR"])
+	assert.Equal(t, 7.8070160113905, rates["HKD"])
+}
+
+// TestTransformCrossRates_EmptyRates tests transformation with empty rates map
+func TestTransformCrossRates_EmptyRates(t *testing.T) {
+	sdkResult := map[string]interface{}{
+		"rates": map[string]interface{}{},
+	}
+
+	rates, err := transformCrossRates(sdkResult)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, rates)
+	assert.Len(t, rates, 0)
+}
+
+// TestTransformCrossRates_MissingRatesKey tests error handling for missing "rates" key
+func TestTransformCrossRates_MissingRatesKey(t *testing.T) {
+	sdkResult := map[string]interface{}{
+		"data": map[string]interface{}{
+			"EUR": 0.9226,
+		},
+	}
+
+	rates, err := transformCrossRates(sdkResult)
+
+	assert.Error(t, err)
+	assert.Nil(t, rates)
+	assert.Contains(t, err.Error(), "missing or invalid 'rates' key")
+}
+
+// TestTransformCrossRates_InvalidResponseFormat tests error handling for invalid response format
+func TestTransformCrossRates_InvalidResponseFormat(t *testing.T) {
+	sdkResult := "invalid format"
+
+	rates, err := transformCrossRates(sdkResult)
+
+	assert.Error(t, err)
+	assert.Nil(t, rates)
+	assert.Contains(t, err.Error(), "invalid SDK result format")
+}
+
+// TestTransformCrossRates_InvalidRatesType tests error handling for invalid rates type
+func TestTransformCrossRates_InvalidRatesType(t *testing.T) {
+	sdkResult := map[string]interface{}{
+		"rates": "not a map",
+	}
+
+	rates, err := transformCrossRates(sdkResult)
+
+	assert.Error(t, err)
+	assert.Nil(t, rates)
+	assert.Contains(t, err.Error(), "missing or invalid 'rates' key")
+}

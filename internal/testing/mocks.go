@@ -1162,6 +1162,16 @@ func (m *MockTradernetClient) FindSymbol(symbol string, exchange *string) ([]dom
 	return []domain.BrokerSecurityInfo{}, nil
 }
 
+// GetFXRates retrieves currency exchange rates (mock implementation)
+func (m *MockTradernetClient) GetFXRates(baseCurrency string, currencies []string) (map[string]float64, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.err != nil {
+		return nil, m.err
+	}
+	return map[string]float64{}, nil
+}
+
 // GetLevel1Quote gets Level 1 market data (best bid/ask) - mock implementation
 func (m *MockTradernetClient) GetLevel1Quote(symbol string) (*domain.BrokerOrderBook, error) {
 	m.mu.RLock()
@@ -1446,6 +1456,17 @@ func (m *MockBrokerClient) FindSymbol(symbol string, exchange *string) ([]domain
 		return nil, m.err
 	}
 	return m.securities, nil
+}
+
+// GetFXRates implements domain.BrokerClient
+func (m *MockBrokerClient) GetFXRates(baseCurrency string, currencies []string) (map[string]float64, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.err != nil {
+		return nil, m.err
+	}
+	// Return empty map - tests can override via SetError or custom behavior
+	return map[string]float64{}, nil
 }
 
 // GetAllCashFlows implements domain.BrokerClient

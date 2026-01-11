@@ -93,6 +93,15 @@ func (a *TradernetBrokerAdapter) FindSymbol(symbol string, exchange *string) ([]
 	return transformSecurityInfoToDomain(tnSecurities), nil
 }
 
+// GetFXRates implements domain.BrokerClient
+func (a *TradernetBrokerAdapter) GetFXRates(baseCurrency string, currencies []string) (map[string]float64, error) {
+	rates, err := a.client.GetFXRates(baseCurrency, currencies)
+	if err != nil {
+		return nil, err
+	}
+	return rates, nil
+}
+
 // GetAllCashFlows implements domain.BrokerClient
 func (a *TradernetBrokerAdapter) GetAllCashFlows(limit int) ([]domain.BrokerCashFlow, error) {
 	tnFlows, err := a.client.GetAllCashFlows(limit)

@@ -98,6 +98,14 @@ func (m *mockBrokerClientForTest) GetLevel1Quote(symbol string) (*BrokerOrderBoo
 	}, nil
 }
 
+// GetFXRates implements BrokerClient
+func (m *mockBrokerClientForTest) GetFXRates(baseCurrency string, currencies []string) (map[string]float64, error) {
+	if m.returnError {
+		return nil, errors.New("mock error")
+	}
+	return map[string]float64{}, nil
+}
+
 // GetPendingOrders implements BrokerClient
 func (m *mockBrokerClientForTest) GetPendingOrders() ([]BrokerPendingOrder, error) {
 	if m.returnError {

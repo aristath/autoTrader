@@ -30,6 +30,8 @@ type mockSDKClient struct {
 	getQuotesError            error
 	getLevel1QuoteResult      interface{}
 	getLevel1QuoteError       error
+	getCrossRatesForDateResult interface{}
+	getCrossRatesForDateError  error
 	userInfoResult            interface{}
 	userInfoError             error
 	lastLimitPrice            float64 // Track limit price passed to Buy/Sell
@@ -75,6 +77,10 @@ func (m *mockSDKClient) GetQuotes(symbols []string) (interface{}, error) {
 
 func (m *mockSDKClient) GetLevel1Quote(symbol string) (interface{}, error) {
 	return m.getLevel1QuoteResult, m.getLevel1QuoteError
+}
+
+func (m *mockSDKClient) GetCrossRatesForDate(baseCurrency string, currencies []string, date *string) (interface{}, error) {
+	return m.getCrossRatesForDateResult, m.getCrossRatesForDateError
 }
 
 func (m *mockSDKClient) UserInfo() (interface{}, error) {

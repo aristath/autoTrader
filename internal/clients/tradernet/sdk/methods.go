@@ -336,6 +336,41 @@ func (c *Client) GetQuotes(symbols []string) (interface{}, error) {
 	return c.authorizedRequest("getStockQuotesJson", params)
 }
 
+// GetCrossRatesForDate retrieves currency exchange rates for a specific date
+// This matches the Tradernet API's getCrossRatesForDate command
+//
+// Parameters:
+//   - baseCurrency: Base currency (e.g., "USD")
+//   - currencies: Array of currencies to get rates for (e.g., ["EUR", "HKD"])
+//   - date: Optional date string in "YYYY-MM-DD" format. If nil, uses current date
+//
+// Returns:
+//   - A map containing:
+//   - rates: Map of currency codes to exchange rates relative to base currency
+//
+// Errors:
+//   - Returns error if API request fails or credentials are invalid
+//
+// API Reference: internal/clients/tradernet/docs/currencies_and_websocket/cross-rates-for-date.md
+//
+// Example:
+//
+//	date := "2024-05-01"
+//	result, err := client.GetCrossRatesForDate("USD", []string{"EUR", "HKD"}, &date)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	resultMap := result.(map[string]interface{})
+//	rates := resultMap["rates"].(map[string]interface{})
+func (c *Client) GetCrossRatesForDate(baseCurrency string, currencies []string, date *string) (interface{}, error) {
+	params := GetCrossRatesForDateParams{
+		BaseCurrency: baseCurrency,
+		Currencies:   currencies,
+		Date:         date,
+	}
+	return c.authorizedRequest("getCrossRatesForDate", params)
+}
+
 // GetLevel1Quote fetches Level 1 market data (best bid and best ask only) for a symbol
 // Note: Full order book (depth) requires WebSocket. This method uses quotes endpoint for Level 1 only.
 // Returns Level 1 quote data with best bid/ask from getStockQuotesJson endpoint

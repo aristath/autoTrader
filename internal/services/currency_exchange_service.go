@@ -65,14 +65,6 @@ var DirectPairs = map[string]struct {
 	"HKD:USD": {"HKD/USD", "SELL"},
 }
 
-// RateSymbols contains symbols for rate lookups (base_currency -> quote_currency)
-var RateSymbols = map[string]string{
-	"EUR:USD": "EURUSD_T0.ITS",
-	"EUR:GBP": "EURGBP_T0.ITS",
-	"GBP:USD": "GBPUSD_T0.ITS",
-	"HKD:EUR": "HKD/EUR",
-	"HKD:USD": "HKD/USD",
-}
 
 // NewCurrencyExchangeService creates a new currency exchange service
 func NewCurrencyExchangeService(brokerClient domain.BrokerClient, log zerolog.Logger) *CurrencyExchangeService {
@@ -147,44 +139,32 @@ func (s *CurrencyExchangeService) GetRate(fromCurrency, toCurrency string) (floa
 		return 0, fmt.Errorf("tradernet not connected")
 	}
 
-	// Find rate symbol
-	symbol, inverse := s.findRateSymbol(fromCurrency, toCurrency)
-	if symbol == "" {
-		// Try to get rate via path
+	// Check if direct pair exists
+	_, hasDirectPair := DirectPairs[fromCurrency+":"+toCurrency]
+	_, hasInversePair := DirectPairs[toCurrency+":"+fromCurrency]
+
+	if !hasDirectPair && !hasInversePair {
+		// Try to get rate via path (multi-step conversion)
 		return s.getRateViaPath(fromCurrency, toCurrency)
 	}
 
-	// Get quote
-	quote, err := s.brokerClient.GetQuote(symbol)
+	// Get FX rates using fromCurrency as base
+	rates, err := s.brokerClient.GetFXRates(fromCurrency, []string{toCurrency})
 	if err != nil {
-		s.log.Warn().Err(err).Str("symbol", symbol).Msg("Failed to get quote")
-		return 0, err
+		s.log.Warn().Err(err).Str("from", fromCurrency).Str("to", toCurrency).Msg("Failed to get FX rates")
+		return 0, fmt.Errorf("failed to get FX rates: %w", err)
 	}
 
-	if quote.Price <= 0 {
-		return 0, fmt.Errorf("invalid quote price: %f", quote.Price)
+	rate, ok := rates[toCurrency]
+	if !ok {
+		return 0, fmt.Errorf("rate not found for %s to %s", fromCurrency, toCurrency)
 	}
 
-	if inverse {
-		return 1.0 / quote.Price, nil
-	}
-	return quote.Price, nil
-}
-
-// findRateSymbol finds the exchange rate symbol and whether it's inverse
-func (s *CurrencyExchangeService) findRateSymbol(fromCurrency, toCurrency string) (string, bool) {
-	key := fromCurrency + ":" + toCurrency
-	if symbol, ok := RateSymbols[key]; ok {
-		return symbol, false
+	if rate <= 0 {
+		return 0, fmt.Errorf("invalid rate: %f", rate)
 	}
 
-	// Try inverse
-	inverseKey := toCurrency + ":" + fromCurrency
-	if symbol, ok := RateSymbols[inverseKey]; ok {
-		return symbol, true
-	}
-
-	return "", false
+	return rate, nil
 }
 
 // getRateViaPath gets exchange rate via conversion path
@@ -195,12 +175,18 @@ func (s *CurrencyExchangeService) getRateViaPath(fromCurrency, toCurrency string
 	}
 
 	if len(path) == 1 {
-		quote, err := s.brokerClient.GetQuote(path[0].Symbol)
-		if err != nil || quote.Price <= 0 {
-			return 0, fmt.Errorf("failed to get quote for %s", path[0].Symbol)
+		// Single step: use GetFXRates directly
+		rates, err := s.brokerClient.GetFXRates(path[0].FromCurrency, []string{path[0].ToCurrency})
+		if err != nil {
+			return 0, fmt.Errorf("failed to get FX rates for %s to %s: %w", path[0].FromCurrency, path[0].ToCurrency, err)
 		}
-		return quote.Price, nil
+		rate, ok := rates[path[0].ToCurrency]
+		if !ok || rate <= 0 {
+			return 0, fmt.Errorf("invalid rate for %s to %s", path[0].FromCurrency, path[0].ToCurrency)
+		}
+		return rate, nil
 	} else if len(path) == 2 {
+		// Multi-step: multiply rates
 		rate1, err := s.GetRate(path[0].FromCurrency, path[0].ToCurrency)
 		if err != nil {
 			return 0, err

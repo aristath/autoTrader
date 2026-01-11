@@ -97,6 +97,14 @@ func (m *MockTradernetClient) FindSymbol(symbol string, exchange *string) ([]dom
 	return args.Get(0).([]domain.BrokerSecurityInfo), args.Error(1)
 }
 
+func (m *MockTradernetClient) GetFXRates(baseCurrency string, currencies []string) (map[string]float64, error) {
+	args := m.Called(baseCurrency, currencies)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[string]float64), args.Error(1)
+}
+
 func (m *MockTradernetClient) GetAllCashFlows(limit int) ([]domain.BrokerCashFlow, error) {
 	args := m.Called(limit)
 	if args.Get(0) == nil {

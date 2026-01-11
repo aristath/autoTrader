@@ -451,5 +451,45 @@ func TestTradernetBrokerAdapter_SetCredentials(t *testing.T) {
 	adapter.SetCredentials("new-key", "new-secret")
 }
 
+// TestTradernetBrokerAdapter_GetFXRates tests GetFXRates transformation
+func TestTradernetBrokerAdapter_GetFXRates(t *testing.T) {
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+
+	mockSDK := &mockSDKClient{
+		getCrossRatesForDateResult: map[string]interface{}{
+			"rates": map[string]interface{}{
+				"EUR": 0.92261342533093,
+				"HKD": 7.8070160113905,
+			},
+		},
+	}
+
+	client := NewClientWithSDK(mockSDK, log)
+	adapter := &TradernetBrokerAdapter{client: client}
+
+	rates, err := adapter.GetFXRates("USD", []string{"EUR", "HKD"})
+	require.NoError(t, err)
+	assert.NotNil(t, rates)
+	assert.Len(t, rates, 2)
+	assert.Equal(t, 0.92261342533093, rates["EUR"])
+	assert.Equal(t, 7.8070160113905, rates["HKD"])
+}
+
+// TestTradernetBrokerAdapter_GetFXRates_Error tests GetFXRates error handling
+func TestTradernetBrokerAdapter_GetFXRates_Error(t *testing.T) {
+	log := zerolog.New(nil).Level(zerolog.Disabled)
+
+	mockSDK := &mockSDKClient{
+		getCrossRatesForDateError: errors.New("SDK error"),
+	}
+
+	client := NewClientWithSDK(mockSDK, log)
+	adapter := &TradernetBrokerAdapter{client: client}
+
+	rates, err := adapter.GetFXRates("USD", []string{"EUR"})
+	assert.Error(t, err)
+	assert.Nil(t, rates)
+}
+
 // Compile-time check that TradernetBrokerAdapter implements domain.BrokerClient
 var _ domain.BrokerClient = (*TradernetBrokerAdapter)(nil)
