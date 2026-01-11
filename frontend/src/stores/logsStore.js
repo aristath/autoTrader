@@ -25,9 +25,25 @@ function parseLogLine(line) {
   }
 
   // Try to parse timestamp from the date part
-  // Format is typically "Jan 11 10:30:00" or similar
+  // Format is typically "Jan 11 10:30:00" or similar (journalctl short format)
+  // Journalctl short format: MMM DD HH:MM:SS (no year, assumes current year)
   const dateMatch = dateHostService.match(/^(\w+ \d+ \d+:\d+:\d+)/);
-  const timestamp = dateMatch ? dateMatch[1] : new Date().toISOString();
+  let timestamp = new Date().toISOString(); // Default to current time
+
+  if (dateMatch) {
+    const dateStr = dateMatch[1];
+    // Parse date string like "Jan 11 16:25:36"
+    // Add current year since journalctl short format doesn't include it
+    const now = new Date();
+    const year = now.getFullYear();
+    const fullDateStr = `${dateStr} ${year}`;
+    const parsedDate = new Date(fullDateStr);
+
+    // Validate the parsed date
+    if (!isNaN(parsedDate.getTime())) {
+      timestamp = parsedDate.toISOString();
+    }
+  }
 
   return {
     timestamp,
