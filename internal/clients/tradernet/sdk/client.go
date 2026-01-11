@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	rateLimitDelay    = 1500 * time.Millisecond // 1.5 seconds between requests
-	requestQueueSize  = 100                      // Reasonable buffer size
+	rateLimitDelay   = 1500 * time.Millisecond // 1.5 seconds between requests
+	requestQueueSize = 100                     // Reasonable buffer size
 )
 
 // requestJob represents a job in the rate limiting queue
@@ -36,11 +36,11 @@ type requestResult struct {
 
 // Client represents the Tradernet SDK client
 type Client struct {
-	publicKey   string
-	privateKey  string
-	baseURL     string
-	httpClient  *http.Client
-	log         zerolog.Logger
+	publicKey    string
+	privateKey   string
+	baseURL      string
+	httpClient   *http.Client
+	log          zerolog.Logger
 	requestQueue chan requestJob
 	stopChan     chan struct{}
 	workerDone   chan struct{}
@@ -50,11 +50,11 @@ type Client struct {
 // NewClient creates a new Tradernet SDK client
 func NewClient(publicKey, privateKey string, log zerolog.Logger) *Client {
 	c := &Client{
-		publicKey:   publicKey,
-		privateKey:  privateKey,
-		baseURL:     "https://freedom24.com",
-		httpClient:  &http.Client{Timeout: 30 * time.Second},
-		log:         log.With().Str("component", "tradernet-sdk").Logger(),
+		publicKey:    publicKey,
+		privateKey:   privateKey,
+		baseURL:      "https://freedom24.com",
+		httpClient:   &http.Client{Timeout: 30 * time.Second},
+		log:          log.With().Str("component", "tradernet-sdk").Logger(),
 		requestQueue: make(chan requestJob, requestQueueSize),
 		stopChan:     make(chan struct{}),
 		workerDone:   make(chan struct{}),

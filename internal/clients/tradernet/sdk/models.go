@@ -233,7 +233,7 @@ type GetListTariffsParams struct {
 // GetCrossRatesForDateParams represents parameters for getCrossRatesForDate command
 // Field order: base_currency, currencies, date
 type GetCrossRatesForDateParams struct {
-	BaseCurrency string   `json:"base_currency"`           // Required
-	Currencies   []string `json:"currencies"`               // Required array
-	Date         *string  `json:"date,omitempty"`           // Optional, format: "YYYY-MM-DD"
+	BaseCurrency string   `json:"base_currency"`  // Required
+	Currencies   []string `json:"currencies"`     // Required array
+	Date         *string  `json:"date,omitempty"` // Optional, format: "YYYY-MM-DD"
 }
