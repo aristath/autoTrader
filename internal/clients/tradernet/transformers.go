@@ -174,7 +174,32 @@ func transformOrderResult(sdkResult interface{}, symbol, side string, quantity f
 	}, nil
 }
 
+// extractPendingOrder extracts a single pending order from a map
+func extractPendingOrder(orderMap map[string]interface{}) *PendingOrder {
+	// Extract order ID - check both 'id' and 'orderId' fields
+	var orderID string
+	if idVal, exists := orderMap["orderId"]; exists {
+		orderID = fmt.Sprintf("%v", idVal)
+	} else if idVal, exists := orderMap["id"]; exists {
+		orderID = fmt.Sprintf("%v", idVal)
+	} else {
+		return nil // Skip orders without ID
+	}
+
+	order := &PendingOrder{
+		OrderID:  orderID,
+		Symbol:   getSymbol(orderMap),   // Use helper with fallback
+		Side:     convertSide(orderMap), // Extract side (was missing)
+		Quantity: getFloat64(orderMap, "q"),
+		Price:    getFloat64(orderMap, "p"),
+		Currency: getString(orderMap, "curr"),
+	}
+
+	return order
+}
+
 // transformPendingOrders transforms SDK GetPlaced response to []PendingOrder
+// Handles both array format ({"result": [...]}) and map format ({"result": {...}})
 func transformPendingOrders(sdkResult interface{}) ([]PendingOrder, error) {
 	resultMap, ok := sdkResult.(map[string]interface{})
 	if !ok {
@@ -188,38 +213,29 @@ func transformPendingOrders(sdkResult interface{}) ([]PendingOrder, error) {
 		return []PendingOrder{}, nil
 	}
 
-	resultArray, ok := result.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("invalid SDK result format: 'result' must be array, got %T", result)
-	}
+	orders := make([]PendingOrder, 0)
 
-	orders := make([]PendingOrder, 0, len(resultArray))
-	for _, orderItem := range resultArray {
-		orderMap, ok := orderItem.(map[string]interface{})
-		if !ok {
-			continue
+	// Handle array format: {"result": [{...}, {...}]}
+	if resultArray, ok := result.([]interface{}); ok {
+		for _, orderItem := range resultArray {
+			orderMap, ok := orderItem.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			order := extractPendingOrder(orderMap)
+			if order != nil {
+				orders = append(orders, *order)
+			}
 		}
-
-		// Extract order ID - check both 'id' and 'orderId' fields
-		var orderID string
-		if idVal, exists := orderMap["orderId"]; exists {
-			orderID = fmt.Sprintf("%v", idVal)
-		} else if idVal, exists := orderMap["id"]; exists {
-			orderID = fmt.Sprintf("%v", idVal)
-		} else {
-			continue // Skip orders without ID
+	} else if resultMapData, ok := result.(map[string]interface{}); ok {
+		// Handle map format: {"result": {...}} (single order as map)
+		order := extractPendingOrder(resultMapData)
+		if order != nil {
+			orders = append(orders, *order)
 		}
-
-		order := PendingOrder{
-			OrderID:  orderID,
-			Symbol:   getSymbol(orderMap),   // Use helper with fallback
-			Side:     convertSide(orderMap), // Extract side (was missing)
-			Quantity: getFloat64(orderMap, "q"),
-			Price:    getFloat64(orderMap, "p"),
-			Currency: getString(orderMap, "curr"),
-		}
-
-		orders = append(orders, order)
+	} else {
+		return nil, fmt.Errorf("invalid SDK result format: 'result' must be array or map, got %T", result)
 	}
 
 	return orders, nil
