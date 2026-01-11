@@ -159,12 +159,12 @@ func (rb *RiskModelBuilder) BuildRegimeAwareCovarianceMatrix(
 	}
 	// Market indices are stored with ISIN = "INDEX-SYMBOL" format
 	// Convert symbols to ISINs for querying
-	indexSymbols := make([]string, 0, len(indices))
+	indexISINs := make([]string, 0, len(indices))
 	for _, idx := range indices {
-		indexSymbols = append(indexSymbols, idx.Symbol)
+		indexISINs = append(indexISINs, "INDEX-"+idx.Symbol)
 	}
 
-	indexPriceData, err := rb.fetchPriceHistory(indexSymbols, lookbackDays)
+	indexPriceData, err := rb.fetchPriceHistory(indexISINs, lookbackDays)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to fetch index price history: %w", err)
 	}
@@ -188,7 +188,8 @@ func (rb *RiskModelBuilder) BuildRegimeAwareCovarianceMatrix(
 		composite := 0.0
 		usedWeight := 0.0
 		for _, idx := range indices {
-			r, ok := indexReturns[idx.Symbol]
+			indexISIN := "INDEX-" + idx.Symbol
+			r, ok := indexReturns[indexISIN]
 			if !ok || len(r) != numObs {
 				continue
 			}
@@ -243,53 +244,19 @@ func (rb *RiskModelBuilder) BuildRegimeAwareCovarianceMatrix(
 }
 
 // fetchPriceHistory fetches historical prices from the database.
-// This function converts symbols to ISINs before querying daily_prices.isin column.
-func (rb *RiskModelBuilder) fetchPriceHistory(symbols []string, days int) (TimeSeriesData, error) {
+// This function expects ISINs as input (daily_prices.isin column stores ISINs).
+func (rb *RiskModelBuilder) fetchPriceHistory(isins []string, days int) (TimeSeriesData, error) {
 	// Calculate start date as Unix timestamp (date column is INTEGER type)
 	startTime := time.Now().AddDate(0, 0, -days)
 	startDate := time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, time.UTC).Unix()
 
 	rb.log.Debug().
 		Int64("start_date", startDate).
-		Int("num_symbols", len(symbols)).
+		Int("num_isins", len(isins)).
 		Msg("Fetching price history from database")
 
-	// Convert symbols to ISINs (daily_prices.isin column stores ISINs)
-	symbolToISIN := make(map[string]string)
-	isins := make([]string, 0, len(symbols))
-
-	for _, symbol := range symbols {
-		// Check if symbol is already an ISIN (for market indices like "INDEX-SPX.US")
-		// Market indices use "INDEX-SYMBOL" format as ISIN
-		if len(symbol) > 6 && symbol[:6] == "INDEX-" {
-			// Already an ISIN
-			isin := symbol
-			symbolToISIN[symbol] = isin
-			isins = append(isins, isin)
-		} else {
-			// Lookup ISIN from securities table
-			var isin string
-			err := rb.universeDB.QueryRow("SELECT isin FROM securities WHERE symbol = ?", symbol).Scan(&isin)
-			if err != nil {
-				rb.log.Warn().
-					Err(err).
-					Str("symbol", symbol).
-					Msg("Failed to lookup ISIN for symbol, skipping")
-				continue
-			}
-			if isin == "" {
-				rb.log.Warn().
-					Str("symbol", symbol).
-					Msg("No ISIN found for symbol, skipping")
-				continue
-			}
-			symbolToISIN[symbol] = isin
-			isins = append(isins, isin)
-		}
-	}
-
 	if len(isins) == 0 {
-		return TimeSeriesData{}, fmt.Errorf("no valid ISINs found for symbols")
+		return TimeSeriesData{}, fmt.Errorf("no ISINs provided")
 	}
 
 	// Query to get price history for all ISINs
@@ -361,21 +328,9 @@ func (rb *RiskModelBuilder) fetchPriceHistory(symbols []string, days int) (TimeS
 		}
 	}
 
-	// Build final data structure keyed by symbol (for compatibility)
-	// Map ISIN results back to symbols
+	// Build final data structure keyed by ISIN
 	data := make(map[string][]float64)
-	for _, symbol := range symbols {
-		isin, hasISIN := symbolToISIN[symbol]
-		if !hasISIN {
-			// No ISIN found, fill with NaN
-			prices := make([]float64, len(dates))
-			for i := range prices {
-				prices[i] = math.NaN()
-			}
-			data[symbol] = prices
-			continue
-		}
-
+	for _, isin := range isins {
 		prices := make([]float64, len(dates))
 		for i, date := range dates {
 			if price, ok := pricesByISIN[isin][date]; ok {
@@ -385,12 +340,12 @@ func (rb *RiskModelBuilder) fetchPriceHistory(symbols []string, days int) (TimeS
 				prices[i] = math.NaN()
 			}
 		}
-		data[symbol] = prices
+		data[isin] = prices
 	}
 
 	rb.log.Debug().
 		Int("num_dates", len(dates)).
-		Int("symbols_with_data", len(data)).
+		Int("isins_with_data", len(data)).
 		Msg("Built price time series")
 
 	return TimeSeriesData{
