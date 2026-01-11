@@ -621,10 +621,8 @@ func (r *RecommendationRepository) StorePlan(plan *planningdomain.HolisticPlan, 
 		return fmt.Errorf("plan cannot be nil")
 	}
 
-	// Clear old rejected opportunities for this portfolio hash (they'll be replaced with new ones)
-	r.rejectedMu.Lock()
-	delete(r.rejectedOpportunities, portfolioHash)
-	r.rejectedMu.Unlock()
+	// Note: Rejected opportunities are stored separately by the rebalancing service/planner
+	// They persist along with the plan and are returned in GetRecommendationsAsPlan
 
 	// If plan has no steps, dismiss all pending recommendations
 	if len(plan.Steps) == 0 {

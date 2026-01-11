@@ -327,10 +327,8 @@ func (r *InMemoryRecommendationRepository) StorePlan(plan *planningdomain.Holist
 		return fmt.Errorf("plan and plan.Steps cannot be nil")
 	}
 
-	// Clear old rejected opportunities for this portfolio hash (they'll be replaced with new ones)
-	r.mu.Lock()
-	delete(r.rejectedOpportunities, portfolioHash)
-	r.mu.Unlock()
+	// Note: Rejected opportunities are stored separately by the rebalancing service/planner
+	// They persist along with the plan and are returned in GetRecommendationsAsPlan
 
 	if len(plan.Steps) == 0 {
 		if _, err := r.DismissAllPending(); err != nil {
