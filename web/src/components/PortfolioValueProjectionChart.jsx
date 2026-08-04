@@ -314,6 +314,7 @@ export function PortfolioValueProjectionChart({
             editAriaLabel={`Edit ${summary.deposit_window_months} month net per month projection value`}
             resetAriaLabel="Reset projection value to actual 6-month net"
           />
+          <Stat label="Projected net deposits" value={formatEur(summary.projected_net_deposits_eur, 0)} />
           <Stat label="Run-rate" value={formatPercent(summary.annualized_total_pnl_pct, true, 1)} tone={returnTone} />
         </Group>
       </Group>

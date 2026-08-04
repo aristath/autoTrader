@@ -468,6 +468,10 @@ class TestValueProjection:
         assert result["summary"]["deposit_window_months"] == 6
         assert result["summary"]["projection_years"] == 5
         assert result["summary"]["projection_months"] == 60
+        assert result["summary"]["projected_future_net_deposits_eur"] == 4800.0
+        assert result["summary"]["projected_net_deposits_eur"] == 6280.0
+        assert result["summary"]["actual_projected_future_net_deposits_eur"] == 4800.0
+        assert result["summary"]["actual_projected_net_deposits_eur"] == 6280.0
         assert result["summary"]["monthly_return_rate"] > 0
         assert result["summary"]["projected_value_eur"] > result["summary"]["current_value_eur"]
         assert result["summary"]["actual_projected_value_eur"] == result["summary"]["projected_value_eur"]
@@ -477,6 +481,10 @@ class TestValueProjection:
         assert override["summary"]["avg_monthly_net_deposit_eur"] == -250.0
         assert override["summary"]["actual_avg_monthly_net_deposit_eur"] == 80.0
         assert override["summary"]["avg_monthly_net_deposit_override_eur"] == -250.0
+        assert override["summary"]["projected_future_net_deposits_eur"] == -15000.0
+        assert override["summary"]["projected_net_deposits_eur"] == -13520.0
+        assert override["summary"]["actual_projected_future_net_deposits_eur"] == 4800.0
+        assert override["summary"]["actual_projected_net_deposits_eur"] == 6280.0
         assert override["summary"]["projected_value_eur"] < result["summary"]["projected_value_eur"]
         assert override["summary"]["actual_projected_value_eur"] == result["summary"]["projected_value_eur"]
 

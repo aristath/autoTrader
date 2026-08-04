@@ -843,6 +843,10 @@ async def get_portfolio_value_projection(
             projection_months,
         )
     )
+    projected_future_net_deposits = avg_monthly_net_deposit * projection_months
+    projected_net_deposits = current_net_deposits + projected_future_net_deposits
+    actual_projected_future_net_deposits = actual_avg_monthly_net_deposit * projection_months
+    actual_projected_net_deposits = current_net_deposits + actual_projected_future_net_deposits
 
     summary = {
         "start_date": daily[0]["date"],
@@ -863,6 +867,10 @@ async def get_portfolio_value_projection(
         "projection_months": projection_months,
         "projected_value_eur": round(projected_value, 2),
         "actual_projected_value_eur": round(actual_projected_value, 2),
+        "projected_future_net_deposits_eur": round(projected_future_net_deposits, 2),
+        "projected_net_deposits_eur": round(projected_net_deposits, 2),
+        "actual_projected_future_net_deposits_eur": round(actual_projected_future_net_deposits, 2),
+        "actual_projected_net_deposits_eur": round(actual_projected_net_deposits, 2),
         "elapsed_months": round(elapsed_months, 1),
     }
 
