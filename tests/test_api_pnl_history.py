@@ -421,9 +421,22 @@ class TestValueProjection:
         assert result["history"][-1]["net_deposits_eur"] == 1480.0
         assert result["summary"]["total_pnl_pct"] == pytest.approx(35.14)
         assert result["summary"]["avg_monthly_net_deposit_eur"] == 80.0
+        assert result["summary"]["actual_avg_monthly_net_deposit_eur"] == 80.0
+        assert result["summary"]["avg_monthly_net_deposit_override_eur"] is None
         assert result["summary"]["deposit_window_months"] == 6
         assert result["summary"]["projection_years"] == 5
+        assert result["summary"]["projection_months"] == 60
+        assert result["summary"]["monthly_return_rate"] > 0
         assert result["summary"]["projected_value_eur"] > result["summary"]["current_value_eur"]
+        assert result["summary"]["actual_projected_value_eur"] == result["summary"]["projected_value_eur"]
+
+        override = await get_portfolio_value_projection(deps, years=5, avg_monthly_net_deposit_eur=-250.0)
+
+        assert override["summary"]["avg_monthly_net_deposit_eur"] == -250.0
+        assert override["summary"]["actual_avg_monthly_net_deposit_eur"] == 80.0
+        assert override["summary"]["avg_monthly_net_deposit_override_eur"] == -250.0
+        assert override["summary"]["projected_value_eur"] < result["summary"]["projected_value_eur"]
+        assert override["summary"]["actual_projected_value_eur"] == result["summary"]["projected_value_eur"]
 
     @pytest.mark.asyncio
     async def test_empty_value_projection_returns_empty_contract(self, temp_db):
@@ -446,5 +459,10 @@ class TestValueProjection:
 
         with pytest.raises(HTTPException, match="Invalid projection horizon") as exc:
             await get_portfolio_value_projection(deps, years=7)
+
+        assert exc.value.status_code == 400
+
+        with pytest.raises(HTTPException, match="Invalid monthly net deposit override") as exc:
+            await get_portfolio_value_projection(deps, avg_monthly_net_deposit_eur=float("inf"))
 
         assert exc.value.status_code == 400

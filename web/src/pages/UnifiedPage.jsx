@@ -145,6 +145,7 @@ function UnifiedPage() {
   const [period, setPeriod] = useState('1Y');
   const [pnlPeriod, setPnlPeriod] = useState('1Y');
   const [valueProjectionYears, setValueProjectionYears] = useState('10');
+  const [valueProjectionNetDepositOverride, setValueProjectionNetDepositOverride] = useState(null);
   const [filter, setFilter] = useState('review');
   const [sort, setSort] = useState('priority');
   const [search, setSearch] = useState('');
@@ -200,8 +201,8 @@ function UnifiedPage() {
   });
 
   const { data: valueProjectionData } = useQuery({
-    queryKey: ['portfolio-value-projection', valueProjectionYears],
-    queryFn: () => getPortfolioValueProjection(valueProjectionYears),
+    queryKey: ['portfolio-value-projection', valueProjectionYears, valueProjectionNetDepositOverride],
+    queryFn: () => getPortfolioValueProjection(valueProjectionYears, valueProjectionNetDepositOverride),
     refetchInterval: 300000, // Refresh every 5 minutes
   });
 
@@ -545,6 +546,8 @@ function UnifiedPage() {
               </Group>
               <PortfolioValueProjectionChart
                 data={valueProjectionData}
+                netDepositOverride={valueProjectionNetDepositOverride}
+                onNetDepositOverrideChange={setValueProjectionNetDepositOverride}
                 height={280}
               />
             </Card>

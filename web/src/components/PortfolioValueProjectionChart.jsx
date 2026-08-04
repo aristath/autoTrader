@@ -1,4 +1,6 @@
-import { Group, Stack, Text } from '@mantine/core';
+import { useEffect, useState } from 'react';
+import { ActionIcon, Group, NumberInput, Stack, Text, Tooltip } from '@mantine/core';
+import { IconCheck, IconPencil, IconRotateClockwise, IconX } from '@tabler/icons-react';
 import { catppuccin } from '../theme';
 import { useResponsiveWidth } from '../hooks/useResponsiveWidth';
 import { formatCompact, formatEur, formatPercent } from '../utils/formatting';
@@ -55,7 +57,140 @@ function Stat({ label, value, tone }) {
   );
 }
 
-export function PortfolioValueProjectionChart({ data, height = 280 }) {
+function numberOrZero(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function impliedMonthlyNetDeposit(targetValue, currentValue, monthlyReturnRate, projectionMonths) {
+  const target = Number(targetValue);
+  const current = Number(currentValue);
+  const rate = Number(monthlyReturnRate);
+  const months = Number(projectionMonths);
+  if (!Number.isFinite(target) || !Number.isFinite(current) || !Number.isFinite(rate) || !Number.isFinite(months) || months <= 0) {
+    return null;
+  }
+
+  if (Math.abs(rate) < 0.0000000001) {
+    return (target - current) / months;
+  }
+
+  const growth = (1 + rate) ** months;
+  const contributionFactor = (growth - 1) / rate;
+  if (!Number.isFinite(growth) || !Number.isFinite(contributionFactor) || Math.abs(contributionFactor) < 0.0000000001) {
+    return null;
+  }
+  return (target - current * growth) / contributionFactor;
+}
+
+function EditableMoneyStat({
+  label,
+  value,
+  tone,
+  actualValue,
+  isOverridden,
+  onChange,
+  allowNegative = true,
+  min,
+  editAriaLabel,
+  resetAriaLabel,
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(numberOrZero(value));
+
+  useEffect(() => {
+    if (!editing) {
+      setDraft(numberOrZero(value));
+    }
+  }, [editing, value]);
+
+  const commit = () => {
+    const numeric = draft === '' || draft == null ? 0 : Number(draft);
+    if (Number.isFinite(numeric)) {
+      onChange?.(min != null ? Math.max(min, numeric) : numeric);
+      setEditing(false);
+    }
+  };
+
+  const cancel = () => {
+    setDraft(numberOrZero(value));
+    setEditing(false);
+  };
+
+  const reset = () => {
+    onChange?.(null);
+    setEditing(false);
+  };
+
+  return (
+    <Stack gap={0} className="portfolio-value-projection__stat portfolio-value-projection__stat--editable">
+      <Text size="xs" c="dimmed">{label}</Text>
+      {editing ? (
+        <Group gap={4} wrap="nowrap" className="portfolio-value-projection__edit-row">
+          <NumberInput
+            aria-label={`${label} projection value`}
+            value={draft}
+            onChange={setDraft}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') commit();
+              if (event.key === 'Escape') cancel();
+            }}
+            allowNegative={allowNegative}
+            decimalScale={0}
+            hideControls
+            min={min}
+            prefix="€"
+            size="xs"
+            thousandSeparator=","
+            variant="filled"
+            className="portfolio-value-projection__money-input"
+          />
+          <Tooltip label="Apply">
+            <ActionIcon aria-label="Apply projection value" size="xs" variant="subtle" color="green" onClick={commit}>
+              <IconCheck size={14} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Cancel">
+            <ActionIcon aria-label="Cancel projection edit" size="xs" variant="subtle" color="gray" onClick={cancel}>
+              <IconX size={14} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+      ) : (
+        <Group gap={4} wrap="nowrap" className="portfolio-value-projection__edit-row">
+          <button
+            type="button"
+            className="portfolio-value-projection__edit-button"
+            aria-label={editAriaLabel || `Edit ${label} projection value`}
+            onClick={() => setEditing(true)}
+          >
+            <Text component="span" size="sm" fw={600} c={tone}>{formatEur(value, 0)}</Text>
+            <IconPencil size={12} />
+          </button>
+          {isOverridden && (
+            <Tooltip label="Reset to actual">
+              <ActionIcon aria-label={resetAriaLabel || "Reset projection value to actual"} size="xs" variant="subtle" color="gray" onClick={reset}>
+                <IconRotateClockwise size={14} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
+      )}
+      {isOverridden && !editing && Number.isFinite(Number(actualValue)) && (
+        <Text size="10px" c="dimmed" className="portfolio-value-projection__actual-net">
+          actual {formatEur(actualValue, 0)}
+        </Text>
+      )}
+    </Stack>
+  );
+}
+
+export function PortfolioValueProjectionChart({
+  data,
+  netDepositOverride = null,
+  onNetDepositOverrideChange,
+  height = 280,
+}) {
   const [containerRef, width] = useResponsiveWidth(320);
   const history = data?.history || [];
   const projection = data?.projection || [];
@@ -124,6 +259,27 @@ export function PortfolioValueProjectionChart({ data, height = 280 }) {
 
   const currentTone = Number(summary.total_pnl_eur || 0) >= 0 ? 'green' : 'red';
   const returnTone = Number(summary.annualized_total_pnl_pct || 0) >= 0 ? 'green' : 'red';
+  const hasNetDepositOverride = netDepositOverride !== null && Number.isFinite(Number(netDepositOverride));
+  const activeAvgMonthlyNetDeposit = hasNetDepositOverride
+    ? Number(netDepositOverride)
+    : Number(summary.avg_monthly_net_deposit_eur || 0);
+  const actualAvgMonthlyNetDeposit = Number(
+    summary.actual_avg_monthly_net_deposit_eur ?? summary.avg_monthly_net_deposit_eur ?? 0
+  );
+  const actualProjectedValue = Number(summary.actual_projected_value_eur ?? summary.projected_value_eur ?? 0);
+  const projectionMonths = Number(summary.projection_months || Number(summary.projection_years || 0) * 12);
+  const monthlyReturnRate = Number(summary.monthly_return_rate || 0);
+  const handleProjectedValueChange = (targetValue) => {
+    const requiredNetDeposit = impliedMonthlyNetDeposit(
+      Math.max(0, Number(targetValue)),
+      summary.current_value_eur,
+      monthlyReturnRate,
+      projectionMonths
+    );
+    if (requiredNetDeposit != null && Number.isFinite(requiredNetDeposit)) {
+      onNetDepositOverrideChange?.(Math.round(requiredNetDeposit * 100) / 100);
+    }
+  };
 
   return (
     <Stack gap="xs">
@@ -136,9 +292,28 @@ export function PortfolioValueProjectionChart({ data, height = 280 }) {
         </Stack>
         <Group gap="lg" justify="flex-end" className="portfolio-value-projection__stats">
           <Stat label="Now" value={formatEur(summary.current_value_eur, 0)} />
-          <Stat label={`${summary.projection_years}Y`} value={formatEur(summary.projected_value_eur, 0)} tone="blue" />
+          <EditableMoneyStat
+            label={`${summary.projection_years}Y`}
+            value={summary.projected_value_eur}
+            tone="blue"
+            actualValue={actualProjectedValue}
+            isOverridden={hasNetDepositOverride}
+            onChange={handleProjectedValueChange}
+            allowNegative={false}
+            min={0}
+            editAriaLabel={`Edit ${summary.projection_years} year projected value`}
+            resetAriaLabel="Reset projected value to actual 6-month net projection"
+          />
           <Stat label="P/L" value={formatPercent(summary.total_pnl_pct, true, 1)} tone={currentTone} />
-          <Stat label={`${summary.deposit_window_months}M net/mo`} value={formatEur(summary.avg_monthly_net_deposit_eur, 0)} />
+          <EditableMoneyStat
+            label={`${summary.deposit_window_months}M net/mo`}
+            value={activeAvgMonthlyNetDeposit}
+            actualValue={actualAvgMonthlyNetDeposit}
+            isOverridden={hasNetDepositOverride}
+            onChange={onNetDepositOverrideChange}
+            editAriaLabel={`Edit ${summary.deposit_window_months} month net per month projection value`}
+            resetAriaLabel="Reset projection value to actual 6-month net"
+          />
           <Stat label="Run-rate" value={formatPercent(summary.annualized_total_pnl_pct, true, 1)} tone={returnTone} />
         </Group>
       </Group>

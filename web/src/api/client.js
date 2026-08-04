@@ -169,8 +169,15 @@ export const syncCashFlows = () => request('/cashflows/sync', { method: 'POST' }
 // Portfolio P&L History
 export const getPortfolioPnLHistory = (period = '1Y') =>
   request(`/portfolio/pnl-history?period=${encodeURIComponent(period)}`);
-export const getPortfolioValueProjection = (years = 10) =>
-  request(`/portfolio/value-projection?years=${encodeURIComponent(years)}`);
+export const getPortfolioValueProjection = (years = 10, avgMonthlyNetDepositEur = null) => {
+  const params = new URLSearchParams({ years: String(years) });
+  const hasOverride = avgMonthlyNetDepositEur !== null && avgMonthlyNetDepositEur !== undefined && avgMonthlyNetDepositEur !== '';
+  const override = hasOverride ? Number(avgMonthlyNetDepositEur) : NaN;
+  if (hasOverride && Number.isFinite(override)) {
+    params.set('avg_monthly_net_deposit_eur', String(override));
+  }
+  return request(`/portfolio/value-projection?${params.toString()}`);
+};
 export const getPortfolioPeriodStats = () => request('/portfolio/period-stats');
 
 // Portfolio composition + risk/return metrics (replaces freedom24 PRAAMS)

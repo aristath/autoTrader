@@ -171,6 +171,54 @@
 	min-width: 72px;
 }
 
+.portfolio-value-projection__stat--editable {
+	min-width: 124px;
+}
+
+.portfolio-value-projection__edit-row {
+	min-height: 24px;
+}
+
+.portfolio-value-projection__edit-button {
+	align-items: center;
+	background: transparent;
+	border: 0;
+	border-radius: 4px;
+	color: inherit;
+	cursor: pointer;
+	display: inline-flex;
+	font: inherit;
+	gap: 4px;
+	line-height: 1;
+	margin: 0;
+	max-width: 100%;
+	min-height: 22px;
+	padding: 1px 4px;
+}
+
+.portfolio-value-projection__edit-button:hover,
+.portfolio-value-projection__edit-button:focus-visible {
+	background: var(--mantine-color-dark-5);
+	outline: 1px solid var(--mantine-color-dark-3);
+}
+
+.portfolio-value-projection__money-input {
+	width: 112px;
+}
+
+.portfolio-value-projection__money-input input {
+	font-size: 12px;
+	font-weight: 600;
+	height: 24px;
+	min-height: 24px;
+	padding-inline: 8px;
+}
+
+.portfolio-value-projection__actual-net {
+	line-height: 1.1;
+	white-space: nowrap;
+}
+
 @media (max-width: 700px) {
 	.unified__status-row--summary,
 	.unified__status-row--cashflows {
@@ -201,5 +249,9 @@
 
 	.portfolio-value-projection__stat {
 		min-width: 82px;
+	}
+
+	.portfolio-value-projection__stat--editable {
+		min-width: 128px;
 	}
 }

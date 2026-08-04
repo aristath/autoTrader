@@ -2,11 +2,12 @@
 
 import bisect
 import logging
+import math
 from datetime import date as date_type
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing_extensions import Annotated
 
 from sentinel.api.dependencies import CommonDependencies, get_common_deps
@@ -307,6 +308,18 @@ def _projection_monthly_return(daily: list[dict]) -> tuple[float, float, float]:
     monthly_return = (total_pnl_ratio ** (1.0 / elapsed_months)) - 1.0
     annualized_return = ((1.0 + monthly_return) ** MONTHS_PER_YEAR) - 1.0
     return monthly_return, annualized_return, elapsed_months
+
+
+def _compound_projected_value(
+    current_value: float,
+    monthly_return: float,
+    avg_monthly_net_deposit: float,
+    projection_months: int,
+) -> float:
+    projected_value = current_value
+    for _month in range(1, projection_months + 1):
+        projected_value = max(0.0, projected_value * (1.0 + monthly_return) + avg_monthly_net_deposit)
+    return projected_value
 
 
 async def _period_stats_from_reconstructed_starts(
@@ -727,6 +740,7 @@ async def get_portfolio_pnl_history(
 async def get_portfolio_value_projection(
     deps: Annotated[CommonDependencies, Depends(get_common_deps)],
     years: int = DEFAULT_VALUE_PROJECTION_YEARS,
+    avg_monthly_net_deposit_eur: Annotated[float | None, Query()] = None,
 ) -> dict[str, Any]:
     """Portfolio value history plus a selected-horizon projection.
 
@@ -737,6 +751,8 @@ async def get_portfolio_value_projection(
     if years not in VALUE_PROJECTION_YEARS:
         allowed = ", ".join(f"{value}Y" for value in sorted(VALUE_PROJECTION_YEARS))
         raise HTTPException(status_code=400, detail=f"Invalid projection horizon. Expected one of: {allowed}")
+    if avg_monthly_net_deposit_eur is not None and not math.isfinite(avg_monthly_net_deposit_eur):
+        raise HTTPException(status_code=400, detail="Invalid monthly net deposit override")
 
     snapshots = await deps.db.get_portfolio_snapshots()
     if not snapshots:
@@ -754,9 +770,14 @@ async def get_portfolio_value_projection(
     total_pnl_eur = current_value - current_net_deposits
     total_pnl_pct = (total_pnl_eur / current_net_deposits * 100.0) if current_net_deposits > 0 else 0.0
 
-    avg_monthly_net_deposit = await DepositHistoryHelper(
+    actual_avg_monthly_net_deposit = await DepositHistoryHelper(
         db=deps.db, currency=deps.currency
     ).get_rolling_6m_avg_net_deposit(as_of_date=today_iso)
+    avg_monthly_net_deposit = (
+        float(avg_monthly_net_deposit_eur)
+        if avg_monthly_net_deposit_eur is not None
+        else actual_avg_monthly_net_deposit
+    )
     monthly_return, annualized_return, elapsed_months = _projection_monthly_return(daily)
 
     projection: list[dict[str, Any]] = [
@@ -779,6 +800,16 @@ async def get_portfolio_value_projection(
                 "months_ahead": month,
             }
         )
+    actual_projected_value = (
+        projected_value
+        if avg_monthly_net_deposit_eur is None
+        else _compound_projected_value(
+            current_value,
+            monthly_return,
+            actual_avg_monthly_net_deposit,
+            projection_months,
+        )
+    )
 
     summary = {
         "start_date": daily[0]["date"],
@@ -788,10 +819,17 @@ async def get_portfolio_value_projection(
         "total_pnl_eur": round(total_pnl_eur, 2),
         "total_pnl_pct": round(total_pnl_pct, 2),
         "annualized_total_pnl_pct": round(annualized_return * 100.0, 2),
+        "monthly_return_rate": monthly_return,
         "avg_monthly_net_deposit_eur": round(avg_monthly_net_deposit, 2),
+        "actual_avg_monthly_net_deposit_eur": round(actual_avg_monthly_net_deposit, 2),
+        "avg_monthly_net_deposit_override_eur": (
+            round(avg_monthly_net_deposit, 2) if avg_monthly_net_deposit_eur is not None else None
+        ),
         "deposit_window_months": DepositHistoryHelper.WINDOW_MONTHS,
         "projection_years": years,
+        "projection_months": projection_months,
         "projected_value_eur": round(projected_value, 2),
+        "actual_projected_value_eur": round(actual_projected_value, 2),
         "elapsed_months": round(elapsed_months, 1),
     }
 
