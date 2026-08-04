@@ -11,6 +11,7 @@ from typing_extensions import Annotated
 
 from sentinel.api.dependencies import CommonDependencies, get_common_deps
 from sentinel.freedom24_web import Freedom24WebClient
+from sentinel.planner.deposit_history import DepositHistoryHelper
 from sentinel.services.portfolio import PortfolioService
 from sentinel.services.valuation import PortfolioValuationService
 
@@ -21,6 +22,10 @@ router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 PERIOD_WINDOWS = {"1D": 1, "1W": 7, "1M": 30, "3M": 90, "6M": 180, "1Y": 365}
 PNL_HISTORY_WINDOWS = {"3M": 90, "6M": 180, "1Y": 365, "ALL": None}
 BENCHMARK_MAX_STALENESS_DAYS = 5
+VALUE_PROJECTION_YEARS = {5, 10, 15, 20, 25}
+DEFAULT_VALUE_PROJECTION_YEARS = 10
+MONTHS_PER_YEAR = 12
+AVG_DAYS_PER_MONTH = 365.25 / 12
 
 
 def _empty_period_stat() -> dict[str, float | None]:
@@ -215,8 +220,15 @@ async def _cashflow_value_since(
             continue
         if cf["type_id"] in ("block", "unblock"):
             continue
-        total += await deps.currency.to_eur_for_date(cf["amount"], cf["currency"], cf["date"])
+        amount_eur = await deps.currency.to_eur_for_date(cf["amount"], cf["currency"], cf["date"])
+        total += -abs(amount_eur) if cf["type_id"] == "card_payout" else amount_eur
     return total
+
+
+async def _external_cashflow_delta_eur(deps: CommonDependencies, cashflow: dict) -> float:
+    """EUR funding delta: deposits add, withdrawals subtract."""
+    amount_eur = await deps.currency.to_eur_for_date(cashflow["amount"], cashflow["currency"], cashflow["date"])
+    return -abs(amount_eur) if cashflow["type_id"] == "card_payout" else amount_eur
 
 
 async def _current_net_deposits_eur(deps: CommonDependencies) -> float:
@@ -229,6 +241,72 @@ async def _current_net_deposits_eur(deps: CommonDependencies) -> float:
             amount_eur = await deps.currency.to_eur(total, curr)
             current_net_deposits += amount_eur if type_id == "card" else -abs(amount_eur)
     return current_net_deposits
+
+
+async def _cumulative_external_deposits_by_date(
+    deps: CommonDependencies,
+    cash_flows: list[dict],
+) -> dict[str, float]:
+    """Return cumulative account funding keyed by cash-flow date."""
+    cf_sorted = sorted(
+        [cf for cf in cash_flows if cf["type_id"] in ("card", "card_payout")],
+        key=lambda cf: cf["date"],
+    )
+    deposits_by_date: dict[str, float] = {}
+    running = 0.0
+    for cf in cf_sorted:
+        running += await _external_cashflow_delta_eur(deps, cf)
+        deposits_by_date[cf["date"]] = running
+    return deposits_by_date
+
+
+async def _daily_portfolio_value_history(
+    deps: CommonDependencies,
+    snapshots: list[dict],
+    cash_flows: list[dict],
+) -> list[dict]:
+    """Build daily value history and splice in the live current value for today."""
+    from sentinel.portfolio_composition import build_daily_pnl
+
+    deposits_by_date = await _cumulative_external_deposits_by_date(deps, cash_flows)
+    daily = build_daily_pnl(snapshots, deposits_by_date)
+    valuation = await PortfolioValuationService(db=deps.db, broker=deps.broker, currency=deps.currency).current()
+    current_value = valuation["total_value_eur"]
+    if current_value > 0:
+        current_net_deposits = await _current_net_deposits_eur(deps)
+        today_iso = date_type.today().isoformat()
+        pnl_eur = current_value - current_net_deposits
+        live_point = {
+            "date": today_iso,
+            "total_value_eur": round(current_value, 2),
+            "net_deposits_eur": round(current_net_deposits, 2),
+            "pnl_eur": round(pnl_eur, 2),
+            "pnl_pct": round((pnl_eur / current_net_deposits * 100), 2) if current_net_deposits > 0 else 0.0,
+        }
+        if daily and daily[-1]["date"] == today_iso:
+            daily[-1] = live_point
+        elif not daily or daily[-1]["date"] < today_iso:
+            daily.append(live_point)
+    return daily
+
+
+def _projection_monthly_return(daily: list[dict]) -> tuple[float, float, float]:
+    """Annualize total P/L from inception into a monthly projection rate."""
+    if len(daily) < 2:
+        return 0.0, 0.0, 0.0
+
+    start = date_type.fromisoformat(daily[0]["date"])
+    end = date_type.fromisoformat(daily[-1]["date"])
+    elapsed_months = max((end - start).days / AVG_DAYS_PER_MONTH, 1.0)
+    current_value = float(daily[-1]["total_value_eur"] or 0.0)
+    current_net_deposits = float(daily[-1]["net_deposits_eur"] or 0.0)
+    if current_value <= 0 or current_net_deposits <= 0:
+        return 0.0, 0.0, elapsed_months
+
+    total_pnl_ratio = max(current_value / current_net_deposits, 0.000001)
+    monthly_return = (total_pnl_ratio ** (1.0 / elapsed_months)) - 1.0
+    annualized_return = ((1.0 + monthly_return) ** MONTHS_PER_YEAR) - 1.0
+    return monthly_return, annualized_return, elapsed_months
 
 
 async def _period_stats_from_reconstructed_starts(
@@ -322,8 +400,7 @@ async def _snapshot_adjusted_period_stats(
     deposits_by_date: dict[str, float] = {}
     running = 0.0
     for cf in sorted([cf for cf in cash_flows if cf["type_id"] in ("card", "card_payout")], key=lambda cf: cf["date"]):
-        amount_eur = await deps.currency.to_eur_for_date(cf["amount"], cf["currency"], cf["date"])
-        running += amount_eur
+        running += await _external_cashflow_delta_eur(deps, cf)
         deposits_by_date[cf["date"]] = running
 
     daily = build_daily_pnl(snapshots, deposits_by_date)
@@ -457,8 +534,7 @@ async def get_portfolio_cagr(
     total_deposits = 0.0
     for cf in cash_flows:
         if cf["type_id"] in ("card", "card_payout"):
-            amount_eur = await deps.currency.to_eur_for_date(cf["amount"], cf["currency"], cf["date"])
-            total_deposits += amount_eur
+            total_deposits += await _external_cashflow_delta_eur(deps, cf)
 
     # Years from first snapshot to now
     first_ts = snapshots[0]["date"]
@@ -516,8 +592,7 @@ async def get_portfolio_pnl_history(
     deposits_by_date: dict[str, float] = {}
     running = 0.0
     for cf in cf_sorted:
-        amount_eur = await deps.currency.to_eur_for_date(cf["amount"], cf["currency"], cf["date"])
-        running += amount_eur
+        running += await _external_cashflow_delta_eur(deps, cf)
         deposits_by_date[cf["date"]] = running
 
     daily = build_daily_pnl(snapshots, deposits_by_date)
@@ -646,6 +721,94 @@ async def get_portfolio_pnl_history(
     }
 
     return {"snapshots": result_snapshots, "summary": summary}
+
+
+@router.get("/value-projection")
+async def get_portfolio_value_projection(
+    deps: Annotated[CommonDependencies, Depends(get_common_deps)],
+    years: int = DEFAULT_VALUE_PROJECTION_YEARS,
+) -> dict[str, Any]:
+    """Portfolio value history plus a selected-horizon projection.
+
+    The forward series uses the same rolling 6-month net deposit helper the
+    planner uses, then compounds the portfolio by the annualized total P/L rate
+    implied by inception-to-current value versus net deposits.
+    """
+    if years not in VALUE_PROJECTION_YEARS:
+        allowed = ", ".join(f"{value}Y" for value in sorted(VALUE_PROJECTION_YEARS))
+        raise HTTPException(status_code=400, detail=f"Invalid projection horizon. Expected one of: {allowed}")
+
+    snapshots = await deps.db.get_portfolio_snapshots()
+    if not snapshots:
+        return {"history": [], "projection": [], "summary": None}
+
+    cash_flows = await deps.db.get_cash_flows()
+    daily = await _daily_portfolio_value_history(deps, snapshots, cash_flows)
+    if not daily:
+        return {"history": [], "projection": [], "summary": None}
+
+    today_iso = date_type.today().isoformat()
+    current = daily[-1]
+    current_value = float(current["total_value_eur"] or 0.0)
+    current_net_deposits = float(current["net_deposits_eur"] or 0.0)
+    total_pnl_eur = current_value - current_net_deposits
+    total_pnl_pct = (total_pnl_eur / current_net_deposits * 100.0) if current_net_deposits > 0 else 0.0
+
+    avg_monthly_net_deposit = await DepositHistoryHelper(
+        db=deps.db, currency=deps.currency
+    ).get_rolling_6m_avg_net_deposit(as_of_date=today_iso)
+    monthly_return, annualized_return, elapsed_months = _projection_monthly_return(daily)
+
+    projection: list[dict[str, Any]] = [
+        {
+            "date": today_iso,
+            "projected_value_eur": round(current_value, 2),
+            "months_ahead": 0,
+        }
+    ]
+    projected_value = current_value
+    projection_months = years * MONTHS_PER_YEAR
+    today = date_type.fromisoformat(today_iso)
+    for month in range(1, projection_months + 1):
+        projected_value = max(0.0, projected_value * (1.0 + monthly_return) + avg_monthly_net_deposit)
+        projected_date = today + timedelta(days=round(month * AVG_DAYS_PER_MONTH))
+        projection.append(
+            {
+                "date": projected_date.isoformat(),
+                "projected_value_eur": round(projected_value, 2),
+                "months_ahead": month,
+            }
+        )
+
+    summary = {
+        "start_date": daily[0]["date"],
+        "current_date": today_iso,
+        "current_value_eur": round(current_value, 2),
+        "current_net_deposits_eur": round(current_net_deposits, 2),
+        "total_pnl_eur": round(total_pnl_eur, 2),
+        "total_pnl_pct": round(total_pnl_pct, 2),
+        "annualized_total_pnl_pct": round(annualized_return * 100.0, 2),
+        "avg_monthly_net_deposit_eur": round(avg_monthly_net_deposit, 2),
+        "deposit_window_months": DepositHistoryHelper.WINDOW_MONTHS,
+        "projection_years": years,
+        "projected_value_eur": round(projected_value, 2),
+        "elapsed_months": round(elapsed_months, 1),
+    }
+
+    return {
+        "history": [
+            {
+                "date": point["date"],
+                "total_value_eur": point["total_value_eur"],
+                "net_deposits_eur": point["net_deposits_eur"],
+                "pnl_eur": point["pnl_eur"],
+                "pnl_pct": point["pnl_pct"],
+            }
+            for point in daily
+        ],
+        "projection": projection,
+        "summary": summary,
+    }
 
 
 @router.get("/period-stats")

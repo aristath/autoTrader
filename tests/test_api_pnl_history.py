@@ -344,3 +344,107 @@ class TestPnlHistoryComputations:
 
         result = await get_portfolio_pnl_history(deps)
         assert "snapshots" in result
+
+
+class TestValueProjection:
+    """Verify portfolio value history plus 10-year projection."""
+
+    @pytest.mark.asyncio
+    async def test_projects_value_from_total_pnl_and_six_month_net_deposit_rate(self, temp_db):
+        from sentinel.api.routers.portfolio import get_portfolio_value_projection
+
+        today = datetime.now(tz=timezone.utc).date()
+        base_date = today - timedelta(days=399)
+        await temp_db.upsert_cash_flow(
+            date=(base_date - timedelta(days=1)).isoformat(),
+            type_id="card",
+            amount=1000.0,
+            currency="EUR",
+            comment=None,
+            raw_data={"test": True, "id": "initial"},
+        )
+        await temp_db.upsert_cash_flow(
+            date=(today - timedelta(days=120)).isoformat(),
+            type_id="card",
+            amount=300.0,
+            currency="EUR",
+            comment=None,
+            raw_data={"test": True, "id": "recent-1"},
+        )
+        await temp_db.upsert_cash_flow(
+            date=(today - timedelta(days=60)).isoformat(),
+            type_id="card",
+            amount=300.0,
+            currency="EUR",
+            comment=None,
+            raw_data={"test": True, "id": "recent-2"},
+        )
+        await temp_db.upsert_cash_flow(
+            date=(today - timedelta(days=30)).isoformat(),
+            type_id="card_payout",
+            amount=-120.0,
+            currency="EUR",
+            comment=None,
+            raw_data={"test": True, "id": "withdrawal"},
+        )
+
+        for i in range(400):
+            d = base_date + timedelta(days=i)
+            ts = _midnight_utc(d.isoformat())
+            value = 1000.0 + (i * (1000.0 / 399.0))
+            await temp_db.upsert_portfolio_snapshot(
+                ts,
+                {"positions": {"GROW.EU": {"quantity": 10, "value_eur": value}}, "cash_eur": 0.0},
+            )
+
+        currency = MagicMock()
+        currency.to_eur_for_date = AsyncMock(side_effect=lambda amount, currency, date: amount)
+        currency.to_eur = AsyncMock(side_effect=lambda amount, currency: amount)
+
+        broker = MagicMock()
+        broker.connected = False
+        broker.connect = AsyncMock(return_value=False)
+
+        deps = MagicMock()
+        deps.db = temp_db
+        deps.currency = currency
+        deps.broker = broker
+
+        result = await get_portfolio_value_projection(deps, years=5)
+
+        assert len(result["history"]) == 400
+        assert len(result["projection"]) == 61
+        assert result["projection"][0]["months_ahead"] == 0
+        assert result["projection"][-1]["months_ahead"] == 60
+        assert result["summary"]["current_value_eur"] == 2000.0
+        assert result["summary"]["current_net_deposits_eur"] == 1480.0
+        assert result["history"][-1]["net_deposits_eur"] == 1480.0
+        assert result["summary"]["total_pnl_pct"] == pytest.approx(35.14)
+        assert result["summary"]["avg_monthly_net_deposit_eur"] == 80.0
+        assert result["summary"]["deposit_window_months"] == 6
+        assert result["summary"]["projection_years"] == 5
+        assert result["summary"]["projected_value_eur"] > result["summary"]["current_value_eur"]
+
+    @pytest.mark.asyncio
+    async def test_empty_value_projection_returns_empty_contract(self, temp_db):
+        from sentinel.api.routers.portfolio import get_portfolio_value_projection
+
+        deps = MagicMock()
+        deps.db = temp_db
+
+        result = await get_portfolio_value_projection(deps)
+
+        assert result == {"history": [], "projection": [], "summary": None}
+
+    @pytest.mark.asyncio
+    async def test_value_projection_rejects_unknown_horizon(self):
+        from fastapi import HTTPException
+
+        from sentinel.api.routers.portfolio import get_portfolio_value_projection
+
+        deps = MagicMock()
+
+        with pytest.raises(HTTPException, match="Invalid projection horizon") as exc:
+            await get_portfolio_value_projection(deps, years=7)
+
+        assert exc.value.status_code == 400

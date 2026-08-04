@@ -169,6 +169,8 @@ export const syncCashFlows = () => request('/cashflows/sync', { method: 'POST' }
 // Portfolio P&L History
 export const getPortfolioPnLHistory = (period = '1Y') =>
   request(`/portfolio/pnl-history?period=${encodeURIComponent(period)}`);
+export const getPortfolioValueProjection = (years = 10) =>
+  request(`/portfolio/value-projection?years=${encodeURIComponent(years)}`);
 export const getPortfolioPeriodStats = () => request('/portfolio/period-stats');
 
 // Portfolio composition + risk/return metrics (replaces freedom24 PRAAMS)

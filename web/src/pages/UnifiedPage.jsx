@@ -30,6 +30,7 @@ import { SecurityAllocationCard } from '../components/SecurityAllocationCard';
 import { JobsCard } from '../components/JobsCard';
 import { MarketsOpenCard } from '../components/MarketsOpenCard';
 import { PortfolioPnLChart } from '../components/PortfolioPnLChart';
+import { PortfolioValueProjectionChart } from '../components/PortfolioValueProjectionChart';
 import { PeriodStatsTable } from '../components/PeriodStatsTable';
 import { PortfolioRatingCard } from '../components/PortfolioRatingCard';
 import { CompositionCard } from '../components/CompositionCard';
@@ -46,6 +47,7 @@ import {
   getRecommendations,
   getCashFlows,
   getPortfolioPnLHistory,
+  getPortfolioValueProjection,
   getPortfolioPeriodStats,
   getSettings,
   updateSetting,
@@ -62,6 +64,7 @@ const PERIODS = [
 ];
 
 const PNL_PERIODS = ['3M', '6M', '1Y', 'ALL'].map((value) => ({ value, label: value }));
+const VALUE_PROJECTION_YEARS = ['5', '10', '15', '20', '25'].map((value) => ({ value, label: `${value}Y` }));
 
 const FILTERS = [
   { value: 'review', label: 'Review' },
@@ -141,6 +144,7 @@ function writeCollapsedWidgets(collapsedWidgets) {
 function UnifiedPage() {
   const [period, setPeriod] = useState('1Y');
   const [pnlPeriod, setPnlPeriod] = useState('1Y');
+  const [valueProjectionYears, setValueProjectionYears] = useState('10');
   const [filter, setFilter] = useState('review');
   const [sort, setSort] = useState('priority');
   const [search, setSearch] = useState('');
@@ -192,6 +196,12 @@ function UnifiedPage() {
   const { data: pnlData } = useQuery({
     queryKey: ['portfolio-pnl', pnlPeriod],
     queryFn: () => getPortfolioPnLHistory(pnlPeriod),
+    refetchInterval: 300000, // Refresh every 5 minutes
+  });
+
+  const { data: valueProjectionData } = useQuery({
+    queryKey: ['portfolio-value-projection', valueProjectionYears],
+    queryFn: () => getPortfolioValueProjection(valueProjectionYears),
     refetchInterval: 300000, // Refresh every 5 minutes
   });
 
@@ -511,6 +521,32 @@ function UnifiedPage() {
                   planSummary={planSummary}
                 />
               </Stack>
+            </Card>
+          </CollapsibleWidget>
+
+          {/* Portfolio Value Projection */}
+          <CollapsibleWidget
+            id="portfolio-value"
+            title="Portfolio Value"
+            collapsed={collapsedWidgets['portfolio-value']}
+            onToggle={toggleWidget}
+          >
+            <Card shadow="sm" padding="sm" withBorder className="unified__portfolio-value-chart">
+              <Group justify="flex-end" gap="xs" mb="xs" wrap="wrap">
+                <Text size="xs" c="dimmed">Projection</Text>
+                <SegmentedControl
+                  aria-label="Portfolio value projection horizon"
+                  value={valueProjectionYears}
+                  onChange={setValueProjectionYears}
+                  data={VALUE_PROJECTION_YEARS}
+                  size="xs"
+                  className="unified__value-projection-selector"
+                />
+              </Group>
+              <PortfolioValueProjectionChart
+                data={valueProjectionData}
+                height={280}
+              />
             </Card>
           </CollapsibleWidget>
 

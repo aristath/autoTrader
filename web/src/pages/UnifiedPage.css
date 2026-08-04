@@ -163,6 +163,14 @@
 	flex: 0 0 auto;
 }
 
+.portfolio-value-projection__stats {
+	min-width: 0;
+}
+
+.portfolio-value-projection__stat {
+	min-width: 72px;
+}
+
 @media (max-width: 700px) {
 	.unified__status-row--summary,
 	.unified__status-row--cashflows {
@@ -183,5 +191,15 @@
 
 	.planner-tape__inline-arrow {
 		display: none;
+	}
+
+	.portfolio-value-projection__stats {
+		justify-content: flex-start;
+		width: 100%;
+		gap: 10px;
+	}
+
+	.portfolio-value-projection__stat {
+		min-width: 82px;
 	}
 }
