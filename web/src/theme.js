@@ -419,6 +419,7 @@ const createCatppuccinTheme = (palette) =>
 					tooltip: {
 						borderRadius: 0,
 						backgroundColor: palette.crust,
+						color: palette.text,
 						borderColor: palette.surface1,
 						borderWidth: 1,
 						borderStyle: "solid",
