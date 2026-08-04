@@ -292,7 +292,7 @@ async def _daily_portfolio_value_history(
 
 
 def _projection_monthly_return(daily: list[dict]) -> tuple[float, float, float]:
-    """Annualize total P/L from inception into a monthly projection rate."""
+    """Annualize dated net contributions into a monthly money-weighted return."""
     if len(daily) < 2:
         return 0.0, 0.0, 0.0
 
@@ -300,13 +300,46 @@ def _projection_monthly_return(daily: list[dict]) -> tuple[float, float, float]:
     end = date_type.fromisoformat(daily[-1]["date"])
     elapsed_months = max((end - start).days / AVG_DAYS_PER_MONTH, 1.0)
     current_value = float(daily[-1]["total_value_eur"] or 0.0)
-    current_net_deposits = float(daily[-1]["net_deposits_eur"] or 0.0)
-    if current_value <= 0 or current_net_deposits <= 0:
+    if current_value <= 0:
         return 0.0, 0.0, elapsed_months
 
-    total_pnl_ratio = max(current_value / current_net_deposits, 0.000001)
-    monthly_return = (total_pnl_ratio ** (1.0 / elapsed_months)) - 1.0
-    annualized_return = ((1.0 + monthly_return) ** MONTHS_PER_YEAR) - 1.0
+    contributions: list[tuple[date_type, float]] = []
+    previous_net_deposits = 0.0
+    for point in daily:
+        net_deposits = float(point["net_deposits_eur"] or 0.0)
+        contribution = net_deposits - previous_net_deposits
+        if abs(contribution) >= 0.01:
+            contributions.append((date_type.fromisoformat(point["date"]), contribution))
+        previous_net_deposits = net_deposits
+
+    if not contributions or sum(amount for _date, amount in contributions) <= 0:
+        return 0.0, 0.0, elapsed_months
+
+    def accumulated_value(annual_return: float) -> float:
+        growth_base = max(0.000001, 1.0 + annual_return)
+        total = 0.0
+        for contribution_date, contribution in contributions:
+            years_until_end = max((end - contribution_date).days / 365.25, 0.0)
+            total += contribution * (growth_base**years_until_end)
+        return total
+
+    low = -0.999999
+    high = 1.0
+    while accumulated_value(high) < current_value and high < 100.0:
+        high = (high * 2.0) + 1.0
+
+    if accumulated_value(low) > current_value or accumulated_value(high) < current_value:
+        return 0.0, 0.0, elapsed_months
+
+    for _iteration in range(100):
+        mid = (low + high) / 2.0
+        if accumulated_value(mid) < current_value:
+            low = mid
+        else:
+            high = mid
+
+    annualized_return = (low + high) / 2.0
+    monthly_return = ((1.0 + annualized_return) ** (1.0 / MONTHS_PER_YEAR)) - 1.0
     return monthly_return, annualized_return, elapsed_months
 
 
@@ -745,8 +778,8 @@ async def get_portfolio_value_projection(
     """Portfolio value history plus a selected-horizon projection.
 
     The forward series uses the same rolling 6-month net deposit helper the
-    planner uses, then compounds the portfolio by the annualized total P/L rate
-    implied by inception-to-current value versus net deposits.
+    planner uses, then compounds the portfolio by the money-weighted inception
+    run-rate implied by dated net deposits/withdrawals and today's value.
     """
     if years not in VALUE_PROJECTION_YEARS:
         allowed = ", ".join(f"{value}Y" for value in sorted(VALUE_PROJECTION_YEARS))

@@ -349,6 +349,48 @@ class TestPnlHistoryComputations:
 class TestValueProjection:
     """Verify portfolio value history plus 10-year projection."""
 
+    def test_projection_run_rate_uses_money_weighted_cash_flow_timing(self):
+        from sentinel.api.routers.portfolio import _projection_monthly_return
+
+        daily = [
+            {
+                "date": "2025-01-01",
+                "total_value_eur": 1000.0,
+                "net_deposits_eur": 1000.0,
+            },
+            {
+                "date": "2026-01-01",
+                "total_value_eur": 2100.0,
+                "net_deposits_eur": 2000.0,
+            },
+        ]
+
+        monthly_return, annualized_return, _elapsed_months = _projection_monthly_return(daily)
+
+        assert annualized_return == pytest.approx(0.1, abs=0.001)
+        assert monthly_return == pytest.approx((1.1 ** (1.0 / 12.0)) - 1.0, abs=0.0001)
+
+    def test_projection_run_rate_accounts_for_withdrawal_timing(self):
+        from sentinel.api.routers.portfolio import _projection_monthly_return
+
+        daily = [
+            {
+                "date": "2025-01-01",
+                "total_value_eur": 1000.0,
+                "net_deposits_eur": 1000.0,
+            },
+            {
+                "date": "2026-01-01",
+                "total_value_eur": 900.0,
+                "net_deposits_eur": 800.0,
+            },
+        ]
+
+        monthly_return, annualized_return, _elapsed_months = _projection_monthly_return(daily)
+
+        assert annualized_return == pytest.approx(0.1, abs=0.001)
+        assert monthly_return == pytest.approx((1.1 ** (1.0 / 12.0)) - 1.0, abs=0.0001)
+
     @pytest.mark.asyncio
     async def test_projects_value_from_total_pnl_and_six_month_net_deposit_rate(self, temp_db):
         from sentinel.api.routers.portfolio import get_portfolio_value_projection
