@@ -365,8 +365,10 @@ async def test_stale_schedule_uses_current_interval_and_future_queue_is_not_busy
     assert [row["id"] for row in await task_db.list_due_stale_task_schedules()] == [schedule_id]
 
     queue_source = await task_db.ensure_task_queue_source("future", "queue")
-    await task_db.enqueue_task_work(queue_source, "future", {}, eligible_at=old_success + 7_200_000)
+    eligible_at = old_success + 7_200_000
+    await task_db.enqueue_task_work(queue_source, "future", {}, eligible_at=eligible_at)
     assert await task_db.task_runtime_busy() is False
+    assert await task_db.get_next_task_work_eligible_at() == eligible_at
 
 
 @pytest.mark.asyncio
@@ -501,12 +503,16 @@ async def test_worker_waits_for_api_readiness_before_claiming_work(monkeypatch):
             runtime._shutdown = True
             return None
 
+        async def get_next_task_work_eligible_at(self):
+            return None
+
     async def wait_for_readiness():
         await ready.wait()
 
     monkeypatch.setattr(runtime, "Database", ReadinessDatabase)
     monkeypatch.setattr(runtime, "_wait_for_api_ready", wait_for_readiness)
     runtime._shutdown = False
+    runtime._wake_event = asyncio.Event()
     worker = asyncio.create_task(runtime._worker_loop())
     try:
         await asyncio.sleep(0.02)
@@ -520,6 +526,37 @@ async def test_worker_waits_for_api_readiness_before_claiming_work(monkeypatch):
             worker.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await worker
+
+
+@pytest.mark.asyncio
+async def test_idle_worker_waits_for_wakeup_without_polling_database(monkeypatch):
+    claimed = 0
+
+    class IdleDatabase:
+        async def claim_next_task_work(self):
+            nonlocal claimed
+            claimed += 1
+            return None
+
+        async def get_next_task_work_eligible_at(self):
+            return None
+
+    async def ready():
+        return None
+
+    monkeypatch.setattr(runtime, "Database", IdleDatabase)
+    monkeypatch.setattr(runtime, "_wait_for_api_ready", ready)
+    runtime._shutdown = False
+    runtime._wake_event = asyncio.Event()
+    worker = asyncio.create_task(runtime._worker_loop())
+    try:
+        await asyncio.sleep(0.05)
+        assert claimed == 1
+    finally:
+        runtime._shutdown = True
+        runtime._wake_event.set()
+        await asyncio.wait_for(worker, timeout=2)
+        runtime._shutdown = False
 
 
 @pytest.mark.asyncio

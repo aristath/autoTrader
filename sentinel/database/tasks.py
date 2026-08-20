@@ -238,6 +238,13 @@ class TaskDatabaseMixin:
             row = await cursor.fetchone()
             return dict(row) if row else None
 
+    async def get_next_task_work_eligible_at(self) -> int | None:
+        """Return the earliest future queue eligibility timestamp, in milliseconds."""
+        row = await (
+            await self.conn.execute("SELECT MIN(eligible_at) AS eligible_at FROM work_queue WHERE status='queued'")
+        ).fetchone()
+        return int(row["eligible_at"]) if row and row["eligible_at"] is not None else None
+
     async def mark_task_work_running(self, run_id: str) -> bool:
         now = int(time.time() * 1000)
         async with self._task_transaction() as conn:

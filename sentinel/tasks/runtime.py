@@ -10,6 +10,7 @@ import logging
 import os
 import signal
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -217,13 +218,24 @@ def _wake_worker() -> None:
 async def _worker_loop() -> None:
     await _wait_for_api_ready()
     while not _shutdown:
+        if _wake_event is None:
+            return
+        # Clear before checking the queue so an enqueue racing with the check
+        # leaves the event set and cannot strand new work.
+        _wake_event.clear()
         item = await Database().claim_next_task_work()
         if item is None:
-            if _wake_event is None:
+            if _shutdown:
                 return
-            _wake_event.clear()
+            next_eligible_at = await Database().get_next_task_work_eligible_at()
+            wait_seconds = (
+                None if next_eligible_at is None else max(0.05, (next_eligible_at - int(time.time() * 1000)) / 1000)
+            )
             try:
-                await asyncio.wait_for(_wake_event.wait(), timeout=5)
+                if wait_seconds is None:
+                    await _wake_event.wait()
+                else:
+                    await asyncio.wait_for(_wake_event.wait(), timeout=wait_seconds)
             except asyncio.TimeoutError:
                 pass
             continue
