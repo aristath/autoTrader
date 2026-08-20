@@ -1516,6 +1516,68 @@ class TestSearxngExecutor:
             await ex.get("searxng_web_search")({"query": "q"})
         await ex.aclose()
 
+    @pytest.mark.asyncio
+    async def test_no_results_uses_clara_browser_search_fallback(self) -> None:
+        class SearchHttp:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, Any]] = []
+
+            async def get(self, url: str, timeout: Any = None) -> FakeResponse:
+                self.calls.append({"method": "GET", "url": url, "timeout": timeout})
+                return searxng_ok([])
+
+            async def post(self, url: str, json: Any = None, timeout: Any = None) -> FakeResponse:
+                self.calls.append({"method": "POST", "url": url, "json": json, "timeout": timeout})
+                return FakeResponse(body=b"Title: Browser result\nDescription: Fallback\nURL: https://result.test")
+
+            async def aclose(self) -> None:
+                pass
+
+        fake = SearchHttp()
+        ex = make_tool_executors("http://sx", None, None, "http://browser:8891")
+        ex._client = fake  # type: ignore[assignment]
+        out = await ex.get("searxng_web_search")({"query": "q", "num_results": 3})
+
+        assert out == "Title: Browser result\nDescription: Fallback\nURL: https://result.test"
+        assert fake.calls[1]["url"] == "http://browser:8891/search"
+        assert fake.calls[1]["json"] == {"query": "q", "limit": 3}
+        await ex.aclose()
+
+    @pytest.mark.asyncio
+    async def test_searxng_error_uses_clara_browser_search_fallback(self) -> None:
+        class SearchHttp:
+            async def get(self, _url: str, timeout: Any = None) -> FakeResponse:
+                return FakeResponse(status_code=429, body=b"rate limited")
+
+            async def post(self, _url: str, json: Any = None, timeout: Any = None) -> FakeResponse:
+                return FakeResponse(body=b"Title: Browser result\nURL: https://result.test")
+
+            async def aclose(self) -> None:
+                pass
+
+        ex = make_tool_executors("http://sx", None, None, "http://browser:8891")
+        ex._client = SearchHttp()  # type: ignore[assignment]
+        assert "https://result.test" in await ex.get("searxng_web_search")({"query": "q"})
+        await ex.aclose()
+
+    @pytest.mark.asyncio
+    async def test_browser_search_failure_reports_both_paths(self) -> None:
+        class SearchHttp:
+            async def get(self, _url: str, timeout: Any = None) -> FakeResponse:
+                return searxng_ok([])
+
+            async def post(self, _url: str, json: Any = None, timeout: Any = None) -> FakeResponse:
+                return FakeResponse(status_code=502, body=b"browser unavailable")
+
+            async def aclose(self) -> None:
+                pass
+
+        ex = make_tool_executors("http://sx", None, None, "http://browser:8891")
+        ex._client = SearchHttp()  # type: ignore[assignment]
+        with pytest.raises(AIPipelineError, match="SearXNG failed.*browser-search fallback failed"):
+            await ex.get("searxng_web_search")({"query": "q"})
+        await ex.aclose()
+
 
 # --- memory pure functions ------------------------------------------------------------------------------------
 

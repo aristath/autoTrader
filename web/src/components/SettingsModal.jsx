@@ -72,6 +72,11 @@ function ResearchSettings({ settings, onChange, modelDiscovery, modelLoading, mo
           onChange={(event) => onChange('ai_searxng_base_url', event.target.value)}
         />
         <TextInput
+          label="Search fallback"
+          value={settings?.ai_browser_search_base_url || ''}
+          onChange={(event) => onChange('ai_browser_search_base_url', event.target.value)}
+        />
+        <TextInput
           label="URL summarizer"
           value={settings?.ai_url_summarizer_base_url || ''}
           onChange={(event) => onChange('ai_url_summarizer_base_url', event.target.value)}

@@ -342,7 +342,12 @@ async def _execute(item: dict[str, Any]) -> None:
 
         settings = Settings()
         client = await LLMClient.from_settings(settings)
-        executors = ai_tools.make_tool_executors(client.searxng_base_url, client.url_summarizer_base_url, work_root)
+        executors = ai_tools.make_tool_executors(
+            client.searxng_base_url,
+            client.url_summarizer_base_url,
+            work_root,
+            client.browser_search_base_url,
+        )
         inputs = json.loads(item.get("inputs_json") or "{}")
         env = os.environ.copy()
         env.update(

@@ -1224,7 +1224,7 @@ async def make_memory_store(settings: Any) -> MemoryStore:
         pg_port=int(await settings.get("ai_pg_port", 5432)),
         pg_database=str(await settings.get("ai_pg_database", "clara_memories")),
         pg_user=str(await settings.get("ai_pg_user", "clara")),
-        pg_password=str(await settings.get("ai_pg_password", "postgres")),
+        pg_password=str(await settings.get("ai_pg_password", "")),
         embed_base_url=str(await settings.get("ai_embed_base_url", "http://127.0.0.1:18200/v1")),
         embed_model=str(await settings.get("ai_embed_model", "ibm-granite/granite-embedding-311m-multilingual-r2")),
         embed_dims=int(await settings.get("ai_embed_dims", 768)),

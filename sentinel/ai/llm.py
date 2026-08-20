@@ -545,6 +545,7 @@ class LLMClient:
         ai_data_dir: Path | None = None,
         searxng_base_url: str | None = None,
         url_summarizer_base_url: str | None = None,
+        browser_search_base_url: str | None = None,
         session: httpx.AsyncClient | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
@@ -555,6 +556,7 @@ class LLMClient:
         self.ai_data_dir = ai_data_dir
         self.searxng_base_url = searxng_base_url
         self.url_summarizer_base_url = url_summarizer_base_url
+        self.browser_search_base_url = browser_search_base_url
         self._owns_session = session is None
         self._client = session or httpx.AsyncClient(timeout=timeout)
 
@@ -571,6 +573,7 @@ class LLMClient:
             ai_data_dir=SENTINEL_HOME,
             searxng_base_url=await settings.get("ai_searxng_base_url", "http://127.0.0.1:8888"),
             url_summarizer_base_url=await settings.get("ai_url_summarizer_base_url", "http://127.0.0.1:8890"),
+            browser_search_base_url=await settings.get("ai_browser_search_base_url", "http://127.0.0.1:8891"),
         )
 
     async def close(self) -> None:
@@ -786,7 +789,12 @@ async def run_prompt(
     work_root = Path(task_cwd)
     base_system = build_system_prompt(client.ai_data_dir or "", task_id, work_root, run_mode)
     system_prompt = f"{base_system}\n\n{system}" if system else base_system
-    executors = ai_tools.make_tool_executors(client.searxng_base_url, client.url_summarizer_base_url, work_root)
+    executors = ai_tools.make_tool_executors(
+        client.searxng_base_url,
+        client.url_summarizer_base_url,
+        work_root,
+        client.browser_search_base_url,
+    )
     try:
         result = await client.chat(
             template,

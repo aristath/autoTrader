@@ -428,6 +428,7 @@ async def test_artifact_projection_requires_a_final_artifact_for_freshness(task_
 class FakeClient:
     searxng_base_url = "http://127.0.0.1:8888"
     url_summarizer_base_url = "http://127.0.0.1:8890"
+    browser_search_base_url = "http://127.0.0.1:8891"
 
     async def close(self):
         return None

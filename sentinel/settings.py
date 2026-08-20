@@ -11,6 +11,7 @@ All settings are stored in the database and editable via the web UI.
 No hardcoded magic numbers.
 """
 
+import os
 from typing import Any
 
 from sentinel.database import Database
@@ -103,14 +104,16 @@ DEFAULTS = {
     "ai_llm_model": "qwen3.8-27b-udq4kxl",
     # Web search (SearXNG, JSON format) and URL summarizer satellites.
     "ai_searxng_base_url": "http://127.0.0.1:8888",
+    "ai_browser_search_base_url": "http://127.0.0.1:8891",
     "ai_url_summarizer_base_url": "http://127.0.0.1:8890",
     # Research memory: pgvector Postgres (clara-postgres) with mem0 tables.
-    # Values verified on-device against the live mem0 config.
+    # Connection identity matches Clara's mem0 config; the password is stored in
+    # Sentinel settings (or supplied through SENTINEL_AI_PG_PASSWORD).
     "ai_pg_host": "127.0.0.1",
     "ai_pg_port": 5432,
     "ai_pg_database": "clara_memories",
     "ai_pg_user": "clara",
-    "ai_pg_password": "postgres",
+    "ai_pg_password": os.environ.get("SENTINEL_AI_PG_PASSWORD", ""),
     "ai_embed_base_url": "http://127.0.0.1:18200/v1",
     "ai_embed_model": "ibm-granite/granite-embedding-311m-multilingual-r2",
     "ai_embed_dims": 768,

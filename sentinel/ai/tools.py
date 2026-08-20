@@ -30,7 +30,7 @@ import os
 import re
 from pathlib import Path
 from typing import Any, TypeGuard
-from urllib.parse import urlencode, urlsplit, urlunsplit
+from urllib.parse import urlencode, urljoin, urlsplit, urlunsplit
 
 import httpx
 
@@ -47,6 +47,7 @@ SAFESEARCH_SCHEMA_ENUM = ("0", "1", "2")
 VALID_SAFESEARCH_VALUES = (0, 1, 2, "0", "1", "2")
 
 SEARCH_TIMEOUT = httpx.Timeout(10.0)
+SEARCH_FALLBACK_TIMEOUT = httpx.Timeout(60.0)
 SUMMARIZER_TIMEOUT = 120.0
 
 # --- tool definitions (byte-pinned: llm-strings.json + code schemas) ---------
@@ -480,9 +481,11 @@ class ToolExecutors:
         searxng_base_url: str | None,
         url_summarizer_base_url: str | None,
         work_root: Path | None,
+        browser_search_base_url: str | None = None,
     ) -> None:
         self._searxng_base = (searxng_base_url or "").rstrip("/")
         self._summarizer_base = (url_summarizer_base_url or "").rstrip("/")
+        self._browser_search_base = (browser_search_base_url or "").rstrip("/")
         self._work_root = work_root
         self._client = httpx.AsyncClient(timeout=SUMMARIZER_TIMEOUT)
 
@@ -585,6 +588,16 @@ class ToolExecutors:
             raise AIPipelineError("Invalid arguments for web search")
         if not self._searxng_base:
             raise AIPipelineError("SearXNG base URL is not configured")
+
+        try:
+            result = await self._call_searxng(args)
+        except AIPipelineError as exc:
+            return await self._search_fallback(args, exc)
+        if self._browser_search_base and _looks_like_search_failure(result):
+            return await self._search_fallback(args, AIPipelineError(result))
+        return result
+
+    async def _call_searxng(self, args: dict[str, Any]) -> str:
         query: str = args["query"]
         pageno = args.get("pageno")
         if pageno is None:
@@ -631,6 +644,54 @@ class ToolExecutors:
             result_detail=result_detail,
         )
 
+    async def _search_fallback(self, args: dict[str, Any], original_error: AIPipelineError) -> str:
+        if not self._browser_search_base:
+            raise original_error
+        parts = urlsplit(self._browser_search_base)
+        if parts.scheme not in {"http", "https"} or not parts.netloc:
+            raise AIPipelineError(
+                f"SearXNG failed ({original_error}); browser-search config failed "
+                "(ai_browser_search_base_url must be an http(s) URL)"
+            ) from original_error
+
+        raw_limit = args.get("limit", args.get("count", args.get("num_results", 10)))
+        try:
+            limit = int(float(raw_limit))
+        except (TypeError, ValueError, OverflowError):
+            limit = 10
+        limit = max(1, min(20, limit))
+        url = urljoin(f"{self._browser_search_base}/", "search")
+        try:
+            response = await self._client.post(
+                url,
+                json={"query": args["query"].strip(), "limit": limit},
+                timeout=SEARCH_FALLBACK_TIMEOUT,
+            )
+        except httpx.HTTPError as exc:
+            raise AIPipelineError(f"SearXNG failed ({original_error}); browser-search fallback failed ({exc})") from exc
+        text = response.text
+        if not response.is_success:
+            detail = text or response.reason_phrase
+            raise AIPipelineError(f"SearXNG failed ({original_error}); browser-search fallback failed ({detail})")
+        if not text.strip():
+            raise AIPipelineError(f"SearXNG failed ({original_error}); browser-search fallback returned no results")
+        return text
+
+
+def _looks_like_search_failure(text: str) -> bool:
+    if re.search(r"\bURL:\s*https?://", text, re.IGNORECASE):
+        return False
+    if len(text) > 1000:
+        return False
+    return (
+        re.search(
+            r"\b429\b|rate\s*limit|too many requests|blocked|captcha|forbidden|timed out|unavailable|no results found",
+            text,
+            re.IGNORECASE,
+        )
+        is not None
+    )
+
 
 def _cache_status(value: Any) -> str:
     return value if value in ("hit", "refreshed") else "miss"
@@ -651,5 +712,6 @@ def make_tool_executors(
     searxng_base_url: str | None,
     url_summarizer_base_url: str | None,
     work_root: Path | None,
+    browser_search_base_url: str | None = None,
 ) -> ToolExecutors:
-    return ToolExecutors(searxng_base_url, url_summarizer_base_url, work_root)
+    return ToolExecutors(searxng_base_url, url_summarizer_base_url, work_root, browser_search_base_url)
