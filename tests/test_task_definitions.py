@@ -6,6 +6,7 @@ import shutil
 import sqlite3
 import subprocess
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -437,6 +438,33 @@ class FakeClient:
 class FakeExecutors(dict):
     async def aclose(self):
         return None
+
+
+@pytest.mark.asyncio
+async def test_stale_evaluator_is_offset_from_portfolio_job_anchor(task_db, monkeypatch):
+    class Scheduler:
+        def __init__(self):
+            self.added = []
+
+        def get_jobs(self):
+            return []
+
+        def add_job(self, function, trigger, **kwargs):
+            self.added.append((function, trigger, kwargs))
+
+    scheduler = Scheduler()
+    monkeypatch.setattr(runtime, "Database", lambda: task_db)
+    monkeypatch.setattr(runtime, "list_tasks", lambda: [])
+    before = datetime.now(timezone.utc)
+    try:
+        await runtime.sync_task_schedules(scheduler)
+    finally:
+        runtime._scheduler = None
+
+    _, trigger, kwargs = scheduler.added[0]
+    offset = (trigger.start_date - before).total_seconds()
+    assert kwargs["id"] == runtime.STALE_EVALUATOR_JOB
+    assert runtime.STALE_EVALUATOR_OFFSET_SECONDS - 1 <= offset <= runtime.STALE_EVALUATOR_OFFSET_SECONDS + 1
 
 
 @pytest.fixture

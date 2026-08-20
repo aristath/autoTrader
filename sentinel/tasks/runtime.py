@@ -11,7 +11,7 @@ import os
 import signal
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 BRIDGE = Path(__file__).with_name("orchestrator.mjs")
 APP_ROOT = Path(__file__).resolve().parents[2]
 STALE_EVALUATOR_JOB = "task-scheduler:stale-evaluator"
+STALE_EVALUATOR_OFFSET_SECONDS = 30
 ACTIVE_STATUSES = {"queued", "claimed", "running"}
 API_READINESS_POLL_SECONDS = 0.25
 API_READINESS_TIMEOUT_SECONDS = 1.0
@@ -653,7 +654,10 @@ async def sync_task_schedules(scheduler: Any) -> None:
             scheduler.remove_job(job.id)
     scheduler.add_job(
         evaluate_stale_schedules,
-        IntervalTrigger(minutes=1),
+        IntervalTrigger(
+            minutes=1,
+            start_date=datetime.now(timezone.utc) + timedelta(seconds=STALE_EVALUATOR_OFFSET_SECONDS),
+        ),
         id=STALE_EVALUATOR_JOB,
         name="Folder task stale-policy evaluator",
         replace_existing=True,
