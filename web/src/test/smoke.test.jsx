@@ -11,6 +11,7 @@ import { TradesModal } from '../components/TradesModal';
 import { SchedulerModal } from '../components/SchedulerModal';
 import { SecurityExpandedRow } from '../components/SecurityExpandedRow';
 import { SettingsModal } from '../components/SettingsModal';
+import { AIPipelineModal } from '../components/AIPipelineModal';
 
 const wrap = (ui) => (
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -42,6 +43,10 @@ describe('upgrade smoke test', () => {
 
   it('renders SettingsModal (Divider + freedom24 fields)', () => {
     render(wrap(<SettingsModal opened onClose={() => {}} />));
+  });
+
+  it('renders AIPipelineModal', () => {
+    render(wrap(<AIPipelineModal opened={false} onClose={() => {}} />));
   });
 
   it('renders SecurityExpandedRow (Grid gap, Grid.Col responsive span)', () => {

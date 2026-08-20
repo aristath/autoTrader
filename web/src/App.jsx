@@ -1,12 +1,14 @@
 import { AppShell, Group, Title, ActionIcon, Badge, Tooltip, Switch, Text } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { IconSettings, IconClock, IconRefresh, IconChartLine, IconPlanet, IconReceipt } from '@tabler/icons-react';
+import { IconSettings, IconClock, IconRefresh, IconChartLine, IconPlanet, IconReceipt, IconMicroscope, IconChecklist } from '@tabler/icons-react';
 
 import UnifiedPage from './pages/UnifiedPage';
 import { SchedulerModal } from './components/SchedulerModal';
 import { SettingsModal } from './components/SettingsModal';
 import { BacktestModal } from './components/BacktestModal';
 import { TradesModal } from './components/TradesModal';
+import { AIPipelineModal } from './components/AIPipelineModal';
+import { TaskAdminModal } from './components/TaskAdminModal';
 import { getSchedulerStatus, refreshAll, getSettings, updateSetting, getLedStatus, setLedEnabled, getVersion } from './api/client';
 import { useState } from 'react';
 
@@ -15,6 +17,8 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [backtestOpen, setBacktestOpen] = useState(false);
   const [tradesOpen, setTradesOpen] = useState(false);
+  const [aiPipelineOpen, setAiPipelineOpen] = useState(false);
+  const [taskAdminOpen, setTaskAdminOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: schedulerStatus } = useQuery({
@@ -200,6 +204,30 @@ function App() {
                   </ActionIcon>
                 </Tooltip>
 
+                <Tooltip label="Research Pipeline">
+                  <ActionIcon
+                    variant="subtle"
+                    size="lg"
+                    onClick={() => setAiPipelineOpen(true)}
+                    aria-label="Research pipeline"
+                    className="app__action-btn app__action-btn--research"
+                  >
+                    <IconMicroscope size={20} />
+                  </ActionIcon>
+                </Tooltip>
+
+                <Tooltip label="Task Administration">
+                  <ActionIcon
+                    variant="subtle"
+                    size="lg"
+                    onClick={() => setTaskAdminOpen(true)}
+                    aria-label="Task administration"
+                    className="app__action-btn app__action-btn--tasks"
+                  >
+                    <IconChecklist size={20} />
+                  </ActionIcon>
+                </Tooltip>
+
                 <Tooltip label="Settings">
                   <ActionIcon
                     variant="subtle"
@@ -224,6 +252,8 @@ function App() {
       <SettingsModal opened={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <BacktestModal opened={backtestOpen} onClose={() => setBacktestOpen(false)} />
       <TradesModal opened={tradesOpen} onClose={() => setTradesOpen(false)} />
+      <AIPipelineModal opened={aiPipelineOpen} onClose={() => setAiPipelineOpen(false)} />
+      <TaskAdminModal opened={taskAdminOpen} onClose={() => setTaskAdminOpen(false)} />
     </>
   );
 }

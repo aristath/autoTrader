@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Modal,
+  ActionIcon,
   Stack,
   Text,
   TextInput,
@@ -15,9 +16,161 @@ import {
   Button,
   Divider,
   Switch,
+  SimpleGrid,
+  Tooltip,
 } from '@mantine/core';
-import { IconSettings, IconCoin, IconBrain, IconKey, IconCloudUpload, IconChartLine } from '@tabler/icons-react';
-import { getSettings, updateSetting, updateSettingsBatch } from '../api/client';
+import { IconSettings, IconCoin, IconBrain, IconKey, IconCloudUpload, IconChartLine, IconMicroscope, IconRefresh } from '@tabler/icons-react';
+import { getAiModels, getSettings, updateSetting, updateSettingsBatch } from '../api/client';
+
+function ResearchSettings({ settings, onChange, modelDiscovery, modelLoading, modelError, onRefreshModels }) {
+  const currentModel = settings?.ai_llm_model || '';
+  const modelOptions = [...new Set([currentModel, ...(modelDiscovery?.models || [])].filter(Boolean))];
+  const discoveryError = modelError?.message || (modelDiscovery?.ok === false ? modelDiscovery.error : '');
+
+  return (
+    <Stack gap="md">
+      <Divider label="Model and research tools" labelPosition="left" />
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+        <TextInput
+          label="LLM URL"
+          value={settings?.ai_llm_base_url || ''}
+          onChange={(event) => onChange('ai_llm_base_url', event.target.value)}
+        />
+        <Stack gap={4}>
+          <Group align="flex-end" gap="xs" wrap="nowrap">
+            <Select
+              label="Model"
+              value={currentModel || null}
+              data={modelOptions}
+              searchable
+              nothingFoundMessage={modelLoading ? 'Loading models...' : 'No models reported'}
+              onChange={(value) => onChange('ai_llm_model', value || '')}
+              style={{ flex: 1 }}
+            />
+            <Tooltip label="Refresh available models">
+              <ActionIcon
+                variant="subtle"
+                size="lg"
+                aria-label="Refresh available models"
+                loading={modelLoading}
+                onClick={onRefreshModels}
+              >
+                <IconRefresh size={18} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+          {discoveryError && <Text size="xs" c="red">{discoveryError}</Text>}
+        </Stack>
+        <PasswordInput
+          label="LLM API key"
+          value={settings?.ai_llm_api_key || ''}
+          onChange={(event) => onChange('ai_llm_api_key', event.target.value)}
+        />
+        <TextInput
+          label="Search URL"
+          value={settings?.ai_searxng_base_url || ''}
+          onChange={(event) => onChange('ai_searxng_base_url', event.target.value)}
+        />
+        <TextInput
+          label="URL summarizer"
+          value={settings?.ai_url_summarizer_base_url || ''}
+          onChange={(event) => onChange('ai_url_summarizer_base_url', event.target.value)}
+        />
+      </SimpleGrid>
+
+      <Divider label="Research memory" labelPosition="left" />
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+        <TextInput
+          label="PostgreSQL host"
+          value={settings?.ai_pg_host || ''}
+          onChange={(event) => onChange('ai_pg_host', event.target.value)}
+        />
+        <NumberInput
+          label="PostgreSQL port"
+          value={settings?.ai_pg_port ?? 5432}
+          onChange={(value) => onChange('ai_pg_port', value)}
+          min={1}
+          max={65535}
+        />
+        <TextInput
+          label="Database"
+          value={settings?.ai_pg_database || ''}
+          onChange={(event) => onChange('ai_pg_database', event.target.value)}
+        />
+        <TextInput
+          label="Database user"
+          value={settings?.ai_pg_user || ''}
+          onChange={(event) => onChange('ai_pg_user', event.target.value)}
+        />
+        <PasswordInput
+          label="Database password"
+          value={settings?.ai_pg_password || ''}
+          onChange={(event) => onChange('ai_pg_password', event.target.value)}
+        />
+        <TextInput
+          label="Embedding URL"
+          value={settings?.ai_embed_base_url || ''}
+          onChange={(event) => onChange('ai_embed_base_url', event.target.value)}
+        />
+        <TextInput
+          label="Embedding model"
+          value={settings?.ai_embed_model || ''}
+          onChange={(event) => onChange('ai_embed_model', event.target.value)}
+        />
+        <NumberInput
+          label="Embedding dimensions"
+          value={settings?.ai_embed_dims ?? 768}
+          onChange={(value) => onChange('ai_embed_dims', value)}
+          min={1}
+        />
+        <TextInput
+          label="Memory user"
+          value={settings?.ai_memory_user_id || ''}
+          onChange={(event) => onChange('ai_memory_user_id', event.target.value)}
+        />
+        <TextInput
+          label="Memory collection"
+          value={settings?.ai_memory_collection || ''}
+          onChange={(event) => onChange('ai_memory_collection', event.target.value)}
+        />
+      </SimpleGrid>
+
+      <Divider label="Cadence and limits" labelPosition="left" />
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+        <NumberInput
+          label="Dedup similarity"
+          value={settings?.ai_dedup_similarity_threshold ?? 0.96}
+          onChange={(value) => onChange('ai_dedup_similarity_threshold', value)}
+          min={0}
+          max={1}
+          step={0.01}
+          decimalScale={2}
+        />
+        <NumberInput
+          label="LLM timeout"
+          value={settings?.ai_llm_timeout_seconds ?? 600}
+          onChange={(value) => onChange('ai_llm_timeout_seconds', value)}
+          min={1}
+          suffix=" sec"
+        />
+        <NumberInput
+          label="Maximum tool calls"
+          value={settings?.ai_max_tool_calls ?? 40}
+          onChange={(value) => onChange('ai_max_tool_calls', value)}
+          min={1}
+          max={100}
+        />
+        <NumberInput
+          label="Maximum tool rounds"
+          value={settings?.ai_max_tool_loop_iterations ?? 40}
+          onChange={(value) => onChange('ai_max_tool_loop_iterations', value)}
+          min={1}
+          max={100}
+        />
+      </SimpleGrid>
+    </Stack>
+  );
+}
 
 export function SettingsModal({ opened, onClose }) {
   const queryClient = useQueryClient();
@@ -27,6 +180,14 @@ export function SettingsModal({ opened, onClose }) {
     queryKey: ['settings'],
     queryFn: getSettings,
     enabled: opened,
+  });
+
+  const modelsQuery = useQuery({
+    queryKey: ['ai-models'],
+    queryFn: getAiModels,
+    enabled: opened,
+    retry: false,
+    refetchOnMount: 'always',
   });
 
   const updateMutation = useMutation({
@@ -77,7 +238,7 @@ export function SettingsModal({ opened, onClose }) {
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title={<Text fw={600}>Settings</Text>} size="lg">
+    <Modal opened={opened} onClose={onClose} title={<Text fw={600}>Settings</Text>} size="xl">
       {isLoading ? (
         <Center h={200}>
           <Loader />
@@ -98,6 +259,9 @@ export function SettingsModal({ opened, onClose }) {
             </Tabs.Tab>
             <Tabs.Tab value="forecasting" leftSection={<IconChartLine size={16} />}>
               Forecasts
+            </Tabs.Tab>
+            <Tabs.Tab value="research" leftSection={<IconMicroscope size={16} />}>
+              Research
             </Tabs.Tab>
             <Tabs.Tab value="api" leftSection={<IconKey size={16} />}>
               API
@@ -526,6 +690,17 @@ export function SettingsModal({ opened, onClose }) {
             </Stack>
           </Tabs.Panel>
 
+          <Tabs.Panel value="research" pt="md">
+            <ResearchSettings
+              settings={settings}
+              onChange={handleChange}
+              modelDiscovery={modelsQuery.data}
+              modelLoading={modelsQuery.isFetching}
+              modelError={modelsQuery.error}
+              onRefreshModels={() => modelsQuery.refetch()}
+            />
+          </Tabs.Panel>
+
           <Tabs.Panel value="api" pt="md">
             <Stack gap="md">
               <TextInput
@@ -574,7 +749,7 @@ export function SettingsModal({ opened, onClose }) {
           <Tabs.Panel value="backup" pt="md">
             <Stack gap="md">
               <Text size="sm" c="dimmed">
-                Back up the data folder (database and runtime state) to Cloudflare R2
+                Back up the database, runtime state, task definitions, and research artifacts to Cloudflare R2
               </Text>
 
               <TextInput

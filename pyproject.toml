@@ -15,6 +15,7 @@ dependencies = [
     "boto3>=1.26.0",
     "APScheduler>=3.10.0",
     "httpx>=0.28.0",
+    "asyncpg>=0.31.0",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +36,18 @@ where = ["."]
 include = ["sentinel*"]
 exclude = ["web*", "data*"]
 
+[tool.setuptools.package-data]
+sentinel = [
+    "task_definitions/**/*.js",
+    "task_definitions/**/*.json",
+    "task_definitions/**/*.md",
+    "task_definitions/**/*.mjs",
+    "task_definitions/**/*.py",
+    "tasks/*.mjs",
+    "tasks/vendor/*.cjs",
+    "tasks/vendor/*.md",
+]
+
 [tool.ruff]
 target-version = "py313"
 line-length = 120
@@ -45,10 +58,12 @@ select = ["F", "E", "W", "I", "S", "B"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
 "sentinel/backtester.py" = ["S101"]  # Type narrowing assertions
+"sentinel/task_definitions/**/*.py" = ["E501", "F541", "I001", "S"]  # Ported user-editable Clara task files
 
 [tool.pyright]
 pythonVersion = "3.13"
 typeCheckingMode = "basic"
+include = ["sentinel", "main.py"]
 # Downgrade annotation-dependent rules to warning until project adds type annotations
 reportOptionalMemberAccess = "warning"
 reportArgumentType = "warning"

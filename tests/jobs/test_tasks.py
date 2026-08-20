@@ -1,5 +1,6 @@
 """Tests for job task functions."""
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -990,6 +991,7 @@ class TestBackupR2:
         """Verify archive is created and uploaded."""
         from sentinel.jobs.tasks import backup_r2
 
+        mock_db.path = Path.cwd() / "sentinel.db"
         with patch("sentinel.settings.Settings") as MockSettings:
             mock_settings = AsyncMock()
 
@@ -1006,17 +1008,19 @@ class TestBackupR2:
             mock_settings.get = mock_get
             MockSettings.return_value = mock_settings
 
-            with patch("sentinel.jobs.tasks._create_archive") as mock_create:
-                with patch("sentinel.jobs.tasks._get_r2_client") as mock_client:
-                    with patch("sentinel.jobs.tasks._upload_archive") as mock_upload:
-                        with patch("sentinel.jobs.tasks._prune_old_backups"):
-                            with patch("os.path.exists", return_value=True):
-                                with patch("os.unlink"):
-                                    await backup_r2(mock_db)
+            with (
+                patch("sentinel.jobs.tasks._create_database_snapshot", new_callable=AsyncMock) as mock_snapshot,
+                patch("sentinel.jobs.tasks._create_archive") as mock_create,
+                patch("sentinel.jobs.tasks._get_r2_client") as mock_client,
+                patch("sentinel.jobs.tasks._upload_archive") as mock_upload,
+                patch("sentinel.jobs.tasks._prune_old_backups"),
+            ):
+                await backup_r2(mock_db)
 
-                                    mock_create.assert_called_once()
-                                    mock_client.assert_called_once()
-                                    mock_upload.assert_called_once()
+                mock_snapshot.assert_awaited_once()
+                mock_create.assert_called_once()
+                mock_client.assert_called_once()
+                mock_upload.assert_called_once()
 
 
 class TestParseBrokerTimestamp:

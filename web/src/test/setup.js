@@ -22,3 +22,7 @@ if (!window.ResizeObserver) {
     disconnect() {}
   };
 }
+
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}

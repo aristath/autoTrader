@@ -1,0 +1,382 @@
+"""AI research pipeline API routes."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import time
+from datetime import datetime, timezone
+from typing import Annotated, Any
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from sentinel.ai.llm import discover_models
+from sentinel.ai.memory import make_memory_store
+from sentinel.ai.universe import reconcile_units, refresh_unit_artifacts
+from sentinel.api.dependencies import CommonDependencies, get_common_deps
+from sentinel.paths import TASK_ARTIFACTS_DIR
+from sentinel.tasks.definitions import list_tasks
+from sentinel.tasks.runtime import enqueue_task, list_runs_for_tasks
+
+router = APIRouter(prefix="/ai", tags=["ai"])
+AI_TASK_IDS = {
+    "analyze-macro-bucket",
+    "analyze-security",
+    "rate-portfolio",
+    "rate-security",
+    "refresh-macro-buckets",
+    "refresh-securities-universe",
+    "schedule-next-macro-analysis",
+    "schedule-next-security-analysis",
+}
+MEMORY_STATS_TTL_SECONDS = 30.0
+_memory_stats_cache: dict[str, Any] | None = None
+_memory_stats_cached_at = 0.0
+_memory_stats_lock = asyncio.Lock()
+
+
+def _age_seconds(value: Any, now: datetime) -> float:
+    if not isinstance(value, str) or not value.strip():
+        return float("inf")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return float("inf")
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return max(0.0, (now - parsed.astimezone(timezone.utc)).total_seconds())
+
+
+ARTIFACT_ALLOWLIST = {
+    "analysis.md",
+    "evidence-pack.md",
+    "latest.json",
+    "profile.json",
+    "rating.json",
+    "ratings.json",
+    "report.md",
+    "summary.md",
+}
+
+
+def _parse_artifacts(value: Any) -> dict[str, str]:
+    if not value:
+        return {}
+    if isinstance(value, dict):
+        return {str(k): str(v) for k, v in value.items()}
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        if isinstance(parsed, dict):
+            return {str(k): str(v) for k, v in parsed.items()}
+    return {}
+
+
+def _stale(unit: dict[str, Any], *, now: datetime, security_days: int) -> bool:
+    return _age_seconds(unit.get("last_analyzed_at"), now) >= max(1, security_days) * 86400
+
+
+def _portfolio_stale() -> bool:
+    latest = TASK_ARTIFACTS_DIR / "rate-portfolio" / "latest.json"
+    universe = TASK_ARTIFACTS_DIR / "refresh-securities-universe" / "securities-universe.json"
+    if not latest.is_file() or not universe.is_file():
+        return True
+    dependencies = [universe, *(TASK_ARTIFACTS_DIR / "analyze-security").glob("*.summary.md")]
+    return latest.stat().st_mtime < max(path.stat().st_mtime for path in dependencies)
+
+
+async def _memory_stats(deps: CommonDependencies) -> dict[str, Any]:
+    global _memory_stats_cache, _memory_stats_cached_at
+    now = time.monotonic()
+    if _memory_stats_cache is not None and now - _memory_stats_cached_at < MEMORY_STATS_TTL_SECONDS:
+        return _memory_stats_cache
+    async with _memory_stats_lock:
+        now = time.monotonic()
+        if _memory_stats_cache is not None and now - _memory_stats_cached_at < MEMORY_STATS_TTL_SECONDS:
+            return _memory_stats_cache
+        try:
+            store = await make_memory_store(deps.settings)
+            try:
+                result = await store.stats()
+            finally:
+                await store.close()
+        except Exception as exc:  # noqa: BLE001 - status endpoint should survive satellite outages
+            result = {"findings": None, "last_stored_at": None, "error": str(exc)}
+        _memory_stats_cache = result
+        _memory_stats_cached_at = now
+        return result
+
+
+async def _pipeline_runs(limit: int = 200) -> list[dict[str, Any]]:
+    return await list_runs_for_tasks(sorted(AI_TASK_IDS), max(1, min(200, limit)))
+
+
+@router.get("/models")
+async def get_ai_models(deps: Annotated[CommonDependencies, Depends(get_common_deps)]) -> dict[str, Any]:
+    base_url = str(await deps.settings.get("ai_llm_base_url", "http://127.0.0.1:8080/v1"))
+    api_key = str(await deps.settings.get("ai_llm_api_key", "local"))
+    try:
+        return {"ok": True, "models": await discover_models(base_url, api_key)}
+    except Exception as exc:  # noqa: BLE001 - settings must remain usable while the endpoint is offline
+        return {"ok": False, "models": [], "error": str(exc)}
+
+
+def _run_identity(run: dict[str, Any], units: list[dict[str, Any]]) -> dict[str, str]:
+    task_id = str(run.get("taskId") or "")
+    raw_inputs = run.get("inputs")
+    inputs: dict[str, Any] = raw_inputs if isinstance(raw_inputs, dict) else {}
+    if task_id in {"analyze-security", "rate-security"}:
+        unit_kind = "security"
+        requested = str(inputs.get("symbol") or "").strip()
+    elif task_id == "analyze-macro-bucket":
+        unit_kind = "macro"
+        requested = str(inputs.get("bucket") or "").strip()
+    elif task_id == "rate-portfolio":
+        unit_kind = "portfolio"
+        requested = "portfolio"
+    else:
+        return {
+            "unit_kind": "task",
+            "unit_key": task_id,
+            "unit_label": str(run.get("taskName") or task_id),
+        }
+
+    requested_folded = requested.casefold()
+    unit = next(
+        (
+            row
+            for row in units
+            if row.get("kind") == unit_kind
+            and requested_folded in {str(row.get("key") or "").casefold(), str(row.get("label") or "").casefold()}
+        ),
+        None,
+    )
+    return {
+        "unit_kind": unit_kind,
+        "unit_key": str(unit.get("key") if unit else requested),
+        "unit_label": str(unit.get("label") if unit else requested or run.get("taskName") or task_id),
+    }
+
+
+@router.get("/status")
+async def get_ai_status(deps: Annotated[CommonDependencies, Depends(get_common_deps)]) -> dict[str, Any]:
+    await refresh_unit_artifacts(deps.db)
+    units = await deps.db.get_ai_units()
+    task_runs = await _pipeline_runs()
+    now = datetime.now(timezone.utc)
+    security_days = int(await deps.settings.get("ai_stale_after_days", 7))
+
+    running_unit = next((run for run in task_runs if run.get("status") == "running"), None)
+    running = None
+    if running_unit:
+        started = running_unit.get("startedAt")
+        identity = _run_identity(running_unit, units)
+        running = {
+            "kind": identity["unit_kind"],
+            "key": identity["unit_key"],
+            "label": identity["unit_label"],
+            "task_id": running_unit.get("taskId"),
+            "task_name": running_unit.get("taskName"),
+            "started_at": started,
+            "elapsed_seconds": None if not started else _age_seconds(started, now),
+        }
+
+    stale_counts = {"macro": {"stale": 0, "total": 0}, "security": {"stale": 0, "total": 0}}
+    most_stale: dict[str, Any] | None = None
+    most_stale_age = -1.0
+    for unit in units:
+        kind = unit.get("kind")
+        if kind in stale_counts:
+            stale_counts[kind]["total"] += 1
+            age = _age_seconds(unit.get("last_analyzed_at"), now)
+            if _stale(unit, now=now, security_days=security_days):
+                stale_counts[kind]["stale"] += 1
+                if age > most_stale_age:
+                    most_stale_age = age
+                    most_stale = {
+                        "kind": kind,
+                        "key": unit.get("key"),
+                        "label": unit.get("label"),
+                        "age_days": None if age == float("inf") else age / 86400,
+                    }
+
+    history = [run for run in task_runs if run.get("status") in {"done", "error", "stopped"}]
+    last_run = None
+    if history:
+        row = history[0]
+        duration_ms = row.get("durationMs")
+        identity = _run_identity(row, units)
+        last_run = {
+            "job_id": row.get("taskId"),
+            **identity,
+            "status": "completed" if row.get("status") == "done" else "failed",
+            "duration_seconds": duration_ms / 1000 if isinstance(duration_ms, (int, float)) else None,
+            "error": row.get("error"),
+            "finished_at": row.get("finishedAt"),
+        }
+
+    return {
+        "enabled": any(
+            task.get("enabled") and (task.get("schedule") or task.get("schedulePolicy"))
+            for task in list_tasks()
+            if task.get("id") in AI_TASK_IDS
+        ),
+        "running": running,
+        "queued": [
+            {
+                "id": run.get("id"),
+                "kind": "task",
+                **_run_identity(run, units),
+                "task_id": run.get("taskId"),
+                "task_name": run.get("taskName"),
+                "created_at": run.get("createdAt"),
+            }
+            for run in task_runs
+            if run.get("status") == "queued"
+        ],
+        "staleness": {**stale_counts, "most_stale": most_stale},
+        "last_run": last_run,
+        "memory": await _memory_stats(deps),
+        "next_tick_at": None,
+    }
+
+
+@router.get("/units")
+async def get_ai_units(
+    deps: Annotated[CommonDependencies, Depends(get_common_deps)],
+    kind: str | None = None,
+    stale_only: bool = False,
+) -> dict[str, Any]:
+    await refresh_unit_artifacts(deps.db)
+    units = await deps.db.get_ai_units(kind)
+    task_runs = await _pipeline_runs()
+    now = datetime.now(timezone.utc)
+    security_days = int(await deps.settings.get("ai_stale_after_days", 7))
+    out = []
+    for unit in units:
+        unit_kind = str(unit.get("kind") or "")
+        age = _age_seconds(unit.get("last_analyzed_at"), now)
+        stale = _portfolio_stale() if unit_kind == "portfolio" else _stale(unit, now=now, security_days=security_days)
+        if stale_only and not stale:
+            continue
+        related = next(
+            (
+                run
+                for run in task_runs
+                if (
+                    unit_kind == "security"
+                    and run.get("taskId") in {"analyze-security", "rate-security"}
+                    and str((run.get("inputs") or {}).get("symbol") or "").upper() == str(unit.get("key") or "").upper()
+                )
+                or (
+                    unit_kind == "macro"
+                    and run.get("taskId") == "analyze-macro-bucket"
+                    and str((run.get("inputs") or {}).get("bucket") or "")
+                    in {str(unit.get("key") or ""), str(unit.get("label") or "")}
+                )
+                or (unit_kind == "portfolio" and run.get("taskId") == "rate-portfolio")
+            ),
+            None,
+        )
+        out.append(
+            {
+                "kind": unit.get("kind"),
+                "key": unit.get("key"),
+                "label": unit.get("label"),
+                "last_analyzed_at": unit.get("last_analyzed_at"),
+                "age_days": None if age == float("inf") else age / 86400,
+                "stale": stale,
+                "status": related.get("status")
+                if related and related.get("status") in {"queued", "running"}
+                else "idle",
+                "last_error": related.get("error")
+                if related and related.get("status") in {"error", "stopped"}
+                else None,
+                "artifacts": sorted(_parse_artifacts(unit.get("artifacts")).keys()),
+            }
+        )
+    return {"units": out}
+
+
+@router.post("/requests", status_code=201)
+async def create_ai_request(
+    data: dict,
+    deps: Annotated[CommonDependencies, Depends(get_common_deps)],
+) -> dict[str, Any]:
+    await reconcile_units(deps.db)
+    kind = str(data.get("kind") or "").strip()
+    unit_kind = str(data.get("unit_kind") or "").strip()
+    unit_key = str(data.get("unit_key") or "").strip()
+    if kind not in {"analyze", "rate"}:
+        raise HTTPException(status_code=400, detail="kind must be 'analyze' or 'rate'")
+    if unit_kind not in {"security", "macro"}:
+        raise HTTPException(status_code=400, detail="unit_kind must be 'security' or 'macro'")
+    if kind == "rate" and unit_kind != "security":
+        raise HTTPException(status_code=400, detail="rate requests are only supported for security units")
+    unit = await deps.db.get_ai_unit(unit_kind, unit_key)
+    if unit is None:
+        raise HTTPException(status_code=404, detail="unknown AI unit")
+    if kind == "rate":
+        task_id = "rate-security"
+    elif unit_kind == "security":
+        task_id = "analyze-security"
+    else:
+        task_id = "analyze-macro-bucket"
+    input_key = "symbol" if unit_kind == "security" else "bucket"
+    run = await enqueue_task(task_id, {input_key: unit_key})
+    return {"status": "queued", "request_id": run["id"]}
+
+
+@router.get("/history")
+async def get_ai_history(
+    deps: Annotated[CommonDependencies, Depends(get_common_deps)],
+    limit: int = 50,
+) -> dict[str, Any]:
+    history = []
+    units = await deps.db.get_ai_units()
+    for run in await _pipeline_runs(max(1, min(200, int(limit)))):
+        if run.get("status") in {"queued", "running"}:
+            continue
+        history.append(
+            {
+                "job_id": run.get("taskId"),
+                **_run_identity(run, units),
+                "status": "completed" if run.get("status") == "done" else "failed",
+                "duration_ms": run.get("durationMs"),
+                "error": run.get("error"),
+                "executed_at": datetime.fromisoformat(run["finishedAt"]).timestamp() if run.get("finishedAt") else None,
+            }
+        )
+    return {"history": history}
+
+
+@router.post("/reconcile")
+async def reconcile_ai_units(deps: Annotated[CommonDependencies, Depends(get_common_deps)]) -> dict[str, Any]:
+    result = await reconcile_units(deps.db)
+    await refresh_unit_artifacts(deps.db)
+    return result
+
+
+@router.get("/artifacts/{kind}/{unit_key}/{name}")
+async def get_ai_artifact(
+    kind: str,
+    unit_key: str,
+    name: str,
+    deps: Annotated[CommonDependencies, Depends(get_common_deps)],
+) -> dict[str, Any]:
+    if kind not in {"security", "macro", "portfolio"} or name not in ARTIFACT_ALLOWLIST:
+        raise HTTPException(status_code=404, detail="artifact not found")
+    unit = await deps.db.get_ai_unit(kind, unit_key)
+    artifacts = _parse_artifacts(unit.get("artifacts") if unit else None)
+    relative = artifacts.get(name)
+    target = (TASK_ARTIFACTS_DIR / relative).resolve() if relative else None
+    root = TASK_ARTIFACTS_DIR.resolve()
+    if target is None or root not in target.parents or not target.is_file():
+        raise HTTPException(status_code=404, detail="artifact not found")
+    return {
+        "name": name,
+        "content": target.read_text(encoding="utf-8"),
+        "modified_at": datetime.fromtimestamp(target.stat().st_mtime).isoformat(),
+    }

@@ -1,0 +1,87 @@
+.ai-pipeline__metric {
+  min-height: 82px;
+  border-color: var(--mantine-color-dark-4);
+  background: var(--mantine-color-dark-8);
+}
+
+.ai-pipeline__running {
+  border-left: 3px solid var(--mantine-color-gray-7);
+  background: var(--mantine-color-dark-8);
+}
+
+.ai-pipeline__running--active {
+  border-left-color: var(--mantine-color-blue-5);
+}
+
+.ai-pipeline__ledger {
+  border-top: 1px solid var(--mantine-color-dark-4);
+}
+
+.ai-pipeline__ledger-row {
+  min-height: 34px;
+  border-bottom: 1px solid var(--mantine-color-dark-4);
+  padding: 4px 0;
+}
+
+.ai-pipeline__table {
+  min-width: 820px;
+}
+
+.ai-pipeline__table th {
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-xs);
+  text-transform: uppercase;
+}
+
+.ai-artifact__tabs {
+  flex-wrap: nowrap;
+  width: max-content;
+  min-width: 100%;
+}
+
+.ai-artifact__markdown {
+  color: var(--mantine-color-text);
+  font-size: var(--mantine-font-size-sm);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.ai-artifact__markdown h1,
+.ai-artifact__markdown h2,
+.ai-artifact__markdown h3 {
+  margin: 1.4em 0 0.55em;
+  letter-spacing: 0;
+}
+
+.ai-artifact__markdown h1 { font-size: 1.3rem; }
+.ai-artifact__markdown h2 { font-size: 1.1rem; }
+.ai-artifact__markdown h3 { font-size: 0.95rem; }
+
+.ai-artifact__markdown a {
+  color: var(--mantine-color-blue-4);
+}
+
+.ai-artifact__markdown code,
+.ai-artifact__code {
+  font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+}
+
+.ai-artifact__markdown pre,
+.ai-artifact__code {
+  margin: 0;
+  border: 1px solid var(--mantine-color-dark-4);
+  background: var(--mantine-color-dark-9);
+  color: var(--mantine-color-gray-1);
+  padding: 12px;
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1.55;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 48em) {
+  .ai-pipeline__metric {
+    min-height: 74px;
+  }
+}

@@ -354,3 +354,32 @@ body {
 	animation: tui-scanline 3s linear infinite;
 	pointer-events: none;
 }
+
+@media (max-width: 48em) {
+	.app__header-content {
+		padding-inline: 8px !important;
+		flex-wrap: nowrap;
+	}
+
+	.app__controls {
+		min-width: 0;
+		gap: 0 !important;
+	}
+
+	.app__trading-mode,
+	.app__cooldown-mode {
+		display: none;
+	}
+
+	.app__actions {
+		flex-wrap: nowrap;
+		gap: 0 !important;
+		max-width: calc(100vw - 116px);
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+
+	.app__actions::-webkit-scrollbar {
+		display: none;
+	}
+}

@@ -27,6 +27,7 @@ async function requestFrom(base, endpoint, options = {}) {
     throw new Error(errorMessage);
   }
 
+  if (response.status === 204) return null;
   return response.json();
 }
 
@@ -92,6 +93,43 @@ export const getJobHistory = (jobType = null, limit = 50) => {
   const query = params.toString();
   return request(`/jobs/history${query ? '?' + query : ''}`);
 };
+
+// AI research pipeline
+export const getAiStatus = () => request('/ai/status');
+export const getAiModels = () => request('/ai/models');
+export const getAiUnits = ({ kind = '', staleOnly = false } = {}) => {
+  const params = new URLSearchParams();
+  if (kind) params.set('kind', kind);
+  if (staleOnly) params.set('stale_only', 'true');
+  const query = params.toString();
+  return request(`/ai/units${query ? `?${query}` : ''}`);
+};
+export const postAiRequest = ({ kind, unitKind, unitKey }) =>
+  request('/ai/requests', {
+    method: 'POST',
+    body: JSON.stringify({ kind, unit_kind: unitKind, unit_key: unitKey }),
+  });
+export const getAiHistory = (limit = 50) => request(`/ai/history?limit=${encodeURIComponent(limit)}`);
+export const getAiArtifact = ({ kind, unitKey, name }) =>
+  request(`/ai/artifacts/${encodeURIComponent(kind)}/${encodeURIComponent(unitKey)}/${encodeURIComponent(name)}`);
+export const reconcileAiUnits = () => request('/ai/reconcile', { method: 'POST' });
+
+// Editable folder tasks
+export const getTasks = () => request('/tasks');
+export const getTask = (id) => request(`/tasks/${encodeURIComponent(id)}`);
+export const createTask = (name = 'New Task') => request('/tasks', { method: 'POST', body: JSON.stringify({ name }) });
+export const deleteTask = (id) => request(`/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' });
+export const validateTask = (id) => request(`/tasks/${encodeURIComponent(id)}/validate`);
+export const getTaskFiles = (id) => request(`/tasks/${encodeURIComponent(id)}/files`);
+export const getTaskFile = (id, name) => request(`/tasks/${encodeURIComponent(id)}/files/${encodeURIComponent(name)}`);
+export const saveTaskFile = (id, name, content) => request(`/tasks/${encodeURIComponent(id)}/files/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ content }) });
+export const createTaskFile = (id, name, content = '') => request(`/tasks/${encodeURIComponent(id)}/files`, { method: 'POST', body: JSON.stringify({ name, content }) });
+export const deleteTaskFile = (id, name) => request(`/tasks/${encodeURIComponent(id)}/files/${encodeURIComponent(name)}`, { method: 'DELETE' });
+export const saveTaskMeta = (id, meta) => request(`/tasks/${encodeURIComponent(id)}/meta`, { method: 'PUT', body: JSON.stringify(meta) });
+export const startTaskRun = (id, runMode = 'balanced', inputs = {}) => request(`/tasks/${encodeURIComponent(id)}/run`, { method: 'POST', body: JSON.stringify({ runMode, inputs }) });
+export const getTaskRuns = (id, limit = 50) => request(`/tasks/${encodeURIComponent(id)}/runs?limit=${encodeURIComponent(limit)}`);
+export const getTaskRun = (runId) => request(`/task-runs/${encodeURIComponent(runId)}`);
+export const stopTaskRun = (runId) => request(`/task-runs/${encodeURIComponent(runId)}`, { method: 'DELETE' });
 
 // Settings
 export const getSettings = () => request('/settings');

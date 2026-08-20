@@ -104,7 +104,8 @@ export function SecurityExpandedRow({ security, onUpdate, onDelete }) {
   const preferenceTimestamp = user_multiplier_updated_at
     ? new Date(user_multiplier_updated_at).toLocaleString()
     : null;
-  const hasClaraReport = Boolean(user_multiplier_analysis || user_multiplier_source || preferenceTimestamp);
+  const hasPreferenceReport = Boolean(user_multiplier_analysis || user_multiplier_source || preferenceTimestamp);
+  const preferenceOwner = user_multiplier_source === 'ai' ? 'Research' : 'Clara';
   const opportunityRows = [
     [
       { label: 'Opportunity score', value: formatPercent((opp_score || 0) * 100, true, 1) },
@@ -228,10 +229,10 @@ export function SecurityExpandedRow({ security, onUpdate, onDelete }) {
         </Grid>
 
         <Grid gutter="sm" align="stretch">
-          <Grid.Col span={{ base: 12, md: hasClaraReport ? 5 : 12 }}>
+          <Grid.Col span={{ base: 12, md: hasPreferenceReport ? 5 : 12 }}>
             <Box>
               <Group justify="space-between" mb={4}>
-                <Text size="xs" c="dimmed" fw={600} tt="uppercase">Clara</Text>
+                <Text size="xs" c="dimmed" fw={600} tt="uppercase">{preferenceOwner}</Text>
                 <Text size="xs" fw={500}>{storedMultiplier.toFixed(2)}</Text>
               </Group>
               <Slider
@@ -254,7 +255,7 @@ export function SecurityExpandedRow({ security, onUpdate, onDelete }) {
               />
             </Box>
           </Grid.Col>
-          {hasClaraReport && (
+          {hasPreferenceReport && (
             <Grid.Col span={{ base: 12, md: 7 }}>
               <Box
                 p="xs"
@@ -267,7 +268,7 @@ export function SecurityExpandedRow({ security, onUpdate, onDelete }) {
               >
                 <Group gap="xs" mb={user_multiplier_analysis ? 4 : 0}>
                   {user_multiplier_source && (
-                    <Badge variant="light" color={user_multiplier_source === 'clara' ? 'violet' : 'gray'} size="xs">
+                    <Badge variant="light" color={user_multiplier_source === 'clara' ? 'violet' : user_multiplier_source === 'ai' ? 'blue' : 'gray'} size="xs">
                       {user_multiplier_source}
                     </Badge>
                   )}

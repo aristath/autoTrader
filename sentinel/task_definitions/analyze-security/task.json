@@ -1,0 +1,10 @@
+{
+  "name": "Analyze Security",
+  "enabled": false,
+  "description": "Research one security as a financial advisor: build a factual profile, generate research queries, fetch sources, investigate the 5-10 year structural picture, distill findings, write a report, and persist findings to mem0.",
+  "tags": [
+    "REQUIRES-INPUT"
+  ],
+  "cwd": "@/tasks/artifacts/{{task-id}}",
+  "timeout": 28800
+}

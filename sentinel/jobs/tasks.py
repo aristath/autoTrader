@@ -6,6 +6,7 @@ import asyncio
 import inspect
 import logging
 import os
+import sqlite3
 import tarfile
 import tempfile
 import time
@@ -15,12 +16,12 @@ from pathlib import Path
 from typing import Any
 
 from sentinel.markets import get_open_market_symbols
+from sentinel.paths import DATA_DIR, SENTINEL_HOME
 from sentinel.planner.models import TradeRecommendation
 from sentinel.planner.rebalance_rules import buy_rank_key
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
 SUBMITTED_TRADE_STATE_KEY = "submitted_trade"
 HISTORICAL_PRICE_SYNC_CHUNK_SIZE = 8
 FORECAST_QUANTILE_KEYS = {
@@ -1083,7 +1084,7 @@ async def planning_refresh(db, planner, broker) -> None:
 
 
 async def backup_r2(db) -> None:
-    """Backup data folder to Cloudflare R2."""
+    """Backup application data and editable Sentinel state to Cloudflare R2."""
     from sentinel.settings import Settings
 
     settings = Settings()
@@ -1101,20 +1102,18 @@ async def backup_r2(db) -> None:
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
     archive_key = f"backups/sentinel-{timestamp}.tar.gz"
 
-    with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp:
-        tmp_path = tmp.name
-
-    try:
-        _create_archive(tmp_path)
+    database_path = db.path
+    with tempfile.TemporaryDirectory(prefix="sentinel-backup-") as tmp_dir:
+        tmp_path = str(Path(tmp_dir) / "sentinel.tar.gz")
+        snapshot_path = Path(tmp_dir) / database_path.name
+        await _create_database_snapshot(db, snapshot_path)
+        await asyncio.to_thread(_create_archive, tmp_path, snapshot_path, database_path.name)
         client = _get_r2_client(account_id, access_key, secret_key)
-        _upload_archive(client, bucket_name, archive_key, tmp_path)
+        await asyncio.to_thread(_upload_archive, client, bucket_name, archive_key, tmp_path)
         logger.info(f"Backup uploaded: {archive_key}")
 
         if retention_days > 0:
-            _prune_old_backups(client, bucket_name, retention_days)
-    finally:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+            await asyncio.to_thread(_prune_old_backups, client, bucket_name, retention_days)
 
 
 # -----------------------------------------------------------------------------
@@ -1295,13 +1294,48 @@ def _get_r2_client(account_id: str, access_key: str, secret_key: str):
     )
 
 
-def _create_archive(dest_path: str) -> None:
-    """Create a tar.gz archive of the data directory."""
+async def _create_database_snapshot(db, dest_path: Path) -> None:
+    """Create and verify a transactionally consistent SQLite snapshot."""
+    target = sqlite3.connect(dest_path, check_same_thread=False)
+    try:
+        await db.conn.backup(target)
+    finally:
+        target.close()
+    await asyncio.to_thread(_verify_database_snapshot, dest_path)
+
+
+def _verify_database_snapshot(path: Path) -> None:
+    with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as connection:
+        rows = connection.execute("PRAGMA integrity_check").fetchall()
+    if rows != [("ok",)]:
+        raise RuntimeError(f"SQLite backup integrity check failed: {rows[:5]}")
+
+
+def _create_archive(
+    dest_path: str,
+    database_snapshot: Path | None = None,
+    database_filename: str = "sentinel.db",
+) -> None:
+    """Create a tar.gz archive of application data and ``~/.sentinel`` state."""
     if not DATA_DIR.exists():
         raise FileNotFoundError(f"Data directory not found: {DATA_DIR}")
 
     with tarfile.open(dest_path, "w:gz") as tar:
-        tar.add(str(DATA_DIR), arcname="data")
+        if database_snapshot is None:
+            tar.add(str(DATA_DIR), arcname="data")
+        else:
+            skipped = {
+                database_filename,
+                f"{database_filename}-wal",
+                f"{database_filename}-shm",
+                f"{database_filename}-journal",
+            }
+            for child in sorted(DATA_DIR.iterdir()):
+                if child.name not in skipped:
+                    tar.add(str(child), arcname=f"data/{child.name}")
+            tar.add(str(database_snapshot), arcname=f"data/{database_filename}")
+        if SENTINEL_HOME.exists() and SENTINEL_HOME.resolve() != DATA_DIR.resolve():
+            tar.add(str(SENTINEL_HOME), arcname=".sentinel")
 
     size_mb = os.path.getsize(dest_path) / (1024 * 1024)
     logger.info(f"Archive created: {size_mb:.1f} MB")

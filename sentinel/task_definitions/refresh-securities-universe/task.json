@@ -1,0 +1,9 @@
+{
+  "name": "Refresh Securities Universe",
+  "enabled": true,
+  "schedule": null,
+  "description": "Fetch active securities from Sentinel and write the latest universe snapshot.",
+  "cwd": "@/tasks/artifacts/{{task-id}}",
+  "schedulePolicy": { "staleAfterSeconds": 43200, "runWhen": "idle" },
+  "timeout": 120
+}

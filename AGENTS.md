@@ -15,11 +15,8 @@ Sentinel is a long-term autonomous portfolio management system built with Python
 source .venv/bin/activate  # Linux/macOS
 # or .venv\Scripts\activate  # Windows
 
-# Run web server only
+# Run Sentinel, including the scheduler and editable task runtime
 python main.py
-
-# Run web server + scheduler
-python main.py --all
 
 # Run specific test
 pytest tests/test_database.py -v
@@ -203,7 +200,7 @@ pytest -k "test_settings" -v     # Pattern matching
 - APScheduler-based with database persistence
 - Jobs stored in database schedules
 - Market hours checking via `BrokerMarketChecker`
-- `--all` flag required to run scheduler alongside the web server
+- The scheduler and editable task runtime start with the web application
 
 ### Price Validator
 
@@ -224,10 +221,10 @@ The app runs on a local network and is not publicly accessible. Security is not 
 
 ## Deployment Notes
 
-- Auto-deploys to main branch - no manual deployment scripts needed
-- Designed for Docker deployment on Arduino UNO Q
-- Docker compose setup in `docker-compose.yml`
-- Systemd service files for auto-start in `systemd/`
+- Production target: `aristath@clara.local`
+- Sentinel runs inside the target's `clara` toolbox container with its home directory bind-mounted
+- User-systemd service files for auto-start and main-branch deployment are in `systemd/`
+- `scripts/deploy.sh` restarts the production user service and waits for the health endpoint
 - LED controller optional - checks settings before initializing
 
 ## Environment Setup

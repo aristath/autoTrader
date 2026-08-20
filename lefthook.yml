@@ -79,7 +79,7 @@ pre-commit:
 
     pyright:
       glob: "*.py"
-      run: .venv/bin/pyright {staged_files}
+      run: .venv/bin/pyright
 
     generate-version:
       run: bash scripts/generate-version.sh && git add sentinel/version.py

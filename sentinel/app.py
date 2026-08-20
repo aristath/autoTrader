@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 # API routers
 from sentinel.api.routers import (
+    ai_router,
     backtest_router,
     backup_router,
     cache_router,
@@ -25,6 +26,7 @@ from sentinel.api.routers import (
     jobs_router,
     led_router,
     markets_router,
+    memory_router,
     meta_router,
     planner_router,
     portfolio_router,
@@ -34,6 +36,7 @@ from sentinel.api.routers import (
     set_scheduler,
     settings_router,
     system_router,
+    tasks_router,
     trading_actions_router,
     trading_router,
     unified_router,
@@ -107,6 +110,15 @@ async def lifespan(app: FastAPI):
     )
     logger.info("Job scheduler started")
 
+    from sentinel.tasks import ensure_default_tasks, start_task_runtime
+
+    ensure_default_tasks()
+    await start_task_runtime(_scheduler)
+    from sentinel.ai.universe import reconcile_units, refresh_unit_artifacts
+
+    await reconcile_units(db)
+    await refresh_unit_artifacts(db)
+
     # Pass scheduler to jobs router for schedule management
     set_scheduler(_scheduler)
 
@@ -120,6 +132,9 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
+    from sentinel.tasks import stop_task_runtime
+
+    await stop_task_runtime()
     await stop_jobs()
     logger.info("Job scheduler stopped")
 
@@ -189,6 +204,9 @@ app.add_middleware(
 
 # Include API routers
 app.include_router(settings_router, prefix="/api")
+app.include_router(ai_router, prefix="/api")
+app.include_router(memory_router, prefix="/api")
+app.include_router(tasks_router, prefix="/api")
 app.include_router(led_router, prefix="/api")
 app.include_router(portfolio_router, prefix="/api")
 app.include_router(securities_router, prefix="/api")

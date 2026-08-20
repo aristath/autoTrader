@@ -10,11 +10,8 @@
 # Activate virtual environment
 source .venv/bin/activate
 
-# Run web server only
+# Run Sentinel, including the scheduler and editable task runtime
 python main.py
-
-# Run web server + background scheduler
-python main.py --all
 
 # Optional: run the model-agnostic forecasting service
 pip install '.[forecasting]'
@@ -123,9 +120,10 @@ Live execution treats each `trading:execute` run as a fresh decision window: syn
 
 ## Deployment
 
-- **Docker**: `docker-compose.yml` for Arduino UNO Q
-- **Systemd**: Service files in `systemd/`; `sentinel-forecasting.service` is optional
-- **Auto-deploy**: Direct to main branch
+- **Target**: `aristath@clara.local`; Sentinel runs inside the host's `clara` toolbox container
+- **Systemd**: User-service templates are in `systemd/`; `sentinel-forecasting.service` is optional
+- **Auto-deploy**: `sentinel-deploy.timer` watches `origin/main` and restarts through `sentinel.service`
+- **Manual trigger**: `scripts/deploy.sh` restarts the target service and waits for `/api/health`
 
 ## License
 

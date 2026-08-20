@@ -26,6 +26,14 @@ _startup_catchup_task: asyncio.Task | None = None
 # Job timeout in seconds (15 minutes)
 JOB_TIMEOUT = 15 * 60
 
+JOB_TIMEOUTS: dict[str, int] = {}
+
+
+def job_timeout(job_type: str) -> int:
+    """Effective timeout for a job type."""
+    return JOB_TIMEOUTS.get(job_type, JOB_TIMEOUT)
+
+
 # How often to check market status and adjust intervals (5 minutes)
 MARKET_CHECK_INTERVAL = 5 * 60
 
@@ -399,7 +407,8 @@ async def _run_task(job_type: str, schedule: dict, skip_timing_check: bool = Fal
 
     try:
         # Execute with timeout
-        await asyncio.wait_for(task_func(*args), timeout=JOB_TIMEOUT)
+        timeout = job_timeout(job_type)
+        await asyncio.wait_for(task_func(*args), timeout=timeout)
 
         duration_ms = int((datetime.now() - start).total_seconds() * 1000)
 
@@ -413,7 +422,7 @@ async def _run_task(job_type: str, schedule: dict, skip_timing_check: bool = Fal
 
     except asyncio.TimeoutError:
         duration_ms = int((datetime.now() - start).total_seconds() * 1000)
-        error_msg = f"Job {job_type} timed out after {JOB_TIMEOUT}s"
+        error_msg = f"Job {job_type} timed out after {timeout}s"
         logger.error(error_msg)
 
         if db:

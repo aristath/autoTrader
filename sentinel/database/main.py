@@ -17,11 +17,12 @@ from typing import Any, Optional
 import aiosqlite
 
 from sentinel.database.base import BaseDatabase
+from sentinel.database.tasks import TaskDatabaseMixin
 
 logger = logging.getLogger(__name__)
 
 
-class Database(BaseDatabase):
+class Database(TaskDatabaseMixin, BaseDatabase):
     """Single source of truth for all database operations."""
 
     _instances: dict[str, "Database"] = {}  # path -> instance
@@ -55,6 +56,10 @@ class Database(BaseDatabase):
         # Path is already set in __new__, nothing to do here
         pass
 
+    @property
+    def path(self) -> Path:
+        return self._path
+
     async def connect(self) -> "Database":
         """Connect to database and initialize schema."""
         if self._connection is None:
@@ -68,6 +73,7 @@ class Database(BaseDatabase):
 
     async def close(self):
         """Close database connection."""
+        await self.close_task_database()
         if self._connection:
             await self._connection.close()
             self._connection = None
@@ -119,7 +125,7 @@ class Database(BaseDatabase):
     async def get_all_settings(self) -> dict:
         """Get all settings as a dictionary."""
         cursor = await self.conn.execute("SELECT key, value FROM settings")
-        rows = await cursor.fetchall()
+        rows = list(await cursor.fetchall())
         result = {}
         for row in rows:
             try:
@@ -735,6 +741,8 @@ class Database(BaseDatabase):
 
     async def seed_default_job_schedules(self) -> None:
         """Ensure default job schedules exist without overriding user-customized values."""
+        # The Clara folder-task scheduler replaces the temporary hardcoded AI dispatcher.
+        await self.conn.execute("DELETE FROM job_schedules WHERE job_type = 'ai:tick'")
         # Default job schedules
         # (job_type, interval, interval_open, timing, category, description)
         defaults = [
@@ -779,6 +787,7 @@ class Database(BaseDatabase):
                 description=desc,
                 category=cat,
             )
+        await self.conn.commit()
 
     async def get_last_job_completion_by_prefix(self, prefix: str) -> Optional[datetime]:
         """Get most recent completion time for jobs matching prefix."""
@@ -801,6 +810,102 @@ class Database(BaseDatabase):
             (job_type + "%", limit),
         )
         return [dict(row) for row in await cursor.fetchall()]
+
+    # -------------------------------------------------------------------------
+    # AI research pipeline
+    # -------------------------------------------------------------------------
+
+    async def upsert_ai_unit(self, kind: str, key: str, label: str) -> None:
+        """Insert a pipeline unit or refresh its label (never overwrites state)."""
+        await self.conn.execute(
+            """INSERT INTO ai_units (kind, key, label)
+               VALUES (?, ?, ?)
+               ON CONFLICT (kind, key) DO UPDATE SET label = excluded.label""",
+            (kind, key, label),
+        )
+        await self.conn.commit()
+
+    async def reconcile_ai_units(self, units: list[tuple[str, str, str]]) -> None:
+        """Atomically replace the projected AI unit roster while preserving state."""
+        keep: dict[str, set[str]] = {"security": set(), "macro": set(), "portfolio": set()}
+        for kind, key, _label in units:
+            keep.setdefault(kind, set()).add(key)
+        try:
+            await self.conn.executemany(
+                """INSERT INTO ai_units (kind, key, label) VALUES (?, ?, ?)
+                   ON CONFLICT (kind, key) DO UPDATE SET label = excluded.label""",
+                units,
+            )
+            for kind, keys in keep.items():
+                cursor = await self.conn.execute("SELECT key FROM ai_units WHERE kind = ?", (kind,))
+                stale = [row["key"] for row in await cursor.fetchall() if row["key"] not in keys]
+                if stale:
+                    await self.conn.executemany(
+                        "DELETE FROM ai_units WHERE kind = ? AND key = ?",
+                        [(kind, key) for key in stale],
+                    )
+            await self.conn.commit()
+        except Exception:
+            await self.conn.rollback()
+            raise
+
+    async def get_ai_units(self, kind: str | None = None) -> list[dict]:
+        """Get pipeline units, optionally filtered by kind."""
+        if kind is not None:
+            cursor = await self.conn.execute("SELECT * FROM ai_units WHERE kind = ? ORDER BY kind, key", (kind,))
+        else:
+            cursor = await self.conn.execute("SELECT * FROM ai_units ORDER BY kind, key")
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    async def get_ai_unit(self, kind: str, key: str) -> Optional[dict]:
+        """Get a single pipeline unit."""
+        cursor = await self.conn.execute("SELECT * FROM ai_units WHERE kind = ? AND key = ?", (kind, key))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def prune_ai_units(self, kind: str, keep_keys: list[str]) -> int:
+        """Delete units of `kind` whose key is not in keep_keys.
+
+        Artifacts on disk are left alone; only the tracking row is dropped.
+        Returns the number of rows removed.
+        """
+        cursor = await self.conn.execute("SELECT key FROM ai_units WHERE kind = ?", (kind,))
+        existing = {row["key"] for row in await cursor.fetchall()}
+        stale = existing - set(keep_keys)
+        if stale:
+            placeholders = ",".join("?" for _ in stale)
+            await self.conn.execute(
+                f"DELETE FROM ai_units WHERE kind = ? AND key IN ({placeholders})",  # noqa: S608
+                [kind, *stale],
+            )
+            await self.conn.commit()
+        return len(stale)
+
+    async def set_ai_unit_imported(
+        self,
+        kind: str,
+        key: str,
+        artifacts: dict[str, str],
+        last_analyzed_at: str | None,
+    ) -> None:
+        """Project task artifacts into a unit, preserving the final artifact's age."""
+        await self.conn.execute(
+            """UPDATE ai_units
+               SET last_analyzed_at = ?, artifacts = ?
+               WHERE kind = ? AND key = ?""",
+            (last_analyzed_at, json.dumps(artifacts), kind, key),
+        )
+        await self.conn.commit()
+
+    async def clear_ai_unit_imported(self, kind: str, key: str) -> None:
+        """Clear a unit projection when all of its task artifacts were removed."""
+        await self.conn.execute(
+            """UPDATE ai_units SET last_analyzed_at = NULL, artifacts = NULL
+               WHERE kind = ? AND key = ?""",
+            (kind, key),
+        )
+        await self.conn.commit()
 
     # -------------------------------------------------------------------------
     # Forecasting
@@ -1101,6 +1206,8 @@ class Database(BaseDatabase):
                WHERE user_multiplier_source IS NULL OR user_multiplier_source = ''""",
         )
         await self.conn.execute("DELETE FROM settings WHERE key = 'strategy_opportunity_target_max_pct'")
+        await self.conn.execute("DROP TABLE IF EXISTS ai_requests")
+        await self.conn.execute("DROP INDEX IF EXISTS idx_ai_units_status")
 
         # One-shot backfill for the freshly-added `instr_kind_c` column. The
         # cached quote payload already carries the kind code (`kind` field) for
@@ -1264,6 +1371,103 @@ CREATE TABLE IF NOT EXISTS job_history (
     retry_count INTEGER NOT NULL DEFAULT 0
 );
 
+-- AI research observability: one row per security, macro bucket, or portfolio.
+-- The folder-task runtime owns execution state; this table only projects the
+-- current unit roster and completed artifacts for the administration UI.
+CREATE TABLE IF NOT EXISTS ai_units (
+    kind TEXT NOT NULL,  -- 'security' | 'macro' | 'portfolio'
+    key TEXT NOT NULL,  -- symbol | bucket slug | 'portfolio'
+    label TEXT NOT NULL,
+    last_analyzed_at TEXT,  -- ISO UTC
+    artifacts TEXT,  -- JSON: name -> path relative to ~/.sentinel/tasks/artifacts
+    PRIMARY KEY (kind, key)
+);
+
+-- Clara-compatible durable folder-task scheduler and execution history.
+CREATE TABLE IF NOT EXISTS scheduled_tasks (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    run_as_user_id TEXT NOT NULL,
+    trigger_json TEXT NOT NULL,
+    policy_json TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS scheduled_task_state (
+    schedule_id TEXT PRIMARY KEY REFERENCES scheduled_tasks(id) ON DELETE CASCADE,
+    status TEXT NOT NULL CHECK(status IN ('idle', 'queued', 'running', 'backoff', 'disabled')),
+    last_started_at INTEGER,
+    last_finished_at INTEGER,
+    last_success_at INTEGER,
+    next_eligible_at INTEGER,
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS work_queue (
+    id TEXT PRIMARY KEY,
+    schedule_id TEXT NOT NULL REFERENCES scheduled_tasks(id) ON DELETE CASCADE,
+    task_id TEXT NOT NULL,
+    run_as_user_id TEXT NOT NULL,
+    title TEXT,
+    inputs_json TEXT NOT NULL DEFAULT '{}',
+    dedupe_key TEXT,
+    priority INTEGER NOT NULL DEFAULT 0,
+    run_mode TEXT NOT NULL DEFAULT 'balanced' CHECK(run_mode IN ('fast', 'balanced', 'deep')),
+    status TEXT NOT NULL CHECK(status IN ('queued', 'claimed', 'running', 'done', 'error', 'cancelled')),
+    eligible_at INTEGER NOT NULL,
+    claimed_at INTEGER,
+    started_at INTEGER,
+    finished_at INTEGER,
+    error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS task_runs (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    task_hash TEXT,
+    mode TEXT NOT NULL CHECK(mode IN ('manual', 'scheduled', 'queued')),
+    triggering_user_id TEXT,
+    run_as_user_id TEXT NOT NULL,
+    title TEXT,
+    status TEXT NOT NULL CHECK(status IN (
+        'queued', 'running', 'waiting', 'succeeded', 'failed', 'cancelled', 'interrupted'
+    )),
+    current_step_id TEXT,
+    inputs_json TEXT NOT NULL DEFAULT '{}',
+    output_artifacts_json TEXT NOT NULL DEFAULT '[]',
+    error TEXT,
+    work_item_id TEXT,
+    created_at INTEGER NOT NULL,
+    started_at INTEGER,
+    completed_at INTEGER,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS task_run_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
+    step_id TEXT,
+    event_type TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS task_run_checkpoints (
+    run_id TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
+    call_key TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    label TEXT NOT NULL,
+    output_text TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY(run_id, call_key)
+);
+
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_prices_symbol_date ON prices(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_trades_broker_id ON trades(broker_trade_id);
@@ -1275,6 +1479,17 @@ CREATE INDEX IF NOT EXISTS idx_cash_flows_date ON cash_flows(date);
 CREATE INDEX IF NOT EXISTS idx_cash_flows_type ON cash_flows(type_id);
 CREATE INDEX IF NOT EXISTS idx_job_history_job_type_executed_at ON job_history(job_type, executed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_job_history_job_id_executed_at ON job_history(job_id, executed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_units_last_analyzed ON ai_units(kind, last_analyzed_at);
+CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_enabled ON scheduled_tasks(enabled, task_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_state_eligible ON scheduled_task_state(status, next_eligible_at);
+CREATE INDEX IF NOT EXISTS idx_work_queue_ready ON work_queue(status, eligible_at, priority DESC, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_work_queue_schedule_status ON work_queue(schedule_id, status);
+CREATE INDEX IF NOT EXISTS idx_work_queue_task_active ON work_queue(task_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_work_queue_active_dedupe ON work_queue(dedupe_key)
+    WHERE dedupe_key IS NOT NULL AND status IN ('queued', 'claimed', 'running');
+CREATE INDEX IF NOT EXISTS idx_task_runs_status_updated ON task_runs(status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_task_runs_task_updated ON task_runs(task_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_task_run_events_run_created ON task_run_events(run_id, created_at, id);
 
 -- Model-agnostic time-series forecasts. Forecasts are generated on a schedule
 -- and treated as dated artifacts, never as live planner side effects.

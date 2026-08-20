@@ -1,16 +1,18 @@
 [Unit]
 Description=Sentinel Portfolio Management
-After=network.target
+After=clara-box.service
+Requires=clara-box.service
 
 [Service]
 Type=simple
-User=arduino
-WorkingDirectory=/home/arduino/sentinel
-# Bind IPv4 so Docker/Arduino App containers can reach the API via HOST_IP/gateway.
-ExecStart=/home/arduino/sentinel/.venv/bin/python main.py --all --host 0.0.0.0
+TimeoutStartSec=900
+ExecStartPre=-/usr/bin/podman exec --user aristath --env HOME=/var/home/aristath -w /var/home/aristath clara bash -lc 'cd /var/home/aristath/sentinel && git fetch origin main'
+ExecStartPre=/usr/bin/podman exec --user aristath --env HOME=/var/home/aristath -w /var/home/aristath clara bash -lc 'cd /var/home/aristath/sentinel && git reset --hard origin/main && uv sync --locked'
+ExecStart=/usr/bin/podman exec --user aristath --env HOME=/var/home/aristath -w /var/home/aristath clara bash -lc 'cd /var/home/aristath/sentinel && exec .venv/bin/python main.py --host 0.0.0.0'
+ExecStopPost=/usr/bin/podman exec --user aristath --env HOME=/var/home/aristath -w /var/home/aristath clara bash -lc 'fuser -k 8000/tcp 2>/dev/null || true'
 Restart=on-failure
-RestartSec=5
+RestartSec=10
 Environment=PYTHONUNBUFFERED=1
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

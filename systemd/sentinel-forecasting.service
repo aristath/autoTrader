@@ -1,17 +1,16 @@
 [Unit]
 Description=Sentinel Time-Series Forecasting Service
-After=network.target
+After=clara-box.service
+Requires=clara-box.service
 
 [Service]
 Type=simple
-User=arduino
-WorkingDirectory=/home/arduino/sentinel
-ExecStart=/home/arduino/sentinel/.venv/bin/uvicorn sentinel.forecasting.service:app --host 127.0.0.1 --port 8010
+TimeoutStartSec=900
+ExecStart=/usr/bin/podman exec --user aristath --env HOME=/var/home/aristath --env FORECASTING_PROVIDER=toto2 --env FORECASTING_MODEL_ID=/var/home/aristath/models/Datadog/Toto-2.0-1B -w /var/home/aristath clara bash -lc 'cd /var/home/aristath/sentinel && exec .venv-forecasting/bin/python -m uvicorn sentinel.forecasting.service:app --host 127.0.0.1 --port 8010'
+ExecStopPost=/usr/bin/podman exec --user aristath --env HOME=/var/home/aristath -w /var/home/aristath clara bash -lc 'fuser -k 8010/tcp 2>/dev/null || true'
 Restart=on-failure
 RestartSec=10
 Environment=PYTHONUNBUFFERED=1
-Environment=FORECASTING_PROVIDER=toto2
-Environment=FORECASTING_MODEL_ID=Datadog/Toto-2.0-1B
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

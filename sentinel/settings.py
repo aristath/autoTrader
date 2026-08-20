@@ -96,6 +96,40 @@ DEFAULTS = {
     "clara_preference_strength": 5.0,
     "user_multiplier_decay_factor": 0.90,
     "user_multiplier_decay_interval_days": 7,
+    # AI task runtime and the local services used by the ported Clara tasks.
+    # LLM (inference-router, OpenAI-compatible).
+    "ai_llm_base_url": "http://127.0.0.1:8080/v1",
+    "ai_llm_api_key": "local",
+    "ai_llm_model": "qwen3.8-27b-udq4kxl",
+    # Web search (SearXNG, JSON format) and URL summarizer satellites.
+    "ai_searxng_base_url": "http://127.0.0.1:8888",
+    "ai_url_summarizer_base_url": "http://127.0.0.1:8890",
+    # Research memory: pgvector Postgres (clara-postgres) with mem0 tables.
+    # Values verified on-device against the live mem0 config.
+    "ai_pg_host": "127.0.0.1",
+    "ai_pg_port": 5432,
+    "ai_pg_database": "clara_memories",
+    "ai_pg_user": "clara",
+    "ai_pg_password": "postgres",
+    "ai_embed_base_url": "http://127.0.0.1:18200/v1",
+    "ai_embed_model": "ibm-granite/granite-embedding-311m-multilingual-r2",
+    "ai_embed_dims": 768,
+    # mem0 identity: rows are shared with Clara's chat memory, so the user_id
+    # and collection must match what the Node mem0 client writes.
+    "ai_memory_user_id": "clara",
+    "ai_memory_collection": "clara_memories",
+    # Staleness windows. A unit older than its window is eligible for
+    # re-analysis; NULL last_analyzed_at counts as maximally stale.
+    "ai_stale_after_days": 7,
+    # Memory dedup: semantic similarity at/above this is treated as a
+    # duplicate (reinforce/skip instead of insert).
+    "ai_dedup_similarity_threshold": 0.96,
+    # LLM request timeout and per-unit task timeouts (ported from the task
+    # definitions the pipeline was absorbed from).
+    "ai_llm_timeout_seconds": 600,
+    # Tool-loop limits (parity with the absorbed task runner).
+    "ai_max_tool_calls": 40,
+    "ai_max_tool_loop_iterations": 40,
     # LED Display (Arduino UNO Q orbital visualization)
     "led_display_enabled": False,  # Disabled by default for dev environments
     "led_brightness": 200,  # Global LED brightness 0-255
