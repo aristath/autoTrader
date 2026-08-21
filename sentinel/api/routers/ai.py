@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 from datetime import datetime, timezone
 from typing import Annotated, Any
@@ -12,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from sentinel.ai.llm import discover_models
 from sentinel.ai.memory import make_memory_store
-from sentinel.ai.universe import reconcile_units, refresh_unit_artifacts
+from sentinel.ai.universe import get_research_unit, load_research_units
 from sentinel.api.dependencies import CommonDependencies, get_common_deps
 from sentinel.paths import TASK_ARTIFACTS_DIR
 from sentinel.tasks.definitions import list_tasks
@@ -57,21 +56,6 @@ ARTIFACT_ALLOWLIST = {
     "report.md",
     "summary.md",
 }
-
-
-def _parse_artifacts(value: Any) -> dict[str, str]:
-    if not value:
-        return {}
-    if isinstance(value, dict):
-        return {str(k): str(v) for k, v in value.items()}
-    if isinstance(value, str):
-        try:
-            parsed = json.loads(value)
-        except json.JSONDecodeError:
-            return {}
-        if isinstance(parsed, dict):
-            return {str(k): str(v) for k, v in parsed.items()}
-    return {}
 
 
 def _stale(unit: dict[str, Any], *, now: datetime, security_days: int) -> bool:
@@ -162,8 +146,7 @@ def _run_identity(run: dict[str, Any], units: list[dict[str, Any]]) -> dict[str,
 
 @router.get("/status")
 async def get_ai_status(deps: Annotated[CommonDependencies, Depends(get_common_deps)]) -> dict[str, Any]:
-    await refresh_unit_artifacts(deps.db)
-    units = await deps.db.get_ai_units()
+    units = load_research_units()
     task_runs = await _pipeline_runs()
     now = datetime.now(timezone.utc)
     security_days = int(await deps.settings.get("ai_stale_after_days", 7))
@@ -249,8 +232,7 @@ async def get_ai_units(
     kind: str | None = None,
     stale_only: bool = False,
 ) -> dict[str, Any]:
-    await refresh_unit_artifacts(deps.db)
-    units = await deps.db.get_ai_units(kind)
+    units = load_research_units(kind)
     task_runs = await _pipeline_runs()
     now = datetime.now(timezone.utc)
     security_days = int(await deps.settings.get("ai_stale_after_days", 7))
@@ -294,7 +276,7 @@ async def get_ai_units(
                 "last_error": related.get("error")
                 if related and related.get("status") in {"error", "stopped"}
                 else None,
-                "artifacts": sorted(_parse_artifacts(unit.get("artifacts")).keys()),
+                "artifacts": sorted(unit.get("artifacts", {}).keys()),
             }
         )
     return {"units": out}
@@ -305,7 +287,6 @@ async def create_ai_request(
     data: dict,
     deps: Annotated[CommonDependencies, Depends(get_common_deps)],
 ) -> dict[str, Any]:
-    await reconcile_units(deps.db)
     kind = str(data.get("kind") or "").strip()
     unit_kind = str(data.get("unit_kind") or "").strip()
     unit_key = str(data.get("unit_key") or "").strip()
@@ -315,7 +296,7 @@ async def create_ai_request(
         raise HTTPException(status_code=400, detail="unit_kind must be 'security' or 'macro'")
     if kind == "rate" and unit_kind != "security":
         raise HTTPException(status_code=400, detail="rate requests are only supported for security units")
-    unit = await deps.db.get_ai_unit(unit_kind, unit_key)
+    unit = get_research_unit(unit_kind, unit_key)
     if unit is None:
         raise HTTPException(status_code=404, detail="unknown AI unit")
     if kind == "rate":
@@ -324,8 +305,11 @@ async def create_ai_request(
         task_id = "analyze-security"
     else:
         task_id = "analyze-macro-bucket"
-    input_key = "symbol" if unit_kind == "security" else "bucket"
-    run = await enqueue_task(task_id, {input_key: unit_key})
+    if unit_kind == "security":
+        inputs = {"symbol": unit["key"]}
+    else:
+        inputs = {"bucket": unit["label"]}
+    run = await enqueue_task(task_id, inputs)
     return {"status": "queued", "request_id": run["id"]}
 
 
@@ -335,7 +319,7 @@ async def get_ai_history(
     limit: int = 50,
 ) -> dict[str, Any]:
     history = []
-    units = await deps.db.get_ai_units()
+    units = load_research_units()
     for run in await _pipeline_runs(max(1, min(200, int(limit)))):
         if run.get("status") in {"queued", "running"}:
             continue
@@ -352,13 +336,6 @@ async def get_ai_history(
     return {"history": history}
 
 
-@router.post("/reconcile")
-async def reconcile_ai_units(deps: Annotated[CommonDependencies, Depends(get_common_deps)]) -> dict[str, Any]:
-    result = await reconcile_units(deps.db)
-    await refresh_unit_artifacts(deps.db)
-    return result
-
-
 @router.get("/artifacts/{kind}/{unit_key}/{name}")
 async def get_ai_artifact(
     kind: str,
@@ -368,8 +345,8 @@ async def get_ai_artifact(
 ) -> dict[str, Any]:
     if kind not in {"security", "macro", "portfolio"} or name not in ARTIFACT_ALLOWLIST:
         raise HTTPException(status_code=404, detail="artifact not found")
-    unit = await deps.db.get_ai_unit(kind, unit_key)
-    artifacts = _parse_artifacts(unit.get("artifacts") if unit else None)
+    unit = get_research_unit(kind, unit_key)
+    artifacts = unit.get("artifacts", {}) if unit else {}
     relative = artifacts.get(name)
     target = (TASK_ARTIFACTS_DIR / relative).resolve() if relative else None
     root = TASK_ARTIFACTS_DIR.resolve()

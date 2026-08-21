@@ -812,102 +812,6 @@ class Database(TaskDatabaseMixin, BaseDatabase):
         return [dict(row) for row in await cursor.fetchall()]
 
     # -------------------------------------------------------------------------
-    # AI research pipeline
-    # -------------------------------------------------------------------------
-
-    async def upsert_ai_unit(self, kind: str, key: str, label: str) -> None:
-        """Insert a pipeline unit or refresh its label (never overwrites state)."""
-        await self.conn.execute(
-            """INSERT INTO ai_units (kind, key, label)
-               VALUES (?, ?, ?)
-               ON CONFLICT (kind, key) DO UPDATE SET label = excluded.label""",
-            (kind, key, label),
-        )
-        await self.conn.commit()
-
-    async def reconcile_ai_units(self, units: list[tuple[str, str, str]]) -> None:
-        """Atomically replace the projected AI unit roster while preserving state."""
-        keep: dict[str, set[str]] = {"security": set(), "macro": set(), "portfolio": set()}
-        for kind, key, _label in units:
-            keep.setdefault(kind, set()).add(key)
-        try:
-            await self.conn.executemany(
-                """INSERT INTO ai_units (kind, key, label) VALUES (?, ?, ?)
-                   ON CONFLICT (kind, key) DO UPDATE SET label = excluded.label""",
-                units,
-            )
-            for kind, keys in keep.items():
-                cursor = await self.conn.execute("SELECT key FROM ai_units WHERE kind = ?", (kind,))
-                stale = [row["key"] for row in await cursor.fetchall() if row["key"] not in keys]
-                if stale:
-                    await self.conn.executemany(
-                        "DELETE FROM ai_units WHERE kind = ? AND key = ?",
-                        [(kind, key) for key in stale],
-                    )
-            await self.conn.commit()
-        except Exception:
-            await self.conn.rollback()
-            raise
-
-    async def get_ai_units(self, kind: str | None = None) -> list[dict]:
-        """Get pipeline units, optionally filtered by kind."""
-        if kind is not None:
-            cursor = await self.conn.execute("SELECT * FROM ai_units WHERE kind = ? ORDER BY kind, key", (kind,))
-        else:
-            cursor = await self.conn.execute("SELECT * FROM ai_units ORDER BY kind, key")
-        rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
-
-    async def get_ai_unit(self, kind: str, key: str) -> Optional[dict]:
-        """Get a single pipeline unit."""
-        cursor = await self.conn.execute("SELECT * FROM ai_units WHERE kind = ? AND key = ?", (kind, key))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-
-    async def prune_ai_units(self, kind: str, keep_keys: list[str]) -> int:
-        """Delete units of `kind` whose key is not in keep_keys.
-
-        Artifacts on disk are left alone; only the tracking row is dropped.
-        Returns the number of rows removed.
-        """
-        cursor = await self.conn.execute("SELECT key FROM ai_units WHERE kind = ?", (kind,))
-        existing = {row["key"] for row in await cursor.fetchall()}
-        stale = existing - set(keep_keys)
-        if stale:
-            placeholders = ",".join("?" for _ in stale)
-            await self.conn.execute(
-                f"DELETE FROM ai_units WHERE kind = ? AND key IN ({placeholders})",  # noqa: S608
-                [kind, *stale],
-            )
-            await self.conn.commit()
-        return len(stale)
-
-    async def set_ai_unit_imported(
-        self,
-        kind: str,
-        key: str,
-        artifacts: dict[str, str],
-        last_analyzed_at: str | None,
-    ) -> None:
-        """Project task artifacts into a unit, preserving the final artifact's age."""
-        await self.conn.execute(
-            """UPDATE ai_units
-               SET last_analyzed_at = ?, artifacts = ?
-               WHERE kind = ? AND key = ?""",
-            (last_analyzed_at, json.dumps(artifacts), kind, key),
-        )
-        await self.conn.commit()
-
-    async def clear_ai_unit_imported(self, kind: str, key: str) -> None:
-        """Clear a unit projection when all of its task artifacts were removed."""
-        await self.conn.execute(
-            """UPDATE ai_units SET last_analyzed_at = NULL, artifacts = NULL
-               WHERE kind = ? AND key = ?""",
-            (kind, key),
-        )
-        await self.conn.commit()
-
-    # -------------------------------------------------------------------------
     # Forecasting
     # -------------------------------------------------------------------------
 
@@ -1207,6 +1111,7 @@ class Database(TaskDatabaseMixin, BaseDatabase):
         )
         await self.conn.execute("DELETE FROM settings WHERE key = 'strategy_opportunity_target_max_pct'")
         await self.conn.execute("DROP TABLE IF EXISTS ai_requests")
+        await self.conn.execute("DROP TABLE IF EXISTS ai_units")
         await self.conn.execute("DROP INDEX IF EXISTS idx_ai_units_status")
 
         # One-shot backfill for the freshly-added `instr_kind_c` column. The
@@ -1371,18 +1276,6 @@ CREATE TABLE IF NOT EXISTS job_history (
     retry_count INTEGER NOT NULL DEFAULT 0
 );
 
--- AI research observability: one row per security, macro bucket, or portfolio.
--- The folder-task runtime owns execution state; this table only projects the
--- current unit roster and completed artifacts for the administration UI.
-CREATE TABLE IF NOT EXISTS ai_units (
-    kind TEXT NOT NULL,  -- 'security' | 'macro' | 'portfolio'
-    key TEXT NOT NULL,  -- symbol | bucket slug | 'portfolio'
-    label TEXT NOT NULL,
-    last_analyzed_at TEXT,  -- ISO UTC
-    artifacts TEXT,  -- JSON: name -> path relative to ~/.sentinel/tasks/artifacts
-    PRIMARY KEY (kind, key)
-);
-
 -- Clara-compatible durable folder-task scheduler and execution history.
 CREATE TABLE IF NOT EXISTS scheduled_tasks (
     id TEXT PRIMARY KEY,
@@ -1479,7 +1372,6 @@ CREATE INDEX IF NOT EXISTS idx_cash_flows_date ON cash_flows(date);
 CREATE INDEX IF NOT EXISTS idx_cash_flows_type ON cash_flows(type_id);
 CREATE INDEX IF NOT EXISTS idx_job_history_job_type_executed_at ON job_history(job_type, executed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_job_history_job_id_executed_at ON job_history(job_id, executed_at DESC);
-CREATE INDEX IF NOT EXISTS idx_ai_units_last_analyzed ON ai_units(kind, last_analyzed_at);
 CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_enabled ON scheduled_tasks(enabled, task_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_state_eligible ON scheduled_task_state(status, next_eligible_at);
 CREATE INDEX IF NOT EXISTS idx_work_queue_ready ON work_queue(status, eligible_at, priority DESC, created_at ASC);

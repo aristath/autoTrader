@@ -12,7 +12,6 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from sentinel.ai import universe
 from sentinel.database import Database
 from sentinel.tasks import definitions, runtime
 
@@ -389,41 +388,6 @@ async def test_terminal_run_deletes_checkpoints_and_replaces_live_output(task_db
 
     await task_db.finish_task_work(work["id"], "cancelled", "done")
     assert await task_db.get_task_checkpoint(work["id"], "call:0") is None
-
-
-@pytest.mark.asyncio
-async def test_artifact_projection_requires_a_final_artifact_for_freshness(task_db, tmp_path, monkeypatch):
-    artifacts = tmp_path / "artifacts"
-    monkeypatch.setattr(universe, "TASK_ARTIFACTS_DIR", artifacts)
-    await task_db.upsert_ai_unit("security", "TEST", "Test Security")
-    partial = artifacts / "analyze-security" / "TEST.profile.json"
-    partial.parent.mkdir(parents=True)
-    partial.write_text("{}\n", encoding="utf-8")
-
-    await universe.refresh_unit_artifacts(task_db)
-    row = await task_db.get_ai_unit("security", "TEST")
-    assert json.loads(row["artifacts"]) == {"profile.json": "analyze-security/TEST.profile.json"}
-    assert row["last_analyzed_at"] is None
-
-    report = artifacts / "analyze-security" / "TEST.md"
-    report.write_text("full report is not the canonical completion artifact\n", encoding="utf-8")
-    await universe.refresh_unit_artifacts(task_db)
-    row = await task_db.get_ai_unit("security", "TEST")
-    assert row["last_analyzed_at"] is None
-
-    summary = artifacts / "analyze-security" / "TEST.summary.md"
-    summary.write_text("complete\n", encoding="utf-8")
-    await universe.refresh_unit_artifacts(task_db)
-    row = await task_db.get_ai_unit("security", "TEST")
-    assert row["last_analyzed_at"] is not None
-
-    partial.unlink()
-    report.unlink()
-    summary.unlink()
-    await universe.refresh_unit_artifacts(task_db)
-    row = await task_db.get_ai_unit("security", "TEST")
-    assert row["artifacts"] is None
-    assert row["last_analyzed_at"] is None
 
 
 class FakeClient:

@@ -112,7 +112,6 @@ export const postAiRequest = ({ kind, unitKind, unitKey }) =>
 export const getAiHistory = (limit = 50) => request(`/ai/history?limit=${encodeURIComponent(limit)}`);
 export const getAiArtifact = ({ kind, unitKey, name }) =>
   request(`/ai/artifacts/${encodeURIComponent(kind)}/${encodeURIComponent(unitKey)}/${encodeURIComponent(name)}`);
-export const reconcileAiUnits = () => request('/ai/reconcile', { method: 'POST' });
 
 // Editable folder tasks
 export const getTasks = () => request('/tasks');

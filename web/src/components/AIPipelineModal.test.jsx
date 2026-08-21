@@ -11,7 +11,6 @@ vi.mock('../api/client', () => ({
   getAiHistory: vi.fn(),
   getAiArtifact: vi.fn(),
   postAiRequest: vi.fn(),
-  reconcileAiUnits: vi.fn(),
 }));
 
 import { getAiHistory, getAiStatus, getAiUnits } from '../api/client';

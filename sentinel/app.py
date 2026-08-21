@@ -114,10 +114,6 @@ async def lifespan(app: FastAPI):
 
     ensure_default_tasks()
     await start_task_runtime(_scheduler)
-    from sentinel.ai.universe import reconcile_units, refresh_unit_artifacts
-
-    await reconcile_units(db)
-    await refresh_unit_artifacts(db)
 
     # Pass scheduler to jobs router for schedule management
     set_scheduler(_scheduler)

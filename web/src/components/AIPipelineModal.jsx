@@ -38,7 +38,6 @@ import {
   getAiStatus,
   getAiUnits,
   postAiRequest,
-  reconcileAiUnits,
 } from '../api/client';
 import { formatDuration, formatRelativeTime } from '../utils/dateFormatting';
 import './AIPipelineModal.css';
@@ -263,7 +262,9 @@ function StatusPanel({ status, units, onRate, ratePending }) {
   );
 }
 
-function UnitsPanel({ units, loading, kind, staleOnly, onKind, onStaleOnly, onAnalyze, onView, onSync, busy }) {
+function UnitsPanel({
+  units, loading, kind, staleOnly, onKind, onStaleOnly, onAnalyze, onView, onRefresh, refreshing, busy,
+}) {
   return (
     <Stack gap="md">
       <Group justify="space-between" align="flex-end" wrap="wrap">
@@ -282,8 +283,8 @@ function UnitsPanel({ units, loading, kind, staleOnly, onKind, onStaleOnly, onAn
           />
           <Switch label="Stale only" checked={staleOnly} onChange={(event) => onStaleOnly(event.currentTarget.checked)} mb={7} />
         </Group>
-        <Tooltip label="Sync research units with the portfolio universe">
-          <ActionIcon variant="light" size="lg" onClick={onSync} loading={busy} aria-label="Sync research units">
+        <Tooltip label="Refresh pipeline data">
+          <ActionIcon variant="light" size="lg" onClick={onRefresh} loading={refreshing} aria-label="Refresh pipeline data">
             <IconRefresh size={18} />
           </ActionIcon>
         </Tooltip>
@@ -444,16 +445,11 @@ export function AIPipelineModal({ opened, onClose }) {
     mutationFn: postAiRequest,
     onSuccess: refreshPipeline,
   });
-  const reconcileMutation = useMutation({
-    mutationFn: reconcileAiUnits,
-    onSuccess: refreshPipeline,
-  });
-
   const status = statusQuery.data;
   const units = unitsQuery.data?.units || [];
   const allUnits = kind === '' && !staleOnly ? units : (allUnitsQuery.data?.units || []);
   const history = historyQuery.data?.history || [];
-  const error = statusQuery.error || unitsQuery.error || historyQuery.error || requestMutation.error || reconcileMutation.error;
+  const error = statusQuery.error || unitsQuery.error || historyQuery.error || requestMutation.error;
 
   const analyze = (unit) => requestMutation.mutate({ kind: 'analyze', unitKind: unit.kind, unitKey: unit.key });
   const rate = (symbol) => requestMutation.mutate({ kind: 'rate', unitKind: 'security', unitKey: symbol });
@@ -499,8 +495,9 @@ export function AIPipelineModal({ opened, onClose }) {
                   onStaleOnly={setStaleOnly}
                   onAnalyze={analyze}
                   onView={setArtifactUnit}
-                  onSync={() => reconcileMutation.mutate()}
-                  busy={requestMutation.isPending || reconcileMutation.isPending}
+                  onRefresh={refreshPipeline}
+                  refreshing={statusQuery.isFetching || unitsQuery.isFetching || historyQuery.isFetching}
+                  busy={requestMutation.isPending}
                 />
               </Tabs.Panel>
               <Tabs.Panel value="history" pt="md">

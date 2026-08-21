@@ -1,15 +1,6 @@
-"""Tests for the AI pipeline unit index used by task observability.
-
-Covers:
-1. ai_units schema and artifact projection
-2. Unit roster reconciliation
-3. The normal scheduler timeout
-"""
+"""Tests for the file-backed AI research pipeline administration API."""
 
 import json
-import os
-import tempfile
-from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -17,129 +8,243 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import pytest_asyncio
 
-from sentinel.api.routers.ai import _run_identity, get_ai_models
+from sentinel.ai import universe
+from sentinel.api.routers import ai as ai_router
+from sentinel.api.routers.ai import (
+    _run_identity,
+    create_ai_request,
+    get_ai_artifact,
+    get_ai_models,
+    get_ai_units,
+)
 from sentinel.database import Database
 
 
 @pytest_asyncio.fixture
-async def temp_db():
-    """Create a temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-        db_path = f.name
-
-    db = Database(db_path)
+async def temp_db(tmp_path):
+    db = Database(str(tmp_path / "sentinel.db"))
     await db.connect()
-
     yield db
-
     await db.close()
     db.remove_from_cache()
-    if os.path.exists(db_path):
-        os.unlink(db_path)
-    for ext in ["-wal", "-shm"]:
-        wal_path = db_path + ext
-        if os.path.exists(wal_path):
-            os.unlink(wal_path)
 
 
-class TestAiUnitSchema:
-    """Schema tests for the AI observability unit index."""
-
-    @pytest.mark.asyncio
-    async def test_tables_exist(self, temp_db):
-        cursor = await temp_db.conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
-        tables = {row["name"] for row in await cursor.fetchall()}
-        assert "ai_units" in tables
-        assert "ai_requests" not in tables
-
-    @pytest.mark.asyncio
-    async def test_ai_units_default_state(self, temp_db):
-        await temp_db.upsert_ai_unit("security", "AETF.GR", "AegEAN")
-        row = await temp_db.get_ai_unit("security", "AETF.GR")
-        assert row is not None
-        assert row["last_analyzed_at"] is None
-        assert row["artifacts"] is None
+@pytest.fixture
+def artifact_root(tmp_path, monkeypatch):
+    root = tmp_path / ".sentinel" / "tasks" / "artifacts"
+    monkeypatch.setattr(universe, "TASK_ARTIFACTS_DIR", root)
+    monkeypatch.setattr(ai_router, "TASK_ARTIFACTS_DIR", root)
+    return root
 
 
-class TestAiUnitLifecycle:
-    """Unit state machine: upsert, prune, claim, complete, fail, recover."""
-
-    @pytest.mark.asyncio
-    async def test_upsert_refreshes_label_but_never_overwrites_state(self, temp_db):
-        await temp_db.upsert_ai_unit("macro", "gr-tech", "GR / Technology")
-        imported_at = datetime.now(timezone.utc).isoformat()
-        await temp_db.set_ai_unit_imported("macro", "gr-tech", {"report.md": "macro/gr-tech/report.md"}, imported_at)
-        # Re-upsert (reconcile ran again with a renamed label) — state must survive
-        await temp_db.upsert_ai_unit("macro", "gr-tech", "GR / Technology (renamed)")
-        row = await temp_db.get_ai_unit("macro", "gr-tech")
-        assert row["label"] == "GR / Technology (renamed)"  # label refreshed
-        assert row["last_analyzed_at"] is not None  # state kept
-
-    @pytest.mark.asyncio
-    async def test_prune_removes_only_unlisted_keys(self, temp_db):
-        await temp_db.upsert_ai_unit("security", "AAA", "A")
-        await temp_db.upsert_ai_unit("security", "BBB", "B")
-        await temp_db.upsert_ai_unit("security", "CCC", "C")
-        removed = await temp_db.prune_ai_units("security", ["AAA", "CCC"])
-        assert removed == 1
-        keys = {u["key"] for u in await temp_db.get_ai_units("security")}
-        assert keys == {"AAA", "CCC"}
-
-    @pytest.mark.asyncio
-    async def test_prune_does_not_touch_other_kinds(self, temp_db):
-        await temp_db.upsert_ai_unit("security", "AAA", "A")
-        await temp_db.upsert_ai_unit("macro", "AAA", "A-macro")
-        removed = await temp_db.prune_ai_units("security", [])
-        assert removed == 1
-        assert await temp_db.get_ai_unit("macro", "AAA") is not None
-
-    @pytest.mark.asyncio
-    async def test_import_preserves_last_analyzed_at(self, temp_db):
-        await temp_db.upsert_ai_unit("security", "AAA", "A")
-        imported_at = datetime(2026, 1, 2, 3, 4, tzinfo=timezone.utc).isoformat()
-        artifacts = {"report.md": "security/AAA/report.md"}
-        await temp_db.set_ai_unit_imported("security", "AAA", artifacts, imported_at)
-        row = await temp_db.get_ai_unit("security", "AAA")
-        assert row["last_analyzed_at"] == imported_at
-        assert json.loads(row["artifacts"]) == artifacts
+def _write_array(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value) + "\n", encoding="utf-8")
 
 
-class TestAiUniverseReconciliation:
-    """Sentinel securities become AI units without Clara's scheduler."""
+@pytest.mark.asyncio
+async def test_schema_does_not_create_ai_projection_tables(temp_db):
+    cursor = await temp_db.conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+    tables = {row["name"] for row in await cursor.fetchall()}
+    assert "ai_units" not in tables
+    assert "ai_requests" not in tables
 
-    @pytest.mark.asyncio
-    async def test_reconcile_creates_security_macro_and_portfolio_units(self, temp_db):
-        from sentinel.ai.universe import reconcile_units
 
-        await temp_db.upsert_security(
-            "AAA",
-            name="Alpha Corp",
-            active=1,
-            geography="US",
-            industry="Semiconductors",
+@pytest.mark.asyncio
+async def test_migration_removes_legacy_ai_units_table(temp_db):
+    await temp_db.conn.execute(
+        """CREATE TABLE ai_units (
+            kind TEXT NOT NULL,
+            key TEXT NOT NULL,
+            label TEXT NOT NULL,
+            last_analyzed_at TEXT,
+            artifacts TEXT,
+            PRIMARY KEY (kind, key)
+        )"""
+    )
+    await temp_db.conn.commit()
+
+    await temp_db._migrate_schema()
+
+    cursor = await temp_db.conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'ai_units'")
+    assert await cursor.fetchone() is None
+
+
+def test_units_come_from_clara_style_rosters_and_artifacts(artifact_root):
+    _write_array(
+        artifact_root / "refresh-securities-universe" / "securities-universe.json",
+        [
+            {"symbol": "AAA", "name": "Alpha Corp"},
+            {"symbol": "BBB", "name": ""},
+            {"name": "Missing Symbol"},
+        ],
+    )
+    _write_array(
+        artifact_root / "refresh-macro-buckets" / "macro-buckets.json",
+        [
+            {
+                "bucket": "United States + Semiconductors",
+                "country_code": "US",
+                "industry": "Semiconductors",
+            }
+        ],
+    )
+    security_dir = artifact_root / "analyze-security"
+    security_dir.mkdir(parents=True)
+    (security_dir / "AAA.md").write_text("report\n", encoding="utf-8")
+    (security_dir / "AAA.summary.md").write_text("summary\n", encoding="utf-8")
+    rating_dir = artifact_root / "rate-security" / "AAA"
+    rating_dir.mkdir(parents=True)
+    (rating_dir / "rating.json").write_text("{}\n", encoding="utf-8")
+    macro_dir = artifact_root / "analyze-macro-bucket"
+    macro_dir.mkdir(parents=True)
+    (macro_dir / "United-States-Semiconductors.md").write_text("macro\n", encoding="utf-8")
+    portfolio_dir = artifact_root / "rate-portfolio"
+    portfolio_dir.mkdir(parents=True)
+    (portfolio_dir / "latest.json").write_text("{}\n", encoding="utf-8")
+
+    units = universe.load_research_units()
+    by_id = {(unit["kind"], unit["key"]): unit for unit in units}
+
+    assert set(by_id) == {
+        ("macro", "us-semiconductors"),
+        ("portfolio", "portfolio"),
+        ("security", "AAA"),
+        ("security", "BBB"),
+    }
+    assert by_id[("security", "BBB")]["label"] == "BBB"
+    assert by_id[("security", "AAA")]["last_analyzed_at"] is not None
+    assert by_id[("security", "AAA")]["artifacts"] == {
+        "report.md": "analyze-security/AAA.md",
+        "summary.md": "analyze-security/AAA.summary.md",
+        "rating.json": "rate-security/AAA/rating.json",
+    }
+    assert by_id[("macro", "us-semiconductors")]["last_analyzed_at"] is not None
+    assert by_id[("portfolio", "portfolio")]["last_analyzed_at"] is not None
+    assert [unit["key"] for unit in universe.load_research_units("security")] == ["AAA", "BBB"]
+
+
+def test_security_freshness_requires_the_canonical_summary(artifact_root):
+    _write_array(
+        artifact_root / "refresh-securities-universe" / "securities-universe.json",
+        [{"symbol": "TEST", "name": "Test Security"}],
+    )
+    security_dir = artifact_root / "analyze-security"
+    security_dir.mkdir(parents=True)
+    profile = security_dir / "TEST.profile.json"
+    profile.write_text("{}\n", encoding="utf-8")
+
+    unit = universe.get_research_unit("security", "TEST")
+    assert unit["artifacts"] == {"profile.json": "analyze-security/TEST.profile.json"}
+    assert unit["last_analyzed_at"] is None
+
+    (security_dir / "TEST.md").write_text("full report\n", encoding="utf-8")
+    assert universe.get_research_unit("security", "TEST")["last_analyzed_at"] is None
+
+    summary = security_dir / "TEST.summary.md"
+    summary.write_text("complete\n", encoding="utf-8")
+    assert universe.get_research_unit("security", "TEST")["last_analyzed_at"] is not None
+
+    profile.unlink()
+    (security_dir / "TEST.md").unlink()
+    summary.unlink()
+    unit = universe.get_research_unit("security", "TEST")
+    assert unit["artifacts"] == {}
+    assert unit["last_analyzed_at"] is None
+
+
+def test_missing_rosters_leave_only_the_synthetic_portfolio_unit(artifact_root):
+    assert universe.load_research_units() == [
+        {
+            "kind": "portfolio",
+            "key": "portfolio",
+            "label": "Portfolio",
+            "last_analyzed_at": None,
+            "artifacts": {},
+        }
+    ]
+
+
+def test_malformed_roster_is_reported(artifact_root):
+    path = artifact_root / "refresh-securities-universe" / "securities-universe.json"
+    path.parent.mkdir(parents=True)
+    path.write_text("{broken", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="Unable to read the securities universe"):
+        universe.load_research_units()
+
+
+@pytest.mark.asyncio
+async def test_units_endpoint_is_read_only():
+    settings = SimpleNamespace(get=AsyncMock(return_value=7))
+
+    class NoDatabaseAccess:
+        def __getattr__(self, name):
+            raise AssertionError(f"unexpected database access: {name}")
+
+    deps: Any = SimpleNamespace(settings=settings, db=NoDatabaseAccess())
+    units = [
+        {
+            "kind": "security",
+            "key": "AAA",
+            "label": "Alpha",
+            "last_analyzed_at": None,
+            "artifacts": {},
+        }
+    ]
+    with (
+        patch("sentinel.api.routers.ai.load_research_units", return_value=units),
+        patch("sentinel.api.routers.ai._pipeline_runs", new=AsyncMock(return_value=[])),
+    ):
+        result = await get_ai_units(deps, kind=None, stale_only=False)
+
+    assert result["units"][0]["key"] == "AAA"
+    assert result["units"][0]["stale"] is True
+
+
+@pytest.mark.asyncio
+async def test_manual_macro_request_enqueues_exact_bucket_name():
+    unit = {
+        "kind": "macro",
+        "key": "us-semiconductors",
+        "label": "United States + Semiconductors",
+        "last_analyzed_at": None,
+        "artifacts": {},
+    }
+    queued = {"id": "run-1"}
+    with (
+        patch("sentinel.api.routers.ai.get_research_unit", return_value=unit),
+        patch("sentinel.api.routers.ai.enqueue_task", new=AsyncMock(return_value=queued)) as enqueue,
+    ):
+        result = await create_ai_request(
+            {"kind": "analyze", "unit_kind": "macro", "unit_key": "us-semiconductors"},
+            SimpleNamespace(),
         )
-        await temp_db.upsert_security(
-            "OLD",
-            name="Inactive Corp",
-            active=0,
-            geography="US",
-            industry="Semiconductors",
-        )
 
-        result = await reconcile_units(temp_db)
-        units = await temp_db.get_ai_units()
-        keys = {(unit["kind"], unit["key"]) for unit in units}
+    enqueue.assert_awaited_once_with(
+        "analyze-macro-bucket",
+        {"bucket": "United States + Semiconductors"},
+    )
+    assert result == {"status": "queued", "request_id": "run-1"}
 
-        assert ("security", "AAA") in keys
-        assert ("security", "OLD") not in keys
-        assert ("portfolio", "portfolio") in keys
-        assert any(unit["kind"] == "macro" and unit["label"] == "United States + Semiconductors" for unit in units)
-        assert result["securities"][0]["symbol"] == "AAA"
+
+@pytest.mark.asyncio
+async def test_artifact_endpoint_reads_the_canonical_file(artifact_root):
+    _write_array(
+        artifact_root / "refresh-securities-universe" / "securities-universe.json",
+        [{"symbol": "AAA", "name": "Alpha Corp"}],
+    )
+    summary = artifact_root / "analyze-security" / "AAA.summary.md"
+    summary.parent.mkdir(parents=True)
+    summary.write_text("canonical summary\n", encoding="utf-8")
+
+    result = await get_ai_artifact("security", "AAA", "summary.md", SimpleNamespace())
+
+    assert result["name"] == "summary.md"
+    assert result["content"] == "canonical summary\n"
 
 
 class TestRunnerIntegration:
-    """The normal scheduler retains its standard timeout."""
-
     def test_default_jobs_keep_15m_timeout(self):
         from sentinel.jobs import runner
 
