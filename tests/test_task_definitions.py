@@ -620,6 +620,33 @@ async def test_runtime_executes_task_and_propagates_mutated_environment(task_tre
 
 
 @pytest.mark.asyncio
+async def test_runtime_accepts_clara_sized_results_in_the_next_bridge_call(task_tree, task_db, fake_runtime):
+    core, _user, _home = task_tree
+    task = make_task(
+        core,
+        "large-step-output",
+        script=(
+            'const payload = await run("large.py");\n'
+            'const size = await run("measure.py", { env: { PAYLOAD: payload } });\n'
+            "console.log(size.trim());\n"
+        ),
+    )
+    (task / "large.py").write_text('print("x" * 70000)\n', encoding="utf-8")
+    (task / "measure.py").write_text(
+        'import os\nprint(len(os.environ["PAYLOAD"]))\n',
+        encoding="utf-8",
+    )
+    item = await enqueue_and_claim(task_db, "large-step-output")
+
+    await runtime._execute(item)
+
+    row = await task_db.get_task_work(item["id"])
+    events = await task_db.list_task_run_events(item["id"])
+    assert row["status"] == "done"
+    assert any("70001" in event["payload_json"] for event in events)
+
+
+@pytest.mark.asyncio
 async def test_interrupted_run_kills_child_and_replays_completed_calls_once(task_tree, task_db, fake_runtime):
     core, _user, home = task_tree
     task = make_task(

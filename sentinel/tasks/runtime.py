@@ -35,6 +35,9 @@ STALE_EVALUATOR_OFFSET_SECONDS = 30
 ACTIVE_STATUSES = {"queued", "claimed", "running"}
 API_READINESS_POLL_SECONDS = 0.25
 API_READINESS_TIMEOUT_SECONDS = 1.0
+# Clara permits task subprocess output up to 8 MiB. A JSON-line bridge frame can
+# expand that text through escaping, so leave enough room for the worst case.
+ORCHESTRATOR_FRAME_LIMIT_BYTES = 64 * 1024 * 1024
 
 _worker: asyncio.Task | None = None
 _wake_event: asyncio.Event | None = None
@@ -373,6 +376,7 @@ async def _execute(item: dict[str, Any]) -> None:
             cwd=str(work_root),
             env=env,
             start_new_session=True,
+            limit=ORCHESTRATOR_FRAME_LIMIT_BYTES,
         )
         _bridges[run_id] = process
         if process.stderr:
