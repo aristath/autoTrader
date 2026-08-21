@@ -657,6 +657,46 @@ class TestChat:
         assert messages[2]["content"] == "y" * 70000
 
     @pytest.mark.asyncio
+    async def test_empty_final_turn_retries_without_adding_an_empty_assistant_message(self) -> None:
+        client = make_client(
+            [
+                FakeResponse(lines=sse_lines([{"choices": [{"delta": {"reasoning_content": "thinking"}}]}])),
+                content_stream("recovered"),
+            ]
+        )
+
+        result = await client.chat("x")
+
+        assert result.content == "recovered"
+        requests = client._test_session.requests  # type: ignore[attr-defined]
+        assert len(requests) == 2
+        assert requests[1]["json"]["messages"] == requests[0]["json"]["messages"]
+
+    @pytest.mark.asyncio
+    async def test_empty_final_turn_after_tool_reuses_history_without_rerunning_tool(self) -> None:
+        calls = 0
+
+        async def execute(_args: dict) -> str:
+            nonlocal calls
+            calls += 1
+            return ""
+
+        client = make_client(
+            [
+                tool_call_stream("read_file", "{}"),
+                FakeResponse(lines=sse_lines([])),
+                content_stream("recovered"),
+            ]
+        )
+
+        result = await client.chat("x", executors={"read_file": execute})
+
+        assert result.content == "recovered"
+        assert calls == 1
+        requests = client._test_session.requests  # type: ignore[attr-defined]
+        assert requests[2]["json"]["messages"] == requests[1]["json"]["messages"]
+
+    @pytest.mark.asyncio
     async def test_max_rounds_exceeded_raises(self) -> None:
         client = make_client(
             [
@@ -781,9 +821,10 @@ class TestRunPrompt:
     async def test_no_output_raises(self, tmp_path: Path) -> None:
         prompt = tmp_path / "empty.md"
         prompt.write_text("go", encoding="utf-8")
-        client = make_client([FakeResponse(lines=sse_lines([]))])
+        client = make_client([FakeResponse(lines=sse_lines([])) for _ in range(3)])
         with pytest.raises(AIPipelineError, match='Prompt ".*empty\\.md" produced no output'):
             await run_prompt(client, str(prompt), task_id="t1", task_cwd=tmp_path)
+        assert len(client._test_session.requests) == 3  # type: ignore[attr-defined]
 
 
 # --- tool definitions ------------------------------------------------------------------------

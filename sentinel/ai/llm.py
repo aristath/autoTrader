@@ -47,6 +47,7 @@ LOOP_WINDOW_BYTES = 256 * 1024
 LOOP_REPEATS = 30
 LOOP_CHECK_INTERVAL_S = 5.0
 MAX_CORRECTIVE_RETRIES = 3
+MAX_EMPTY_RESPONSE_RETRIES = 2
 MAX_RATE_LIMIT_RETRIES = 8
 RATE_LIMIT_COOLDOWN_MS = 65_000
 DEFAULT_MAX_TOOL_ROUNDS = 40
@@ -605,14 +606,19 @@ class LLMClient:
         tool_defs = tools or None
         executor_lookup = cast(ExecutorLookup, executors if executors is not None else {})
         rounds = 0
+        empty_response_retries = 0
         content = ""
         last_tool_result = ""
         while True:
             turn = await self._stream_turn(messages, tool_defs, temperature)
             content = turn.content
-            messages.append(_build_assistant_message(turn.content, turn.tool_calls))
             if not turn.tool_calls:
+                if not content.strip() and not last_tool_result and empty_response_retries < MAX_EMPTY_RESPONSE_RETRIES:
+                    empty_response_retries += 1
+                    continue
                 return ChatResult(content=content, last_tool_result=last_tool_result)
+            empty_response_retries = 0
+            messages.append(_build_assistant_message(turn.content, turn.tool_calls))
             if rounds >= self.max_rounds:
                 raise LLMError(f"LLM tool loop exceeded {self.max_rounds} rounds without producing a final answer")
             rounds += 1
