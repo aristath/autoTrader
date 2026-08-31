@@ -235,15 +235,7 @@ class BacktestDatabaseBuilder:
     async def _copy_settings(self) -> None:
         """Copy settings and allocation targets from real database."""
         assert self.temp_db is not None
-        # Copy settings
-        cursor = await self.real_db.conn.execute("SELECT key, value FROM settings")
-        rows = await cursor.fetchall()
-        for row in rows:
-            await self.temp_db.conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (row["key"], row["value"])
-            )
-
-        await self.temp_db.conn.commit()
+        await self.temp_db.set_settings_batch(await self.real_db.get_all_settings())
 
     async def _get_symbols(self) -> list[str]:
         """Get list of symbols to use in backtest based on config."""
@@ -276,38 +268,9 @@ class BacktestDatabaseBuilder:
     async def _copy_symbol_data(self, symbol: str, security: dict, prices: list[dict]) -> None:
         """Copy security and price data from real database to temp database."""
         assert self.temp_db is not None
-        # Insert security using only columns that exist in the temp DB schema.
-        cursor = await self.temp_db.conn.execute("PRAGMA table_info(securities)")
-        temp_cols = {row["name"] for row in await cursor.fetchall()}
-        filtered = {k: v for k, v in security.items() if k in temp_cols}
-        if "symbol" not in filtered:
-            filtered["symbol"] = symbol
-
-        cols = list(filtered.keys())
-        placeholders = ",".join(["?" for _ in cols])
-        cols_str = ",".join(cols)
-        await self.temp_db.conn.execute(
-            f"INSERT OR REPLACE INTO securities ({cols_str}) VALUES ({placeholders})",  # noqa: S608
-            tuple(filtered.values()),
-        )
-
-        # Insert prices
-        for price in prices:
-            await self.temp_db.conn.execute(
-                """INSERT OR REPLACE INTO prices (symbol, date, open, high, low, close, volume)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    symbol,
-                    price["date"],
-                    price.get("open"),
-                    price.get("high"),
-                    price.get("low"),
-                    price["close"],
-                    price.get("volume"),
-                ),
-            )
-
-        await self.temp_db.conn.commit()
+        security_data = {key: value for key, value in security.items() if key != "symbol"}
+        await self.temp_db.upsert_security(symbol, **security_data)
+        await self.temp_db.save_prices(symbol, prices)
 
     async def _fetch_symbol_data(self, symbol: str) -> None:
         """Fetch security and price data from Tradernet API."""
@@ -338,21 +301,7 @@ class BacktestDatabaseBuilder:
         prices_data = await self.broker.get_historical_prices_bulk([symbol], years=20)
         prices = prices_data.get(symbol, [])
         if prices:
-            for price in prices:
-                await self.temp_db.conn.execute(
-                    """INSERT OR REPLACE INTO prices (symbol, date, open, high, low, close, volume)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        symbol,
-                        price["date"],
-                        price.get("open"),
-                        price.get("high"),
-                        price.get("low"),
-                        price["close"],
-                        price.get("volume"),
-                    ),
-                )
-            await self.temp_db.conn.commit()
+            await self.temp_db.save_prices(symbol, prices)
 
     async def cleanup(self) -> None:
         """Close and remove temporary database file and directory."""
@@ -453,13 +402,7 @@ class BacktestBroker:
         This matches how the production app handles price data - it validates
         and interpolates corrupted prices before use.
         """
-        cursor = await self._db.conn.execute(
-            """SELECT date, open, high, low, close, volume
-               FROM prices WHERE symbol = ?
-               ORDER BY date ASC""",
-            (symbol,),
-        )
-        rows = await cursor.fetchall()
+        rows = list(reversed(await self._db.get_prices(symbol)))
 
         if not rows:
             self._validated_prices[symbol] = {}

@@ -49,8 +49,7 @@ async def refresh_all(
     deps: Annotated[CommonDependencies, Depends(get_common_deps)],
 ) -> dict:
     """Reset last_run timestamp to 0 for all jobs and reschedule."""
-    await deps.db.conn.execute("UPDATE job_schedules SET last_run = 0")
-    await deps.db.conn.commit()
+    await deps.db.reset_all_job_last_runs()
     schedules = await deps.db.get_job_schedules()
     for s in schedules:
         await reschedule(s["job_type"], deps.db)

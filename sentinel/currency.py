@@ -169,20 +169,11 @@ class Currency:
 
     async def _get_cached_rate(self, currency: str, date: str) -> Optional[float]:
         """Get cached historical rate from database."""
-        cursor = await self._db.conn.execute(
-            "SELECT rate_to_eur FROM fx_rates_history WHERE date = ? AND currency = ?",
-            (date, currency),
-        )
-        row = await cursor.fetchone()
-        return row[0] if row else None
+        return await self._db.get_historical_fx_rate(currency, date)
 
     async def _cache_rate(self, currency: str, date: str, rate: float) -> None:
         """Cache historical rate to database."""
-        await self._db.conn.execute(
-            "INSERT OR REPLACE INTO fx_rates_history (date, currency, rate_to_eur) VALUES (?, ?, ?)",
-            (date, currency, rate),
-        )
-        await self._db.conn.commit()
+        await self._db.set_historical_fx_rate(currency, date, rate)
 
     async def _fetch_historical_rate(self, currency: str, date: str) -> Optional[float]:
         """Fetch historical rate from Tradernet API."""

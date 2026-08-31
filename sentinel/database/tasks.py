@@ -8,7 +8,6 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any, cast
 
 import aiosqlite
@@ -20,39 +19,21 @@ class TaskDatabaseMixin:
     """Database methods for scheduled folder tasks."""
 
     conn: aiosqlite.Connection
-    _path: Path
-    _task_lock: asyncio.Lock | None = None
-    _task_connection: aiosqlite.Connection | None = None
-
-    def _task_queue_lock(self) -> asyncio.Lock:
-        if self._task_lock is None:
-            self._task_lock = asyncio.Lock()
-        return self._task_lock
 
     @asynccontextmanager
     async def _task_transaction(self) -> AsyncIterator[aiosqlite.Connection]:
-        """Run a task state transition without sharing its transaction."""
-        async with self._task_queue_lock():
-            conn = self.conn
-            if str(self._path) != ":memory:":
-                if self._task_connection is None:
-                    self._task_connection = await aiosqlite.connect(self._path)
-                    self._task_connection.row_factory = aiosqlite.Row
-                    await self._task_connection.execute("PRAGMA busy_timeout=30000")
-                    await self._task_connection.execute("PRAGMA foreign_keys=ON")
-                conn = self._task_connection
-            try:
-                await conn.execute("BEGIN IMMEDIATE")
-                yield conn
-                await conn.commit()
-            except BaseException:
-                await conn.rollback()
-                raise
-
-    async def close_task_database(self) -> None:
-        if self._task_connection is not None:
-            await self._task_connection.close()
-            self._task_connection = None
+        """Run one task state transition on the serialized primary connection."""
+        conn = self.conn
+        await conn.execute("PRAGMA foreign_keys=ON")
+        try:
+            await conn.execute("BEGIN IMMEDIATE")
+            yield conn
+            await conn.commit()
+        except BaseException:
+            await conn.rollback()
+            raise
+        finally:
+            await asyncio.shield(conn.execute("PRAGMA foreign_keys=OFF"))
 
     async def upsert_task_schedule(
         self,

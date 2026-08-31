@@ -10,6 +10,7 @@ Usage:
 
 import json
 import logging
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -17,11 +18,13 @@ from typing import Any, Optional
 import aiosqlite
 
 from sentinel.database.base import BaseDatabase
+from sentinel.database.pipeline import SQLiteOperationPipeline, serialized_database
 from sentinel.database.tasks import TaskDatabaseMixin
 
 logger = logging.getLogger(__name__)
 
 
+@serialized_database
 class Database(TaskDatabaseMixin, BaseDatabase):
     """Single source of truth for all database operations."""
 
@@ -29,6 +32,7 @@ class Database(TaskDatabaseMixin, BaseDatabase):
     _default_path: str | None = None
     _path: Path
     _connection: aiosqlite.Connection | None
+    _operation_pipeline: SQLiteOperationPipeline
 
     def __new__(cls, path: str | None = None):
         """
@@ -48,6 +52,7 @@ class Database(TaskDatabaseMixin, BaseDatabase):
             instance = super().__new__(cls)
             instance._path = Path(path)
             instance._connection = None
+            instance._operation_pipeline = SQLiteOperationPipeline()
             cls._instances[path] = instance
 
         return cls._instances[path]
@@ -73,7 +78,6 @@ class Database(TaskDatabaseMixin, BaseDatabase):
 
     async def close(self):
         """Close database connection."""
-        await self.close_task_database()
         if self._connection:
             await self._connection.close()
             self._connection = None
@@ -109,6 +113,27 @@ class Database(TaskDatabaseMixin, BaseDatabase):
         """Delete a setting value."""
         await self.conn.execute("DELETE FROM settings WHERE key = ?", (key,))
         await self.conn.commit()
+
+    async def export_reference_data(self, tables: tuple[str, ...]) -> dict[str, Any]:
+        """Export schema and selected reference tables as one serialized snapshot."""
+        allowed_tables = {"settings", "securities", "prices"}
+        unknown = set(tables) - allowed_tables
+        if unknown:
+            raise ValueError(f"Unsupported reference tables: {sorted(unknown)}")
+
+        schema_cursor = await self.conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND sql IS NOT NULL ORDER BY name"
+        )
+        schema = [row["sql"] for row in await schema_cursor.fetchall() if row["sql"]]
+        exported: dict[str, dict[str, Any]] = {}
+        for table in tables:
+            cursor = await self.conn.execute(f"SELECT * FROM {table}")  # noqa: S608
+            rows = await cursor.fetchall()
+            exported[table] = {
+                "columns": [description[0] for description in cursor.description or ()],
+                "rows": [tuple(row) for row in rows],
+            }
+        return {"schema": schema, "tables": exported}
 
     async def set_settings_batch(self, values: dict[str, Any]) -> None:
         """Set multiple settings atomically in one transaction."""
@@ -205,6 +230,33 @@ class Database(TaskDatabaseMixin, BaseDatabase):
                 ),
             )
         await self.conn.commit()
+
+    async def get_price_count(self, symbol: str) -> int:
+        """Return the number of historical prices stored for a security."""
+        cursor = await self.conn.execute("SELECT COUNT(*) AS count FROM prices WHERE symbol = ?", (symbol,))
+        row = await cursor.fetchone()
+        return int(row["count"]) if row else 0
+
+    async def get_historical_fx_rate(self, currency: str, date: str) -> float | None:
+        """Return a cached historical exchange rate."""
+        cursor = await self.conn.execute(
+            "SELECT rate_to_eur FROM fx_rates_history WHERE date = ? AND currency = ?",
+            (date, currency),
+        )
+        row = await cursor.fetchone()
+        return float(row["rate_to_eur"]) if row else None
+
+    async def set_historical_fx_rate(self, currency: str, date: str, rate: float) -> None:
+        """Store a historical exchange rate."""
+        await self.conn.execute(
+            "INSERT OR REPLACE INTO fx_rates_history (date, currency, rate_to_eur) VALUES (?, ?, ?)",
+            (date, currency, rate),
+        )
+        await self.conn.commit()
+
+    async def create_backup(self, target: sqlite3.Connection) -> None:
+        """Copy the current committed database state to a SQLite connection."""
+        await self.conn.backup(target)
 
     async def get_prices_bulk(
         self,
@@ -653,6 +705,11 @@ class Database(TaskDatabaseMixin, BaseDatabase):
         Used to force a job to run by setting timestamp to 0.
         """
         await self.conn.execute("UPDATE job_schedules SET last_run = ? WHERE job_type = ?", (timestamp, job_type))
+        await self.conn.commit()
+
+    async def reset_all_job_last_runs(self) -> None:
+        """Force every scheduled job to be considered due."""
+        await self.conn.execute("UPDATE job_schedules SET last_run = 0")
         await self.conn.commit()
 
     async def mark_job_completed(self, job_type: str) -> None:

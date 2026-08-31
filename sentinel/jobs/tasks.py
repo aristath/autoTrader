@@ -1298,7 +1298,7 @@ async def _create_database_snapshot(db, dest_path: Path) -> None:
     """Create and verify a transactionally consistent SQLite snapshot."""
     target = sqlite3.connect(dest_path, check_same_thread=False)
     try:
-        await db.conn.backup(target)
+        await db.create_backup(target)
     finally:
         target.close()
     await asyncio.to_thread(_verify_database_snapshot, dest_path)

@@ -159,9 +159,7 @@ async def _sync_missing_prices(db: Database, broker: Broker):
     # Check which symbols are missing price data
     missing = []
     for symbol in symbols:
-        cursor = await db.conn.execute("SELECT COUNT(*) as cnt FROM prices WHERE symbol = ?", (symbol,))
-        row = await cursor.fetchone()
-        if row is None or row["cnt"] < 100:  # Less than 100 days of data
+        if await db.get_price_count(symbol) < 100:  # Less than 100 days of data
             missing.append(symbol)
 
     if not missing:

@@ -40,41 +40,32 @@ class SimulationDatabase(BaseDatabase):
         self._connection = await aiosqlite.connect(":memory:")
         self._connection.row_factory = aiosqlite.Row
 
+        exported = await source_db.export_reference_data(("settings", "securities", "prices"))
+
         # Copy schema
-        cursor = await source_db.conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND sql IS NOT NULL")
-        for row in await cursor.fetchall():
-            if row["sql"]:
-                try:
-                    await self._connection.execute(row["sql"])
-                except aiosqlite.OperationalError:
-                    pass
+        for statement in exported["schema"]:
+            try:
+                await self._connection.execute(statement)
+            except aiosqlite.OperationalError:
+                pass
 
         # Copy read-only reference data only
-        for table in ["settings", "securities", "prices"]:
-            await self._copy_table(source_db, table)
+        for table, data in exported["tables"].items():
+            await self._copy_table(table, data["columns"], data["rows"])
 
         await self._connection.commit()
         await self._build_prices_cache()
 
-    async def _copy_table(self, source_db, table: str):
-        """Copy table data from source (READ-ONLY operation on source)."""
-        try:
-            cursor = await source_db.conn.execute(f"SELECT * FROM {table}")  # noqa: S608
-            rows = await cursor.fetchall()
-            if not rows:
-                return
-            columns = [desc[0] for desc in cursor.description]
-            placeholders = ",".join(["?" for _ in columns])
-            cols_str = ",".join(columns)
-            if self._connection is None:
-                return
-            for row in rows:
-                await self._connection.execute(
-                    f"INSERT OR REPLACE INTO {table} ({cols_str}) VALUES ({placeholders})",  # noqa: S608
-                    tuple(row),
-                )
-        except Exception:  # noqa: S110
-            pass
+    async def _copy_table(self, table: str, columns: list[str], rows: list[tuple]) -> None:
+        """Load exported reference rows into the in-memory database."""
+        if not rows or self._connection is None:
+            return
+        placeholders = ",".join(["?" for _ in columns])
+        cols_str = ",".join(columns)
+        await self._connection.executemany(
+            f"INSERT OR REPLACE INTO {table} ({cols_str}) VALUES ({placeholders})",  # noqa: S608
+            rows,
+        )
 
     async def close(self):
         """Close database connection."""
