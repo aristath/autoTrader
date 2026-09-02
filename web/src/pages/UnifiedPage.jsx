@@ -66,7 +66,6 @@ const PNL_PERIODS = ['3M', '6M', '1Y', 'ALL'].map((value) => ({ value, label: va
 const VALUE_PROJECTION_YEARS = ['5', '10', '15', '20', '25'].map((value) => ({ value, label: `${value}Y` }));
 
 const FILTERS = [
-  { value: 'review', label: 'Review' },
   { value: 'all', label: 'All Securities' },
   { value: 'positions', label: 'Positions Only' },
   { value: 'buys', label: 'Buy Recommendations' },
@@ -91,25 +90,12 @@ const DEFAULT_COLLAPSED_WIDGETS = {
   'forward-return': true,
 };
 
-export function hasDisabledTradePermission(security) {
-  return Number(security.allow_buy ?? 1) === 0 || Number(security.allow_sell ?? 1) === 0;
-}
-
 export function shouldLoadInactiveDetails(collapsedWidgets, inactiveCount) {
   return !Boolean(collapsedWidgets['inactive-securities']) && inactiveCount > 0;
 }
 
 export function shouldShowSecurityForFilter(security, filter) {
   switch (filter) {
-    case 'review': {
-      const allocationGap = Math.abs((security.ideal_allocation || 0) - (security.current_allocation || 0));
-      return (
-        Boolean(security.recommendation) ||
-        Boolean(security.price_warning) ||
-        hasDisabledTradePermission(security) ||
-        allocationGap > 0.5
-      );
-    }
     case 'positions':
       return Boolean(security.has_position);
     case 'buys':
@@ -149,7 +135,7 @@ function UnifiedPage() {
   const [pnlPeriod, setPnlPeriod] = useState('1Y');
   const [valueProjectionYears, setValueProjectionYears] = useState('10');
   const [valueProjectionNetDepositOverride, setValueProjectionNetDepositOverride] = useState(null);
-  const [filter, setFilter] = useState('review');
+  const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('priority');
   const [search, setSearch] = useState('');
   const [addModalOpen, setAddModalOpen] = useState(false);
