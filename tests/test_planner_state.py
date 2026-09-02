@@ -134,7 +134,7 @@ class TestRebalanceEngineStateInputs:
                     "min_lot": 1,
                     "allow_buy": 1,
                     "allow_sell": 1,
-                    "user_multiplier": 1.0,
+                    "ai_research_multiplier": 1.0,
                 }
             ]
         )
@@ -193,8 +193,8 @@ class TestRebalanceEngineStateInputs:
                     "opp_score_raw": 0.5,
                     "dip_score": 0.5,
                     "sleeve": "core",
-                    "user_multiplier": 1.0,
-                    "clara_target_pct": 1.0,
+                    "ai_research_multiplier": 1.0,
+                    "ai_research_target_pct": 1.0,
                 }
             },
             precomputed_sleeves={"AAA": "core"},
@@ -216,8 +216,8 @@ class TestLongTermPlan:
             total_value=10_000.0,
             signal_bundle={
                 "rebalance_signals": {
-                    "AAA": {"user_multiplier": 0.9, "opp_score": 0.8},
-                    "LEGACY": {"user_multiplier": 0.5, "opp_score": 0.1},
+                    "AAA": {"ai_research_multiplier": 0.9, "opp_score": 0.8},
+                    "LEGACY": {"ai_research_multiplier": 0.5, "opp_score": 0.1},
                 }
             },
             avg_monthly_net_deposit_eur=500.0,
@@ -255,9 +255,9 @@ class TestLongTermPlan:
             total_value=10_000.0,
             signal_bundle={
                 "rebalance_signals": {
-                    "LOCKED": {"user_multiplier": 0.8, "opp_score": 0.1},
-                    "BUYME": {"user_multiplier": 0.9, "opp_score": 0.8},
-                    "OTHER": {"user_multiplier": 0.5, "opp_score": 0.2},
+                    "LOCKED": {"ai_research_multiplier": 0.8, "opp_score": 0.1},
+                    "BUYME": {"ai_research_multiplier": 0.9, "opp_score": 0.8},
+                    "OTHER": {"ai_research_multiplier": 0.5, "opp_score": 0.2},
                 }
             },
             avg_monthly_net_deposit_eur=0.0,
@@ -315,9 +315,9 @@ class TestLongTermPlan:
             total_value=10_000.0,
             signal_bundle={
                 "rebalance_signals": {
-                    "LOCKED": {"user_multiplier": 0.8, "opp_score": 0.1},
-                    "BUYME": {"user_multiplier": 0.9, "opp_score": 0.8},
-                    "OTHER": {"user_multiplier": 0.5, "opp_score": 0.2},
+                    "LOCKED": {"ai_research_multiplier": 0.8, "opp_score": 0.1},
+                    "BUYME": {"ai_research_multiplier": 0.9, "opp_score": 0.8},
+                    "OTHER": {"ai_research_multiplier": 0.5, "opp_score": 0.2},
                 }
             },
             avg_monthly_net_deposit_eur=0.0,

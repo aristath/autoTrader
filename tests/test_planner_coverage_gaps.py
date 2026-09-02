@@ -166,17 +166,17 @@ class TestPreferencesCoverage:
         result = normalize_weights({"A": "invalid", "B": None, "C": float("nan")})
         assert result == {}
 
-    def test_decayed_user_multiplier_edge_cases(self):
-        """Test decayed_user_multiplier error handling."""
-        from sentinel.planner.preferences import decayed_user_multiplier
+    def test_decayed_ai_research_multiplier_edge_cases(self):
+        """Test decayed_ai_research_multiplier error handling."""
+        from sentinel.planner.preferences import decayed_ai_research_multiplier
 
         # Test with neutral multiplier
-        result = decayed_user_multiplier(0.5)
+        result = decayed_ai_research_multiplier(0.5)
         assert result == 0.5
 
         # Test with extreme values
-        result = decayed_user_multiplier(1.0)
+        result = decayed_ai_research_multiplier(1.0)
         assert 0.5 < result < 1.0
 
-        result = decayed_user_multiplier(0.0)
+        result = decayed_ai_research_multiplier(0.0)
         assert 0.0 < result < 0.5

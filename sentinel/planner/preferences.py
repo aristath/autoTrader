@@ -1,13 +1,13 @@
-"""Clara strategic preference helpers.
+"""AI research multiplier helpers.
 
-The `user_multiplier` (range 0..1, with 0.5 = neutral) is the user's
-strategic conviction signal for a security. Historically, this was faded
+The `ai_research_multiplier` (range 0..1, with 0.5 = neutral) is Sentinel's
+AI-research rating for a security. Historically, this was faded
 toward neutral at read time by computing an "effective" value from a
 freshness coefficient. That design is gone — the stored value now BECOMES
 the effective value and gracefully decays back to 0.5 via a scheduled
-weekly job (`decay:user_multipliers`).
+weekly job (`decay:ai_research_multipliers`).
 
-The atomic decay step is `decayed_user_multiplier`, defined below.
+The atomic decay step is `decayed_ai_research_multiplier`, defined below.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 SECONDS_PER_WEEK = 7 * 24 * 60 * 60
-NEUTRAL_USER_MULTIPLIER = 0.5
+NEUTRAL_AI_RESEARCH_MULTIPLIER = 0.5
 STRATEGIC_BUY_PRESSURE_THRESHOLD = 0.70
 
 # Default per-week fade factor. One decay step at this rate leaves 90% of the
@@ -26,14 +26,14 @@ STRATEGIC_BUY_PRESSURE_THRESHOLD = 0.70
 DEFAULT_DECAY_FADE_FACTOR = 0.9
 
 
-def normalize_user_multiplier(value: Any) -> float:
-    """Normalize a user multiplier/preference value into [0.0, 1.0]."""
+def normalize_ai_research_multiplier(value: Any) -> float:
+    """Normalize an AI research multiplier into [0.0, 1.0]."""
     try:
         parsed = float(value)
     except (TypeError, ValueError, OverflowError):
-        return NEUTRAL_USER_MULTIPLIER
+        return NEUTRAL_AI_RESEARCH_MULTIPLIER
     if not math.isfinite(parsed):
-        return NEUTRAL_USER_MULTIPLIER
+        return NEUTRAL_AI_RESEARCH_MULTIPLIER
     return max(0.0, min(1.0, parsed))
 
 
@@ -79,8 +79,8 @@ def age_weeks(updated_at: object, *, now: datetime | None = None) -> float:
     return max(0.0, delta_seconds / SECONDS_PER_WEEK)
 
 
-def decayed_user_multiplier(value: object, fade_factor: float = DEFAULT_DECAY_FADE_FACTOR) -> float:
-    """One step of fade for a stored `user_multiplier`.
+def decayed_ai_research_multiplier(value: object, fade_factor: float = DEFAULT_DECAY_FADE_FACTOR) -> float:
+    """One step of fade for a stored `ai_research_multiplier`.
 
     `new = 0.5 + (value - 0.5) * fade_factor`
 
@@ -93,9 +93,9 @@ def decayed_user_multiplier(value: object, fade_factor: float = DEFAULT_DECAY_FA
 
     The job applies this once per row per ~7 days; touching the slider via the
     `/securities/preference` endpoint resets the stored value (and the
-    `user_multiplier_updated_at` clock that gates the next decay).
+    `ai_research_multiplier_updated_at` clock that gates the next decay).
     """
-    normalized_value = normalize_user_multiplier(value)
+    normalized_value = normalize_ai_research_multiplier(value)
     try:
         factor = float(fade_factor)
     except (TypeError, ValueError, OverflowError):
@@ -103,18 +103,20 @@ def decayed_user_multiplier(value: object, fade_factor: float = DEFAULT_DECAY_FA
     if not math.isfinite(factor):
         factor = 0.0
     factor = max(0.0, min(1.0, factor))
-    return NEUTRAL_USER_MULTIPLIER + (normalized_value - NEUTRAL_USER_MULTIPLIER) * factor
+    return NEUTRAL_AI_RESEARCH_MULTIPLIER + (normalized_value - NEUTRAL_AI_RESEARCH_MULTIPLIER) * factor
 
 
 def preference_tilt(effective_multiplier: float, strength: float) -> float:
-    """Turn a stored user multiplier into a strategic allocation tilt."""
+    """Turn a stored AI research multiplier into an allocation tilt."""
     try:
         parsed_strength = float(strength)
     except (TypeError, ValueError, OverflowError):
         parsed_strength = 0.0
     if not math.isfinite(parsed_strength):
         parsed_strength = 0.0
-    exponent = parsed_strength * (normalize_user_multiplier(effective_multiplier) - NEUTRAL_USER_MULTIPLIER)
+    exponent = parsed_strength * (
+        normalize_ai_research_multiplier(effective_multiplier) - NEUTRAL_AI_RESEARCH_MULTIPLIER
+    )
     return math.exp(max(-20.0, min(20.0, exponent)))
 
 
@@ -123,7 +125,7 @@ def has_strategic_buy_pressure(
     threshold: object = STRATEGIC_BUY_PRESSURE_THRESHOLD,
 ) -> bool:
     """Return whether a stored preference is meaningfully above neutral."""
-    return normalize_user_multiplier(effective_multiplier) >= normalize_user_multiplier(threshold)
+    return normalize_ai_research_multiplier(effective_multiplier) >= normalize_ai_research_multiplier(threshold)
 
 
 def is_explicit_downgrade(security: dict[str, Any]) -> bool:
@@ -133,8 +135,8 @@ def is_explicit_downgrade(security: dict[str, Any]) -> bool:
     (first to be sold, loss or not, when cash is needed elsewhere). It is true
     only when BOTH hold:
 
-    - `user_multiplier <= 0.5` (at or below neutral), and
-    - `user_multiplier_updated_at` is present (the slider was actually touched).
+    - `ai_research_multiplier <= 0.5` (at or below neutral), and
+    - `ai_research_multiplier_updated_at` is present (the slider was actually touched).
 
     Never-rated securities sit at the 0.5 default with a NULL timestamp, so they
     are NOT downgrades — a name nobody has assessed must not be sold at a loss
@@ -142,10 +144,11 @@ def is_explicit_downgrade(security: dict[str, Any]) -> bool:
     values *toward* 0.5 (never across it) and skips already-neutral rows, so a
     `<= 0.5` value carrying a timestamp always traces back to a deliberate rating.
     """
-    if parse_utc_datetime(security.get("user_multiplier_updated_at")) is None:
+    if parse_utc_datetime(security.get("ai_research_multiplier_updated_at")) is None:
         return False
     return (
-        normalize_user_multiplier(security.get("user_multiplier", NEUTRAL_USER_MULTIPLIER)) <= NEUTRAL_USER_MULTIPLIER
+        normalize_ai_research_multiplier(security.get("ai_research_multiplier", NEUTRAL_AI_RESEARCH_MULTIPLIER))
+        <= NEUTRAL_AI_RESEARCH_MULTIPLIER
     )
 
 
@@ -213,12 +216,12 @@ def preference_snapshot(security: dict[str, Any], *, now: datetime | None = None
     """Return preference info for one security.
 
     The "effective" value is now identical to the stored value (no read-time
-    fade), but we still surface `user_multiplier_age_weeks` so the UI can show
+    fade), but we still surface `ai_research_multiplier_age_weeks` so the UI can show
     when the slider was last touched.
     """
-    stored = normalize_user_multiplier(security.get("user_multiplier", NEUTRAL_USER_MULTIPLIER))
-    weeks = age_weeks(security.get("user_multiplier_updated_at"), now=now)
+    stored = normalize_ai_research_multiplier(security.get("ai_research_multiplier", NEUTRAL_AI_RESEARCH_MULTIPLIER))
+    weeks = age_weeks(security.get("ai_research_multiplier_updated_at"), now=now)
     return {
-        "user_multiplier": stored,
-        "user_multiplier_age_weeks": weeks,
+        "ai_research_multiplier": stored,
+        "ai_research_multiplier_age_weeks": weeks,
     }

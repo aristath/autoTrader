@@ -33,15 +33,17 @@ async def _invalidate_planner_cache(deps: CommonDependencies) -> None:
             await maybe
 
 
-def _validate_user_multiplier(value: Any) -> float:
+def _validate_ai_research_multiplier(value: Any) -> float:
     if isinstance(value, bool):
-        raise HTTPException(status_code=400, detail="'user_multiplier' must be a number between 0.0 and 1.0")
+        raise HTTPException(status_code=400, detail="'ai_research_multiplier' must be a number between 0.0 and 1.0")
     try:
         parsed = float(value)
     except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="'user_multiplier' must be a number between 0.0 and 1.0") from None
+        raise HTTPException(
+            status_code=400, detail="'ai_research_multiplier' must be a number between 0.0 and 1.0"
+        ) from None
     if not math.isfinite(parsed) or parsed < 0.0 or parsed > 1.0:
-        raise HTTPException(status_code=400, detail="'user_multiplier' must be between 0.0 and 1.0")
+        raise HTTPException(status_code=400, detail="'ai_research_multiplier' must be between 0.0 and 1.0")
     return parsed
 
 
@@ -73,11 +75,11 @@ async def _security_payload(symbol: str, deps: CommonDependencies) -> dict[str, 
         "active": sec.get("active", 1),
         "allow_buy": sec.get("allow_buy", 1),
         "allow_sell": sec.get("allow_sell", 1),
-        "user_multiplier": pref["user_multiplier"],
-        "user_multiplier_age_weeks": pref["user_multiplier_age_weeks"],
-        "user_multiplier_updated_at": sec.get("user_multiplier_updated_at"),
-        "user_multiplier_source": sec.get("user_multiplier_source"),
-        "user_multiplier_analysis": sec.get("user_multiplier_analysis"),
+        "ai_research_multiplier": pref["ai_research_multiplier"],
+        "ai_research_multiplier_age_weeks": pref["ai_research_multiplier_age_weeks"],
+        "ai_research_multiplier_updated_at": sec.get("ai_research_multiplier_updated_at"),
+        "ai_research_multiplier_source": sec.get("ai_research_multiplier_source"),
+        "ai_research_multiplier_analysis": sec.get("ai_research_multiplier_analysis"),
         "universe_source": sec.get("universe_source"),
         "universe_last_seen_at": sec.get("universe_last_seen_at"),
         "quantity": position.get("quantity", 0) if position else 0,
@@ -225,7 +227,7 @@ async def update_security_preference(
     data: dict,
     deps: Annotated[CommonDependencies, Depends(get_common_deps)],
 ) -> dict[str, Any]:
-    """Update one security's Clara strategic preference and analysis."""
+    """Update one security's AI research multiplier and analysis."""
     symbol = data.get("symbol")
     if not isinstance(symbol, str) or not symbol.strip():
         raise HTTPException(status_code=400, detail="'symbol' is required")
@@ -235,19 +237,19 @@ async def update_security_preference(
     if not existing:
         raise HTTPException(status_code=404, detail="Security not found")
 
-    if "user_multiplier" not in data:
-        raise HTTPException(status_code=400, detail="'user_multiplier' is required")
-    user_multiplier = _validate_user_multiplier(data.get("user_multiplier"))
+    if "ai_research_multiplier" not in data:
+        raise HTTPException(status_code=400, detail="'ai_research_multiplier' is required")
+    ai_research_multiplier = _validate_ai_research_multiplier(data.get("ai_research_multiplier"))
     analysis = _validate_analysis(data.get("analysis"))
     now = utc_now_iso()
 
-    updater = getattr(deps.db, "update_user_multiplier_preference", None)
+    updater = getattr(deps.db, "update_ai_research_multiplier_preference", None)
     if callable(updater):
         maybe = updater(
             symbol,
-            user_multiplier=user_multiplier,
+            ai_research_multiplier=ai_research_multiplier,
             analysis=analysis,
-            source="clara",
+            source="ai_research",
             updated_at=now,
         )
         if inspect.isawaitable(maybe):
@@ -255,10 +257,10 @@ async def update_security_preference(
     else:
         await deps.db.upsert_security(
             symbol,
-            user_multiplier=user_multiplier,
-            user_multiplier_updated_at=now,
-            user_multiplier_source="clara",
-            user_multiplier_analysis=analysis,
+            ai_research_multiplier=ai_research_multiplier,
+            ai_research_multiplier_updated_at=now,
+            ai_research_multiplier_source="ai_research",
+            ai_research_multiplier_analysis=analysis,
         )
 
     await _invalidate_planner_cache(deps)
@@ -298,18 +300,18 @@ async def update_security(
         await deps.db.upsert_security(symbol, **updates)
         await _invalidate_planner_cache(deps)
 
-    if "user_multiplier" in data:
-        user_multiplier = _validate_user_multiplier(data.get("user_multiplier"))
-        analysis = data.get("user_multiplier_analysis")
+    if "ai_research_multiplier" in data:
+        ai_research_multiplier = _validate_ai_research_multiplier(data.get("ai_research_multiplier"))
+        analysis = data.get("ai_research_multiplier_analysis")
         if analysis is None:
-            analysis = "Manual preference override from Sentinel UI."
+            analysis = "Manual AI research multiplier override from Sentinel UI."
         analysis = _validate_analysis(analysis)
         now = utc_now_iso()
-        updater = getattr(deps.db, "update_user_multiplier_preference", None)
+        updater = getattr(deps.db, "update_ai_research_multiplier_preference", None)
         if callable(updater):
             maybe = updater(
                 symbol,
-                user_multiplier=user_multiplier,
+                ai_research_multiplier=ai_research_multiplier,
                 analysis=analysis,
                 source="manual",
                 updated_at=now,
@@ -319,10 +321,10 @@ async def update_security(
         else:
             await deps.db.upsert_security(
                 symbol,
-                user_multiplier=user_multiplier,
-                user_multiplier_updated_at=now,
-                user_multiplier_source="manual",
-                user_multiplier_analysis=analysis,
+                ai_research_multiplier=ai_research_multiplier,
+                ai_research_multiplier_updated_at=now,
+                ai_research_multiplier_source="manual",
+                ai_research_multiplier_analysis=analysis,
             )
         await _invalidate_planner_cache(deps)
 
@@ -615,11 +617,11 @@ async def get_unified_view(
                 "can_delete": not bool(sec.get("active", 1))
                 and transaction_counts.get(symbol, 0) == 0
                 and not has_position,
-                "user_multiplier": preference["user_multiplier"],
-                "user_multiplier_age_weeks": preference["user_multiplier_age_weeks"],
-                "user_multiplier_updated_at": sec.get("user_multiplier_updated_at"),
-                "user_multiplier_source": sec.get("user_multiplier_source"),
-                "user_multiplier_analysis": sec.get("user_multiplier_analysis"),
+                "ai_research_multiplier": preference["ai_research_multiplier"],
+                "ai_research_multiplier_age_weeks": preference["ai_research_multiplier_age_weeks"],
+                "ai_research_multiplier_updated_at": sec.get("ai_research_multiplier_updated_at"),
+                "ai_research_multiplier_source": sec.get("ai_research_multiplier_source"),
+                "ai_research_multiplier_analysis": sec.get("ai_research_multiplier_analysis"),
                 "aliases": sec.get("aliases"),
                 # Position data
                 "has_position": has_position,
@@ -655,7 +657,7 @@ async def get_unified_view(
                 "sleeve": sleeve,
                 "allocation_sleeves": global_decomposition or None,
                 "baseline_target_pct": float(decomposition.get("baseline_target_pct", 0.0) or 0.0) * 100,
-                "clara_target_pct": float(decomposition.get("clara_target_pct", 0.0) or 0.0) * 100,
+                "ai_research_target_pct": float(decomposition.get("ai_research_target_pct", 0.0) or 0.0) * 100,
                 "opportunity_target_pct": float(decomposition.get("opportunity_target_pct", 0.0) or 0.0) * 100,
                 "final_target_pct": float(decomposition.get("final_target_pct", ideal.get(symbol, 0)) or 0.0) * 100,
                 # Price history (simplified for charts, oldest first)

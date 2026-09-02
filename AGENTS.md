@@ -97,7 +97,7 @@ Each file provides one or more routers mounted under `/api`:
 - `rebalance.py` - Trade recommendation generation (`RebalanceEngine`)
 - `rebalance_cash.py` - Cash constraint and deficit-sell logic
 - `rebalance_rules.py` - Priority calculation, tranche stages, trade reasons
-- `preferences.py` - Clara preference handling and fade logic
+- `preferences.py` - AI research multiplier handling and decay logic
 - `deposit_history.py` - Rolling 6-month deposit average helper (`DepositHistoryHelper`)
 - `models.py` - Data classes: `TradeRecommendation`, `RebalanceSummary`
 

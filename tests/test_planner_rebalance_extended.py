@@ -511,12 +511,12 @@ class TestBuildRecommendationPaths:
                 "NO_BUY_HELD": {
                     "sleeve": "core",
                     "opp_score": 0.2,
-                    "user_multiplier": 0.6,
+                    "ai_research_multiplier": 0.6,
                 },
                 "BUYABLE": {
                     "sleeve": "core",
                     "opp_score": 0.8,
-                    "user_multiplier": 0.9,
+                    "ai_research_multiplier": 0.9,
                 },
             },
             min_trade_value=100.0,
@@ -640,7 +640,7 @@ class TestBuildRecommendationPaths:
                 }
             },
             contrarian_scores={},
-            signal_data={"SMALL": {"sleeve": "core", "clara_target_pct": 0.001}},
+            signal_data={"SMALL": {"sleeve": "core", "ai_research_target_pct": 0.001}},
             min_trade_value=100.0,
             settings_ctx=_settings_ctx,
         )
@@ -672,7 +672,7 @@ class TestBuildRecommendationPaths:
                 }
             },
             contrarian_scores={},
-            signal_data={"TINY": {"sleeve": "core", "clara_target_pct": 0.001}},
+            signal_data={"TINY": {"sleeve": "core", "ai_research_target_pct": 0.001}},
             min_trade_value=500.0,
             settings_ctx=_settings_ctx,
         )
@@ -743,8 +743,8 @@ class TestBuildRecommendationPaths:
             signal_data={
                 "BYD.285.AS": {
                     "sleeve": "core",
-                    "clara_target_pct": 0.034,
-                    "user_multiplier": 0.9,
+                    "ai_research_target_pct": 0.034,
+                    "ai_research_multiplier": 0.9,
                 }
             },
             min_trade_value=100.0,
@@ -782,8 +782,8 @@ class TestBuildRecommendationPaths:
             },
             contrarian_scores={},
             signal_data={
-                "CORE_SELL": {"sleeve": "core", "opp_score": 0.0, "user_multiplier": 0.5},
-                "BUYME": {"sleeve": "core", "opp_score": 0.6, "user_multiplier": 0.9},
+                "CORE_SELL": {"sleeve": "core", "opp_score": 0.0, "ai_research_multiplier": 0.5},
+                "BUYME": {"sleeve": "core", "opp_score": 0.6, "ai_research_multiplier": 0.9},
             },
             min_trade_value=100.0,
             settings_ctx={

@@ -62,4 +62,4 @@ Daily P&L history for the past 365 days with 365-day rolling time-weighted retur
 - `GET /api/allocation/current`, `GET /api/allocation/targets`, all `PUT/DELETE /api/allocation/targets/*` — gone.
 - `GET /api/allocation-targets`, `PUT /api/allocation-targets/*` — gone.
 
-Allocation targets and the planner's diversification-tilt mechanism have been retired; Clara's per-security `user_multiplier` ratings are now the sole conviction signal.
+Allocation targets and the planner's diversification-tilt mechanism have been retired; per-security `ai_research_multiplier` ratings are now the sole conviction signal.

@@ -49,9 +49,9 @@ Returns all application settings, merging stored values with defaults. Runtime s
   "strategy_max_funding_sells_per_cycle": 2,
   "strategy_max_funding_turnover_pct": 0.12,
   "strategy_funding_conviction_bias": 1.0,
-  "clara_preference_strength": 5.0,
-  "user_multiplier_decay_factor": 0.9,
-  "user_multiplier_decay_interval_days": 7,
+  "ai_research_multiplier_strength": 5.0,
+  "ai_research_multiplier_decay_factor": 0.9,
+  "ai_research_multiplier_decay_interval_days": 7,
   "led_display_enabled": true,
   "led_brightness": 200,
   "r2_account_id": "",
@@ -118,7 +118,7 @@ Atomically update the strategy-tuning settings shown in the Strategy tab. All ke
 
 **Required keys**
 - `strategy_min_opp_score` — Minimum score to classify a security as opportunity (0–1).
-- `strategy_ideal_qualifying_threshold` — Minimum Clara score required for a positive long-term target (0–1).
+- `strategy_ideal_qualifying_threshold` — Minimum AI research multiplier required for a positive long-term target (0–1).
 - `strategy_core_timing_min_score` — Minimum opportunity score for a normally timed core buy (0–1).
 - `strategy_core_timing_min_dip_score` — Minimum dip score for a normally timed core buy (0–1); a cycle turn also qualifies.
 - `strategy_fallback_wait_days` — Persistent wait before one poorly timed convergence buy may execute (0–365).

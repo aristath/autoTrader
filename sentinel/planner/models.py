@@ -11,7 +11,7 @@ class LongTermTarget:
     """Executable terminal target and current distance for one security."""
 
     symbol: str
-    clara_score: float
+    ai_research_multiplier: float
     opportunity_score: float
     target_allocation: float
     current_value_eur: float
@@ -70,8 +70,8 @@ class TradeRecommendation:
     lot_class: Optional[str] = None
     ticket_pct: Optional[float] = None
     memory_entry: Optional[bool] = None
-    user_multiplier: Optional[float] = None
-    clara_target_pct: Optional[float] = None
+    ai_research_multiplier: Optional[float] = None
+    ai_research_target_pct: Optional[float] = None
     baseline_target_pct: Optional[float] = None
     opportunity_target_pct: Optional[float] = None
     timing_eligible: bool = True

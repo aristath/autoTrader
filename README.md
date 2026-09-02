@@ -98,7 +98,7 @@ npm run dev  # http://localhost:5173
 
 Sentinel separates the long-term destination from today's execution:
 
-1. **Clara defines the destination** - Strategic scores set relative twelve-month target weights
+1. **AI research defines the destination** - Research multipliers set relative twelve-month target weights
 2. **Opportunity controls timing** - Under-target holdings are bought when their price signal is attractive
 3. **Orders form a complete plan** - Ordinary sells exist only to fund an executable selected buy
 4. **Patience has a limit** - After a durable waiting window, one fallback buy keeps the portfolio converging
@@ -111,7 +111,7 @@ Live execution treats each `trading:execute` run as a fresh decision window: syn
 | Component | Purpose |
 |---|---|
 | `PortfolioComposition` | Analytics: country/industry breakdowns, risk metrics |
-| `Planner` | Clara-weighted twelve-month targets with opportunity-timed recommendations |
+| `Planner` | AI-research-weighted twelve-month targets with opportunity-timed recommendations |
 | `Contrarian` | Deterministic cycle-based trading signals |
 | `Forecasting` | Scheduled weekly-return forecasts that gently modify timing |
 | `DepositHistory` | Cashflow analytics for self-correction timing |

@@ -164,10 +164,10 @@ export const updateSecurity = (symbol, data) => {
     body: JSON.stringify(processedData),
   });
 };
-export const updateSecurityPreference = ({ symbol, user_multiplier, analysis }) =>
+export const updateSecurityPreference = ({ symbol, ai_research_multiplier, analysis }) =>
   request('/securities/preference', {
     method: 'POST',
-    body: JSON.stringify({ symbol, user_multiplier, analysis }),
+    body: JSON.stringify({ symbol, ai_research_multiplier, analysis }),
   });
 
 // Markets

@@ -8,11 +8,11 @@ from typing import Any
 
 def buy_rank_key(recommendation: Any) -> tuple[float, float, float, float, str]:
     """Sort buys by timing first, then by how much of the target is missing."""
-    raw_user_multiplier = recommendation.user_multiplier
+    raw_ai_research_multiplier = recommendation.ai_research_multiplier
     return (
         -max(0.0, min(1.0, float(recommendation.contrarian_score))),
         -max(0.0, min(1.0, float(recommendation.target_gap_ratio))),
-        -max(0.0, min(1.0, float(0.5 if raw_user_multiplier is None else raw_user_multiplier))),
+        -max(0.0, min(1.0, float(0.5 if raw_ai_research_multiplier is None else raw_ai_research_multiplier))),
         -abs(float(recommendation.value_delta_eur)),
         str(recommendation.symbol),
     )
@@ -127,17 +127,17 @@ def generate_buy_reason(
     dip = float(signal.get("dip_score", 0.0))
     cap = float(signal.get("capitulation_score", 0.0))
     turn = int(signal.get("cycle_turn", 0))
-    user_multiplier = float(signal.get("user_multiplier", 0.5) or 0.5)
+    ai_research_multiplier = float(signal.get("ai_research_multiplier", 0.5) or 0.5)
 
     if current_alloc == 0:
         return (
             f"New target entry ({lot_class} lot): opportunity={contrarian_score:.2f}, "
-            f"Clara={user_multiplier:.2f}, dip={dip:.2f}, cap={cap:.2f}, turn={turn}"
+            f"AI research={ai_research_multiplier:.2f}, dip={dip:.2f}, cap={cap:.2f}, turn={turn}"
         )
 
     return (
         f"Target-gap buy: underweight by {underweight:.1f}%, opportunity={contrarian_score:.2f}, "
-        f"Clara={user_multiplier:.2f}, dip={dip:.2f}, cap={cap:.2f}, turn={turn}, lot={lot_class}"
+        f"AI research={ai_research_multiplier:.2f}, dip={dip:.2f}, cap={cap:.2f}, turn={turn}, lot={lot_class}"
     )
 
 

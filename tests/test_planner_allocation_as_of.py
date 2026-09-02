@@ -20,7 +20,7 @@ async def test_allocation_as_of_uses_historical_prices_and_skips_live_cache():
         return_value=[
             {
                 "symbol": "AAA",
-                "user_multiplier": 1.0,
+                "ai_research_multiplier": 1.0,
                 "geography": "US",
                 "industry": "Tech",
             }
@@ -58,9 +58,9 @@ def _allocation_settings(settings_values=None):
         "strategy_min_opp_score": 0.55,
         "strategy_ideal_qualifying_threshold": 0.65,
         "max_position_pct": 100,
-        "clara_preference_strength": 5.0,
-        "user_multiplier_decay_factor": 0.90,
-        "user_multiplier_decay_interval_days": 7,
+        "ai_research_multiplier_strength": 5.0,
+        "ai_research_multiplier_decay_factor": 0.90,
+        "ai_research_multiplier_decay_interval_days": 7,
     }
     if settings_values:
         values.update(settings_values)
@@ -75,14 +75,14 @@ async def test_atomic_allocation_cache_restores_matching_signal_bundle():
         "ideal": {"AAA": 1.0},
         "signal_bundle": {
             "as_of_date": None,
-            "rebalance_signals": {"AAA": {"user_multiplier": 0.91, "opp_score": 0.73}},
+            "rebalance_signals": {"AAA": {"ai_research_multiplier": 0.91, "opp_score": 0.73}},
             "sleeves": {"AAA": "opportunity"},
             "allocation_decomposition": {"global": {}, "symbols": {}},
         },
     }
     db = MagicMock()
     db.cache_get = AsyncMock(
-        side_effect=lambda key: json.dumps(snapshot) if key == "planner:allocation_snapshot" else None
+        side_effect=lambda key: json.dumps(snapshot) if key == "planner:allocation_snapshot:v2" else None
     )
     db.get_all_securities = AsyncMock(side_effect=AssertionError("atomic cache should satisfy the request"))
     calculator = AllocationCalculator(db=db, settings=_allocation_settings())
@@ -91,7 +91,7 @@ async def test_atomic_allocation_cache_restores_matching_signal_bundle():
     signals = calculator.get_last_signal_bundle()
 
     assert ideal == {"AAA": 1.0}
-    assert signals["rebalance_signals"]["AAA"] == {"user_multiplier": 0.91, "opp_score": 0.73}
+    assert signals["rebalance_signals"]["AAA"] == {"ai_research_multiplier": 0.91, "opp_score": 0.73}
 
 
 @pytest.mark.asyncio
@@ -101,7 +101,7 @@ async def test_legacy_split_weight_cache_is_not_reused_without_matching_atomic_s
         side_effect=lambda key: json.dumps({"STALE": 1.0}) if key == "planner:ideal_portfolio" else None
     )
     db.cache_set = AsyncMock()
-    db.get_all_securities = AsyncMock(return_value=[{"symbol": "AAA", "user_multiplier": 0.9, "allow_buy": 1}])
+    db.get_all_securities = AsyncMock(return_value=[{"symbol": "AAA", "ai_research_multiplier": 0.9, "allow_buy": 1}])
     db.get_prices = AsyncMock(return_value=_flat_prices())
     db.get_uninvested_dividends = AsyncMock(return_value={})
     calculator = AllocationCalculator(db=db, settings=_allocation_settings())
@@ -109,7 +109,7 @@ async def test_legacy_split_weight_cache_is_not_reused_without_matching_atomic_s
     ideal = await calculator.calculate_ideal_portfolio()
 
     assert ideal == {"AAA": 1.0}
-    assert db.cache_get.await_args_list[0].args == ("planner:allocation_snapshot",)
+    assert db.cache_get.await_args_list[0].args == ("planner:allocation_snapshot:v2",)
     assert all(call.args != ("planner:ideal_portfolio",) for call in db.cache_get.await_args_list)
 
 
@@ -119,7 +119,7 @@ async def test_infeasible_position_caps_become_an_explicit_cash_target():
     db.cache_get = AsyncMock(return_value=None)
     db.cache_set = AsyncMock()
     db.get_all_securities = AsyncMock(
-        return_value=[{"symbol": symbol, "user_multiplier": 0.8, "allow_buy": 1} for symbol in ("A", "B", "C")]
+        return_value=[{"symbol": symbol, "ai_research_multiplier": 0.8, "allow_buy": 1} for symbol in ("A", "B", "C")]
     )
     db.get_prices = AsyncMock(return_value=_flat_prices())
     db.get_uninvested_dividends = AsyncMock(return_value={})
@@ -145,8 +145,8 @@ async def test_high_preference_zero_opportunity_creates_strategic_target():
     db.get_all_securities = AsyncMock(
         return_value=[
             # Both rated above the configured threshold so both participate in the ideal.
-            {"symbol": "AMD", "user_multiplier": 0.9, "user_multiplier_updated_at": now_iso},
-            {"symbol": "BASE", "user_multiplier": 0.65, "user_multiplier_updated_at": now_iso},
+            {"symbol": "AMD", "ai_research_multiplier": 0.9, "ai_research_multiplier_updated_at": now_iso},
+            {"symbol": "BASE", "ai_research_multiplier": 0.65, "ai_research_multiplier_updated_at": now_iso},
         ]
     )
     db.get_prices = AsyncMock(return_value=_flat_prices())
@@ -171,7 +171,7 @@ async def test_high_preference_zero_opportunity_creates_strategic_target():
     assert allocations["AMD"] > 0.7
     assert diagnostics is not None
     assert diagnostics["allocation_decomposition"]["symbols"]["AMD"]["final_target_pct"] == allocations["AMD"]
-    assert diagnostics["allocation_decomposition"]["global"]["target_model"] == "clara_risk"
+    assert diagnostics["allocation_decomposition"]["global"]["target_model"] == "ai_research"
     assert diagnostics["allocation_decomposition"]["symbols"]["AMD"]["opportunity_target_pct"] == 0.0
 
 
@@ -179,8 +179,8 @@ async def test_high_preference_zero_opportunity_creates_strategic_target():
 async def test_opportunity_changes_do_not_change_long_term_target_weights():
     now_iso = datetime.now(timezone.utc).isoformat()
     securities = [
-        {"symbol": "A", "user_multiplier": 0.9, "user_multiplier_updated_at": now_iso},
-        {"symbol": "B", "user_multiplier": 0.7, "user_multiplier_updated_at": now_iso},
+        {"symbol": "A", "ai_research_multiplier": 0.9, "ai_research_multiplier_updated_at": now_iso},
+        {"symbol": "B", "ai_research_multiplier": 0.7, "ai_research_multiplier_updated_at": now_iso},
     ]
 
     async def calculate(price_rows):
@@ -218,11 +218,11 @@ async def test_low_preference_security_is_excluded_from_ideal():
     db.get_all_securities = AsyncMock(
         return_value=[
             # Three excluded below threshold, rest endorsed.
-            {"symbol": "AVOID", "user_multiplier": 0.02, "user_multiplier_updated_at": now_iso},
-            {"symbol": "NEUTRAL", "user_multiplier": 0.5, "user_multiplier_updated_at": now_iso},
-            {"symbol": "LOW", "user_multiplier": 0.6, "user_multiplier_updated_at": now_iso},
-            {"symbol": "ENDORSED2", "user_multiplier": 0.7, "user_multiplier_updated_at": now_iso},
-            {"symbol": "ENDORSED3", "user_multiplier": 0.8, "user_multiplier_updated_at": now_iso},
+            {"symbol": "AVOID", "ai_research_multiplier": 0.02, "ai_research_multiplier_updated_at": now_iso},
+            {"symbol": "NEUTRAL", "ai_research_multiplier": 0.5, "ai_research_multiplier_updated_at": now_iso},
+            {"symbol": "LOW", "ai_research_multiplier": 0.6, "ai_research_multiplier_updated_at": now_iso},
+            {"symbol": "ENDORSED2", "ai_research_multiplier": 0.7, "ai_research_multiplier_updated_at": now_iso},
+            {"symbol": "ENDORSED3", "ai_research_multiplier": 0.8, "ai_research_multiplier_updated_at": now_iso},
         ]
     )
     db.get_prices = AsyncMock(return_value=_flat_prices())
@@ -263,15 +263,15 @@ async def test_buy_disabled_security_is_excluded_from_ideal():
         return_value=[
             {
                 "symbol": "NO_BUY",
-                "user_multiplier": 1.0,
-                "user_multiplier_updated_at": now_iso,
+                "ai_research_multiplier": 1.0,
+                "ai_research_multiplier_updated_at": now_iso,
                 "allow_buy": 0,
                 "allow_sell": 1,
             },
             {
                 "symbol": "BUYABLE",
-                "user_multiplier": 0.7,
-                "user_multiplier_updated_at": now_iso,
+                "ai_research_multiplier": 0.7,
+                "ai_research_multiplier_updated_at": now_iso,
                 "allow_buy": 1,
                 "allow_sell": 1,
             },
@@ -309,8 +309,8 @@ async def test_strong_algo_signal_cannot_resurrect_excluded_security():
     db.cache_set = AsyncMock()
     db.get_all_securities = AsyncMock(
         return_value=[
-            {"symbol": "ALGO_FAV", "user_multiplier": 0.45, "user_multiplier_updated_at": now_iso},
-            {"symbol": "USER_FAV", "user_multiplier": 0.7, "user_multiplier_updated_at": now_iso},
+            {"symbol": "ALGO_FAV", "ai_research_multiplier": 0.45, "ai_research_multiplier_updated_at": now_iso},
+            {"symbol": "USER_FAV", "ai_research_multiplier": 0.7, "ai_research_multiplier_updated_at": now_iso},
         ]
     )
 

@@ -12,7 +12,7 @@ from sentinel.database import Database
 from sentinel.forecasting.scoring import adjusted_opportunity_score
 from sentinel.planner.preferences import (
     apply_max_cap,
-    normalize_user_multiplier,
+    normalize_ai_research_multiplier,
     normalize_weights,
     preference_tilt,
 )
@@ -24,8 +24,12 @@ from sentinel.strategy import (
     recent_dd252_min,
 )
 
-# A security only participates in the ideal allocation if the user has actively
-# endorsed it above the configured threshold and it is buyable. The rebalance
+ALLOCATION_SNAPSHOT_CACHE_KEY = "planner:allocation_snapshot:v2"
+REBALANCE_SIGNALS_CACHE_KEY = "planner:rebalance_signals:v2"
+ALLOCATION_DECOMPOSITION_CACHE_KEY = "planner:allocation_decomposition:v2"
+
+# A security only participates in the ideal allocation if AI research rated it
+# above the configured threshold and it is buyable. The rebalance
 # engine still sees non-qualifying securities so it can plan sells / maintenance
 # on legacy holdings; these gates only affect what the *ideal* portfolio holds.
 
@@ -74,9 +78,9 @@ class AllocationCalculator:
             "strategy_ideal_qualifying_threshold": DEFAULTS["strategy_ideal_qualifying_threshold"],
             "max_position_pct": DEFAULTS["max_position_pct"],
             "target_cash_pct": DEFAULTS["target_cash_pct"],
-            "clara_preference_strength": DEFAULTS["clara_preference_strength"],
-            "user_multiplier_decay_factor": DEFAULTS["user_multiplier_decay_factor"],
-            "user_multiplier_decay_interval_days": DEFAULTS["user_multiplier_decay_interval_days"],
+            "ai_research_multiplier_strength": DEFAULTS["ai_research_multiplier_strength"],
+            "ai_research_multiplier_decay_factor": DEFAULTS["ai_research_multiplier_decay_factor"],
+            "ai_research_multiplier_decay_interval_days": DEFAULTS["ai_research_multiplier_decay_interval_days"],
             "forecasting_enabled": DEFAULTS["forecasting_enabled"],
             "forecasting_score_max_age_days": DEFAULTS["forecasting_score_max_age_days"],
             "forecasting_timing_weight": DEFAULTS["forecasting_timing_weight"],
@@ -88,7 +92,7 @@ class AllocationCalculator:
     async def calculate_ideal_portfolio(self, as_of_date: str | None = None) -> dict[str, float]:
         """Calculate ideal portfolio allocations using the deterministic contrarian strategy.
 
-        Per-security `user_multiplier` (0..1) is Clara's strategic preference:
+        Per-security `ai_research_multiplier` (0..1) is Sentinel's AI research rating:
         0.5 neutral, 1.0 strongest overweight, 0.0 strongest avoid.
 
         Returns:
@@ -98,7 +102,7 @@ class AllocationCalculator:
         if as_of_date is None:
             cache_getter = getattr(self._db, "cache_get", None)
             if callable(cache_getter):
-                maybe_snapshot = cache_getter("planner:allocation_snapshot")
+                maybe_snapshot = cache_getter(ALLOCATION_SNAPSHOT_CACHE_KEY)
                 if inspect.isawaitable(maybe_snapshot):
                     maybe_snapshot = await maybe_snapshot
                 if isinstance(maybe_snapshot, (str, bytes, bytearray)):
@@ -109,7 +113,7 @@ class AllocationCalculator:
                             self._last_signal_bundle = bundle
                             return snapshot["ideal"]
 
-        # Get all securities with Clara strategic preference values
+        # Get all securities with AI research multiplier values.
         securities = await self._db.get_all_securities(active_only=True)
         if not securities:
             return {}
@@ -119,14 +123,14 @@ class AllocationCalculator:
         entry_t3_dd = config["strategy_entry_t3_dd"]
         entry_memory_days = int(config["strategy_entry_memory_days"])
         memory_max_boost = config["strategy_memory_max_boost"]
-        preference_strength = config["clara_preference_strength"]
+        preference_strength = config["ai_research_multiplier_strength"]
         ideal_qualifying_threshold = config["strategy_ideal_qualifying_threshold"]
         forecasting_enabled = bool(config["forecasting_enabled"])
         forecast_timing_weight = config["forecasting_timing_weight"]
 
         symbol_signals: dict[str, dict[str, float | int | str]] = {}
         rebalance_signals: dict[str, dict[str, float | int | str]] = {}
-        clara_raw_weights: dict[str, float] = {}
+        ai_research_raw_weights: dict[str, float] = {}
         preference_details: dict[str, dict[str, float]] = {}
         symbols = [sec["symbol"] for sec in securities]
         forecast_scores: dict[str, dict] = {}
@@ -156,11 +160,11 @@ class AllocationCalculator:
             prices_by_symbol = {symbol: prices for symbol, prices in zip(symbols, all_prices, strict=False)}
         for sec in securities:
             symbol = sec["symbol"]
-            # Stored slider value is the truth — the weekly decay job has
+            # The stored research rating is the truth — the weekly decay job has
             # already faded historical ratings; no read-time correction here.
-            stored_preference = normalize_user_multiplier(sec.get("user_multiplier", 0.5))
+            stored_preference = normalize_ai_research_multiplier(sec.get("ai_research_multiplier", 0.5))
             preference_details[symbol] = {
-                "user_multiplier": stored_preference,
+                "ai_research_multiplier": stored_preference,
             }
 
             raw = prices_by_symbol.get(symbol, [])
@@ -199,9 +203,8 @@ class AllocationCalculator:
             symbol_signals[symbol] = signal
             rebalance_signals[symbol] = dict(signal)
 
-            # Securities below the configured Clara threshold are excluded from
-            # the ideal entirely — both the Clara half AND the algo half. Capital
-            # flows to the securities the user actually wants.
+            # Securities below the configured AI research threshold are excluded
+            # from the ideal entirely. Capital flows to qualifying securities.
             # Signals stay populated above so the rebalance engine can still
             # plan sells / maintenance on legacy holdings.
             if stored_preference < ideal_qualifying_threshold:
@@ -209,9 +212,9 @@ class AllocationCalculator:
             if not int(sec.get("allow_buy", 1) or 0):
                 continue
 
-            # Clara defines the destination. Price signals are retained for
-            # today's timing decision, but never alter long-term target weights.
-            clara_raw_weights[symbol] = preference_tilt(stored_preference, preference_strength)
+            # AI research defines the destination. Price signals are retained
+            # for today's timing decision, but never alter long-term weights.
+            ai_research_raw_weights[symbol] = preference_tilt(stored_preference, preference_strength)
 
         # Apply dividend reinvestment boost
         max_div_boost = config["max_dividend_reinvestment_boost"]
@@ -228,13 +231,13 @@ class AllocationCalculator:
                         rebalance_signals[symbol]["opp_score"] = boosted
 
         min_opp_score = config["strategy_min_opp_score"]
-        clara_weights = normalize_weights(clara_raw_weights)
+        ai_research_weights = normalize_weights(ai_research_raw_weights)
 
         allocations: dict[str, float] = {}
         decomposition: dict[str, dict[str, float | str]] = {}
         sleeves: dict[str, str] = {}
         for symbol in symbols:
-            final_weight = clara_weights.get(symbol, 0.0)
+            final_weight = ai_research_weights.get(symbol, 0.0)
             if final_weight <= 0:
                 continue
             allocations[symbol] = final_weight
@@ -244,20 +247,20 @@ class AllocationCalculator:
             detail = preference_details.get(symbol, {})
             decomposition[symbol] = {
                 "baseline_target_pct": 0.0,
-                "clara_target_pct": final_weight,
+                "ai_research_target_pct": final_weight,
                 "opportunity_target_pct": 0.0,
                 "final_target_pct": final_weight,
                 "allocation_sleeve": sleeve,
-                "user_multiplier": detail.get("user_multiplier", 0.5),
+                "ai_research_multiplier": detail.get("ai_research_multiplier", 0.5),
             }
 
         allocations = normalize_weights(allocations)
         for symbol, detail in decomposition.items():
             signal_update = {
                 "sleeve": str(detail["allocation_sleeve"]),
-                "user_multiplier": float(detail["user_multiplier"]),
+                "ai_research_multiplier": float(detail["ai_research_multiplier"]),
                 "baseline_target_pct": float(detail["baseline_target_pct"]),
-                "clara_target_pct": float(detail["clara_target_pct"]),
+                "ai_research_target_pct": float(detail["ai_research_target_pct"]),
                 "opportunity_target_pct": float(detail["opportunity_target_pct"]),
                 "final_target_pct": float(detail["final_target_pct"]),
             }
@@ -283,8 +286,8 @@ class AllocationCalculator:
                 decomposition[symbol]["baseline_target_pct"] = (
                     float(decomposition[symbol].get("baseline_target_pct", 0.0) or 0.0) * scale
                 )
-                decomposition[symbol]["clara_target_pct"] = (
-                    float(decomposition[symbol].get("clara_target_pct", 0.0) or 0.0) * scale
+                decomposition[symbol]["ai_research_target_pct"] = (
+                    float(decomposition[symbol].get("ai_research_target_pct", 0.0) or 0.0) * scale
                 )
                 decomposition[symbol]["opportunity_target_pct"] = (
                     float(decomposition[symbol].get("opportunity_target_pct", 0.0) or 0.0) * scale
@@ -292,7 +295,7 @@ class AllocationCalculator:
                 decomposition[symbol]["final_target_pct"] = final_weight
                 signal_update = {
                     "baseline_target_pct": float(decomposition[symbol]["baseline_target_pct"]),
-                    "clara_target_pct": float(decomposition[symbol]["clara_target_pct"]),
+                    "ai_research_target_pct": float(decomposition[symbol]["ai_research_target_pct"]),
                     "opportunity_target_pct": float(decomposition[symbol]["opportunity_target_pct"]),
                     "final_target_pct": float(decomposition[symbol]["final_target_pct"]),
                 }
@@ -302,7 +305,7 @@ class AllocationCalculator:
             decomposition[symbol].update(
                 {
                     "baseline_target_pct": 0.0,
-                    "clara_target_pct": 0.0,
+                    "ai_research_target_pct": 0.0,
                     "opportunity_target_pct": 0.0,
                     "final_target_pct": 0.0,
                 }
@@ -312,8 +315,8 @@ class AllocationCalculator:
 
         allocation_decomposition = {
             "global": {
-                "target_model": "clara_risk",
-                "clara_target_pct": 1.0,
+                "target_model": "ai_research",
+                "ai_research_target_pct": 1.0,
                 "algo_blend_pct": 0.0,
                 "requested_cash_target_pct": target_cash,
                 "effective_cash_target_pct": max(0.0, 1.0 - sum(bounded.values())),
@@ -334,7 +337,7 @@ class AllocationCalculator:
             cache_setter = getattr(self._db, "cache_set", None)
             if callable(cache_setter):
                 maybe_set = cache_setter(
-                    "planner:allocation_snapshot",
+                    ALLOCATION_SNAPSHOT_CACHE_KEY,
                     json.dumps({"ideal": bounded, "signal_bundle": signal_bundle}),
                     ttl_seconds=600,
                 )
@@ -346,14 +349,14 @@ class AllocationCalculator:
                 maybe_set = cache_setter("planner:contrarian_signals", json.dumps(symbol_signals), ttl_seconds=600)
                 if inspect.isawaitable(maybe_set):
                     await maybe_set
-                maybe_set = cache_setter("planner:rebalance_signals", json.dumps(rebalance_signals), ttl_seconds=600)
+                maybe_set = cache_setter(REBALANCE_SIGNALS_CACHE_KEY, json.dumps(rebalance_signals), ttl_seconds=600)
                 if inspect.isawaitable(maybe_set):
                     await maybe_set
                 maybe_set = cache_setter("planner:contrarian_sleeves", json.dumps(sleeves), ttl_seconds=600)
                 if inspect.isawaitable(maybe_set):
                     await maybe_set
                 maybe_set = cache_setter(
-                    "planner:allocation_decomposition",
+                    ALLOCATION_DECOMPOSITION_CACHE_KEY,
                     json.dumps(allocation_decomposition),
                     ttl_seconds=600,
                 )

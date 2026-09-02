@@ -4,7 +4,7 @@
  * Inline expandable content for a security row showing:
  * - Aliases and security metadata
  * - Price and forecast charts
- * - Clara preference, current action, and opportunity signals
+ * - AI research multiplier, current action, and opportunity signals
  */
 import { Fragment, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -81,10 +81,10 @@ export function SecurityExpandedRow({ security, onUpdate, onDelete, onActivate }
     industry,
     min_lot,
     aliases,
-    user_multiplier,
-    user_multiplier_updated_at,
-    user_multiplier_source,
-    user_multiplier_analysis,
+    ai_research_multiplier,
+    ai_research_multiplier_updated_at,
+    ai_research_multiplier_source,
+    ai_research_multiplier_analysis,
     has_position,
     quantity,
     avg_cost,
@@ -123,12 +123,12 @@ export function SecurityExpandedRow({ security, onUpdate, onDelete, onActivate }
 
   const forecastChartPoints = selectForecastPoints(forecastData);
 
-  const storedMultiplier = Math.max(0, Math.min(1, localMultiplier ?? user_multiplier ?? 0.5));
-  const preferenceTimestamp = user_multiplier_updated_at
-    ? new Date(user_multiplier_updated_at).toLocaleString()
+  const storedMultiplier = Math.max(0, Math.min(1, localMultiplier ?? ai_research_multiplier ?? 0.5));
+  const preferenceTimestamp = ai_research_multiplier_updated_at
+    ? new Date(ai_research_multiplier_updated_at).toLocaleString()
     : null;
-  const hasPreferenceReport = Boolean(user_multiplier_analysis || user_multiplier_source || preferenceTimestamp);
-  const preferenceOwner = user_multiplier_source === 'ai' ? 'Research' : 'Clara';
+  const hasPreferenceReport = Boolean(ai_research_multiplier_analysis || ai_research_multiplier_source || preferenceTimestamp);
+  const preferenceOwner = 'AI Research';
   const opportunityRows = [
     [
       { label: 'Opportunity score', value: formatPercent((opp_score || 0) * 100, true, 1) },
@@ -286,7 +286,7 @@ export function SecurityExpandedRow({ security, onUpdate, onDelete, onActivate }
                 onChange={setLocalMultiplier}
                 onChangeEnd={(v) => {
                   setLocalMultiplier(null);
-                  handleUpdate('user_multiplier', v);
+                  handleUpdate('ai_research_multiplier', v);
                 }}
                 min={0}
                 max={1}
@@ -312,17 +312,17 @@ export function SecurityExpandedRow({ security, onUpdate, onDelete, onActivate }
                   height: '100%',
                 }}
               >
-                <Group gap="xs" mb={user_multiplier_analysis ? 4 : 0}>
-                  {user_multiplier_source && (
-                    <Badge variant="light" color={user_multiplier_source === 'clara' ? 'violet' : user_multiplier_source === 'ai' ? 'blue' : 'gray'} size="xs">
-                      {user_multiplier_source}
+                <Group gap="xs" mb={ai_research_multiplier_analysis ? 4 : 0}>
+                  {ai_research_multiplier_source && (
+                    <Badge variant="light" color={ai_research_multiplier_source === 'ai_research' ? 'blue' : 'gray'} size="xs">
+                      {ai_research_multiplier_source}
                     </Badge>
                   )}
                   {preferenceTimestamp && <Text size="xs" c="dimmed">{preferenceTimestamp}</Text>}
                 </Group>
-                {user_multiplier_analysis && (
+                {ai_research_multiplier_analysis && (
                   <Text size="xs" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-                    {user_multiplier_analysis}
+                    {ai_research_multiplier_analysis}
                   </Text>
                 )}
               </Box>

@@ -113,13 +113,13 @@ class TestStandaloneSellSuppression:
             signal_data={
                 "TEST": {
                     "sleeve": "core",
-                    "user_multiplier": 0.8,
+                    "ai_research_multiplier": 0.8,
                     "opp_score": 0.5,
                     "scaleout_stage": 0,
                 },
                 "OTHER": {
                     "sleeve": "core",
-                    "user_multiplier": 0.9,
+                    "ai_research_multiplier": 0.9,
                     "opp_score": 0.6,
                 },
             },
@@ -180,8 +180,8 @@ class TestStandaloneSellSuppression:
             },
             contrarian_scores={"USDX": 0.5},
             signal_data={
-                "USDX": {"sleeve": "core", "user_multiplier": 0.8, "opp_score": 0.5},
-                "OTHER": {"sleeve": "core", "user_multiplier": 0.9, "opp_score": 0.6},
+                "USDX": {"sleeve": "core", "ai_research_multiplier": 0.8, "opp_score": 0.5},
+                "OTHER": {"sleeve": "core", "ai_research_multiplier": 0.9, "opp_score": 0.6},
             },
             min_trade_value=100.0,
             settings_ctx={
@@ -240,8 +240,8 @@ class TestStandaloneSellSuppression:
             },
             contrarian_scores={"LOSS": 0.5},
             signal_data={
-                "LOSS": {"sleeve": "core", "user_multiplier": 0.8, "opp_score": 0.5},
-                "OTHER": {"sleeve": "core", "user_multiplier": 0.9, "opp_score": 0.6},
+                "LOSS": {"sleeve": "core", "ai_research_multiplier": 0.8, "opp_score": 0.5},
+                "OTHER": {"sleeve": "core", "ai_research_multiplier": 0.9, "opp_score": 0.6},
             },
             min_trade_value=100.0,
             settings_ctx={
@@ -327,12 +327,12 @@ class TestHighBarForRotation:
                 signal_data={
                     "A": {
                         "sleeve": "core",
-                        "user_multiplier": 0.8,
+                        "ai_research_multiplier": 0.8,
                         "opp_score": 0.5,
                     },
                     "B": {
                         "sleeve": "core",
-                        "user_multiplier": 0.9,
+                        "ai_research_multiplier": 0.9,
                         "opp_score": 0.7,
                     },
                 },
@@ -405,12 +405,12 @@ class TestHighBarForRotation:
                 signal_data={
                     "A": {
                         "sleeve": "core",
-                        "user_multiplier": 0.8,
+                        "ai_research_multiplier": 0.8,
                         "opp_score": 0.5,
                     },
                     "B": {
                         "sleeve": "core",
-                        "user_multiplier": 0.6,  # Low conviction
+                        "ai_research_multiplier": 0.6,  # Low conviction
                         "opp_score": 0.7,
                     },
                 },
@@ -481,7 +481,7 @@ class TestFullDecisionLogic:
                 signal_data={
                     "TEST": {
                         "sleeve": "core",
-                        "user_multiplier": 0.8,
+                        "ai_research_multiplier": 0.8,
                         "opp_score": -0.3,
                     }
                 },
@@ -539,7 +539,7 @@ class TestFullDecisionLogic:
                 signal_data={
                     "TEST": {
                         "sleeve": "core",
-                        "user_multiplier": 0.8,
+                        "ai_research_multiplier": 0.8,
                         "opp_score": 0.5,
                     }
                 },
@@ -625,7 +625,7 @@ class TestTrancheLadderCooloff:
             signal_data={
                 "OPP": {
                     "sleeve": "opportunity",
-                    "user_multiplier": 0.8,
+                    "ai_research_multiplier": 0.8,
                     "opp_score": opp_score,
                     "dd252": dd252,
                     "dd252_recent_min": dd252,

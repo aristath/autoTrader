@@ -13,10 +13,10 @@
  * so the whole universe is analysed and then rated gradually and in order.
  *
  * Environment:
- *   SENTINEL_TASKS_HOME  (required) - Clara's data root; the universe snapshot, the
+ *   SENTINEL_TASKS_HOME  (required) - Sentinel's task data root; the universe snapshot, the
  *                                per-security summaries, and the portfolio rating
  *                                all live beneath it.
- *   SENTINEL_BASE_URL  (optional) - base URL of the local Clara API
+ *   SENTINEL_BASE_URL  (optional) - base URL of the local Sentinel API
  *                                (defaults to http://127.0.0.1:8000).
  *
  * Prints one JSON line describing the decision (queued analyze-security, triggered

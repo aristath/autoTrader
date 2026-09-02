@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from sentinel.strategy import compute_contrarian_signal
 
 from .models import PlannerState, TradeRecommendation
-from .preferences import is_explicit_downgrade, normalize_user_multiplier
+from .preferences import is_explicit_downgrade, normalize_ai_research_multiplier
 from .rebalance_rules import buy_rank_key, calculate_transaction_cost
 
 if TYPE_CHECKING:
@@ -170,7 +170,7 @@ async def apply_cash_constraint(
                     0.0,
                     min(
                         1.0,
-                        float(normalize_user_multiplier(s.get("user_multiplier", 0.5))),
+                        float(normalize_ai_research_multiplier(s.get("ai_research_multiplier", 0.5))),
                     ),
                 )
                 for s in all_securities
@@ -412,9 +412,9 @@ async def generate_deficit_sells(
 
         local_value = qty * price
         eur_value = await engine._currency.to_eur(local_value, currency)
-        # The stored slider value IS the conviction now — the weekly decay
+        # The stored research rating IS the conviction now — the weekly decay
         # job has already faded historical ratings, no read-time correction.
-        conviction = max(0.0, min(1.0, float(normalize_user_multiplier(sec.get("user_multiplier", 0.5)))))
+        conviction = max(0.0, min(1.0, float(normalize_ai_research_multiplier(sec.get("ai_research_multiplier", 0.5)))))
 
         curr_alloc = float((current or {}).get(symbol, 0.0))
         tgt_alloc = float((ideal or {}).get(symbol, 0.0))

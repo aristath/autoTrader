@@ -122,8 +122,8 @@ class TestGenerateBuyReason:
 
     def test_target_gap_reason_includes_destination_and_timing(self):
         signal = {
-            "clara_target_pct": 0.05,
-            "user_multiplier": 0.8,
+            "ai_research_target_pct": 0.05,
+            "ai_research_multiplier": 0.8,
         }
         reason = generate_buy_reason(
             symbol="STRAT.EU",
@@ -135,7 +135,7 @@ class TestGenerateBuyReason:
         )
         assert "Target-gap buy" in reason
         assert "opportunity=0.50" in reason
-        assert "Clara=0.80" in reason
+        assert "AI research=0.80" in reason
 
     def test_new_target_entry(self):
         signal = {

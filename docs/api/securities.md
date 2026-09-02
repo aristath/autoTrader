@@ -24,10 +24,10 @@ Returns all securities in the universe (including inactive ones).
     "allow_buy": 1,
     "allow_sell": 1,
     "market_id": "93",
-    "user_multiplier": 0.5,
-    "user_multiplier_updated_at": "2026-05-17T12:00:00+00:00",
-    "user_multiplier_source": "clara",
-    "user_multiplier_analysis": "Long-term strategic fit remains neutral.",
+    "ai_research_multiplier": 0.5,
+    "ai_research_multiplier_updated_at": "2026-05-17T12:00:00+00:00",
+    "ai_research_multiplier_source": "ai_research",
+    "ai_research_multiplier_analysis": "Long-term strategic fit remains neutral.",
     "aliases": "Apple, MacBook, Apple Silicon",
     "quote_data": null,
     "quote_updated_at": null,
@@ -43,10 +43,10 @@ Returns all securities in the universe (including inactive ones).
 | `industry` | Refinitiv/LSEG TRBC industry name from Tradernet (`sector_code`). Auto‑filled by the metadata sync; blank for ETFs. Not editable via the API. |
 | `market_id` | Broker market identifier string |
 | `data` | Raw JSON metadata blob from broker (security details, market info) |
-| `user_multiplier` | Stored Clara strategic preference, 0 avoid, 0.5 neutral, 1 prefer |
-| `user_multiplier_updated_at` | Last per-security preference update timestamp |
-| `user_multiplier_source` | Preference source, usually `clara`, `manual`, or `migration` |
-| `user_multiplier_analysis` | Human-readable rationale for the stored preference |
+| `ai_research_multiplier` | Stored AI research rating, 0 avoid, 0.5 neutral, 1 prefer |
+| `ai_research_multiplier_updated_at` | Last per-security preference update timestamp |
+| `ai_research_multiplier_source` | Rating source, usually `ai_research`, `manual`, `decay`, or `migration` |
+| `ai_research_multiplier_analysis` | Human-readable rationale for the stored preference |
 | `quote_data` | Latest raw quote data from broker (null if not yet synced) |
 | `quote_updated_at` | Timestamp of last quote sync |
 | `last_synced` | Date of last metadata sync |
@@ -100,13 +100,13 @@ Note: `aliases` is a comma-separated string, not an array.
 
 ## `POST /api/securities/preference`
 
-Updates one security's Clara strategic preference and stores the analysis explaining the decision.
+Updates one security's AI research multiplier and stores the analysis explaining the decision.
 
 **Request body**
 ```json
 {
   "symbol": "MOH.GR",
-  "user_multiplier": 0.02,
+  "ai_research_multiplier": 0.02,
   "analysis": "Too exposed to fossil-fuel demand for the long-term portfolio."
 }
 ```
@@ -115,7 +115,7 @@ Updates one security's Clara strategic preference and stores the analysis explai
 Returns the updated single-security payload, including stored and effective faded preference fields.
 
 **Errors**
-- `400` — Missing/invalid `symbol`, `user_multiplier`, or `analysis`
+- `400` — Missing/invalid `symbol`, `ai_research_multiplier`, or `analysis`
 - `404` — Security not found
 
 ---
@@ -133,11 +133,11 @@ Returns details for a single security including current position data.
   "geography": "US",
   "industry": "Technology",
   "aliases": "Apple, MacBook, Apple Silicon",
-  "user_multiplier": 0.5,
-  "user_multiplier_age_weeks": 0.0,
-  "user_multiplier_updated_at": "2026-05-17T12:00:00+00:00",
-  "user_multiplier_source": "clara",
-  "user_multiplier_analysis": "Long-term strategic fit remains neutral.",
+  "ai_research_multiplier": 0.5,
+  "ai_research_multiplier_age_weeks": 0.0,
+  "ai_research_multiplier_updated_at": "2026-05-17T12:00:00+00:00",
+  "ai_research_multiplier_source": "ai_research",
+  "ai_research_multiplier_analysis": "Long-term strategic fit remains neutral.",
   "quantity": 5.0,
   "current_price": 270.94
 }
@@ -157,17 +157,17 @@ Update security metadata and execution controls. Only the following fields are a
 | `aliases` | string | Comma-separated search aliases for companion apps |
 | `allow_buy` | int (0/1) | Whether buys are permitted |
 | `allow_sell` | int (0/1) | Whether sells are permitted |
-| `user_multiplier` | float | Manual strategic preference override. Clara integrations should prefer `POST /api/securities/preference`. |
-| `user_multiplier_analysis` | string | Optional rationale when setting `user_multiplier` manually |
+| `ai_research_multiplier` | float | Manual override of the stored AI research multiplier. Research tasks use `POST /api/securities/preference`. |
+| `ai_research_multiplier_analysis` | string | Optional rationale when setting `ai_research_multiplier` manually |
 | `active` | int (0/1) | Active flag |
 
 **Response**
 ```json
 {
   "symbol": "AAPL.US",
-  "user_multiplier": 0.6,
-  "user_multiplier_source": "manual",
-  "user_multiplier_analysis": "Manual preference override from Sentinel UI."
+  "ai_research_multiplier": 0.6,
+  "ai_research_multiplier_source": "manual",
+  "ai_research_multiplier_analysis": "Manual AI research multiplier override from Sentinel UI."
 }
 ```
 

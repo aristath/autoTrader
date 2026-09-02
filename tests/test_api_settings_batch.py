@@ -81,7 +81,7 @@ async def test_set_setting_rejects_removed_strategy_knobs(deps):
         ("strategy_funding_conviction_bias", 1.2),
         ("strategy_fallback_wait_days", 45),
         ("cooldown_enabled", False),
-        ("user_multiplier_decay_factor", 0.85),
+        ("ai_research_multiplier_decay_factor", 0.85),
         ("min_cash_buffer", 0.01),
         ("target_cash_pct", 5),
     ],
@@ -143,7 +143,7 @@ async def test_set_settings_batch_rejects_invalid_value_without_partial_write(de
         "strategy_priority_contrarian_weight_pct",
         "strategy_strategic_buy_threshold",
         "strategy_core_floor_pct",
-        "user_multiplier_blend_pct",
+        "ai_research_multiplier_blend_pct",
     ],
 )
 async def test_removed_plan_model_settings_are_rejected(deps, key):

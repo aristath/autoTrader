@@ -288,15 +288,15 @@ async def test_get_unified_view_as_of_uses_as_of_allocation_diagnostics_not_live
         "sleeves": {"AAPL": "core"},
         "allocation_decomposition": {
             "global": {
-                "target_model": "clara_risk",
-                "clara_target_pct": 1.0,
+                "target_model": "ai_research",
+                "ai_research_target_pct": 1.0,
                 "algo_blend_pct": 0.0,
             },
             "symbols": {
                 "AAPL": {
                     "allocation_sleeve": "core",
                     "baseline_target_pct": 0.0,
-                    "clara_target_pct": 0.42,
+                    "ai_research_target_pct": 0.42,
                     "opportunity_target_pct": 0.0,
                     "final_target_pct": 0.42,
                 }
@@ -309,7 +309,7 @@ async def test_get_unified_view_as_of_uses_as_of_allocation_diagnostics_not_live
 
     mock_deps.db.cache_get.assert_not_awaited()
     assert result[0]["sleeve"] == "core"
-    assert result[0]["clara_target_pct"] == 42.0
+    assert result[0]["ai_research_target_pct"] == 42.0
     assert result[0]["final_target_pct"] == 42.0
 
 
@@ -325,7 +325,7 @@ async def test_update_security_preference_persists_analysis_and_invalidates_plan
     settings._db = db
     await settings.init_defaults()
     try:
-        await db.upsert_security("MOH.GR", name="Motor Oil Hellas", user_multiplier=0.5)
+        await db.upsert_security("MOH.GR", name="Motor Oil Hellas", ai_research_multiplier=0.5)
         await db.cache_set("planner:ideal_portfolio", "{}", ttl_seconds=600)
         deps = MagicMock()
         deps.db = db
@@ -334,7 +334,7 @@ async def test_update_security_preference_persists_analysis_and_invalidates_plan
         result = await update_security_preference(
             {
                 "symbol": "MOH.GR",
-                "user_multiplier": 0.02,
+                "ai_research_multiplier": 0.02,
                 "analysis": "Too fossil-heavy for the long-term portfolio.",
             },
             deps,
@@ -343,11 +343,11 @@ async def test_update_security_preference_persists_analysis_and_invalidates_plan
         stored = await db.get_security("MOH.GR")
         assert stored is not None
         assert result["symbol"] == "MOH.GR"
-        assert result["user_multiplier"] == 0.02
-        assert result["user_multiplier_source"] == "clara"
-        assert result["user_multiplier_analysis"] == "Too fossil-heavy for the long-term portfolio."
-        assert stored["user_multiplier"] == 0.02
-        assert stored["user_multiplier_source"] == "clara"
+        assert result["ai_research_multiplier"] == 0.02
+        assert result["ai_research_multiplier_source"] == "ai_research"
+        assert result["ai_research_multiplier_analysis"] == "Too fossil-heavy for the long-term portfolio."
+        assert stored["ai_research_multiplier"] == 0.02
+        assert stored["ai_research_multiplier_source"] == "ai_research"
         assert await db.cache_get("planner:ideal_portfolio") is None
     finally:
         await db.close()
@@ -536,7 +536,7 @@ async def test_delete_security_does_not_change_local_state_when_favorites_mutati
 
 
 @pytest.mark.asyncio
-async def test_update_security_preference_rejects_missing_user_multiplier():
+async def test_update_security_preference_rejects_missing_ai_research_multiplier():
     from sentinel.api.routers.securities import update_security_preference
 
     deps = MagicMock()
@@ -553,11 +553,11 @@ async def test_update_security_preference_rejects_missing_user_multiplier():
         )
 
     assert exc.value.status_code == 400
-    assert "user_multiplier" in exc.value.detail
+    assert "ai_research_multiplier" in exc.value.detail
 
 
 @pytest.mark.asyncio
-async def test_update_security_preference_rejects_non_finite_user_multiplier():
+async def test_update_security_preference_rejects_non_finite_ai_research_multiplier():
     from sentinel.api.routers.securities import update_security_preference
 
     deps = MagicMock()
@@ -567,11 +567,11 @@ async def test_update_security_preference_rejects_non_finite_user_multiplier():
         await update_security_preference(
             {
                 "symbol": "MOH.GR",
-                "user_multiplier": float("nan"),
+                "ai_research_multiplier": float("nan"),
                 "analysis": "NaN should not be accepted.",
             },
             deps,
         )
 
     assert exc.value.status_code == 400
-    assert "user_multiplier" in exc.value.detail
+    assert "ai_research_multiplier" in exc.value.detail

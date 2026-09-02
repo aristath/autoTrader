@@ -11,7 +11,7 @@ run, since the snapshot must be trustworthy. The file is written atomically
 (temp file + replace) so readers never observe a partial snapshot.
 
 Environment:
-  SENTINEL_TASKS_HOME    (required) - Clara's data root; the snapshot is written beneath it.
+  SENTINEL_TASKS_HOME    (required) - Sentinel's task data root; the snapshot is written beneath it.
   SENTINEL_BASE_URL (optional) - base URL of the Sentinel API (default http://localhost:8000).
 
 Writes <data>/tasks/artifacts/refresh-securities-universe/securities-universe.json

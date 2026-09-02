@@ -89,14 +89,14 @@ DEFAULTS = {
     "forecasting_score_max_age_days": 14,
     "forecasting_timing_weight": 0.15,
     "forecasting_request_timeout_seconds": 840,
-    # User-conviction target. The stored `user_multiplier` slider value defines
+    # AI-research target. The stored `ai_research_multiplier` value defines
     # long-term relative weights and decays toward neutral (0.5) by
-    # `user_multiplier_decay_factor` every
-    # `user_multiplier_decay_interval_days` days via a scheduled job, so an
+    # `ai_research_multiplier_decay_factor` every
+    # `ai_research_multiplier_decay_interval_days` days via a scheduled job, so an
     # untouched rating gracefully fades out over ~52 weeks at defaults.
-    "clara_preference_strength": 5.0,
-    "user_multiplier_decay_factor": 0.90,
-    "user_multiplier_decay_interval_days": 7,
+    "ai_research_multiplier_strength": 5.0,
+    "ai_research_multiplier_decay_factor": 0.90,
+    "ai_research_multiplier_decay_interval_days": 7,
     # AI task runtime and the local services used by the ported Clara tasks.
     # LLM (inference-router, OpenAI-compatible).
     "ai_llm_base_url": "http://127.0.0.1:8080/v1",
@@ -161,6 +161,7 @@ REMOVED_SETTINGS = {
     "strategy_rotation_threshold",
     "strategy_strategic_buy_threshold",
     "user_multiplier_blend_pct",
+    "ai_research_multiplier_blend_pct",
 }
 
 

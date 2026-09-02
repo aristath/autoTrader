@@ -248,7 +248,7 @@ class Planner:
         target_specs: dict[str, dict[str, Any]] = {}
         for symbol in set(ideal) | set(current) | recommendation_symbols:
             signal = signals.get(symbol) or {}
-            raw_clara_score = signal.get("user_multiplier", 0.5)
+            raw_ai_research_multiplier = signal.get("ai_research_multiplier", 0.5)
             model_target_allocation = float(ideal.get(symbol, 0.0) or 0.0)
             current_value_eur = float(current.get(symbol, 0.0) or 0.0) * total_value
             model_target_value_eur = model_target_allocation * terminal_value
@@ -265,7 +265,9 @@ class Planner:
                 current_quantity = current_value_eur / (price * fx_rate)
             target_specs[symbol] = {
                 "symbol": symbol,
-                "clara_score": float(0.5 if raw_clara_score is None else raw_clara_score),
+                "ai_research_multiplier": float(
+                    0.5 if raw_ai_research_multiplier is None else raw_ai_research_multiplier
+                ),
                 "opportunity_score": float(signal.get("opp_score", 0.0) or 0.0),
                 "current_value_eur": current_value_eur,
                 "target_value_eur": current_value_eur,
@@ -355,7 +357,7 @@ class Planner:
             targets.append(
                 LongTermTarget(
                     symbol=spec["symbol"],
-                    clara_score=spec["clara_score"],
+                    ai_research_multiplier=spec["ai_research_multiplier"],
                     opportunity_score=spec["opportunity_score"],
                     target_allocation=target_allocation,
                     current_value_eur=spec["current_value_eur"],

@@ -1,7 +1,7 @@
 """
-Submit each validated rating to Sentinel as a user preference, then persist the result.
+Submit each validated AI research rating to Sentinel, then persist the result.
 
-POSTs symbol/user_multiplier/analysis to Sentinel for every rating, stopping at the first
+POSTs symbol/ai_research_multiplier/analysis to Sentinel for every rating, stopping at the first
 failure (the run is then marked failed). On full success writes latest.json atomically.
 
 Environment: RATINGS_JSON (the prepared ratings), SENTINEL_TASKS_HOME (output location),
@@ -41,7 +41,7 @@ for r in ratings:
     payload = json.dumps(
         {
             "symbol": symbol,
-            "user_multiplier": rating,
+            "ai_research_multiplier": rating,
             "analysis": rationale,
         }
     ).encode("utf-8")

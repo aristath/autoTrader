@@ -334,7 +334,7 @@ class TestApplyCashConstraintEdgeCases:
                 contrarian_score=score,
                 priority=1000.0,
                 reason="buy",
-                user_multiplier=0.8,
+                ai_research_multiplier=0.8,
                 target_gap_ratio=1.0,
             )
             for symbol, score in [("FIRST", 0.9), ("LATER", 0.8)]
@@ -713,7 +713,7 @@ class TestGenerateDeficitSellsTotalValue:
             reason_kind="funding_rotation",
             preloaded_positions=[{"symbol": "A", "quantity": 100, "current_price": 100.0}],
             preloaded_securities_map={
-                "A": {"symbol": "A", "currency": "EUR", "min_lot": 1, "allow_sell": 1, "user_multiplier": 0.5}
+                "A": {"symbol": "A", "currency": "EUR", "min_lot": 1, "allow_sell": 1, "ai_research_multiplier": 0.5}
             },
             preloaded_symbol_scores={"A": 0.5},
             preloaded_symbol_prices={"A": 100.0},
@@ -749,8 +749,8 @@ class TestDowngradedFundingPriority:
                 "currency": "EUR",
                 "min_lot": 1,
                 "allow_sell": 1,
-                "user_multiplier": 0.9,
-                "user_multiplier_updated_at": "2026-06-01T00:00:00Z",
+                "ai_research_multiplier": 0.9,
+                "ai_research_multiplier_updated_at": "2026-06-01T00:00:00Z",
             },
             # DOWN: deliberately downgraded → drained first despite less overweight.
             "DOWN": {
@@ -758,8 +758,8 @@ class TestDowngradedFundingPriority:
                 "currency": "EUR",
                 "min_lot": 1,
                 "allow_sell": 1,
-                "user_multiplier": 0.2,
-                "user_multiplier_updated_at": "2026-06-01T00:00:00Z",
+                "ai_research_multiplier": 0.2,
+                "ai_research_multiplier_updated_at": "2026-06-01T00:00:00Z",
             },
         }
         sells = await engine._generate_deficit_sells(
@@ -787,8 +787,8 @@ class TestDowngradedFundingPriority:
                 "currency": "EUR",
                 "min_lot": 1,
                 "allow_sell": 1,
-                "user_multiplier": 0.2,
-                "user_multiplier_updated_at": "2026-06-01T00:00:00Z",
+                "ai_research_multiplier": 0.2,
+                "ai_research_multiplier_updated_at": "2026-06-01T00:00:00Z",
             }
         }
         # Cap below DOWN's 0.2 conviction — without the downgrade exemption it

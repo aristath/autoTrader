@@ -7,7 +7,7 @@ import pytest
 from sentinel.planner.preferences import (
     age_weeks,
     apply_max_cap,
-    normalize_user_multiplier,
+    normalize_ai_research_multiplier,
     normalize_weights,
     parse_utc_datetime,
     preference_snapshot,
@@ -211,40 +211,40 @@ class TestPreferenceSnapshot:
 
     def test_basic_snapshot(self):
         security = {
-            "user_multiplier": 0.8,
-            "user_multiplier_updated_at": datetime(2025, 1, 1, tzinfo=timezone.utc).isoformat(),
+            "ai_research_multiplier": 0.8,
+            "ai_research_multiplier_updated_at": datetime(2025, 1, 1, tzinfo=timezone.utc).isoformat(),
         }
         now = datetime(2025, 2, 1, tzinfo=timezone.utc)
         snap = preference_snapshot(security, now=now)
-        assert snap["user_multiplier"] == 0.8
-        assert snap["user_multiplier_age_weeks"] > 0
+        assert snap["ai_research_multiplier"] == 0.8
+        assert snap["ai_research_multiplier_age_weeks"] > 0
 
     def test_neutral_multiplier(self):
-        security = {"user_multiplier": 0.5}
+        security = {"ai_research_multiplier": 0.5}
         snap = preference_snapshot(security)
-        assert snap["user_multiplier"] == 0.5
+        assert snap["ai_research_multiplier"] == 0.5
 
     def test_missing_updated_at(self):
-        security = {"user_multiplier": 0.8}
+        security = {"ai_research_multiplier": 0.8}
         snap = preference_snapshot(security)
-        assert snap["user_multiplier"] == 0.8
+        assert snap["ai_research_multiplier"] == 0.8
         # age should be 0 since no updated_at
-        assert snap["user_multiplier_age_weeks"] == 0.0
+        assert snap["ai_research_multiplier_age_weeks"] == 0.0
 
     def test_missing_multiplier_defaults_to_neutral(self):
         security = {}
         snap = preference_snapshot(security)
-        assert snap["user_multiplier"] == 0.5
+        assert snap["ai_research_multiplier"] == 0.5
 
     def test_clamped_multiplier(self):
-        security = {"user_multiplier": 1.5}
+        security = {"ai_research_multiplier": 1.5}
         snap = preference_snapshot(security)
-        assert snap["user_multiplier"] == 1.0
+        assert snap["ai_research_multiplier"] == 1.0
 
     def test_clamped_multiplier_below_zero(self):
-        security = {"user_multiplier": -0.5}
+        security = {"ai_research_multiplier": -0.5}
         snap = preference_snapshot(security)
-        assert snap["user_multiplier"] == 0.0
+        assert snap["ai_research_multiplier"] == 0.0
 
 
 class TestUtcNowIso:
@@ -263,32 +263,32 @@ class TestUtcNowIso:
         assert dt.tzinfo is not None
 
 
-class TestNormalizeUserMultiplierEdgeCases:
-    """Additional edge cases for normalize_user_multiplier."""
+class TestNormalizeAiResearchMultiplierEdgeCases:
+    """Additional edge cases for normalize_ai_research_multiplier."""
 
     def test_string_number(self):
-        assert normalize_user_multiplier("0.8") == 0.8
+        assert normalize_ai_research_multiplier("0.8") == 0.8
 
     def test_string_zero(self):
-        assert normalize_user_multiplier("0") == 0.0
+        assert normalize_ai_research_multiplier("0") == 0.0
 
     def test_string_one(self):
-        assert normalize_user_multiplier("1") == 1.0
+        assert normalize_ai_research_multiplier("1") == 1.0
 
     def test_negative_string(self):
-        assert normalize_user_multiplier("-0.5") == 0.0
+        assert normalize_ai_research_multiplier("-0.5") == 0.0
 
     def test_above_one_string(self):
-        assert normalize_user_multiplier("1.5") == 1.0
+        assert normalize_ai_research_multiplier("1.5") == 1.0
 
     def test_none(self):
-        assert normalize_user_multiplier(None) == 0.5
+        assert normalize_ai_research_multiplier(None) == 0.5
 
     def test_boolean_true(self):
-        assert normalize_user_multiplier(True) == 1.0
+        assert normalize_ai_research_multiplier(True) == 1.0
 
     def test_boolean_false(self):
-        assert normalize_user_multiplier(False) == 0.0
+        assert normalize_ai_research_multiplier(False) == 0.0
 
 
 class TestPreferenceTiltEdgeCases:

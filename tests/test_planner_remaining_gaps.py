@@ -16,8 +16,8 @@ def _make_allocator():
         db = MagicMock()
         db.get_all_securities = AsyncMock(
             return_value=[
-                {"symbol": "ASML.EU", "user_multiplier": 1.0, "allow_buy": 1},
-                {"symbol": "TSM.US", "user_multiplier": 1.0, "allow_buy": 1},
+                {"symbol": "ASML.EU", "ai_research_multiplier": 1.0, "allow_buy": 1},
+                {"symbol": "TSM.US", "ai_research_multiplier": 1.0, "allow_buy": 1},
             ]
         )
         db.get_uninvested_dividends = AsyncMock(return_value={})
@@ -33,7 +33,7 @@ def _make_allocator():
                 "max_dividend_reinvestment_boost": 0.10,
                 "strategy_min_opp_score": 0.55,
                 "max_position_pct": 25.0,
-                "clara_preference_strength": 1.0,
+                "ai_research_multiplier_strength": 1.0,
             }.get(key, default)
         )
 
@@ -136,7 +136,7 @@ class TestAllocationRemainingCoverage:
                 "strategy_entry_memory_days": 90,
                 "strategy_memory_max_boost": 0.20,
                 "max_dividend_reinvestment_boost": 0.10,
-                "clara_preference_strength": 1.0,
+                "ai_research_multiplier_strength": 1.0,
             }.get(key, default)
         )
 

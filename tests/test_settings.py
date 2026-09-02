@@ -118,9 +118,9 @@ class TestSettingsDefaults:
             "forecasting_score_max_age_days",
             "forecasting_timing_weight",
             "forecasting_request_timeout_seconds",
-            "clara_preference_strength",
-            "user_multiplier_decay_factor",
-            "user_multiplier_decay_interval_days",
+            "ai_research_multiplier_strength",
+            "ai_research_multiplier_decay_factor",
+            "ai_research_multiplier_decay_interval_days",
         ]
         for key in strategy_keys:
             assert key in DEFAULTS, f"Missing strategy default: {key}"
@@ -138,7 +138,7 @@ class TestSettingsDefaults:
             "strategy_core_target_pct",
             "strategy_opportunity_target_pct",
             "strategy_projection_months",
-            "user_multiplier_blend_pct",
+            "ai_research_multiplier_blend_pct",
         } <= REMOVED_SETTINGS
 
 

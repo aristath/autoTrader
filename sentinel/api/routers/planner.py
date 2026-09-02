@@ -11,6 +11,7 @@ from typing_extensions import Annotated
 from sentinel.api.dependencies import CommonDependencies, get_common_deps
 from sentinel.markets import get_open_market_symbols
 from sentinel.planner import Planner
+from sentinel.planner.allocation import ALLOCATION_DECOMPOSITION_CACHE_KEY
 from sentinel.planner.models import LongTermPlan
 from sentinel.portfolio import Portfolio
 from sentinel.utils.fees import FeeCalculator
@@ -37,8 +38,8 @@ def _serialize_recommendation(r) -> dict:
         "reason": r.reason,
         "reason_code": r.reason_code,
         "sleeve": r.sleeve,
-        "user_multiplier": r.user_multiplier,
-        "clara_target_pct": (r.clara_target_pct * 100) if r.clara_target_pct is not None else None,
+        "ai_research_multiplier": r.ai_research_multiplier,
+        "ai_research_target_pct": (r.ai_research_target_pct * 100) if r.ai_research_target_pct is not None else None,
         "baseline_target_pct": (r.baseline_target_pct * 100) if r.baseline_target_pct is not None else None,
         "opportunity_target_pct": (r.opportunity_target_pct * 100 if r.opportunity_target_pct is not None else None),
         "timing_eligible": r.timing_eligible,
@@ -64,7 +65,7 @@ def _serialize_plan(plan: LongTermPlan) -> dict:
         "targets": [
             {
                 "symbol": target.symbol,
-                "clara_score": target.clara_score,
+                "ai_research_multiplier": target.ai_research_multiplier,
                 "opportunity_score": target.opportunity_score,
                 "target_allocation_pct": target.target_allocation * 100,
                 "current_value_eur": target.current_value_eur,
@@ -167,7 +168,7 @@ async def get_ideal_portfolio(
     decomposition = None
     cache_getter = getattr(deps.db, "cache_get", None)
     if callable(cache_getter):
-        cached = cache_getter("planner:allocation_decomposition")
+        cached = cache_getter(ALLOCATION_DECOMPOSITION_CACHE_KEY)
         if inspect.isawaitable(cached):
             cached = await cached
         if isinstance(cached, (str, bytes, bytearray)):

@@ -1,6 +1,6 @@
-# Manual deployment checklist
+# Historical manual deployment checklist
 
-This document lists the steps you (the user) need to do manually on the live device (`192.168.1.229`) after merging the "auto-fill geography/industry from Tradernet + retire allocation targets" change. None of this is automated — the dev box never touches the live deployment.
+This document records the steps used for an older deployment to `192.168.1.229`; it is not the current deployment guide or API contract. The former `user_multiplier` fields described below are renamed to `ai_research_multiplier` by a separate one-time database operation during deployment.
 
 ## Summary of what changed
 
@@ -11,7 +11,7 @@ This document lists the steps you (the user) need to do manually on the live dev
 - `Portfolio.get_allocations()` and the `allocations` field on `GET /api/portfolio` are deleted.
 - The `diversification_impact_pct` setting is removed.
 
-Clara's task contract (`GET /api/securities` returning `{symbol, name, geography, industry}` + `POST /api/securities/preference`) is preserved — Clara's task files need **no edits**.
+At the time of this deployment, Clara's task contract (`GET /api/securities` returning `{symbol, name, geography, industry}` + `POST /api/securities/preference`) was preserved and its task files needed no edits.
 
 ## Steps to deploy on the live device
 
@@ -92,7 +92,7 @@ This second section covers the 6 commits that landed after the geography/industr
 - **Planner blend refactor** — `calculate_ideal_portfolio` now produces one unified score per security: `0.8 × clara_share + 0.2 × algo_share`. The "Clara sleeve / baseline sleeve" sleeve-split is gone; the global `clara_preferences_updated_at` setting and the read-time `effective_user_multiplier` fade are gone. Replaced by a daily `decay:user_multipliers` job that physically nudges each row's stored slider toward 0.5 by `value = 0.5 + (value − 0.5) × 0.9` after 7 days of no human touch.
 - **Web UI** — composition card now renders bipolar deviation-from-ideal radars (country + industry, current vs post-plan), risk/return card switched from radar to a stack of deviation bars, SecurityAllocationCard gained an ideal-marker + sort/show toggles.
 
-Clara's task contract is unchanged (`GET /api/securities` still returns `user_multiplier`, `geography`, `industry`). The deleted `effective_user_multiplier` field was internal-only — Clara doesn't consume it.
+At the time of this second batch, `GET /api/securities` still returned `user_multiplier`, `geography`, and `industry`. The deleted `effective_user_multiplier` field was internal-only.
 
 ## Steps to deploy (second batch)
 
@@ -140,7 +140,7 @@ Clara's task contract is unchanged (`GET /api/securities` still returns `user_mu
    curl -s http://localhost:8000/api/portfolio/composition | jq '.metrics, .composition.by_country, (.benchmarks | length)'
    ```
 
-9. **No Clara task edits required.** The `~/.clara/tasks/*.md` files consume `user_multiplier` (still present) and `geography`/`industry` (still present). The internal-only `effective_user_multiplier` and `clara_freshness` fields don't appear in any Clara contract.
+9. **No Clara task edits were required for this historical batch.** The then-current `~/.clara/tasks/*.md` files consumed `user_multiplier`, `geography`, and `industry`; the internal-only `effective_user_multiplier` and `clara_freshness` fields did not appear in that contract.
 
 ## Rollback (second batch)
 

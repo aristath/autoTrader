@@ -9,9 +9,9 @@
  * (or absent) wins, keeping coverage as even as possible.
  *
  * Environment:
- *   SENTINEL_TASKS_HOME  (required) - Clara's data root; the bucket list and analysis
+ *   SENTINEL_TASKS_HOME  (required) - Sentinel's task data root; the bucket list and analysis
  *                                artifacts both live beneath it.
- *   SENTINEL_BASE_URL  (optional) - base URL of the local Clara API
+ *   SENTINEL_BASE_URL  (optional) - base URL of the local Sentinel API
  *                                (defaults to http://127.0.0.1:8000).
  *
  * Prints one JSON line describing the decision:
@@ -72,7 +72,7 @@ if (!selected) {
   process.exit(0);
 }
 
-// Enqueue an analysis run for the chosen bucket through Clara's scheduler API.
+// Enqueue an analysis run for the chosen bucket through Sentinel's scheduler API.
 const response = await fetch(`${base}/api/scheduler`, {
   method: "POST",
   headers: { "content-type": "application/json" },

@@ -1,7 +1,7 @@
 /**
- * Submit the validated security rating to Sentinel as a user preference.
+ * Submit the validated AI research rating to Sentinel.
  *
- * POSTs {symbol, user_multiplier, analysis} to Sentinel and echoes the stored values.
+ * POSTs {symbol, ai_research_multiplier, analysis} to Sentinel and echoes the stored values.
  * Fails the run on a non-2xx response.
  *
  * Environment: RATING_JSON (the canonical rating),
@@ -9,19 +9,19 @@
  */
 const rating = JSON.parse(process.env.RATING_JSON);
 const symbol = stringValue(rating.symbol);
-const userMultiplier = rating.rating;
+const aiResearchMultiplier = rating.rating;
 const analysis = stringValue(rating.rationale);
 const baseUrl = String(process.env.SENTINEL_BASE_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
 
 if (!symbol) throw new Error('Rating JSON is missing symbol');
-if (typeof userMultiplier !== 'number' || !Number.isFinite(userMultiplier) || userMultiplier < 0 || userMultiplier > 1) {
+if (typeof aiResearchMultiplier !== 'number' || !Number.isFinite(aiResearchMultiplier) || aiResearchMultiplier < 0 || aiResearchMultiplier > 1) {
   throw new Error('Rating must be a finite number from 0.0 to 1.0');
 }
 if (!analysis) throw new Error('Rating rationale is required for Sentinel analysis');
 
 const payload = {
   symbol,
-  user_multiplier: userMultiplier,
+  ai_research_multiplier: aiResearchMultiplier,
   analysis,
 };
 const response = await fetch(`${baseUrl}/api/securities/preference`, {
@@ -44,13 +44,12 @@ if (!response.ok) {
 console.log(JSON.stringify({
   posted: true,
   symbol,
-  user_multiplier: userMultiplier,
+  ai_research_multiplier: aiResearchMultiplier,
   sentinel: {
     symbol: isRecord(body) ? body.symbol : undefined,
-    user_multiplier: isRecord(body) ? body.user_multiplier : undefined,
-    effective_user_multiplier: isRecord(body) ? body.effective_user_multiplier : undefined,
-    user_multiplier_source: isRecord(body) ? body.user_multiplier_source : undefined,
-    user_multiplier_updated_at: isRecord(body) ? body.user_multiplier_updated_at : undefined,
+    ai_research_multiplier: isRecord(body) ? body.ai_research_multiplier : undefined,
+    ai_research_multiplier_source: isRecord(body) ? body.ai_research_multiplier_source : undefined,
+    ai_research_multiplier_updated_at: isRecord(body) ? body.ai_research_multiplier_updated_at : undefined,
   },
 }));
 

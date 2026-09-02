@@ -80,8 +80,8 @@ class TestNewRebalancePhilosophy:
             security_data=security_data,
             contrarian_scores={"ASML.EU": 0.0},
             signal_data={
-                "ASML.EU": {"scaleout_stage": 0, "sleeve": "core", "opp_score": 0.0, "user_multiplier": 0.5},
-                "BUYME": {"sleeve": "core", "opp_score": 0.6, "user_multiplier": 0.9},
+                "ASML.EU": {"scaleout_stage": 0, "sleeve": "core", "opp_score": 0.0, "ai_research_multiplier": 0.5},
+                "BUYME": {"sleeve": "core", "opp_score": 0.6, "ai_research_multiplier": 0.9},
             },
             min_trade_value=100.0,
             settings_ctx={
@@ -137,8 +137,8 @@ class TestNewRebalancePhilosophy:
             security_data=security_data,
             contrarian_scores={"TSM.US": 0.0},
             signal_data={
-                "TSM.US": {"scaleout_stage": 0, "sleeve": "core", "opp_score": 0.0, "user_multiplier": 0.5},
-                "BUYME": {"sleeve": "core", "opp_score": 0.6, "user_multiplier": 0.9},
+                "TSM.US": {"scaleout_stage": 0, "sleeve": "core", "opp_score": 0.0, "ai_research_multiplier": 0.5},
+                "BUYME": {"sleeve": "core", "opp_score": 0.6, "ai_research_multiplier": 0.9},
             },
             min_trade_value=100.0,
             settings_ctx={

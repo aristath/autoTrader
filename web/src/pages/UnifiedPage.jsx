@@ -841,7 +841,7 @@ function PlannerTape({ recommendations, longTermPlan, planSummary }) {
   const securityTargets = longTermPlan?.targets || [];
   const cashTarget = longTermPlan ? {
     symbol: 'CASH',
-    clara_score: null,
+    ai_research_multiplier: null,
     opportunity_score: null,
     target_value_eur: Number(longTermPlan.target_cash_value_eur || 0),
     gap_eur: Number(longTermPlan.cash_gap_eur || 0),
@@ -867,7 +867,7 @@ function PlannerTape({ recommendations, longTermPlan, planSummary }) {
         label: `${target.symbol} ${formatEur(target.target_value_eur)} (${gapText})`,
         title: target.isCash
           ? 'Cash left after deploying all affordable whole-lot purchases'
-          : `Clara ${Number(target.clara_score || 0).toFixed(2)}, opportunity ${Number(target.opportunity_score || 0).toFixed(2)}`,
+          : `AI research ${Number(target.ai_research_multiplier || 0).toFixed(2)}, opportunity ${Number(target.opportunity_score || 0).toFixed(2)}`,
       };
     });
 

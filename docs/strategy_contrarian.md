@@ -22,7 +22,7 @@ These components are implemented in `sentinel/strategy/contrarian.py`.
 ## Allocation Model
 
 - Universe is split into sleeves (`core` and `opportunity`).
-- Core sleeve blends a stable baseline allocation with Clara's faded strategic preferences.
+- Core sleeve uses decayed AI research multipliers for its strategic allocation.
 - Opportunity sleeve tilts capital toward highest `opp_score` names.
 - Per-symbol target is then constrained by lot-aware trade feasibility and portfolio limits.
 
@@ -32,7 +32,7 @@ Allocation logic lives in `sentinel/planner/allocation.py`.
 
 Rebalance recommendations in `sentinel/planner/rebalance.py` apply:
 
-- Clara strategic preference targets and their temporal fade toward neutral.
+- AI research multiplier targets and their temporal decay toward neutral.
 - Tactical opportunity rules from the deterministic contrarian signal.
 - Price anomaly blocking (`sentinel/price_validator.py`).
 - Lot-size class constraints for high-ticket symbols.

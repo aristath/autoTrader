@@ -24,7 +24,7 @@ Returns all securities in the universe (including inactive ones).
     "allow_buy": 1,
     "allow_sell": 1,
     "market_id": "93",
-    "user_multiplier": 0.5,
+    "ai_research_multiplier": 0.5,
     "aliases": "Apple, MacBook, Apple Silicon",
     "quote_data": null,
     "quote_updated_at": null,
@@ -97,18 +97,18 @@ Update execution controls. Only the following fields are accepted; everything el
 | `aliases` | string | Comma-separated search aliases for companion apps |
 | `allow_buy` | int (0/1) | Whether buys are permitted |
 | `allow_sell` | int (0/1) | Whether sells are permitted |
-| `user_multiplier` | float | Manual strategic preference override. Clara should prefer `POST /api/securities/preference`. |
-| `user_multiplier_analysis` | string | Optional rationale when setting `user_multiplier` manually |
+| `ai_research_multiplier` | float | Manual override of the AI research multiplier. Research tasks use `POST /api/securities/preference`. |
+| `ai_research_multiplier_analysis` | string | Optional rationale when setting `ai_research_multiplier` manually |
 | `active` | int (0/1) | Active flag |
 
 ---
 
 ## `POST /api/securities/preference`
 
-Clara's structural rating sink. Writes `user_multiplier` (0..1) and human-readable rationale.
+Sentinel's AI research rating sink. Writes `ai_research_multiplier` (0..1) and human-readable rationale.
 
 ```json
-{ "symbol": "AAPL.US", "user_multiplier": 0.78, "analysis": "Two-three paragraph rationale..." }
+{ "symbol": "AAPL.US", "ai_research_multiplier": 0.78, "analysis": "Two-three paragraph rationale..." }
 ```
 
 ---

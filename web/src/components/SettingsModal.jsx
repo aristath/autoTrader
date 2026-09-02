@@ -383,7 +383,7 @@ export function SettingsModal({ opened, onClose }) {
 
               <NumberInput
                 label="Ideal Qualification Threshold"
-                description="Minimum Clara preference required for a security to receive an ideal target"
+                description="Minimum AI research multiplier required for a security to receive an ideal target"
                 value={strategyDraft?.strategy_ideal_qualifying_threshold ?? settings?.strategy_ideal_qualifying_threshold ?? 0.65}
                 onChange={(value) => handleStrategyChange('strategy_ideal_qualifying_threshold', value)}
                 min={0}

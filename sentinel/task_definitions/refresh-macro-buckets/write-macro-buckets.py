@@ -8,7 +8,7 @@ list of skipped securities (each with a reason). A bucket is the unit of work
 for analyze-macro-bucket.
 
 Environment:
-  SENTINEL_TASKS_HOME (required) - Clara's data root; both the input universe and the
+  SENTINEL_TASKS_HOME (required) - Sentinel's task data root; both the input universe and the
                               output bucket files live beneath it.
 
 Outputs (under <data>/tasks/artifacts/refresh-macro-buckets/):

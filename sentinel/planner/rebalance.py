@@ -24,6 +24,7 @@ from sentinel.strategy import (
     recent_dd252_min,
 )
 
+from .allocation import REBALANCE_SIGNALS_CACHE_KEY
 from .deposit_history import DepositHistoryHelper
 from .models import PLANNING_HORIZON_MONTHS, PlannerState, TradeRecommendation
 from .preferences import is_explicit_downgrade
@@ -49,7 +50,7 @@ class RebalanceEngine:
     @staticmethod
     def _recommendation_cache_key(min_trade_value: float) -> str:
         """Build stable cache key for recommendation payloads."""
-        return f"planner:recommendations:v3:{float(min_trade_value):.2f}"
+        return f"planner:recommendations:v4:{float(min_trade_value):.2f}"
 
     @staticmethod
     def _normalize_conviction(value: Any) -> float:
@@ -314,7 +315,7 @@ class RebalanceEngine:
                 sleeves_cache = await maybe_sleeves
                 if not sleeves_map:
                     sleeves_map = json.loads(sleeves_cache) if sleeves_cache else {}
-            maybe_rebalance_signals = cache_getter("planner:rebalance_signals")
+            maybe_rebalance_signals = cache_getter(REBALANCE_SIGNALS_CACHE_KEY)
             if inspect.isawaitable(maybe_rebalance_signals):
                 rebalance_signals_cache = await maybe_rebalance_signals
                 if not rebalance_signals_map:
@@ -509,7 +510,7 @@ class RebalanceEngine:
             total_value=total_value,
             planning_total_value=planning_total_value,
             symbol_convictions={
-                symbol: self._normalize_conviction(sec.get("user_multiplier", 0.5))
+                symbol: self._normalize_conviction(sec.get("ai_research_multiplier", 0.5))
                 for symbol, sec in securities_map.items()
             },
             preloaded_positions=all_positions,
@@ -1017,8 +1018,8 @@ class RebalanceEngine:
             lot_class=lot_class,
             ticket_pct=ticket_pct,
             memory_entry=memory_entry,
-            user_multiplier=float(signal.get("user_multiplier", 0.5) or 0.5),
-            clara_target_pct=float(signal.get("clara_target_pct", 0.0) or 0.0),
+            ai_research_multiplier=float(signal.get("ai_research_multiplier", 0.5) or 0.5),
+            ai_research_target_pct=float(signal.get("ai_research_target_pct", 0.0) or 0.0),
             baseline_target_pct=float(signal.get("baseline_target_pct", 0.0) or 0.0),
             opportunity_target_pct=float(signal.get("opportunity_target_pct", 0.0) or 0.0),
             timing_eligible=timing_eligible,

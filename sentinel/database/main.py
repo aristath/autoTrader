@@ -185,25 +185,25 @@ class Database(TaskDatabaseMixin, BaseDatabase):
             )
         await self.conn.commit()
 
-    async def update_user_multiplier_preference(
+    async def update_ai_research_multiplier_preference(
         self,
         symbol: str,
         *,
-        user_multiplier: float,
+        ai_research_multiplier: float,
         analysis: str,
         source: str,
         updated_at: str | None = None,
     ) -> dict | None:
-        """Update one security's Clara/user preference metadata."""
+        """Update one security's AI research rating metadata."""
         updated_at = updated_at or datetime.now(timezone.utc).isoformat()
         await self.conn.execute(
             """UPDATE securities
-               SET user_multiplier = ?,
-                   user_multiplier_updated_at = ?,
-                   user_multiplier_source = ?,
-                   user_multiplier_analysis = ?
+               SET ai_research_multiplier = ?,
+                   ai_research_multiplier_updated_at = ?,
+                   ai_research_multiplier_source = ?,
+                   ai_research_multiplier_analysis = ?
                WHERE symbol = ?""",
-            (user_multiplier, updated_at, source, analysis, symbol),
+            (ai_research_multiplier, updated_at, source, analysis, symbol),
         )
         await self.conn.commit()
         return await self.get_security(symbol)
@@ -404,7 +404,7 @@ class Database(TaskDatabaseMixin, BaseDatabase):
         `min_lot`) are written when the caller passes a non-None value; otherwise
         the existing value is left untouched. Pass an empty string for the text
         fields to deliberately blank them (e.g. ETFs whose UCITS-domicile country
-        we don't want polluting Clara's macro buckets).
+        we don't want polluting the AI research macro buckets).
 
         The full broker payload lands in `data` verbatim — that's the durable
         store for any field we don't yet have a column for. Promote a field to
@@ -444,18 +444,18 @@ class Database(TaskDatabaseMixin, BaseDatabase):
     # Categories
     # -------------------------------------------------------------------------
 
-    async def set_user_multiplier(
+    async def set_ai_research_multiplier(
         self,
         symbol: str,
         value: float,
         *,
         source: str | None = None,
     ) -> None:
-        """Write a new `user_multiplier` for one security.
+        """Write a new `ai_research_multiplier` for one security.
 
-        Always updates `user_multiplier_updated_at` to "now" — that timestamp
+        Always updates `ai_research_multiplier_updated_at` to "now" — that timestamp
         is what the weekly decay job uses to gate further fades. If `source`
-        is provided, it's persisted too (callers pass 'clara', 'manual', or
+        is provided, it's persisted too (callers pass 'ai_research', 'manual', or
         'decay' to keep the audit trail honest).
         """
         from datetime import datetime, timezone
@@ -463,15 +463,18 @@ class Database(TaskDatabaseMixin, BaseDatabase):
         now_iso = datetime.now(timezone.utc).isoformat()
         if source is None:
             await self.conn.execute(
-                "UPDATE securities SET user_multiplier = ?, user_multiplier_updated_at = ? WHERE symbol = ?",
+                """UPDATE securities
+                      SET ai_research_multiplier = ?,
+                          ai_research_multiplier_updated_at = ?
+                    WHERE symbol = ?""",
                 (float(value), now_iso, symbol),
             )
         else:
             await self.conn.execute(
                 """UPDATE securities
-                      SET user_multiplier = ?,
-                          user_multiplier_updated_at = ?,
-                          user_multiplier_source = ?
+                      SET ai_research_multiplier = ?,
+                          ai_research_multiplier_updated_at = ?,
+                          ai_research_multiplier_source = ?
                     WHERE symbol = ?""",
                 (float(value), now_iso, source, symbol),
             )
@@ -813,7 +816,14 @@ class Database(TaskDatabaseMixin, BaseDatabase):
             ("sync:dividends", 1440, 1440, 0, "sync", "Sync dividends from broker"),
             ("sync:benchmarks", 1440, 1440, 0, "sync", "Refresh benchmark indices roster + prices"),
             # Runs daily, but only touches rows whose slider is >= 7 days old.
-            ("decay:user_multipliers", 1440, 1440, 0, "sync", "Step stored user_multiplier values toward neutral"),
+            (
+                "decay:ai_research_multipliers",
+                1440,
+                1440,
+                0,
+                "sync",
+                "Step stored ai_research_multiplier values toward neutral",
+            ),
             (
                 "snapshot:backfill",
                 1440,
@@ -1137,12 +1147,8 @@ class Database(TaskDatabaseMixin, BaseDatabase):
         """Apply lightweight schema migrations for existing local databases."""
         cursor = await self.conn.execute("PRAGMA table_info(securities)")
         security_columns = {row["name"] for row in await cursor.fetchall()}
+
         migrations = {
-            "user_multiplier_updated_at": "ALTER TABLE securities ADD COLUMN user_multiplier_updated_at TEXT",
-            "user_multiplier_source": (
-                "ALTER TABLE securities ADD COLUMN user_multiplier_source TEXT NOT NULL DEFAULT 'migration'"
-            ),
-            "user_multiplier_analysis": "ALTER TABLE securities ADD COLUMN user_multiplier_analysis TEXT",
             "universe_source": "ALTER TABLE securities ADD COLUMN universe_source TEXT NOT NULL DEFAULT 'migration'",
             "universe_last_seen_at": "ALTER TABLE securities ADD COLUMN universe_last_seen_at TEXT",
             # Tradernet instrument-kind code (1 = stock, 7 = ETF, 10 = depositary
@@ -1156,15 +1162,19 @@ class Database(TaskDatabaseMixin, BaseDatabase):
                 await self.conn.execute(statement)
 
         now_iso = datetime.now(timezone.utc).isoformat()
-        await self.conn.execute("UPDATE securities SET user_multiplier = 0.5 WHERE user_multiplier IS NULL")
         await self.conn.execute(
-            "UPDATE securities SET user_multiplier_updated_at = ? WHERE user_multiplier_updated_at IS NULL",
+            "UPDATE securities SET ai_research_multiplier = 0.5 WHERE ai_research_multiplier IS NULL"
+        )
+        await self.conn.execute(
+            """UPDATE securities
+                  SET ai_research_multiplier_updated_at = ?
+                WHERE ai_research_multiplier_updated_at IS NULL""",
             (now_iso,),
         )
         await self.conn.execute(
             """UPDATE securities
-               SET user_multiplier_source = 'migration'
-               WHERE user_multiplier_source IS NULL OR user_multiplier_source = ''""",
+               SET ai_research_multiplier_source = 'migration'
+               WHERE ai_research_multiplier_source IS NULL OR ai_research_multiplier_source = ''""",
         )
         await self.conn.execute("DELETE FROM settings WHERE key = 'strategy_opportunity_target_max_pct'")
         await self.conn.execute("DROP TABLE IF EXISTS ai_requests")
@@ -1208,10 +1218,10 @@ CREATE TABLE IF NOT EXISTS securities (
     active INTEGER DEFAULT 1,
     allow_buy INTEGER DEFAULT 1,
     allow_sell INTEGER DEFAULT 1,
-    user_multiplier REAL DEFAULT 0.5,  -- Clara strategic preference (0 avoid, 0.5 neutral, 1 prefer)
-    user_multiplier_updated_at TEXT,
-    user_multiplier_source TEXT NOT NULL DEFAULT 'migration',
-    user_multiplier_analysis TEXT,
+    ai_research_multiplier REAL DEFAULT 0.5,  -- AI research rating (0 avoid, 0.5 neutral, 1 prefer)
+    ai_research_multiplier_updated_at TEXT,
+    ai_research_multiplier_source TEXT NOT NULL DEFAULT 'migration',
+    ai_research_multiplier_analysis TEXT,
     universe_source TEXT NOT NULL DEFAULT 'migration',
     universe_last_seen_at TEXT,
     aliases TEXT,  -- Comma-separated alternative names for news/sentiment search

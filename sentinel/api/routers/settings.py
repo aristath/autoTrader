@@ -31,9 +31,9 @@ STRATEGY_KEYS = {
 }
 PLANNER_SETTING_KEYS = {
     *STRATEGY_KEYS,
-    "clara_preference_strength",
-    "user_multiplier_decay_factor",
-    "user_multiplier_decay_interval_days",
+    "ai_research_multiplier_strength",
+    "ai_research_multiplier_decay_factor",
+    "ai_research_multiplier_decay_interval_days",
     "max_position_pct",
     "min_position_pct",
     "min_cash_buffer",

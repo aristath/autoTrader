@@ -35,10 +35,10 @@ lazy loading when the inactive section is expanded.
     "active": 1,
     "allow_buy": 1,
     "allow_sell": 1,
-    "user_multiplier": 0.5,
-    "user_multiplier_age_weeks": 0.0,
-    "user_multiplier_source": "clara",
-    "user_multiplier_analysis": "Long-term strategic fit remains neutral.",
+    "ai_research_multiplier": 0.5,
+    "ai_research_multiplier_age_weeks": 0.0,
+    "ai_research_multiplier_source": "ai_research",
+    "ai_research_multiplier_analysis": "Long-term strategic fit remains neutral.",
     "aliases": null,
 
     "has_position": true,
@@ -57,7 +57,7 @@ lazy loading when the inactive section is expanded.
     "ideal_allocation": 4.50,
     "allocation_sleeve": "core",
     "baseline_target_pct": 0.00,
-    "clara_target_pct": 4.50,
+    "ai_research_target_pct": 4.50,
     "opportunity_target_pct": 0.00,
     "final_target_pct": 4.50,
 
@@ -80,7 +80,7 @@ lazy loading when the inactive section is expanded.
       "action": "buy",
       "quantity": 2,
       "value_delta_eur": 344.00,
-      "reason": "Opportunity 0.61; Clara 0.90; dip 0.45; adding standard lot",
+      "reason": "Opportunity 0.61; AI research 0.90; dip 0.45; adding standard lot",
       "reason_code": "rebalance_buy",
       "execution_rank": 1,
       "contrarian_score": 0.61,
@@ -99,10 +99,10 @@ lazy loading when the inactive section is expanded.
 
 | Field | Description |
 |---|---|
-| `user_multiplier` | Stored strategic preference, 0 avoid, 0.5 neutral, 1 prefer. The weekly `decay:user_multipliers` job nudges this value back toward 0.5 over ~52 weeks of no touch. |
-| `user_multiplier_age_weeks` | Age of the per-security preference timestamp (resets when the slider is touched OR the decay job runs) |
-| `user_multiplier_source` | Preference source, usually `clara`, `manual`, or `migration` |
-| `user_multiplier_analysis` | Human-readable rationale for the stored preference |
+| `ai_research_multiplier` | Stored AI research rating, 0 avoid, 0.5 neutral, 1 prefer. The weekly `decay:ai_research_multipliers` job nudges this value back toward 0.5 over ~52 weeks of no touch. |
+| `ai_research_multiplier_age_weeks` | Age of the per-security preference timestamp (resets when the slider is touched OR the decay job runs) |
+| `ai_research_multiplier_source` | Rating source, usually `ai_research`, `manual`, `decay`, or `migration` |
+| `ai_research_multiplier_analysis` | Human-readable rationale for the stored preference |
 | `aliases` | Alternative names/tickers for companion apps |
 
 **Position**
@@ -122,8 +122,8 @@ lazy loading when the inactive section is expanded.
 | `post_plan_allocation` | Allocation after applying all recommendations |
 | `ideal_allocation` | Target allocation from the Planner |
 | `allocation_sleeve` | Timing classification, `core` or `opportunity`; it does not change the long-term weight |
-| `baseline_target_pct` | Compatibility field; currently `0` because targets are Clara-defined |
-| `clara_target_pct` | Clara-defined long-term target after normalization and position caps |
+| `baseline_target_pct` | Compatibility field; currently `0` because targets are AI-research-defined |
+| `ai_research_target_pct` | AI-research-defined long-term target after normalization and position caps |
 | `opportunity_target_pct` | Compatibility field; currently `0` because opportunity affects timing, not destination |
 | `final_target_pct` | Final long-term security target after normalization and position caps |
 

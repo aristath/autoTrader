@@ -2,7 +2,7 @@
 
 Base path: `/api/planner`
 
-The planner separates destination from timing. Clara scores define long-term target weights, subject to qualification and position-risk limits. Contrarian opportunity signals decide which under-target securities are timely to buy today. In live execution the plan is valid only for the current configured trading window; the next cycle syncs broker state and replans.
+The planner separates destination from timing. AI research multipliers define long-term target weights, subject to qualification and position-risk limits. Contrarian opportunity signals decide which under-target securities are timely to buy today. In live execution the plan is valid only for the current configured trading window; the next cycle syncs broker state and replans.
 
 ---
 
@@ -32,7 +32,7 @@ Returns today's trade recommendations, the fresh twelve-month destination behind
       "lot_size": 1,
       "contrarian_score": 0.61,
       "priority": 0.72,
-      "reason": "Opportunity 0.61; Clara 0.90; dip 0.25; adding standard lot",
+      "reason": "Opportunity 0.61; AI research 0.90; dip 0.25; adding standard lot",
       "reason_code": "rebalance_buy",
       "timing_eligible": true,
       "target_gap_ratio": 0.62,
@@ -55,7 +55,7 @@ Returns today's trade recommendations, the fresh twelve-month destination behind
     "targets": [
       {
         "symbol": "AAPL.US",
-        "clara_score": 0.90,
+        "ai_research_multiplier": 0.90,
         "opportunity_score": 0.61,
         "target_allocation_pct": 4.50,
         "current_value_eur": 1720.00,

@@ -14,6 +14,9 @@ from sentinel.strategy import recent_dd252_min
 
 
 class TestPlannerSettings:
+    def test_recommendation_cache_key_excludes_pre_rename_payloads(self):
+        assert RebalanceEngine._recommendation_cache_key(100) == "planner:recommendations:v4:100.00"
+
     @pytest.mark.asyncio
     async def test_planner_component_fallbacks_use_settings_defaults(self):
         settings = MagicMock()
@@ -319,14 +322,14 @@ class TestDeficitSellsSimulatedCash:
                 "currency": "EUR",
                 "min_lot": 1,
                 "allow_sell": 1,
-                "user_multiplier": 0.3,
+                "ai_research_multiplier": 0.3,
             },
             "STALE.EU": {
                 "symbol": "STALE.EU",
                 "currency": "EUR",
                 "min_lot": 1,
                 "allow_sell": 1,
-                "user_multiplier": 0.3,
+                "ai_research_multiplier": 0.3,
             },
         }
         positions = [
@@ -366,7 +369,7 @@ class TestDeficitSellsSimulatedCash:
                 "currency": "EUR",
                 "min_lot": 1,
                 "allow_sell": 1,
-                "user_multiplier": 0.3,
+                "ai_research_multiplier": 0.3,
             },
         }
         positions = [{"symbol": "FRESH.EU", "quantity": 10, "current_price": 100.0}]
@@ -400,7 +403,7 @@ class TestDeficitSellsSimulatedCash:
                 "currency": "EUR",
                 "min_lot": 1,
                 "allow_sell": 1,
-                "user_multiplier": 0.3,
+                "ai_research_multiplier": 0.3,
             },
         }
         positions = [{"symbol": "FRESH.EU", "quantity": 10, "current_price": 100.0}]
@@ -439,14 +442,14 @@ class TestDeficitSellsSimulatedCash:
                 "currency": "EUR",
                 "min_lot": 1,
                 "allow_sell": 1,
-                "user_multiplier": 0.3,
+                "ai_research_multiplier": 0.3,
             },
             "UNTRADED.EU": {
                 "symbol": "UNTRADED.EU",
                 "currency": "EUR",
                 "min_lot": 1,
                 "allow_sell": 1,
-                "user_multiplier": 0.3,
+                "ai_research_multiplier": 0.3,
             },
         }
         positions = [
@@ -488,7 +491,7 @@ class TestContrarianSizing:
             contrarian_score=0.05,
             priority=5_000.0,
             reason="test",
-            user_multiplier=0.95,
+            ai_research_multiplier=0.95,
             timing_eligible=False,
             target_gap_ratio=1.0,
         )
@@ -508,7 +511,7 @@ class TestContrarianSizing:
             contrarian_score=0.8,
             priority=2_000.0,
             reason="test",
-            user_multiplier=0.7,
+            ai_research_multiplier=0.7,
             timing_eligible=True,
             target_gap_ratio=1.0,
         )
@@ -545,7 +548,7 @@ class TestContrarianSizing:
                 contrarian_score=score,
                 priority=priority,
                 reason="test",
-                user_multiplier=0.8,
+                ai_research_multiplier=0.8,
                 timing_eligible=False,
                 target_gap_ratio=1.0,
             )
@@ -663,7 +666,7 @@ class TestContrarianSizing:
                     "min_lot": 1,
                     "allow_buy": 1,
                     "allow_sell": 1,
-                    "user_multiplier": 0.9,
+                    "ai_research_multiplier": 0.9,
                 }
             ]
         )
@@ -722,8 +725,8 @@ class TestContrarianSizing:
                     "cycle_turn": 0,
                     "freefall_block": 0,
                     "sleeve": "core",
-                    "clara_target_pct": 0.20,
-                    "user_multiplier": 0.9,
+                    "ai_research_target_pct": 0.20,
+                    "ai_research_multiplier": 0.9,
                 }
             },
             precomputed_sleeves={"AMD": "core"},
@@ -743,7 +746,7 @@ class TestContrarianSizing:
                     "min_lot": 1,
                     "allow_buy": 1,
                     "allow_sell": 1,
-                    "user_multiplier": 0.5,
+                    "ai_research_multiplier": 0.5,
                 }
             ]
         )
@@ -803,8 +806,8 @@ class TestContrarianSizing:
                     "cycle_turn": 0,
                     "freefall_block": 0,
                     "sleeve": "core",
-                    "clara_target_pct": 0.20,
-                    "user_multiplier": 0.5,
+                    "ai_research_target_pct": 0.20,
+                    "ai_research_multiplier": 0.5,
                 }
             },
             precomputed_sleeves={"BASE": "core"},
@@ -826,7 +829,7 @@ class TestContrarianSizing:
                     "min_lot": 100,
                     "allow_buy": 1,
                     "allow_sell": 1,
-                    "user_multiplier": 1.0,
+                    "ai_research_multiplier": 1.0,
                 }
             ]
         )
@@ -893,7 +896,7 @@ class TestContrarianSizing:
                     "min_lot": 1,
                     "allow_buy": 1,
                     "allow_sell": 1,
-                    "user_multiplier": 1.0,
+                    "ai_research_multiplier": 1.0,
                 }
             ]
         )

@@ -23,7 +23,7 @@ def _plan() -> LongTermPlan:
         targets=[
             LongTermTarget(
                 symbol="AAA",
-                clara_score=0.9,
+                ai_research_multiplier=0.9,
                 opportunity_score=0.8,
                 target_allocation=0.5,
                 current_value_eur=2_000.0,
@@ -96,7 +96,7 @@ async def test_recommendations_endpoint_includes_fixed_plan_snapshot():
     assert result["plan"]["target_cash_value_eur"] == 8_000.0
     assert result["plan"]["targets"][0] == {
         "symbol": "AAA",
-        "clara_score": 0.9,
+        "ai_research_multiplier": 0.9,
         "opportunity_score": 0.8,
         "target_allocation_pct": 50.0,
         "current_value_eur": 2_000.0,
