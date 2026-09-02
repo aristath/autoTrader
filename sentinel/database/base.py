@@ -60,6 +60,90 @@ class BaseDatabase:
             )
         await self.conn.commit()
 
+    async def get_security_transaction_counts(self) -> dict[str, int]:
+        """Return the number of durable security transactions per symbol.
+
+        Trades are the primary transaction history. Dividends also prove that a
+        security participated in the portfolio, so they count as transactions
+        for the purpose of deciding whether an inactive row can be deleted.
+        """
+        cursor = await self.conn.execute(
+            """
+            SELECT symbol, SUM(transaction_count) AS transaction_count
+            FROM (
+                SELECT symbol, COUNT(*) AS transaction_count
+                FROM trades
+                GROUP BY symbol
+                UNION ALL
+                SELECT symbol, COUNT(*) AS transaction_count
+                FROM dividends
+                GROUP BY symbol
+            )
+            GROUP BY symbol
+            """
+        )
+        rows = await cursor.fetchall()
+        return {str(row["symbol"]): int(row["transaction_count"] or 0) for row in rows}
+
+    async def delete_inactive_security(self, symbol: str) -> dict[str, object]:
+        """Permanently delete an unused inactive security and its derived data.
+
+        The checks and deletes share one transaction so a trade sync cannot add
+        history between the eligibility check and the final delete.
+        """
+        await self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = await self.conn.execute("SELECT active FROM securities WHERE symbol = ?", (symbol,))
+            security = await cursor.fetchone()
+            if security is None:
+                await self.conn.rollback()
+                return {"deleted": False, "reason": "not_found", "transaction_count": 0}
+            if int(security["active"] or 0) == 1:
+                await self.conn.rollback()
+                return {"deleted": False, "reason": "active", "transaction_count": 0}
+
+            cursor = await self.conn.execute(
+                """
+                SELECT
+                    (SELECT COUNT(*) FROM trades WHERE symbol = ?) +
+                    (SELECT COUNT(*) FROM dividends WHERE symbol = ?) AS transaction_count
+                """,
+                (symbol, symbol),
+            )
+            row = await cursor.fetchone()
+            transaction_count = int(row["transaction_count"] or 0) if row else 0
+            if transaction_count > 0:
+                await self.conn.rollback()
+                return {
+                    "deleted": False,
+                    "reason": "has_transactions",
+                    "transaction_count": transaction_count,
+                }
+
+            cursor = await self.conn.execute("SELECT quantity FROM positions WHERE symbol = ?", (symbol,))
+            position = await cursor.fetchone()
+            if position is not None and float(position["quantity"] or 0) > 0:
+                await self.conn.rollback()
+                return {"deleted": False, "reason": "has_position", "transaction_count": 0}
+
+            # These rows are derived state, not transaction history. They have
+            # no meaning once the never-used security itself is gone.
+            for table in (
+                "positions",
+                "prices",
+                "forecast_points",
+                "forecast_scores",
+                "forecast_evaluations",
+                "strategy_state",
+            ):
+                await self.conn.execute(f"DELETE FROM {table} WHERE symbol = ?", (symbol,))  # noqa: S608
+            await self.conn.execute("DELETE FROM securities WHERE symbol = ?", (symbol,))
+            await self.conn.commit()
+            return {"deleted": True, "reason": None, "transaction_count": 0}
+        except BaseException:
+            await self.conn.rollback()
+            raise
+
     # -------------------------------------------------------------------------
     # Positions
     # -------------------------------------------------------------------------

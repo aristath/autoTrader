@@ -244,6 +244,68 @@ class TestSecurities:
         assert "INACTIVE" in symbols
 
     @pytest.mark.asyncio
+    async def test_delete_inactive_security_without_transactions_removes_derived_data(self, temp_db):
+        await temp_db.upsert_security("UNUSED.EU", active=0, allow_buy=0, allow_sell=0)
+        await temp_db.upsert_position("UNUSED.EU", quantity=0, current_price=10, currency="EUR")
+        await temp_db.save_prices("UNUSED.EU", [{"date": "2026-01-01", "close": 10.0}])
+
+        result = await temp_db.delete_inactive_security("UNUSED.EU")
+
+        assert result == {"deleted": True, "reason": None, "transaction_count": 0}
+        assert await temp_db.get_security("UNUSED.EU") is None
+        assert await temp_db.get_position("UNUSED.EU") is None
+        assert await temp_db.get_prices("UNUSED.EU") == []
+
+    @pytest.mark.asyncio
+    async def test_delete_inactive_security_is_blocked_by_trade_history(self, temp_db):
+        await temp_db.upsert_security("USED.EU", active=0, allow_buy=0, allow_sell=0)
+        await temp_db.upsert_trade(
+            broker_trade_id="used-trade-1",
+            symbol="USED.EU",
+            side="BUY",
+            quantity=1,
+            price=10,
+            commission=1,
+            commission_currency="EUR",
+            executed_at=_ts("2026-01-01T12:00:00"),
+            raw_data={},
+        )
+
+        result = await temp_db.delete_inactive_security("USED.EU")
+
+        assert result == {"deleted": False, "reason": "has_transactions", "transaction_count": 1}
+        assert await temp_db.get_security("USED.EU") is not None
+
+    @pytest.mark.asyncio
+    async def test_delete_inactive_security_is_blocked_by_dividend_history(self, temp_db):
+        await temp_db.upsert_security("DIV.EU", active=0, allow_buy=0, allow_sell=0)
+        await temp_db.upsert_dividend(
+            id="dividend-1",
+            symbol="DIV.EU",
+            date="2026-01-01",
+            amount=1,
+            currency="EUR",
+            value=1,
+            data={},
+        )
+
+        counts = await temp_db.get_security_transaction_counts()
+        result = await temp_db.delete_inactive_security("DIV.EU")
+
+        assert counts["DIV.EU"] == 1
+        assert result == {"deleted": False, "reason": "has_transactions", "transaction_count": 1}
+        assert await temp_db.get_security("DIV.EU") is not None
+
+    @pytest.mark.asyncio
+    async def test_delete_inactive_security_rejects_active_security(self, temp_db):
+        await temp_db.upsert_security("ACTIVE.EU", active=1)
+
+        result = await temp_db.delete_inactive_security("ACTIVE.EU")
+
+        assert result == {"deleted": False, "reason": "active", "transaction_count": 0}
+        assert await temp_db.get_security("ACTIVE.EU") is not None
+
+    @pytest.mark.asyncio
     async def test_update_quote_data(self, temp_db):
         """Update quote data for security."""
         await temp_db.upsert_security("TEST.EU")

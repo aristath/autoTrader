@@ -20,8 +20,9 @@ import {
   Box,
   Tooltip,
   ActionIcon,
+  Button,
 } from '@mantine/core';
-import { IconTrash, IconAlertTriangle } from '@tabler/icons-react';
+import { IconPlayerPlay, IconTrash, IconAlertTriangle } from '@tabler/icons-react';
 import { SecurityChart } from './SecurityChart';
 import { SecurityForecastCard } from './SecurityForecastCard';
 import { catppuccin } from '../theme';
@@ -46,8 +47,9 @@ function selectForecastPoints(forecastData) {
   return [];
 }
 
-export function SecurityExpandedRow({ security, onUpdate, onDelete }) {
+export function SecurityExpandedRow({ security, onUpdate, onDelete, onActivate }) {
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
   const [localMultiplier, setLocalMultiplier] = useState(null);
   const { data: forecastData } = useQuery({
     queryKey: ['forecast', security?.symbol],
@@ -96,7 +98,28 @@ export function SecurityExpandedRow({ security, onUpdate, onDelete }) {
     prices,
     recommendation,
     price_warning,
+    active,
+    can_delete,
+    transaction_count,
   } = security;
+
+  const inactive = !active;
+  const permanentDeleteBlocked = inactive && !can_delete;
+  const deleteTooltip = permanentDeleteBlocked
+    ? `Cannot delete: ${transaction_count || 0} historical transaction(s)`
+    : inactive
+      ? 'Permanently delete unused security'
+      : 'Remove security from the active universe';
+
+  const handleActivate = async () => {
+    if (!onActivate) return;
+    setIsActivating(true);
+    try {
+      await onActivate(symbol);
+    } finally {
+      setIsActivating(false);
+    }
+  };
 
   const forecastChartPoints = selectForecastPoints(forecastData);
 
@@ -163,18 +186,41 @@ export function SecurityExpandedRow({ security, onUpdate, onDelete }) {
               disabled={isUpdating}
             />
           </Box>
-          <Tooltip label="Delete security">
-            <ActionIcon
-              variant="subtle"
-              color="red"
-              size="lg"
-              onClick={() => onDelete(security)}
-              aria-label={`Delete ${symbol}`}
-            >
-              <IconTrash size={16} />
-            </ActionIcon>
-          </Tooltip>
+          <Group gap="xs" wrap="nowrap">
+            {inactive && onActivate && (
+              <Button
+                variant="light"
+                color="green"
+                size="xs"
+                leftSection={<IconPlayerPlay size={14} />}
+                loading={isActivating}
+                onClick={handleActivate}
+              >
+                Activate
+              </Button>
+            )}
+            <Tooltip label={deleteTooltip}>
+              <span>
+                <ActionIcon
+                  variant="subtle"
+                  color="red"
+                  size="lg"
+                  disabled={permanentDeleteBlocked}
+                  onClick={() => onDelete(security)}
+                  aria-label={`Delete ${symbol}`}
+                >
+                  <IconTrash size={16} />
+                </ActionIcon>
+              </span>
+            </Tooltip>
+          </Group>
         </Group>
+
+        {permanentDeleteBlocked && (
+          <Text size="xs" c="dimmed">
+            Permanent deletion is unavailable because this security has {transaction_count || 0} historical transaction(s).
+          </Text>
+        )}
 
         <Group gap="md" wrap="wrap">
           <Text size="xs" c="dimmed">

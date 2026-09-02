@@ -144,9 +144,11 @@ export const updateSettingsBatch = (values) =>
   });
 
 // Unified view
-export const getUnifiedView = (period = '1Y', asOf = null) => {
+export const getUnifiedView = (period = '1Y', asOf = null, includeInactive = false, inactiveOnly = false) => {
   const params = new URLSearchParams({ period });
   if (asOf) params.append('as_of', asOf);
+  if (includeInactive) params.append('include_inactive', 'true');
+  if (inactiveOnly) params.append('inactive_only', 'true');
   return request(`/unified?${params.toString()}`);
 };
 

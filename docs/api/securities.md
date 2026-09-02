@@ -178,19 +178,28 @@ Update security metadata and execution controls. Only the following fields are a
 
 ## `DELETE /api/securities/{symbol}`
 
-Soft-delete a security: marks it inactive, disables trading, deletes its current position record, and preserves all historical prices and trade history.
+For an active security, removes it from Freedom24 Favorites and applies the safe
+local universe rule:
+
+- with a current position, it remains active and sell-only;
+- without a current position, it becomes inactive and both trade permissions are disabled.
+
+For an already-inactive security, permanently deletes the security and its
+derived price/forecast/strategy data only when it has never had a trade or
+dividend transaction. Historical transactions are never deleted.
 
 **Query params**
-- `sell_position` (bool, default `true`) — If `true` and there is an open position, a market sell order is placed before deactivating.
+- `sell_position` (bool, deprecated) — Retained for old clients; removal never places a sell order.
 
 **Response**
 ```json
-{ "status": "ok", "sold_quantity": 10 }
+{ "status": "ok", "symbol": "AAPL.US", "deleted": true, "sold_quantity": 0, "transaction_count": 0 }
 ```
 
 **Errors**
 - `404` — Security not found
-- `400` — Sell order failed (only when `sell_position=true`)
+- `409` — Permanent deletion is blocked by transaction history or a position
+- `502` — Removing an active symbol from Freedom24 Favorites failed
 
 ---
 

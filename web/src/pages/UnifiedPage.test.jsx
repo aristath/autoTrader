@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasDisabledTradePermission, shouldShowSecurityForFilter } from './UnifiedPage';
+import { hasDisabledTradePermission, shouldLoadInactiveDetails, shouldShowSecurityForFilter } from './UnifiedPage';
 
 const quietSecurity = {
   symbol: 'AAPL.US',
@@ -24,5 +24,11 @@ describe('UnifiedPage filters', () => {
     expect(hasDisabledTradePermission({})).toBe(false);
     expect(hasDisabledTradePermission({ allow_buy: '0' })).toBe(true);
     expect(hasDisabledTradePermission({ allow_sell: false })).toBe(true);
+  });
+
+  it('loads inactive details only after the section is expanded', () => {
+    expect(shouldLoadInactiveDetails({ 'inactive-securities': true }, 40)).toBe(false);
+    expect(shouldLoadInactiveDetails({ 'inactive-securities': false }, 40)).toBe(true);
+    expect(shouldLoadInactiveDetails({ 'inactive-securities': false }, 0)).toBe(false);
   });
 });

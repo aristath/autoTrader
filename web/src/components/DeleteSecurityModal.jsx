@@ -8,6 +8,7 @@ export function DeleteSecurityModal({ opened, onClose, onDelete, security }) {
 
   if (!security) return null;
 
+  const inactive = !security.active;
   const hasPosition = security.quantity > 0;
   const positionValue = security.value_eur || 0;
 
@@ -29,8 +30,22 @@ export function DeleteSecurityModal({ opened, onClose, onDelete, security }) {
     <Modal opened={opened} onClose={onClose} title={<Text fw={600} className="delete-security-modal__title">Delete Security</Text>} className="delete-security-modal">
       <Stack gap="md" className="delete-security-modal__content">
         <Text className="delete-security-modal__message">
-          Are you sure you want to remove <strong className="delete-security-modal__symbol">{security.symbol}</strong> from your universe?
+          {inactive ? (
+            <>
+              Permanently delete <strong className="delete-security-modal__symbol">{security.symbol}</strong> and its stored price and analysis data?
+            </>
+          ) : (
+            <>
+              Are you sure you want to remove <strong className="delete-security-modal__symbol">{security.symbol}</strong> from your universe?
+            </>
+          )}
         </Text>
+
+        {inactive && (
+          <Alert icon={<IconAlertTriangle size={16} />} color="red" variant="light">
+            <Text size="sm">This cannot be undone. Securities with historical transactions cannot be permanently deleted.</Text>
+          </Alert>
+        )}
 
         {hasPosition && (
           <Alert icon={<IconAlertTriangle size={16} />} color="red" variant="light" className="delete-security-modal__position-warning">
@@ -54,7 +69,7 @@ export function DeleteSecurityModal({ opened, onClose, onDelete, security }) {
             Cancel
           </Button>
           <Button color="red" onClick={handleDelete} loading={isLoading} className={`delete-security-modal__confirm-btn ${hasPosition ? 'delete-security-modal__confirm-btn--with-position' : ''}`}>
-            Remove
+            {inactive ? 'Delete Permanently' : 'Remove'}
           </Button>
         </Group>
       </Stack>

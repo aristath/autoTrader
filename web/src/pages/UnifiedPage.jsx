@@ -19,7 +19,6 @@ import {
   Card,
   Button,
   ActionIcon,
-  Table,
   Collapse,
 } from '@mantine/core';
 import { IconPlus, IconArrowRight, IconCash, IconWallet, IconListCheck, IconTrendingUp, IconPencil, IconX, IconChevronDown } from '@tabler/icons-react';
@@ -96,6 +95,10 @@ export function hasDisabledTradePermission(security) {
   return Number(security.allow_buy ?? 1) === 0 || Number(security.allow_sell ?? 1) === 0;
 }
 
+export function shouldLoadInactiveDetails(collapsedWidgets, inactiveCount) {
+  return !Boolean(collapsedWidgets['inactive-securities']) && inactiveCount > 0;
+}
+
 export function shouldShowSecurityForFilter(security, filter) {
   switch (filter) {
     case 'review': {
@@ -168,10 +171,21 @@ function UnifiedPage() {
     refetchInterval: 60000,
   });
 
-  const inactiveSecurities = useMemo(() => {
+  const inactiveSecuritySummaries = useMemo(() => {
     if (!allSecurities) return [];
-    return allSecurities.filter((s) => !s.active);
+    return allSecurities.filter((security) => !security.active);
   }, [allSecurities]);
+
+  const loadInactiveDetails = shouldLoadInactiveDetails(collapsedWidgets, inactiveSecuritySummaries.length);
+  const {
+    data: inactiveSecurities,
+    isLoading: inactiveSecuritiesLoading,
+    error: inactiveSecuritiesError,
+  } = useQuery({
+    queryKey: ['unified', 'inactive', period],
+    queryFn: () => getUnifiedView(period, null, false, true),
+    enabled: loadInactiveDetails,
+  });
 
   const { data: portfolio } = useQuery({
     queryKey: ['portfolio'],
@@ -271,6 +285,7 @@ function UnifiedPage() {
     mutationFn: ({ symbol }) => addSecurity(symbol),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['unified'] });
+      queryClient.invalidateQueries({ queryKey: ['securities'] });
     },
   });
 
@@ -293,6 +308,7 @@ function UnifiedPage() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['unified'] });
+      queryClient.invalidateQueries({ queryKey: ['securities'] });
     },
   });
 
@@ -302,6 +318,24 @@ function UnifiedPage() {
 
   const handleAdd = async (symbol) => {
     await addMutation.mutateAsync({ symbol });
+  };
+
+  const handleActivate = async (symbol) => {
+    try {
+      await addMutation.mutateAsync({ symbol });
+      await queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+      notifications.show({
+        title: 'Security activated',
+        message: `${symbol} is active and has been added to Freedom24 Favorites.`,
+        color: 'green',
+      });
+    } catch (err) {
+      notifications.show({
+        title: 'Activation failed',
+        message: err.message || `Could not activate ${symbol}`,
+        color: 'red',
+      });
+    }
   };
 
   const handleDeleteClick = (security) => {
@@ -679,36 +713,27 @@ function UnifiedPage() {
           </CollapsibleWidget>
 
           {/* Inactive Securities Table */}
-          {inactiveSecurities.length > 0 && (
+          {inactiveSecuritySummaries.length > 0 && (
             <CollapsibleWidget
               id="inactive-securities"
-              title="Inactive Securities"
+              title={`Inactive Securities (${inactiveSecuritySummaries.length})`}
               collapsed={collapsedWidgets['inactive-securities']}
               onToggle={toggleWidget}
             >
               <Card shadow="sm" padding="md" withBorder className="unified__inactive-table">
-                <Text component="div" size="sm" fw={500} mb="sm">
-                  Inactive Securities
-                  <Badge variant="light" color="gray" size="sm" ml="xs">{inactiveSecurities.length}</Badge>
-                </Text>
-                <Table.ScrollContainer minWidth={400}>
-                  <Table highlightOnHover>
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th><Text fw={600} size="sm">Symbol</Text></Table.Th>
-                        <Table.Th><Text fw={600} size="sm">Name</Text></Table.Th>
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {inactiveSecurities.map((sec) => (
-                        <Table.Tr key={sec.symbol}>
-                          <Table.Td><Text size="sm" fw={500}>{sec.symbol}</Text></Table.Td>
-                          <Table.Td><Text size="sm" c="dimmed">{sec.name || '-'}</Text></Table.Td>
-                        </Table.Tr>
-                      ))}
-                    </Table.Tbody>
-                  </Table>
-                </Table.ScrollContainer>
+                {inactiveSecuritiesLoading ? (
+                  <LoadingState message="Loading inactive security details..." />
+                ) : inactiveSecuritiesError ? (
+                  <ErrorState message={`Error loading inactive securities: ${inactiveSecuritiesError.message}`} />
+                ) : (
+                  <SecurityTable
+                    securities={inactiveSecurities || []}
+                    onUpdate={handleUpdate}
+                    onDelete={handleDeleteClick}
+                    onActivate={handleActivate}
+                    inactiveMode
+                  />
+                )}
               </Card>
             </CollapsibleWidget>
           )}

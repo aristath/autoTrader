@@ -119,6 +119,40 @@ async def test_get_unified_view_without_as_of_no_prediction_fields():
 
 
 @pytest.mark.asyncio
+async def test_get_unified_view_can_load_only_expandable_inactive_security_details():
+    from sentinel.api.routers.securities import get_unified_view
+
+    mock_deps = _make_unified_mocks(one_security=True)
+    mock_deps.db.get_all_securities = AsyncMock(
+        return_value=[
+            {
+                "symbol": "OLD.EU",
+                "name": "Old Security",
+                "currency": "EUR",
+                "min_lot": 1,
+                "active": 0,
+                "allow_buy": 0,
+                "allow_sell": 0,
+            }
+        ]
+    )
+    mock_deps.db.get_security_transaction_counts = AsyncMock(return_value={})
+    mock_deps.db.get_prices_bulk = AsyncMock(return_value={"OLD.EU": []})
+
+    with patch("sentinel.planner.Planner") as planner_cls:
+        result = await get_unified_view(mock_deps, period="1Y", as_of="2024-01-15", inactive_only=True)
+
+    mock_deps.db.get_all_securities.assert_awaited_once_with(active_only=False)
+    planner_cls.assert_not_called()
+    mock_deps.broker.get_quotes.assert_not_awaited()
+    assert result[0]["symbol"] == "OLD.EU"
+    assert result[0]["active"] == 0
+    assert result[0]["can_delete"] is True
+    assert result[0]["transaction_count"] == 0
+    assert "prices" in result[0]
+
+
+@pytest.mark.asyncio
 async def test_get_unified_view_current_uses_simulated_cash_in_research_mode():
     from sentinel.api.routers.securities import get_unified_view
 
@@ -389,6 +423,75 @@ async def test_delete_security_with_position_disables_buys_without_selling():
         assert position["quantity"] == 3
         deps.broker.delete_stock_list_ticker.assert_awaited_once_with("AMD.EU")
         deps.broker.sell.assert_not_awaited()
+    finally:
+        await db.close()
+        db.remove_from_cache()
+        for ext in ("", "-wal", "-shm"):
+            target = path + ext
+            if os.path.exists(target):
+                os.unlink(target)
+
+
+@pytest.mark.asyncio
+async def test_delete_inactive_security_without_transactions_is_permanent():
+    from sentinel.api.routers.securities import delete_security
+
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    db = Database(path)
+    await db.connect()
+    try:
+        await db.upsert_security("UNUSED.EU", name="Unused", active=0, allow_buy=0, allow_sell=0)
+        deps = MagicMock()
+        deps.db = db
+        deps.broker.delete_stock_list_ticker = AsyncMock(return_value=True)
+
+        result = await delete_security("UNUSED.EU", deps)
+
+        assert result["deleted"] is True
+        assert await db.get_security("UNUSED.EU") is None
+        deps.broker.delete_stock_list_ticker.assert_not_awaited()
+    finally:
+        await db.close()
+        db.remove_from_cache()
+        for ext in ("", "-wal", "-shm"):
+            target = path + ext
+            if os.path.exists(target):
+                os.unlink(target)
+
+
+@pytest.mark.asyncio
+async def test_delete_inactive_security_with_transactions_returns_conflict():
+    from sentinel.api.routers.securities import delete_security
+
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    db = Database(path)
+    await db.connect()
+    try:
+        await db.upsert_security("USED.EU", name="Used", active=0, allow_buy=0, allow_sell=0)
+        await db.upsert_trade(
+            broker_trade_id="used-api-trade",
+            symbol="USED.EU",
+            side="BUY",
+            quantity=1,
+            price=10,
+            commission=0,
+            commission_currency="EUR",
+            executed_at=1_700_000_000,
+            raw_data={},
+        )
+        deps = MagicMock()
+        deps.db = db
+        deps.broker.delete_stock_list_ticker = AsyncMock(return_value=True)
+
+        with pytest.raises(HTTPException) as exc:
+            await delete_security("USED.EU", deps)
+
+        assert exc.value.status_code == 409
+        assert "1 historical transaction" in exc.value.detail
+        assert await db.get_security("USED.EU") is not None
+        deps.broker.delete_stock_list_ticker.assert_not_awaited()
     finally:
         await db.close()
         db.remove_from_cache()

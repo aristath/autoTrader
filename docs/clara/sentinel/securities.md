@@ -116,6 +116,9 @@ Clara's structural rating sink. Writes `user_multiplier` (0..1) and human-readab
 ## `DELETE /api/securities/{symbol}`
 
 Soft-delete a security or restrict it to sell-only when a position is open.
+Calling DELETE for an already-inactive security permanently removes it only if
+no trade or dividend transaction has ever been recorded; otherwise it returns
+HTTP 409 and preserves the row and its history.
 
 ---
 

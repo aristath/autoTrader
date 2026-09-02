@@ -4,6 +4,15 @@ Base path: `/api/unified`
 
 Returns a single merged view of all active securities, combining position data, price history, contrarian signals, allocations, and trade recommendations. This is the primary data source for the main dashboard.
 
+Set `include_inactive=true` to append inactive securities with the same detail
+shape for the dashboard's expandable inactive table. Inactive rows have no
+allocation or recommendation, and include `transaction_count` and `can_delete`
+fields for guarded permanent deletion.
+
+Set `inactive_only=true` to return only inactive detail rows. This mode skips
+planner, recommendation, market-status, and live-quote work and is intended for
+lazy loading when the inactive section is expanded.
+
 ---
 
 ## `GET /api/unified`

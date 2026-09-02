@@ -90,7 +90,19 @@ async def get_securities(
     deps: Annotated[CommonDependencies, Depends(get_common_deps)],
 ) -> list[dict]:
     """Get all securities in universe."""
-    return await deps.db.get_all_securities(active_only=False)
+    securities = await deps.db.get_all_securities(active_only=False)
+    transaction_counts = await deps.db.get_security_transaction_counts()
+    held_symbols = {position["symbol"] for position in await deps.db.get_all_positions()}
+    return [
+        {
+            **security,
+            "transaction_count": transaction_counts.get(security["symbol"], 0),
+            "can_delete": not bool(security.get("active", 1))
+            and transaction_counts.get(security["symbol"], 0) == 0
+            and security["symbol"] not in held_symbols,
+        }
+        for security in securities
+    ]
 
 
 @router.post("")
@@ -156,6 +168,32 @@ async def delete_security(
     existing = await deps.db.get_security(symbol)
     if not existing:
         raise HTTPException(status_code=404, detail="Security not found")
+
+    # A second DELETE on an already-inactive row means permanent deletion.
+    # Transaction history is never removed: if any exists, the database keeps
+    # the security row as its durable identity and this request is rejected.
+    if int(existing.get("active", 0) or 0) == 0:
+        deletion = await deps.db.delete_inactive_security(symbol)
+        reason = deletion.get("reason")
+        if reason == "has_transactions":
+            raw_count = deletion.get("transaction_count", 0)
+            count = raw_count if isinstance(raw_count, int) else 0
+            raise HTTPException(
+                status_code=409,
+                detail=f"Security cannot be deleted because it has {count} historical transaction(s)",
+            )
+        if reason == "has_position":
+            raise HTTPException(status_code=409, detail="Security cannot be deleted while it has a position")
+        if not deletion.get("deleted"):
+            raise HTTPException(status_code=409, detail="Security is not eligible for permanent deletion")
+        await _invalidate_planner_cache(deps)
+        return {
+            "status": "ok",
+            "symbol": symbol,
+            "deleted": True,
+            "sold_quantity": 0,
+            "transaction_count": 0,
+        }
 
     if not await deps.broker.delete_stock_list_ticker(symbol):
         raise HTTPException(status_code=502, detail="Failed to remove security from Freedom24 Favorites")
@@ -337,6 +375,8 @@ async def get_unified_view(
     deps: Annotated[CommonDependencies, Depends(get_common_deps)],
     period: str = "1Y",
     as_of: str | None = None,
+    include_inactive: bool = False,
+    inactive_only: bool = False,
 ) -> list[dict]:
     """
     Get aggregated data for unified security cards view.
@@ -344,6 +384,8 @@ async def get_unified_view(
     Args:
         period: Price history period - 1M, 1Y, 5Y, 10Y
         as_of: Optional date (YYYY-MM-DD). When set, historical prices are scoped on or before that date.
+        include_inactive: Include inactive rows alongside active securities.
+        inactive_only: Return inactive detail rows without planner or live-market work.
 
     Returns all securities with positions, prices, allocations, and recommendations.
     """
@@ -353,12 +395,17 @@ async def get_unified_view(
     from sentinel.portfolio import Portfolio
     from sentinel.price_validator import PriceValidator, get_price_anomaly_warning
 
-    # Get all active securities
-    securities = await deps.db.get_all_securities(active_only=True)
+    if inactive_only:
+        all_securities = await deps.db.get_all_securities(active_only=False)
+        securities = [security for security in all_securities if int(security.get("active", 0) or 0) == 0]
+    else:
+        securities = await deps.db.get_all_securities(active_only=not include_inactive)
     if not securities:
         return []
 
     all_symbols = [sec["symbol"] for sec in securities]
+    active_symbols = [sec["symbol"] for sec in securities if int(sec.get("active", 0) or 0) == 1]
+    transaction_counts = await deps.db.get_security_transaction_counts() if include_inactive or inactive_only else {}
 
     # Fetch all data sources
     portfolio = Portfolio(
@@ -367,7 +414,6 @@ async def get_unified_view(
         settings=deps.settings,
         currency=deps.currency,
     )
-    planner = Planner(db=deps.db, broker=deps.broker, portfolio=portfolio)
     analyzer = PortfolioAnalyzer(db=deps.db, portfolio=portfolio, currency=deps.currency)
     if as_of is None:
         positions = await deps.db.get_all_positions()
@@ -375,17 +421,25 @@ async def get_unified_view(
         positions = await analyzer.get_positions_as_of(as_of)
     positions_map = {p["symbol"]: p for p in positions}
 
-    # Recommendations using settings default for min_trade_value
-    eligible_symbols = await get_open_market_symbols(deps.broker, deps.db) if as_of is None else None
-    recommendations = await planner.get_recommendations(as_of_date=as_of, eligible_symbols=eligible_symbols)
-    recommendations_map = {r.symbol: r for r in recommendations}
+    planner = None
+    if inactive_only:
+        recommendations = []
+        recommendations_map = {}
+        ideal = {}
+        current_allocs = {}
+    else:
+        planner = Planner(db=deps.db, broker=deps.broker, portfolio=portfolio)
+        # Recommendations using settings default for min_trade_value
+        eligible_symbols = await get_open_market_symbols(deps.broker, deps.db) if as_of is None else None
+        recommendations = await planner.get_recommendations(as_of_date=as_of, eligible_symbols=eligible_symbols)
+        recommendations_map = {r.symbol: r for r in recommendations}
 
-    # Ideal and current allocations
-    ideal = await planner.calculate_ideal_portfolio(as_of_date=as_of)
-    current_allocs = await planner.get_current_allocations(as_of_date=as_of)
+        # Ideal and current allocations
+        ideal = await planner.calculate_ideal_portfolio(as_of_date=as_of)
+        current_allocs = await planner.get_current_allocations(as_of_date=as_of)
 
     # Live quotes only for live view. As-of views are valued from historical prices.
-    current_quotes = await deps.broker.get_quotes(all_symbols) if as_of is None else {}
+    current_quotes = await deps.broker.get_quotes(active_symbols) if as_of is None and active_symbols else {}
 
     latest_prices_map: dict[str, float] = {}
     if as_of is not None:
@@ -429,7 +483,7 @@ async def get_unified_view(
     sleeves_map = {}
     allocation_decomposition = {}
     global_decomposition = {}
-    diagnostics_getter = getattr(planner, "get_last_allocation_diagnostics", None)
+    diagnostics_getter = getattr(planner, "get_last_allocation_diagnostics", None) if planner is not None else None
     diagnostics = diagnostics_getter(as_of_date=as_of) if callable(diagnostics_getter) else {}
     effective_signals = {}
     if isinstance(diagnostics, dict):
@@ -557,6 +611,10 @@ async def get_unified_view(
                 "active": sec.get("active", 1),
                 "allow_buy": sec.get("allow_buy", 1),
                 "allow_sell": sec.get("allow_sell", 1),
+                "transaction_count": transaction_counts.get(symbol, 0),
+                "can_delete": not bool(sec.get("active", 1))
+                and transaction_counts.get(symbol, 0) == 0
+                and not has_position,
                 "user_multiplier": preference["user_multiplier"],
                 "user_multiplier_age_weeks": preference["user_multiplier_age_weeks"],
                 "user_multiplier_updated_at": sec.get("user_multiplier_updated_at"),

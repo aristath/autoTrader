@@ -32,7 +32,7 @@ function SortableHeader({ children, sorted, reversed, onSort }) {
   );
 }
 
-export function SecurityTable({ securities, onUpdate, onDelete }) {
+export function SecurityTable({ securities, onUpdate, onDelete, onActivate, inactiveMode = false }) {
   const [expandedSymbols, setExpandedSymbols] = useState(new Set());
   const [sortColumn, setSortColumn] = useState(null);
   const [sortReversed, setSortReversed] = useState(false);
@@ -153,7 +153,7 @@ export function SecurityTable({ securities, onUpdate, onDelete }) {
               </SortableHeader>
             </Table.Th>
             <Table.Th>
-              <Text fw={600} size="sm">Trade</Text>
+              <Text fw={600} size="sm">{inactiveMode ? 'Status' : 'Trade'}</Text>
             </Table.Th>
           </Table.Tr>
         </Table.Thead>
@@ -300,20 +300,24 @@ export function SecurityTable({ securities, onUpdate, onDelete }) {
 
                   {/* Trade permissions */}
                   <Table.Td onClick={(e) => e.stopPropagation()}>
-                    <Group gap="xs" wrap="nowrap">
-                      <Switch
-                        label="B"
-                        size="xs"
-                        checked={allow_buy === 1}
-                        onChange={(e) => handleTradeToggle(e, symbol, 'allow_buy')}
-                      />
-                      <Switch
-                        label="S"
-                        size="xs"
-                        checked={allow_sell === 1}
-                        onChange={(e) => handleTradeToggle(e, symbol, 'allow_sell')}
-                      />
-                    </Group>
+                    {inactiveMode ? (
+                      <Badge color="gray" variant="light" size="sm">Inactive</Badge>
+                    ) : (
+                      <Group gap="xs" wrap="nowrap">
+                        <Switch
+                          label="B"
+                          size="xs"
+                          checked={allow_buy === 1}
+                          onChange={(e) => handleTradeToggle(e, symbol, 'allow_buy')}
+                        />
+                        <Switch
+                          label="S"
+                          size="xs"
+                          checked={allow_sell === 1}
+                          onChange={(e) => handleTradeToggle(e, symbol, 'allow_sell')}
+                        />
+                      </Group>
+                    )}
                   </Table.Td>
 
                 </Table.Tr>
@@ -326,6 +330,7 @@ export function SecurityTable({ securities, onUpdate, onDelete }) {
                         security={security}
                         onUpdate={onUpdate}
                         onDelete={onDelete}
+                        onActivate={onActivate}
                       />
                     </Table.Td>
                   </Table.Tr>
