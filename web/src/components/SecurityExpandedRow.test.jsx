@@ -61,3 +61,17 @@ describe('SecurityExpandedRow inactive actions', () => {
     expect(screen.getByText(/has 2 historical transaction/)).toBeInTheDocument();
   });
 });
+
+describe('SecurityExpandedRow AI research score', () => {
+  it('shows a percentage beside the AI_RESEARCH badge without an editable slider', () => {
+    renderRow({
+      ...inactiveSecurity,
+      ai_research_multiplier: 0.85,
+      ai_research_multiplier_source: 'ai_research',
+    });
+
+    expect(screen.getByText('AI_RESEARCH')).toBeInTheDocument();
+    expect(screen.getByText('85%')).toBeInTheDocument();
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument();
+  });
+});

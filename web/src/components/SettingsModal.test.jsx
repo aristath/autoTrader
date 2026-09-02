@@ -42,9 +42,10 @@ describe('SettingsModal model discovery', () => {
     fireEvent.click(await screen.findByRole('tab', { name: 'Research' }));
 
     const selector = await screen.findByRole('combobox', { name: 'Model' });
+    const refresh = screen.getByRole('button', { name: 'Refresh available models' });
     expect(selector).toHaveValue('current-model');
-    fireEvent.click(selector);
-    fireEvent.click(await screen.findByRole('option', { name: 'available-model' }));
+    await waitFor(() => expect(refresh).not.toBeDisabled());
+    fireEvent.change(selector, { target: { value: 'available-model' } });
 
     await waitFor(() => {
       expect(updateSetting).toHaveBeenCalledWith('ai_llm_model', 'available-model');
