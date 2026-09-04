@@ -1,130 +1,71 @@
-# Sentinel - Autonomous Portfolio Management
+# Sentinel
 
-> Long-term autonomous portfolio management with deterministic contrarian strategy
+Sentinel is a long-running portfolio-management service. It synchronizes a
+TraderNet/Freedom24 account, maintains local portfolio history, calculates a
+deterministic contrarian allocation plan, and can execute the next eligible
+transaction when trading mode is `live`.
 
-## Quick Start
+The application consists of a Python/FastAPI service, a native-custom-element
+web interface built with Lit and Teract, an editable AI research task runtime,
+an optional time-series forecasting service, and optional Arduino UNO Q output.
 
-### Development
+## Quick start
+
+Requirements:
+
+- Python 3.13 or newer
+- `uv`
+- Node.js and npm
+- the `sentinel` and `teract` repositories checked out as siblings; Sentinel's
+  frontend dependency resolves Teract from `../../teract` relative to `web/`
 
 ```bash
-# Activate virtual environment
+uv sync --locked --extra dev
 source .venv/bin/activate
-
-# Run Sentinel, including the scheduler and editable task runtime
 python main.py
-
-# Optional: run the model-agnostic forecasting service
-pip install '.[forecasting]'
-uvicorn sentinel.forecasting.service:app --host 127.0.0.1 --port 8010
-
-# Run tests
-pytest
-
-# Lint & format
-ruff check .
-ruff format .
 ```
 
-### Frontend
+The production-compatible default is `http://localhost:8000`. `python main.py`
+starts the API, scheduler, editable task runtime, and production frontend if
+`web/dist/` exists.
+
+For frontend development, in another terminal:
 
 ```bash
-cd web/
+cd web
 npm install
-npm run dev  # http://localhost:5173
+npm run dev
 ```
+
+Vite defaults to `http://localhost:5173` and proxies `/api` to port `8000`.
+Workstation-specific ports must be supplied at runtime; they must not replace
+these tracked defaults.
+
+The optional forecasting service uses a separate environment because its model
+dependencies are not part of the main lock file. See
+[Forecasting](docs/forecasting.md) before enabling it.
 
 ## Documentation
 
-- **[Agent Guide](AGENTS.md)** - Complete developer reference
-- **[Architecture Docs](docs/)** - Component documentation
-  - [Portfolio Composition](docs/portfolio_composition.md) - Analytics & metrics
-  - [Universe Management](docs/universe_management.md) - Security import
-  - [Deposit History](docs/deposit_history.md) - Cashflow analytics
-  - [Contrarian Strategy](docs/strategy_contrarian.md) - Trading signals
+[Sentinel documentation](docs/README.md) is the canonical index. Start with:
 
-## Features
+- [Getting started](docs/getting-started.md)
+- [Architecture](docs/architecture.md)
+- [Configuration](docs/configuration.md)
+- [API reference](docs/api/README.md)
+- [Deployment and recovery](docs/deployment.md)
+- [AI pipeline](docs/ai-pipeline.md)
+- [Frontend and Teract](docs/frontend.md)
 
-- 🤖 **Autonomous Trading** - Integrates with TraderNet API for live execution
-- 📊 **Contrarian Strategy** - Deterministic signals based on price cycles
-- 🎯 **Smart Rebalancing** - Patience-first approach with deposit-aware scheduling
-- 📈 **Portfolio Analytics** - Risk/return metrics, composition breakdowns
-- 🔭 **Time-Series Forecasts** - Optional forecast service for monthly timing signals
-- 🔒 **Safety Guards** - Price anomaly detection, position limits, fee awareness
-- 🌍 **Multi-Currency** - Automatic FX conversion and multi-currency support
+Contributor and automation instructions are in [AGENTS.md](AGENTS.md).
 
-## Architecture
+## Safety
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                     FastAPI Server                       │
-│                    (port 8000)                           │
-├─────────────────────────────────────────────────────────┤
-│  Routers: settings │ portfolio │ securities │ trading   │
-│            planner │ jobs      │ backup     │ system    │
-└─────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────┐
-│                    Core Services                         │
-├─────────────┬──────────────┬──────────────┬─────────────┤
-│   Broker    │   Planner    │   Strategy   │   Cache     │
-│  (TraderNet)│ (Rebalance)  │(Contrarian)  │   (TTL)     │
-└─────────────┴──────────────┴──────────────┴─────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────┐
-│          Optional Forecasting Service (port 8010)        │
-│      model-agnostic API; first provider is Toto 2.0      │
-└─────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────┐
-│                 SQLite Database                          │
-│              (data/sentinel.db)                          │
-│  positions │ prices │ securities │ cashflows │ snapshots │
-└─────────────────────────────────────────────────────────┘
-```
-
-## Technology Stack
-
-- **Backend**: Python 3.13+, FastAPI, aiosqlite
-- **Frontend**: React, Vite, TypeScript
-- **Scheduler**: APScheduler with database persistence
-- **Broker**: TraderNet API integration
-- **Testing**: pytest, pytest-asyncio
-- **Quality**: Ruff (linting), Pyright (type checking)
-
-## Rebalancing Philosophy
-
-Sentinel separates the long-term destination from today's execution:
-
-1. **AI research defines the destination** - Research multipliers set relative twelve-month target weights
-2. **Opportunity controls timing** - Under-target holdings are bought when their price signal is attractive
-3. **Orders form a complete plan** - Ordinary sells exist only to fund an executable selected buy
-4. **Patience has a limit** - After a durable waiting window, one fallback buy keeps the portfolio converging
-5. **Cash is explicit** - Position caps and configured reserves appear as a cash target instead of missing weight
-
-Live execution treats each `trading:execute` run as a fresh decision window: sync broker state, clear planner inputs, calculate the best currently executable plan for open markets, submit at most one ranked transaction, then replan from broker-confirmed state on the next cycle.
-
-## Key Components
-
-| Component | Purpose |
-|---|---|
-| `PortfolioComposition` | Analytics: country/industry breakdowns, risk metrics |
-| `Planner` | AI-research-weighted twelve-month targets with opportunity-timed recommendations |
-| `Contrarian` | Deterministic cycle-based trading signals |
-| `Forecasting` | Scheduled weekly-return forecasts that gently modify timing |
-| `DepositHistory` | Cashflow analytics for self-correction timing |
-| `PriceValidator` | Anomaly detection and interpolation |
-| `Broker` | TraderNet API wrapper with rate limiting |
-
-## Deployment
-
-- **Target**: `aristath@clara.local`; Sentinel runs inside the host's `clara` toolbox container
-- **Systemd**: User-service templates are in `systemd/`; `sentinel-forecasting.service` is optional
-- **Auto-deploy**: `sentinel-deploy.timer` watches `origin/main` and restarts through `sentinel.service`
-- **Manual trigger**: `scripts/deploy.sh` restarts the target service and waits for `/api/health`
+`research` mode calculates plans without submitting broker orders. `live` mode
+permits real orders. Before changing modes, verify broker credentials, market
+status, price validation, trade permissions, and the generated plan.
 
 ## License
 
-Internal use only
+No repository-wide license file is currently present. Do not assume permission
+to redistribute Sentinel or the generated third-party reference snapshots.

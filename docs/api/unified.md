@@ -20,6 +20,8 @@ lazy loading when the inactive section is expanded.
 **Query params**
 - `period` (string, default `1Y`) — Price history window: `1M`, `1Y`, `5Y`, `10Y`
 - `as_of` (string, optional) — Historical date (`YYYY-MM-DD`). When set, uses historical prices and positions as of that date instead of live data.
+- `include_inactive` (boolean, default `false`) — Append inactive securities and deletion metadata.
+- `inactive_only` (boolean, default `false`) — Return only inactive rows without planner/live-market work.
 
 **Response** — Array, one object per security:
 
@@ -64,6 +66,7 @@ lazy loading when the inactive section is expanded.
     "contrarian_score": 0.61,
     "opp_score": 0.63,
     "opp_score_raw": 0.61,
+    "opp_score_pre_forecast": 0.62,
     "dip_score": 0.45,
     "capitulation_score": 0.21,
     "cycle_turn": false,
@@ -71,6 +74,9 @@ lazy loading when the inactive section is expanded.
     "ticket_pct": 0.06,
     "lot_class": "standard",
     "sleeve": "core",
+    "forecast_score": 0.56,
+    "forecast_return_4w": 0.018,
+    "forecast_updated_at": 1788460800,
 
     "prices": [
       { "date": "2025-04-27", "close": 185.50 }
@@ -132,15 +138,19 @@ lazy loading when the inactive section is expanded.
 | Field | Description |
 |---|---|
 | `contrarian_score` | Tactical opportunity score used for display and opportunity rules |
-| `opp_score` | Effective opportunity score after recent-dip memory (0–1) |
+| `opp_score` | Effective opportunity score after recent-dip memory and optional forecast adjustment (0–1) |
 | `opp_score_raw` | Raw opportunity score before recent-dip memory is applied |
+| `opp_score_pre_forecast` | Opportunity score after event memory but before forecast adjustment |
 | `dip_score` | Dip detection score |
 | `capitulation_score` | Capitulation/oversold score |
 | `cycle_turn` | `true` if a cyclical turn signal is detected |
 | `freefall_block` | `true` if buying is blocked due to freefall pattern |
 | `ticket_pct` | Lot cost as fraction of portfolio value |
-| `lot_class` | `standard` or `coarse` |
+| `lot_class` | `standard`, `coarse`, or `jumbo` |
 | `sleeve` | `core` or `opportunity` |
+| `forecast_score` | Latest fresh combined forecast timing score, when available |
+| `forecast_return_4w` | Forecasted four-week return associated with that score |
+| `forecast_updated_at` | Unix timestamp of the stored forecast score |
 
 **Prices**
 

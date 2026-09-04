@@ -1,5 +1,8 @@
 # Contrarian Cycle Strategy V1 - Complete End-to-End Plan
 
+> Status: historical V1 design. Use [Strategy](../strategy_contrarian.md) for
+> the current strategy and planner contract.
+
 Date: 2026-02-06
 Status: Draft (execution-ready)
 Owner: Sentinel

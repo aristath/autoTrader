@@ -1,165 +1,69 @@
-# Universe Management & Security Import
+# Universe management
 
-**File**: `sentinel/universe.py`
+`sentinel/universe.py` reconciles Sentinel's active securities with the user's
+default Freedom24 stock list (Favorites). Reconciliation is run by the
+`sync:metadata` fixed job; there is no dedicated universe/import HTTP endpoint.
 
-## Overview
+## Provenance
 
-This module handles reconciliation between the Freedom24 "Favorites" list and Sentinel's security universe. It provides the infrastructure for importing, tracking, and managing securities from external sources.
+`securities.universe_source` records why a security is active:
 
-## Key Features
+| Value | Meaning |
+|---|---|
+| `freedom24_default` | Present in the Freedom24 default stock list |
+| `broker_position` | Retained because the broker reports a non-zero position |
 
-### Freedom24 Integration
+`universe_last_seen_at` records the latest successful Favorites observation.
 
-- Imports securities from Freedom24 "Favorites" watchlist
-- Reconciles additions, removals, and modifications
-- Tracks provenance (which list/source each security came from)
+## Reconciliation
 
-### Security Import Workflow
+`reconcile_universe_from_freedom24_default_list()`:
 
-1. **Fetch**: Pull Favorites list from Freedom24 API
-2. **Reconcile**: Compare against existing Sentinel universe
-3. **Import**: Add new securities with proper metadata
-4. **Reactivate**: Re-enable previously disabled securities
-5. **Remove**: Optionally remove securities no longer in Favorites
+1. fetches the broker's user stock lists;
+2. selects the list identified by `defaultId`;
+3. extracts its non-empty ticker strings;
+4. adds or reactivates missing favorites;
+5. restores buying when a position-retained security returns to Favorites; and
+6. applies the removal rules below to active symbols no longer present.
 
-## Data Structures
+The run is skipped without mutation if the default list is unavailable or
+empty. It is also skipped when proposed additions plus removals exceed 50
+percent of the current active universe. That guard prevents a malformed or
+partial upstream response from disabling most securities.
 
-### `SecurityImportResult`
+## Import behavior
 
-Individual security import outcome:
+`import_security_from_broker()` obtains name, currency, market ID, and minimum
+lot when available, then activates buying and selling. New geography and
+industry values are deliberately left for metadata sync, which uses the
+broker's country-of-risk and sector attributes. Existing analysis history and
+metadata survive reactivation.
 
-```python
-@dataclass
-class SecurityImportResult:
-    symbol: str
-    name: str
-    prices_count: int
-    re_enabled: bool
+Imports normally request 20 years of historical prices. A metadata or history
+failure is logged and does not undo the security row; a later sync retries it.
+
+Manual security creation is available through `POST /api/securities`, described
+in [Securities API](api/securities.md). It is separate from Favorites
+reconciliation.
+
+## Removal rules
+
+When a symbol disappears from Favorites:
+
+- With a non-zero position, it remains active, buying is disabled, selling
+  remains enabled, and provenance becomes `broker_position`.
+- Without a position, it becomes inactive and both buying and selling are
+  disabled.
+
+This prevents the upstream watchlist from hiding or stranding an owned asset.
+
+`UniverseReconciliationResult` reports imported, reactivated, removed,
+buy-disabled, buy-reenabled, provenance-updated, and skipped symbols. Its
+`changed` property covers material activation/trading changes.
+
+## Tests
+
+```bash
+source .venv/bin/activate
+pytest tests/test_universe.py -v
 ```
-
-### `UniverseReconciliationResult`
-
-Batch import summary:
-
-```python
-@dataclass
-class UniverseReconciliationResult:
-    imported: list[str]          # Newly added symbols
-    reactivated: list[str]       # Re-enabled symbols
-    removed: list[str]           # Removed symbols
-    buy_disabled: list[str]      # Disabled for buying
-    buy_reenabled: list[str]     # Re-enabled for buying
-    provenance_updated: list[str] # Source list changed
-    skipped: list[str]           # Already up-to-date
-
-    @property
-    def changed: bool           # True if any modifications made
-```
-
-## Universe Sources
-
-### `FREEDOM24_UNIVERSE_SOURCE`
-
-String identifier: `"freedom24_default"`
-
-- Tracks securities from Freedom24 Favorites
-- Used in `securities.provenance` field
-
-### `BROKER_POSITION_UNIVERSE_SOURCE`
-
-String identifier: `"broker_position"`
-
-- Tracks securities that have active positions
-- Auto-added when positions are synced from broker
-
-## API Endpoints
-
-Exposed via `sentinel/api/routers/securities.py`:
-
-- `POST /api/securities/import-favorites` - Import from Freedom24
-- `GET /api/securities/universe` - List all securities with provenance
-- `PUT /api/securities/{symbol}/provenance` - Update security source
-
-## Usage Examples
-
-### Import Freedom24 Favorites
-
-```python
-from sentinel.universe import reconcile_favorites
-
-result = await reconcile_favorites(broker, db)
-
-print(f"Imported: {len(result.imported)}")
-print(f"Reactivated: {len(result.reactivated)}")
-print(f"Skipped: {len(result.skipped)}")
-print(f"Changes made: {result.changed}")
-```
-
-### Check Security Provenance
-
-```python
-securities = await db.get_all_securities()
-
-for sec in securities:
-    print(f"{sec['symbol']}: {sec.get('provenance', 'unknown')}")
-```
-
-## Implementation Details
-
-### Lot Size Detection
-
-Extracts minimum lot size from broker metadata:
-
-- Handles both direct `lot` field and nested structures
-- Defaults to 1 if not specified
-- Used for trade sizing calculations
-
-### Market ID Extraction
-
-Pulls market identifier from broker payload:
-
-- Supports nested `mrkt.mkt_id` structure
-- Falls back to existing DB value if broker returns None
-- Empty string if no market info available
-
-### Ticker Parsing
-
-From Freedom24 stock list payload:
-
-- Extracts from `tickers` array in default list
-- Strips whitespace and filters empty strings
-- Returns as `set[str]` for efficient lookup
-
-## Reconciliation Logic
-
-### Import Flow
-
-1. Fetch current Favorites from broker
-2. For each ticker in Favorites:
-   - If not in DB → **Import** (add with provenance)
-   - If exists but disabled → **Reactivate**
-   - If exists and active → **Skip** (already tracked)
-3. Optionally remove securities not in Favorites (user-configurable)
-
-### Update Flow
-
-1. Compare broker metadata with DB records
-2. Update fields: `geography`, `industry`, `instr_kind_c`, `market_id`
-3. Track which securities had changes in `provenance_updated`
-
-## Testing
-
-Tests located in `tests/test_universe.py`
-
-Key test scenarios:
-
-- Full reconciliation with new imports
-- Reactivation of disabled securities
-- Provenance tracking and updates
-- Empty/edge case handling
-
-## Related Documentation
-
-- [API: Securities](../sentinel/api/routers/securities.py) - Endpoint implementation
-- [Broker: API Wrapper](../sentinel/broker.py) - Freedom24 API integration
-- [Database: Schema](../sentinel/database/base.py) - Securities table structure

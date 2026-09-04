@@ -2,10 +2,10 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   server: {
-    port: 45173,
+    port: 5173,
     proxy: {
       "/api": {
-        target: "http://localhost:48000",
+        target: "http://localhost:8000",
         changeOrigin: true,
       },
     },

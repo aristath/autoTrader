@@ -1,280 +1,191 @@
 # Sentinel Agent Guide
 
-## Project Overview
+This file contains the rules and high-frequency facts needed when modifying
+Sentinel. The canonical explanatory documentation is indexed from
+[`docs/README.md`](docs/README.md).
 
-Sentinel is a long-term autonomous portfolio management system built with Python/FastAPI backend and React frontend. It integrates with TraderNet API for live trading and supports automated portfolio rebalancing with a deterministic contrarian strategy.
+## Commands
 
-## Essential Commands
-
-### Development & Testing
-
-**IMPORTANT**: Always activate virtual environment first:
+Activate the Python 3.13+ environment before running Python tools:
 
 ```bash
-# Activate venv (Python 3.13+ on target device)
-source .venv/bin/activate  # Linux/macOS
-# or .venv\Scripts\activate  # Windows
-
-# Run Sentinel, including the scheduler and editable task runtime
+source .venv/bin/activate
 python main.py
-
-# Run specific test
-pytest tests/test_database.py -v
-
-# Run all tests
 pytest
-
-# Lint code
 ruff check .
-
-# Format code
 ruff format .
-
-# Type check
 pyright
 ```
 
-### Frontend
+Create or refresh the environment with:
 
 ```bash
-cd web/
+uv sync --locked --extra dev
+```
+
+Frontend commands run from `web/`:
+
+```bash
 npm install
-npm run dev      # Dev server on http://localhost:5173
-npm run build    # Build for production
+npm run dev
+npm run build
 ```
 
-## Code Organization
+Tracked development defaults are Vite `5173` and Sentinel `8000`. Use
+invocation-only overrides for workstation-specific ports.
 
-### Backend Structure
+## Current architecture
 
-- `sentinel/` - Main application package
-  - `app.py` - FastAPI application entry point with lifespan management (scheduler, LED, DB connections)
-  - `broker.py` - Singleton Tradernet API wrapper (`Broker` class)
-  - `portfolio.py` - Portfolio-level operations and sync (`Portfolio` class)
-  - `portfolio_composition.py` - Portfolio analytics: country/industry breakdowns, risk/return metrics, radar chart data (41KB)
-  - `security.py` - Single-security operations (`Security` class)
-  - `settings.py` - All app configuration via DB (`Settings` class + `DEFAULTS`)
-  - `cache.py` - In-memory TTL cache for expensive computations (`Cache` class)
-  - `currency.py` - Exchange rate management via Tradernet (`Currency` class)
-  - `currency_exchange.py` - Currency conversion utilities
-  - `universe.py` - Freedom24 universe reconciliation and security import management
-  - `aggregates.py` - Equal-weighted aggregate price series for country/industry groups
-  - `backtester.py` - Historical simulation in an isolated in-memory DB (`Backtester`)
-  - `price_validator.py` - Price spike/crash detection and interpolation (`PriceValidator`)
-  - `snapshot_service.py` - Portfolio snapshot reconstruction and backfill
-  - `paths.py` - Data directory path resolution (respects `SENTINEL_DATA_DIR` env var)
-  - `version.py` - Application version string
-  - `research/` - Research notebooks and analysis scripts
-  - `api/` - FastAPI routers and endpoints
-  - `config/` - Static configuration (supported categories, currencies)
-  - `database/` - Database operations using aiosqlite
-  - `jobs/` - APScheduler-based task scheduling
-  - `led/` - LED indicator controller (optional hardware, Arduino UNO Q bridge)
-  - `planner/` - Portfolio planning and rebalancing logic
-  - `strategy/` - Deterministic contrarian scoring and lot classification
-  - `utils/` - Utility functions and decorators
+- `main.py` starts Uvicorn; the default port is `8000`.
+- `sentinel/app.py` owns FastAPI lifespan, dependencies, scheduler, folder-task
+  runtime, LED controller, API routers, and production static serving.
+- `sentinel/database/` owns all SQLite schema and operations.
+- `sentinel/services/` owns reusable portfolio valuation/state services.
+- `sentinel/planner/` owns ideal allocation and executable recommendations.
+- `sentinel/strategy/contrarian.py` owns deterministic price signals.
+- `sentinel/forecasting/` owns the provider-neutral client, scoring, series
+  preparation, and optional forecasting service.
+- `sentinel/ai/` owns LLM, research-unit, memory, and tool integrations.
+- `sentinel/tasks/` owns editable folder-task storage and durable execution.
+- `sentinel/task_definitions/` contains bundled task definitions and prompts.
+- `sentinel/jobs/` owns fixed application jobs and APScheduler integration.
+- `sentinel/led/`, `arduino-app/`, and `firmware/` own optional hardware output.
+- `web/src/` is a JavaScript frontend using Lit, Teract custom elements, and
+  CodeMirror. It is not React and does not use Mantine.
+- `TUI/` is the separate Go terminal client.
 
-### API Routers (`sentinel/api/routers/`)
+See [Architecture](docs/architecture.md) for data flow and ownership.
 
-Each file provides one or more routers mounted under `/api`:
+## API routers
 
-| File | Routers |
+All application routes are mounted under `/api` except the production frontend
+fallback:
+
+| File | Prefixes |
 |---|---|
-| `settings.py` | `settings_router`, `led_router` |
-| `portfolio.py` | `portfolio_router`, `allocation_router`, `targets_router` |
-| `securities.py` | `securities_router`, `prices_router`, `unified_router` |
-| `trading.py` | `trading_router`, `cashflows_router`, `trading_actions_router` |
-| `planner.py` | `planner_router` |
-| `jobs.py` | `jobs_router` |
-| `backup.py` | `backup_router` |
-| `system.py` | `system_router`, `cache_router`, `backtest_router`, `exchange_rates_router`, `markets_router`, `meta_router`, `pulse_router` |
+| `ai.py` | `/api/ai` |
+| `backup.py` | `/api/backup` |
+| `forecasts.py` | `/api/forecasts` |
+| `jobs.py` | `/api/jobs` |
+| `memory.py` | `/api/memory` |
+| `planner.py` | `/api/planner` |
+| `portfolio.py` | `/api/portfolio` |
+| `securities.py` | `/api/securities`, `/api/prices`, `/api/unified` |
+| `settings.py` | `/api/settings`, `/api/led` |
+| `system.py` | `/api/health`, `/api/version`, `/api/cache`, `/api/backtest`, `/api/exchange-rates`, `/api/markets`, `/api/meta`, `/api/pulse` |
+| `tasks.py` | `/api/tasks`, `/api/task-runs`, `/api/scheduler` |
+| `trading.py` | `/api/trades`, `/api/cashflows`, direct `/api/securities/{symbol}/buy|sell` |
 
-### Planner Package (`sentinel/planner/`)
+The hand-written contract is [docs/api/README.md](docs/api/README.md); running
+OpenAPI is available at `/openapi.json`, `/docs`, and `/redoc`.
 
-- `planner.py` - Facade class (`Planner`) delegating to the components below
-- `allocation.py` - Ideal portfolio computation (`AllocationCalculator`)
-- `analyzer.py` - Current portfolio state queries (`PortfolioAnalyzer`)
-- `rebalance.py` - Trade recommendation generation (`RebalanceEngine`)
-- `rebalance_cash.py` - Cash constraint and deficit-sell logic
-- `rebalance_rules.py` - Priority calculation, tranche stages, trade reasons
-- `preferences.py` - AI research multiplier handling and decay logic
-- `deposit_history.py` - Rolling 6-month deposit average helper (`DepositHistoryHelper`)
-- `models.py` - Data classes: `TradeRecommendation`, `RebalanceSummary`
+## Fixed scheduled jobs
 
-### Scheduled Job Tasks (`sentinel/jobs/tasks.py`)
+The exact registry is `TASK_REGISTRY` in `sentinel/jobs/runner.py`:
 
-Plain async functions executed by APScheduler:
-
-| Task | Purpose |
+| Job type | Function |
 |---|---|
-| `sync_portfolio` | Sync positions from broker |
-| `sync_prices` | Fetch 20-year historical prices for all securities |
-| `sync_quotes` | Refresh live quote data |
-| `sync_metadata` | Sync security metadata from broker (country, industry, lot size) |
-| `sync_benchmarks` | Sync benchmark indices roster and prices |
-| `sync_exchange_rates` | Fetch current FX rates |
-| `sync_trades` | Sync trade history |
-| `sync_cashflows` | Sync cashflow history |
-| `sync_dividends` | Sync dividend records |
-| `snapshot_backfill` | Reconstruct missing portfolio snapshots |
-| `aggregate_compute` | Recompute country/industry aggregate price series |
-| `trading_check_markets` | Check market open status |
-| `trading_execute` | Execute pending trade recommendations |
-| `trading_rebalance` | Generate new trade recommendations via Planner |
-| `trading_balance_fix` | Correct quantity mismatches between DB and broker |
-| `planning_refresh` | Refresh planner state without generating trades |
-| `backup_r2` | Upload DB backup to Cloudflare R2 |
+| `sync:portfolio` | `sync_portfolio` |
+| `sync:prices` | `sync_prices` |
+| `sync:quotes` | `sync_quotes` |
+| `sync:metadata` | `sync_metadata` |
+| `sync:exchange_rates` | `sync_exchange_rates` |
+| `sync:trades` | `sync_trades` |
+| `sync:cashflows` | `sync_cashflows` |
+| `sync:dividends` | `sync_dividends` |
+| `sync:benchmarks` | `sync_benchmarks` |
+| `decay:ai_research_multipliers` | `decay_ai_research_multipliers` |
+| `snapshot:backfill` | `snapshot_backfill` |
+| `trading:check_markets` | `trading_check_markets` |
+| `trading:execute` | `trading_execute` |
+| `trading:rebalance` | `trading_rebalance` |
+| `trading:balance_fix` | `trading_balance_fix` |
+| `planning:refresh` | `planning_refresh` |
+| `forecast:run` | `forecast_run` |
+| `forecast:evaluate` | `forecast_evaluate` |
+| `backup:r2` | `backup_r2` |
 
-### Key Architecture Patterns
+Editable AI tasks are a separate durable task runtime; do not add them to this
+registry. See [Tasks](docs/tasks.md) and [Scheduler](docs/scheduler.md).
 
-1. **Singleton Pattern**: Uses `@singleton` decorator for `Database`, `Settings`, `Broker`, `Portfolio`, `Currency`, and other shared resources
-2. **Database Access**: All database operations go through `Database` class in `sentinel/database/main.py`
-3. **Settings Management**: All configuration stored in database, editable via web UI
-4. **Async/Await**: Entire codebase uses async patterns with FastAPI and aiosqlite
-
-## Important Conventions
-
-### Database Pattern
-
-- Never use raw SQL - use Database class methods
-- All database calls are async
-- Database file: `data/sentinel.db` (project root; override with `SENTINEL_DATA_DIR` env var)
-- Settings stored in `settings` table, accessible via `Settings` class
-
-### API Structure
-
-- All API routes under `/api/` prefix
-- Response format: standardized JSON with consistent error handling
-- CORS enabled for development
-
-### Strategy Components
-
-- Deterministic contrarian scoring in `sentinel/strategy/contrarian.py`
-- Portfolio allocation logic in `sentinel/planner/allocation.py`
-- Trade recommendation engine in `sentinel/planner/rebalance.py`
-
-### Configuration
-
-- No hardcoded values - all settings go through Settings class
-- Trading mode: 'research' (no real trades) or 'live' (real trading)
-- Default settings defined in `sentinel/settings.py`
-
-## Testing Approach
-
-### Test Organization
-
-- `tests/` - Main test directory
-- `tests/jobs/` - Job scheduling specific tests
-- Test files follow pattern `test_*.py`
-
-### Test Commands
-
-```bash
-pytest                    # All tests
-pytest tests/test_database.py -v  # Specific file
-pytest -k "test_settings" -v     # Pattern matching
-```
-
-## Critical Gotchas
+## Required conventions
 
 ### Database
 
-- Database is singleton per path - one connection per unique database file
-- Always async operations - use `await` with all DB calls
-- Auto-seeds default values on first connection
+- Use async methods on `sentinel.database.Database`; do not add ad-hoc SQL in
+  application modules.
+- The default database is `data/sentinel.db`; `SENTINEL_DATA_DIR` changes the
+  containing directory.
+- Schema creation and idempotent migrations live in `sentinel/database/`.
+- Preserve historical trades, dividends, cash flows, and task runs.
 
 ### Settings
 
-- Settings are cached in memory
-- Changes via UI update both DB and memory cache
-- Default values only applied on empty database
+- Runtime configuration belongs in `sentinel/settings.py` and the database.
+- New settings require a default, validation where appropriate, UI/API handling
+  if editable, tests, and an update to [Configuration](docs/configuration.md).
+- Settings are cached by the service objects that consume them; use existing
+  update/invalidation paths.
 
 ### Trading
 
-- Mode set via settings: 'research' vs 'live'
-- Research mode prevents actual trades
-- Fee structure configurable via settings
-
-### Scheduler
-
-- APScheduler-based with database persistence
-- Jobs stored in database schedules
-- Market hours checking via `BrokerMarketChecker`
-- The scheduler and editable task runtime start with the web application
-
-### Price Validator
-
-- Runs on startup and during price sync
-- Detects spikes (>1000% change) and crashes (<-90%)
-- Interpolates invalid data rather than dropping it
-- Also used to block trades when live price looks anomalous
+- `research` must never submit a live broker order.
+- `live` may submit real orders. UI-only work must preserve this behavior.
+- Preserve price-anomaly guards, lot sizing, trade permissions, market checks,
+  fee handling, and cash constraints unless the requested strategy change
+  explicitly alters them.
 
 ### Frontend
 
-- Vite dev server proxies `/api` to port 8000
-- Production build served via FastAPI static files
-- Build output goes to `web/dist/`
+- Use native custom elements and shared Teract primitives.
+- Teract remains minimal and dependency-free; Sentinel may depend on Lit and
+  CodeMirror.
+- Component visual CSS is self-contained in element templates as inline style
+  attributes. Global page/theme defaults belong in Teract global CSS.
+- Preserve light-DOM children; do not replace `innerHTML` or `textContent` around
+  Lit `ChildPart` markers.
+- Build output is tracked in `web/dist/` and served by FastAPI.
 
-## Security Considerations
+### Testing and formatting
 
-The app runs on a local network and is not publicly accessible. Security is not a concern for this internal system.
+- A red test, lint, build, or type-check result is a failure.
+- Preserve unrelated worktree and index changes.
+- Run the narrowest relevant checks while developing and the full appropriate
+  gates before delivery. See [Testing](docs/testing.md).
 
-## Deployment Notes
+## Common changes
 
-- Production target: `aristath@clara.local`
-- Sentinel runs inside the target's `clara` toolbox container with its home directory bind-mounted
-- User-systemd service files for auto-start and main-branch deployment are in `systemd/`
-- `scripts/deploy.sh` restarts the production user service and waits for the health endpoint
-- LED controller optional - checks settings before initializing
+### Add an API endpoint
 
-## Environment Setup
+1. Add the route in `sentinel/api/routers/`.
+2. Export/import and mount it in `sentinel/app.py` when using a new router.
+3. Add API tests.
+4. Add the operation to `docs/api/` and keep route coverage exact.
 
-This project uses Python 3.13+ with virtual environment:
+### Change the database schema
 
-- Always activate venv before running commands
-- Package dependencies in `pyproject.toml`
-- Lock file: `uv.lock`
-- Target Python: 3.13 (configured in `pyproject.toml` and `pyright`)
+1. Update the canonical schema in `sentinel/database/main.py`.
+2. Add an idempotent migration in the database initialization path.
+3. Add migration and method tests.
+4. Update [Database](docs/database.md).
 
-## Common Tasks
+### Add a fixed job
 
-### Adding New API Endpoint
+1. Add the async function to `sentinel/jobs/tasks.py`.
+2. Register it in `sentinel/jobs/runner.py`.
+3. Seed its default schedule in `Database.seed_default_job_schedules()`.
+4. Add task and runner tests.
+5. Update [Scheduler](docs/scheduler.md), this file, and `docs/api/jobs.md`.
 
-1. Create router in `sentinel/api/routers/`
-2. Import in `sentinel/api/routers/__init__.py`
-3. Include router in `sentinel/app.py`
-4. Add tests in `tests/test_api_*.py`
+### Add or change an editable AI task
 
-### Modifying Database Schema
+Follow [Tasks](docs/tasks.md). Bundled task definitions live under
+`sentinel/task_definitions`; user overrides live under
+`$SENTINEL_HOME/tasks`.
 
-1. Update schema in `sentinel/database/base.py`
-2. Add migration logic in Database class
-3. Update all affected database methods
+## Deployment
 
-### Modifying Strategy Logic
-
-1. Update deterministic signals in `sentinel/strategy/contrarian.py`
-2. Update sleeve or weighting behavior in `sentinel/planner/allocation.py`
-3. Update trade generation constraints in `sentinel/planner/rebalance.py`
-4. Update rules/priorities in `sentinel/planner/rebalance_rules.py`
-5. Add/adjust tests in `tests/test_strategy_contrarian.py` and planner tests
-
-### Adding a Scheduled Job
-
-1. Add async task function in `sentinel/jobs/tasks.py`
-2. Register in `sentinel/jobs/runner.py`
-3. Add default schedule via `db.seed_default_job_schedules()`
-
-## Error Handling
-
-- All API errors return JSON with consistent structure
-- Database operations wrapped with proper error handling
-- Logging via standard Python logging module
-- Critical errors logged with full stack traces
-
-## Code Style
-
-- Ruff configured with 120 character line length
-- Target Python version: 3.13+
-- Async/await throughout - no sync blocking
-- Type hints encouraged but not strictly required
+Production is `aristath@clara.local`, inside the `clara` toolbox container. The
+user service tracks `origin/main`, starts `main.py --host 0.0.0.0`, and therefore
+uses port `8000`. Read [Deployment and recovery](docs/deployment.md) before
+changing service or database state.

@@ -76,7 +76,7 @@ Force an immediate LED display refresh without waiting for the next cycle.
 
 Get the latest health telemetry stored by the Arduino UNO Q bridge.
 
-**Response** — Same shape as the `bridge` field in [`GET /api/led/status`](#get-apiled-status).
+**Response** — Same shape as the `bridge` field in [`GET /api/led/status`](#get-apiledstatus).
 
 ---
 

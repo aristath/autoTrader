@@ -1,4 +1,7 @@
 # Neon Pulse TUI Design
+
+> Status: superseded design record. See [Frontend and Teract](../frontend.md)
+> and [Go TUI](../go-tui.md) for the current implementations.
 **Date:** 2026-02-01
 
 ## Overview

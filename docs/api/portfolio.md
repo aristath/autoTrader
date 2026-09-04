@@ -91,7 +91,8 @@ Returns a lightweight CAGR from inception for ambient display. Calculated from n
 
 ## `GET /api/portfolio/pnl-history`
 
-Returns daily P&L history for the past 365 days with 365-day rolling time-weighted return (TWR).
+Returns daily P&L history with a 365-day rolling time-weighted return (TWR).
+The `period` query is one of `3M`, `6M`, `1Y` (default), or `ALL`.
 
 **Response**
 ```json
@@ -136,8 +137,8 @@ Requires `freedom24_login` and `freedom24_password` settings. Returns `503` when
 
 Locally computed composition + risk/return metrics, designed to replace the now-unreliable `/structure` endpoint. Everything is derived from data we already have: positions, securities table, portfolio snapshots, benchmark indices, cash flow history.
 
-**Response** (truncated)
-```json
+**Response shape** (abridged JavaScript notation)
+```javascript
 {
   "as_of": "2026-05-22",
   "total_value_eur": 30522.47,
@@ -158,14 +159,19 @@ Locally computed composition + risk/return metrics, designed to replace the now-
     "max_drawdown": 0.296,
     "sharpe": -0.066,
     "hhi": 0.341,
-    "alpha_1y": 0.241,
-    "primary_benchmark_symbol": "SP500.IDX",
-    "benchmark_return_1y": 0.0,
+    "beta_vs_home": 0.84,
+    "alpha_1y_vs_home": 0.041,
+    "home_coverage_pct": 0.95,
     "risk_free_rate": 0.02
   },
-  "benchmarks": [
-    {"symbol": "SP500.IDX", "name": "Index S&P 500", "beta": 0.84, "correlation": 0.72, "return_1y": 0.12, "samples": 245},
-    ...
+  "home_markets": [
+    {
+      "group": "EUROPE",
+      "indices": ["DAX.IDX", "FCHI.IDX"],
+      "weight_pct": 0.42,
+      "beta": 0.84,
+      "alpha_1y": 0.041
+    }
   ],
   "radar": {
     "return_1y": 0.74,
@@ -184,6 +190,55 @@ Locally computed composition + risk/return metrics, designed to replace the now-
 - `metrics.return_1y` — 365-day rolling TWR (decimal fraction)
 - `metrics.return_since_inception_cagr` — annualised growth from the first snapshot, EUR-deposit-normalised
 - `metrics.volatility` — annualised standard deviation of daily HPRs (outlier-filtered for snapshot-reconstruction artefacts)
-- `metrics.primary_benchmark_symbol` — auto-picked benchmark (highest correlation with this portfolio's daily returns) used for the radar's `alpha` axis
-- `benchmarks` — beta + correlation against every benchmark in the `benchmarks` table with ≥30 days of overlap, sorted by absolute correlation
+- `metrics.beta_vs_home` — value-weighted beta of each holding against its resolved home-market basket
+- `metrics.alpha_1y_vs_home` — value-weighted one-year excess return against those baskets
+- `metrics.home_coverage_pct` — fraction of held value covered by usable home-market data
+- `home_markets` — per-basket weight, indices, beta, and one-year excess return
 - `radar` — six 0..1 normalised axes for the Risk/Return visualization
+
+---
+
+## `GET /api/portfolio/value-projection`
+
+Returns realized portfolio history plus a monthly forward projection. Query
+parameters:
+
+| Parameter | Default | Constraint |
+|---|---:|---|
+| `years` | `10` | `5`, `10`, `15`, `20`, or `25` |
+| `avg_monthly_net_deposit_eur` | rolling six-month value | Optional finite override |
+
+`history` contains realized value, deposits, and P&L. `projection` starts at the
+current value and contains monthly points through the selected horizon.
+`summary` records current value/deposits/P&L, the inferred return rate, actual
+and overridden monthly contribution, horizon, and projected totals. With no
+snapshots, both series are empty and `summary` is null.
+
+The projection is a scenario based on the money-weighted inception run-rate and
+monthly contributions; it is not a market forecast.
+
+---
+
+## `GET /api/portfolio/period-stats`
+
+Returns table-ready performance for `1D`, `1W`, `1M`, `3M`, `6M`, and `1Y`:
+
+```json
+{
+  "as_of_date": "2026-09-04",
+  "benchmark_symbol": "VWCE.EU",
+  "period_stats": {
+    "1D": {
+      "portfolio_eur": 42.5,
+      "portfolio_pct": 0.16,
+      "benchmark_pct": null,
+      "alpha_pct": null
+    }
+  }
+}
+```
+
+Longer periods reconstruct their start value from positions, trades, cash, cash
+flows, historical prices, and FX. A missing/stale boundary produces null fields
+rather than fabricated performance. The `1D` row uses the shared live
+intraday valuation when available.

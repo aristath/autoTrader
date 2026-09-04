@@ -1,4 +1,7 @@
 # Neon Pulse TUI Implementation Plan
+
+> Status: superseded implementation plan. Proposed paths and phases below are
+> not current operating instructions.
 **Date:** 2026-02-01
 **Based on:** docs/plans/2026-02-01-neon-pulse-tui-design.md
 

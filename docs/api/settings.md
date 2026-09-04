@@ -8,20 +8,20 @@ Base path: `/api/settings`
 
 Returns all application settings, merging stored values with defaults. Runtime snapshots such as exchange rates and LED bridge health may also appear in the same key-value store.
 
-**Response** (abbreviated)
+**Response** (abbreviated; see the canonical default table in
+[Configuration](../configuration.md))
 ```json
 {
-  "trading_mode": "live",
+  "trading_mode": "research",
   "transaction_fee_fixed": 2.0,
   "transaction_fee_percent": 0.2,
   "max_position_pct": 25,
   "min_position_pct": 2,
-  "min_trade_value": 250,
+  "min_trade_value": 400.0,
   "min_cash_buffer": 0.005,
   "target_cash_pct": 0,
   "simulated_cash_eur": null,
   "rebalance_threshold_pct": 5,
-  "diversification_impact_pct": 10,
   "max_dividend_reinvestment_boost": 0.15,
   "tradernet_api_key": "...",
   "tradernet_api_secret": "...",
@@ -50,32 +50,9 @@ Returns all application settings, merging stored values with defaults. Runtime s
   "strategy_max_funding_turnover_pct": 0.12,
   "strategy_funding_conviction_bias": 1.0,
   "ai_research_multiplier_strength": 5.0,
-  "ai_research_multiplier_decay_factor": 0.9,
-  "ai_research_multiplier_decay_interval_days": 7,
-  "led_display_enabled": true,
-  "led_brightness": 200,
-  "r2_account_id": "",
-  "r2_access_key": "",
-  "r2_secret_key": "",
-  "r2_bucket_name": "",
-  "r2_backup_retention_days": 30,
-  "exchange_rates": {
-    "EUR": 1.0,
-    "USD": 0.8555,
-    "GBP": 1.1558,
-    "HKD": 0.1094
-  },
-  "led_bridge_health": {
-    "bridge_ok": true,
-    "consecutive_failures": 0,
-    "last_attempt_ts": 1745748000,
-    "last_success_ts": 1745748000,
-    "last_error_ts": null,
-    "last_error": null,
-    "watchdog_action": null,
-    "app_instance": "arduino-app/sentinel",
-    "updated_at_ts": 1745748000
-  }
+  "forecasting_enabled": true,
+  "led_display_enabled": false,
+  "led_brightness": 200
 }
 ```
 
@@ -83,8 +60,8 @@ Returns all application settings, merging stored values with defaults. Runtime s
 
 | Field | Description |
 |---|---|
-| `exchange_rates` | Current FX rates to EUR, embedded as a convenience (same data as `GET /api/exchange-rates`) |
-| `led_bridge_health` | Latest bridge health snapshot (same data as `GET /api/led/bridge/health`) |
+| `exchange_rates` | When stored, current FX rates to EUR (also exposed by `GET /api/exchange-rates`) |
+| `led_bridge_health` | When the UNO Q app has reported, latest raw bridge-health snapshot; the normalized view is `GET /api/led/bridge/health` |
 | `target_cash_pct` | Long-term cash allocation target; the remaining target weight is allocated to securities |
 | `min_cash_buffer` | Cash reserve ratio kept out of buy budgets during trade sizing |
 | `cooldown_enabled` | Master switch for planner cool-off checks. When false, recent-trade cooldown periods are ignored. |
@@ -94,6 +71,10 @@ Returns all application settings, merging stored values with defaults. Runtime s
 ## `PUT /api/settings/{key}`
 
 Set a single setting value.
+
+The endpoint rejects explicitly retired keys, but otherwise stores the supplied
+JSON value. Clients should use keys and types from [Configuration](../configuration.md);
+unknown keys are not automatically a supported application contract.
 
 **Path params**
 - `key` — Setting key (e.g. `trading_mode`, `transaction_fee_fixed`)
