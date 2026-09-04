@@ -1,0 +1,10 @@
+import "teract";
+import "teract/tui.css";
+import "./sentinel-header.js";
+import "./sentinel-planner-status.js";
+import "./sentinel-portfolio-pnl.js";
+import "./sentinel-portfolio-status.js";
+import "./sentinel-portfolio-value.js";
+import "./sentinel-securities.js";
+import "./sentinel-status-bar.js";
+import "./sentinel-app.js";
