@@ -12,6 +12,8 @@ export default defineConfig({
   },
   build: {
     target: "esnext",
+    // Vite 8's Oxc minifier corrupts Lit's binding part indexes.
+    minify: false,
     outDir: "dist",
   },
 });
