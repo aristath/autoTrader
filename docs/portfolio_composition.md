@@ -1,173 +1,104 @@
-# Portfolio Composition & Analytics
+# Portfolio composition and analytics
 
-**File**: `sentinel/portfolio_composition.py` (41KB)
+`sentinel/portfolio_composition.py` contains pure calculation helpers plus the
+async `build_composition()` orchestrator used by
+`GET /api/portfolio/composition`. There is no `PortfolioComposition` class and
+no separate `/metrics` or `/radar` endpoint.
 
-## Overview
+## Output
 
-This module provides portfolio analytics and composition breakdowns that power the web UI sidebar. It replaces the defunct Freedom24 PRAAMS analysis with Sentinel's own computed metrics.
+The endpoint returns:
 
-## Key Features
+| Field | Content |
+|---|---|
+| `as_of` | Calculation date |
+| `total_value_eur` | Held-security value; cash is excluded from composition |
+| `composition` | Current country, continent, industry, currency, and asset-class buckets |
+| `composition_ideal` | Planner ideal weights rolled up by country and industry |
+| `composition_post_plan` | Current holdings adjusted to recommendation target values, then rolled up |
+| `metrics` | Return, risk, concentration, and home-market comparison |
+| `home_markets` | Per-basket coverage, beta, and one-year excess return |
+| `radar` | Six normalized 0..1 axes |
 
-### Composition Breakdowns
+Buckets are arrays of `{ "name": ..., "pct": ... }` and use fractional
+weights: `0.25` means 25 percent.
 
-Returns portfolio allocation percentages by:
+## Composition
 
-- **Country**: Geographic exposure based on security metadata
-- **Continent**: Aggregated geographic regions
-- **Industry**: TRBC industry classification
-- **Currency**: Base currency of each security
-- **Asset Class**: Stock vs ETF vs other (from `instr_kind_c`)
+`compose()` values current positions in EUR and groups them by security
+metadata:
 
-### Time-Series Metrics (from `portfolio_snapshots` table)
+- country of risk;
+- continent resolved from the ISO country code;
+- industry;
+- trading currency; and
+- asset class derived from `instr_kind_c`.
 
-- **1Y / 5Y Total Return**: Compound annual growth rate
-- **Annualized Volatility**: Standard deviation of daily returns
-- **Max Drawdown**: Largest peak-to-trough decline
-- **Sharpe Ratio**: Risk-adjusted return (assumes 2% risk-free rate)
-- **Beta vs Benchmark**: Typically vs `VWCE.EU`
-- **Herfindahl Index**: Concentration measure (higher = more concentrated)
+Missing metadata falls into an explicit unknown bucket rather than changing the
+total silently. `rollup_country_industry()` applies the same grouping to planner
+weights or post-plan position values.
 
-### Risk/Return Radar Chart
+## Daily performance series
 
-Six normalized 0..1 scores for the radar visualization:
+`build_daily_pnl()` combines snapshots with cumulative external deposits and
+withdrawals. The module then derives:
 
-- **Return-side**: 1Y return, 5Y return, Sharpe ratio
-- **Resilience-side**: Lower volatility, higher Sharpe, lower max drawdown
+- `daily_hprs()` for deposit-adjusted holding-period returns;
+- `rolling_twr()` for one-year time-weighted return;
+- `inception_cagr()` for the inception money-growth rate;
+- `annualized_volatility()`;
+- `max_drawdown()`; and
+- `sharpe_ratio()` using the `risk_free_rate` setting.
 
-Higher scores = better performance
+Volatility, Sharpe, and beta use recent, outlier-filtered daily returns to limit
+snapshot-reconstruction artifacts. The endpoint reads up to five years of
+snapshots, while its one-year metrics use the recent window.
 
-## Architecture
+## Home-market comparison
 
-### Key Classes
+Sentinel does not compare the entire global portfolio with one ETF. For each
+holding, `resolve_benchmark_group()` chooses:
 
-#### `PortfolioComposition`
+1. a national basket when a matching index is available;
+2. a regional basket for the holding's continent; or
+3. the union of available equity indices as a fallback.
 
-Main facade class that coordinates analytics:
+`home_market_metrics()` calculates the security's beta and trailing excess
+return against its basket, then value-weights covered holdings into
+`beta_vs_home` and `alpha_1y_vs_home`. `home_coverage_pct` reports how much held
+value had enough usable data. `home_markets` exposes the contributing groups.
 
-```python
-from sentinel.portfolio_composition import PortfolioComposition
+## Concentration and radar
 
-pc = PortfolioComposition()
-composition = await pc.get_composition_breakdown()
-metrics = await pc.get_risk_return_metrics()
-radar = await pc.get_radar_chart_data()
+`hhi_concentration()` is the sum of squared positive position weights. A single
+holding has HHI 1; equal distribution across more holdings approaches zero.
+Cash is excluded.
+
+`radar_axes()` maps these metrics to 0..1, where higher is better:
+
+- one-year return;
+- Sharpe ratio;
+- home-market alpha;
+- low volatility;
+- low drawdown; and
+- low concentration.
+
+The normalization ranges are presentation heuristics, not additional
+performance measurements.
+
+## Failure behavior
+
+Composition from current positions remains available if planner calculation
+fails. In that case ideal and post-plan buckets are empty and the failure is
+logged. Missing history produces neutral/zero metrics through the calculation
+helpers.
+
+## Tests
+
+```bash
+source .venv/bin/activate
+pytest tests/test_portfolio_composition.py -v
 ```
 
-### Design Patterns
-
-1. **Pure Functions**: Math operations are pure and testable in isolation
-2. **Singleton Support**: Can work with injected `Database` instance or use singleton
-3. **ISO Country Codes**: Full ISO-3166-1 coverage for graceful degradation
-
-## Data Dependencies
-
-- `portfolio_snapshots` table: Time-series portfolio value history
-- `securities` table: Country, industry, currency metadata
-- `prices` table: For computing returns (if needed)
-
-## API Endpoints
-
-Exposed via `sentinel/api/routers/portfolio.py`:
-
-- `GET /api/portfolio/composition` - Full composition breakdown
-- `GET /api/portfolio/metrics` - Risk/return metrics
-- `GET /api/portfolio/radar` - Radar chart data
-
-## Testing
-
-Tests located in `tests/test_portfolio_composition.py` (27K, comprehensive coverage)
-
-Key test scenarios:
-
-- Composition calculation with various portfolio states
-- Metric computation edge cases (empty data, single snapshot)
-- Radar score normalization bounds
-- Continent mapping for all ISO countries
-
-## Usage Examples
-
-### Get Full Portfolio Composition
-
-```python
-from sentinel.portfolio_composition import PortfolioComposition
-
-pc = PortfolioComposition()
-result = await pc.get_composition_breakdown()
-
-# Result structure:
-{
-    "by_country": {"US": 45.2, "IE": 23.1, ...},
-    "by_continent": {"North America": 50.3, "Europe": 40.1, ...},
-    "by_industry": {"Technology": 25.4, "Financials": 18.2, ...},
-    "by_currency": {"USD": 60.5, "EUR": 30.2, ...},
-    "by_asset_class": {"Stock": 75.3, "ETF": 24.7}
-}
-```
-
-### Get Risk/Return Metrics
-
-```python
-metrics = await pc.get_risk_return_metrics()
-
-# Result structure:
-{
-    "return_1y": 12.4,
-    "return_5y": 8.7,
-    "volatility_annualized": 14.2,
-    "max_drawdown": -23.5,
-    "sharpe_ratio": 0.85,
-    "beta": 0.92,
-    "herfindahl_index": 0.08
-}
-```
-
-### Get Radar Chart Data
-
-```python
-radar = await pc.get_radar_chart_data()
-
-# Result structure (all values 0..1):
-{
-    "return_1y": 0.78,
-    "return_5y": 0.65,
-    "sharpe": 0.82,
-    "volatility": 0.71,  # Lower vol = higher score
-    "max_drawdown": 0.68,  # Lower DD = higher score
-    "concentration": 0.75  # Lower Herfindahl = higher score
-}
-```
-
-## Implementation Details
-
-### Continent Mapping
-
-Uses full ISO-3166-1 alpha-2 country code mapping (54 African countries, UN-defined Asia including Middle East, etc.). Static dictionary `CONTINENT_BY_COUNTRY` kept inline for simplicity.
-
-### Benchmark Comparison
-
-Default benchmark is `VWCE.EU` (Vanguard FTSE All-World UCITS ETF). Beta calculation uses linear regression of portfolio returns vs benchmark returns.
-
-### Herfindahl Index
-
-Calculated as sum of squared allocation weights:
-
-```
-H = Σ(weight_i²)
-```
-
-- Perfectly diversified (N equal positions): H = 1/N
-- Concentrated (single position): H = 1.0
-- Lower is better (more diversified)
-
-## Common Pitfalls
-
-1. **Empty Portfolio**: Returns zeros for all metrics, not errors
-2. **Insufficient History**: 5Y metrics require 5+ years of snapshots
-3. **Missing Metadata**: Securities without country/industry are excluded from breakdowns
-4. **Currency Conversion**: All metrics computed in EUR base currency
-
-## Related Documentation
-
-- [Strategy: Contrarian](./strategy_contrarian.md) - How allocation targets are computed
-- [API: Portfolio](../sentinel/api/routers/portfolio.py) - Endpoint implementation
-- [Test: Portfolio Composition](../tests/test_portfolio_composition.py) - Test suite
+See [Portfolio API](api/portfolio.md#get-apiportfoliocomposition) for the wire
+contract.

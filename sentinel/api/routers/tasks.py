@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body, HTTPException, Response, status
 
 from sentinel.database import Database
 from sentinel.tasks import definitions
-from sentinel.tasks.runtime import enqueue_task, get_run, list_runs, resync_task_schedules, stop_run
+from sentinel.tasks.runtime import enqueue_task, enqueue_tasks, get_run, list_runs, resync_task_schedules, stop_run
 
 router = APIRouter(tags=["tasks"])
 
@@ -178,15 +178,14 @@ async def scheduler_enqueue(body: Annotated[Any, Body()]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="At least one task enqueue request is required")
     if len(raw_items) > 500:
         raise HTTPException(status_code=400, detail="At most 500 task enqueue requests are allowed")
-    items = []
     try:
+        requests = []
         for raw in raw_items:
             if not isinstance(raw, dict):
                 raise ValueError("Task enqueue request must be an object")
             task_id = str(raw.get("task") or "").strip()
             if not task_id:
                 raise ValueError("task is required")
-            schedule_id = await Database().ensure_task_queue_source(task_id, "queue")
             eligible_raw = raw.get("eligibleAt", raw.get("eligible_at"))
             eligible_at = None
             if eligible_raw is not None and eligible_raw != "":
@@ -195,18 +194,18 @@ async def scheduler_enqueue(body: Annotated[Any, Body()]) -> dict[str, Any]:
                 eligible_at = int(float(eligible_raw))
             if eligible_at is not None and eligible_at < 10_000_000_000:
                 eligible_at *= 1000
-            items.append(
-                await enqueue_task(
-                    task_id,
-                    raw.get("inputs") or {},
-                    title=raw.get("title"),
-                    dedupe_key=raw.get("dedupeKey") or raw.get("dedupe_key"),
-                    run_mode=str(raw.get("runMode") or raw.get("run_mode") or "balanced"),
-                    priority=int(raw.get("priority") or 0),
-                    eligible_at=eligible_at,
-                    schedule_id=schedule_id,
-                )
+            requests.append(
+                {
+                    "task": task_id,
+                    "inputs": raw.get("inputs") or {},
+                    "title": raw.get("title"),
+                    "dedupe_key": raw.get("dedupeKey") or raw.get("dedupe_key"),
+                    "run_mode": str(raw.get("runMode") or raw.get("run_mode") or "balanced"),
+                    "priority": int(raw.get("priority") or 0),
+                    "eligible_at": eligible_at,
+                }
             )
+        items = await enqueue_tasks(requests)
         return {"item": items[0]} if len(items) == 1 else {"items": items}
     except Exception as exc:  # noqa: BLE001
         _raise_http(exc)

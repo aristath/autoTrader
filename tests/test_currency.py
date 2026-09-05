@@ -5,10 +5,14 @@ These tests verify:
 2. CurrencyExchangeService.get_rate() - rate retrieval with error handling
 """
 
+import json
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from sentinel.currency import Currency
 from sentinel.currency_exchange import CurrencyExchangeService
+from sentinel.database import Database
 
 
 @pytest.fixture(autouse=True)
@@ -164,6 +168,105 @@ class TestCurrencyGetCrossRate:
 
         assert abs(rate_upper - rate_lower) < 0.0001
         assert abs(rate_upper - rate_mixed) < 0.0001
+
+
+class TestCurrencyUpdates:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("currency", ["", "US", "USDD", "U1D", "ΕUR"])
+    async def test_set_rate_rejects_invalid_currency_code(self, currency_with_rates, currency):
+        currency_with_rates._settings = AsyncMock()
+        currency_with_rates._db = AsyncMock()
+
+        with pytest.raises(ValueError, match="three-letter"):
+            await currency_with_rates.set_rate(currency, 0.9)
+
+    @pytest.mark.asyncio
+    async def test_set_rate_preserves_eur_as_the_unit_rate(self, currency_with_rates):
+        currency_with_rates._settings = AsyncMock()
+        currency_with_rates._db = AsyncMock()
+
+        with pytest.raises(ValueError, match="EUR rate must be 1.0"):
+            await currency_with_rates.set_rate("EUR", 0.9)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("rate", [0, -0.1, float("nan"), float("inf")])
+    async def test_set_rate_rejects_non_positive_or_non_finite_values(self, currency_with_rates, rate):
+        currency_with_rates._settings = AsyncMock()
+        currency_with_rates._db = AsyncMock()
+
+        with pytest.raises(ValueError, match="positive finite"):
+            await currency_with_rates.set_rate("USD", rate)
+
+        currency_with_rates._db.set_setting_and_cache.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_set_rate_updates_settings_and_persisted_cache(self, currency_with_rates):
+        currency_with_rates._settings = AsyncMock()
+        currency_with_rates._db = AsyncMock()
+
+        await currency_with_rates.set_rate(" usd ", 0.9)
+
+        expected = {"EUR": 1.0, "USD": 0.9, "GBP": 1.17, "HKD": 0.11}
+        currency_with_rates._db.set_setting_and_cache.assert_awaited_once_with(
+            "exchange_rates",
+            expected,
+            "currency:rates",
+            json.dumps(expected),
+            ttl_seconds=7200,
+        )
+        assert currency_with_rates._rates_cache == expected
+
+    @pytest.mark.asyncio
+    async def test_set_rate_keeps_runtime_value_when_atomic_persistence_fails(self, currency_with_rates):
+        currency_with_rates._db = AsyncMock()
+        currency_with_rates._db.set_setting_and_cache.side_effect = RuntimeError("database write failed")
+
+        with pytest.raises(RuntimeError, match="database write failed"):
+            await currency_with_rates.set_rate("USD", 0.9)
+
+        assert await currency_with_rates.get_rates() == {
+            "EUR": 1.0,
+            "USD": 0.85,
+            "GBP": 1.17,
+            "HKD": 0.11,
+        }
+
+    @pytest.mark.asyncio
+    async def test_set_rate_survives_an_in_memory_cache_reset(self, currency_with_rates, tmp_path):
+        db = Database(str(tmp_path / "currency.db"))
+        await db.connect()
+        try:
+            await db.cache_set(
+                "currency:rates",
+                json.dumps({"EUR": 1.0, "USD": 0.8}),
+                ttl_seconds=7200,
+            )
+            currency_with_rates._db = db
+            currency_with_rates._settings = AsyncMock()
+
+            await currency_with_rates.set_rate("USD", 0.9)
+            currency_with_rates._rates_cache = None
+
+            assert await currency_with_rates.get_rates() == {
+                "EUR": 1.0,
+                "USD": 0.9,
+                "GBP": 1.17,
+                "HKD": 0.11,
+            }
+        finally:
+            await db.close()
+            db.remove_from_cache()
+
+    @pytest.mark.asyncio
+    async def test_strict_sync_propagates_network_failure(self, currency_with_rates):
+        currency_with_rates._settings = AsyncMock()
+        currency_with_rates._db = AsyncMock()
+
+        with (
+            patch("sentinel.currency.requests.get", side_effect=RuntimeError("gateway unavailable")),
+            pytest.raises(RuntimeError, match="gateway unavailable"),
+        ):
+            await currency_with_rates.sync_rates(raise_on_error=True)
 
 
 class TestCurrencyExchangeServiceGetRate:

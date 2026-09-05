@@ -1,5 +1,8 @@
 # Planner Invested-Only Targets + Funding Sells Redesign (Design)
 
+> Status: historical implementation design. Use
+> [Strategy](../strategy_contrarian.md) for current behavior.
+
 **Goal:** Make planner/rebalancing semantics consistent and practical by using *invested-only* allocation weights (positions sum to 1.0) while still supporting *sell-to-fund-buys* and explicit cash deployment.
 
 **Architecture:** Keep the current `Planner` facade, but evolve `PortfolioAnalyzer` to provide invested-only allocations and invested-value totals. Update `RebalanceEngine` to size deltas against invested value (not total value including cash), and add an explicit “funding sells” pass that can raise cash for high-priority buys when the cash constraint would otherwise prevent deployment.

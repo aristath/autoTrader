@@ -57,8 +57,10 @@ Returns paginated trade history with optional filters.
 ## `POST /api/trades/sync`
 
 Triggers a manual sync of trade history from the broker (`sync:trades` job).
+Disconnected-broker, broker-request, and malformed trade-row failures are returned with `status: "failed"` rather than being
+reported as completed jobs. Trade IDs, symbols, sides, dates, quantities, prices, and numeric commissions are required.
 
 **Response**
 ```json
-{ "status": "ok", "job_type": "sync:trades" }
+{ "status": "completed", "duration_ms": 184 }
 ```

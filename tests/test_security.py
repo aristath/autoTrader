@@ -340,6 +340,24 @@ class TestMarketData:
 
         assert count == 100
         db.save_prices.assert_called_once()
+        broker.get_historical_prices_bulk.assert_awaited_once_with(
+            ["AAPL.US"],
+            years=1,
+            raise_on_error=True,
+        )
+
+    @pytest.mark.asyncio
+    async def test_sync_prices_rejects_empty_broker_result(self):
+        db = MagicMock()
+        db.save_prices = AsyncMock()
+        broker = MagicMock()
+        broker.get_historical_prices_bulk = AsyncMock(return_value={})
+        security = Security("AAPL.US", db=db, broker=broker)
+
+        with pytest.raises(RuntimeError, match="no usable prices"):
+            await security.sync_prices()
+
+        db.save_prices.assert_not_awaited()
 
 
 class TestTradingBuy:

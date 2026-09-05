@@ -36,8 +36,10 @@ Returns an aggregated cash flow summary converted to EUR.
 ## `POST /api/cashflows/sync`
 
 Triggers a manual sync of cash flows from the broker (`sync:cashflows` job).
+Disconnected-broker, broker-request, and malformed cash-flow row failures are returned with `status: "failed"` rather than being
+reported as completed jobs. Every stored row requires a date, type, finite amount, and currency.
 
 **Response**
 ```json
-{ "status": "ok", "job_type": "sync:cashflows" }
+{ "status": "completed", "duration_ms": 207 }
 ```

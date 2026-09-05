@@ -1,0 +1,187 @@
+import { LitElement, html } from "lit";
+import { getJson } from "./api.js";
+import { formatCurrency, formatPercent } from "./format.js";
+import { LiveResource } from "./live-resource.js";
+
+const CHECKPOINT_COUNT = 5;
+const CHECKPOINT_INTERVAL = 5;
+
+function checkpointDates(currentDate) {
+  const current = new Date(`${currentDate}T00:00:00Z`);
+
+  if (Number.isNaN(current.getTime())) {
+    return [];
+  }
+
+  const firstYear =
+    Math.floor(current.getUTCFullYear() / CHECKPOINT_INTERVAL) *
+      CHECKPOINT_INTERVAL +
+    5;
+  const month = current.getUTCMonth();
+  const day = current.getUTCDate();
+
+  return Array.from({ length: CHECKPOINT_COUNT }, (_, index) => {
+    const year = firstYear + index * CHECKPOINT_INTERVAL;
+    const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    return new Date(Date.UTC(year, month, Math.min(day, lastDay)));
+  });
+}
+
+function closestProjection(projection, target) {
+  let closest;
+  let closestDistance = Number.POSITIVE_INFINITY;
+
+  for (const point of projection) {
+    const date = Date.parse(`${point.date}T00:00:00Z`);
+    const distance = Math.abs(date - target.getTime());
+
+    if (Number.isFinite(date) && distance < closestDistance) {
+      closest = point;
+      closestDistance = distance;
+    }
+  }
+
+  return closest;
+}
+
+class SentinelPortfolioValue extends LitElement {
+  projection = new LiveResource(
+    this,
+    (signal) => getJson("/api/portfolio/value-projection?years=25", { signal }),
+    { interval: 300_000 },
+  );
+
+  createRenderRoot() {
+    return this;
+  }
+
+  projectionRows(data) {
+    return checkpointDates(data.summary.current_date)
+      .map((date) => {
+        const point = closestProjection(data.projection, date);
+
+        if (!point) {
+          return undefined;
+        }
+
+        return {
+          date,
+          point,
+          projectedNetDeposits:
+            data.summary.current_net_deposits_eur +
+            data.summary.avg_monthly_net_deposit_eur * point.months_ahead,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  renderMetrics(summary, startYear, endYear) {
+    const pnlVariant = summary.total_pnl_pct >= 0 ? "success" : "error";
+    const runRateVariant =
+      summary.annualized_total_pnl_pct >= 0 ? "success" : "error";
+
+    return html`
+      <tui-flex wrap>
+        <span style="white-space: nowrap">${startYear} to ${endYear}</span>
+        <span style="white-space: nowrap"
+          >&nbsp;&nbsp;P/L&nbsp;<tui-text variant=${pnlVariant}
+            >${formatPercent(summary.total_pnl_pct, 1)}</tui-text
+          ></span
+        >
+        <span style="white-space: nowrap"
+          >&nbsp;&nbsp;${summary.deposit_window_months}M
+          net/mo&nbsp;${formatCurrency(
+            summary.avg_monthly_net_deposit_eur,
+            "EUR",
+            0,
+          )}</span
+        >
+        <span style="white-space: nowrap"
+          >&nbsp;&nbsp;Run-rate&nbsp;<tui-text variant=${runRateVariant}
+            >${formatPercent(summary.annualized_total_pnl_pct, 1)}</tui-text
+          ></span
+        >
+      </tui-flex>
+    `;
+  }
+
+  renderTable(checkpoints) {
+    if (checkpoints.length === 0) {
+      return html`<span>Not enough data yet</span>`;
+    }
+
+    return html`
+      <table aria-label="Portfolio value projections" style="border-spacing: 0">
+        <thead>
+          <tr>
+            <th scope="col" style="text-align: left">Year&nbsp;&nbsp;</th>
+            <th scope="col" style="text-align: right">Value&nbsp;&nbsp;</th>
+            <th
+              scope="col"
+              aria-label="Projected net deposits"
+              style="text-align: right"
+            >
+              Net deposits
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          ${checkpoints.map(
+            ({ date, point, projectedNetDeposits }) => html`
+              <tr>
+                <th scope="row" style="font: inherit; text-align: left">
+                  ${date.getUTCFullYear()}&nbsp;&nbsp;
+                </th>
+                <td style="text-align: right">
+                  ${formatCurrency(point.projected_value_eur, "EUR", 0)}&nbsp;&nbsp;
+                </td>
+                <td style="text-align: right">
+                  ${formatCurrency(projectedNetDeposits, "EUR", 0)}
+                </td>
+              </tr>
+            `,
+          )}
+        </tbody>
+      </table>
+    `;
+  }
+
+  renderProjection(data) {
+    const checkpoints = this.projectionRows(data);
+
+    if (checkpoints.length === 0) {
+      return html`<span>Not enough data yet</span>`;
+    }
+
+    const startYear = String(data.summary.start_date).slice(0, 4);
+    const endYear = checkpoints.at(-1).date.getUTCFullYear();
+
+    return html`${this.renderMetrics(data.summary, startYear, endYear)}
+    ${this.renderTable(checkpoints)}`;
+  }
+
+  render() {
+    let content;
+
+    if (this.projection.loading && !this.projection.value) {
+      content = html`<span>Loading projection…</span>`;
+    } else if (this.projection.error) {
+      content = html`<tui-text variant="error"
+        >Projection unavailable</tui-text
+      >`;
+    } else if (
+      !this.projection.value?.summary ||
+      !this.projection.value?.projection?.length
+    ) {
+      content = html`<span>Not enough data yet</span>`;
+    } else {
+      content = this.renderProjection(this.projection.value);
+    }
+
+    return html`<tui-box heading="Portfolio value" border="single"
+      >${content}</tui-box
+    >`;
+  }
+}
+
+customElements.define("sentinel-portfolio-value", SentinelPortfolioValue);

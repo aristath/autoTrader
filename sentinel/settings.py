@@ -33,6 +33,8 @@ DEFAULTS = {
     "min_cash_buffer": 0.005,  # Keep 0.5% cash minimum
     "target_cash_pct": 0,  # Fully invested strategy
     "simulated_cash_eur": None,  # Override cash in research mode (None = use real)
+    # Persisted UI preferences
+    "ui_securities_table_columns": ["price", "security", "value", "pnl", "ideal", "plan", "trade"],
     # Rebalancing
     "rebalance_threshold_pct": 5,  # Rebalance when 5% off target
     # Performance chart benchmark: trailing-1Y return overlaid on the portfolio's

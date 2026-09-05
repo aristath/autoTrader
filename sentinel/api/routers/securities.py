@@ -352,7 +352,10 @@ async def sync_prices(
 ) -> dict[str, int]:
     """Sync historical prices from broker."""
     security = Security(symbol)
-    count = await security.sync_prices(days)
+    try:
+        count = await security.sync_prices(days)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"synced": count}
 
 
@@ -364,7 +367,10 @@ async def sync_all_prices(
     """Sync historical prices for all securities with positions."""
     from sentinel.app import _sync_missing_prices
 
-    await _sync_missing_prices(deps.db, deps.broker)
+    try:
+        await _sync_missing_prices(deps.db, deps.broker)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"status": "ok"}
 
 

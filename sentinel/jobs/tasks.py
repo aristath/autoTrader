@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
+import math
 import os
 import sqlite3
 import tarfile
@@ -35,6 +36,24 @@ FORECAST_QUANTILE_KEYS = {
     "0.8": "q80",
     "0.9": "q90",
 }
+
+
+def _required_text(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise RuntimeError(f"Broker returned invalid {field}")
+    return value.strip()
+
+
+def _required_finite_float(value: Any, field: str) -> float:
+    if isinstance(value, bool):
+        raise RuntimeError(f"Broker returned invalid {field}")
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(f"Broker returned invalid {field}") from exc
+    if not math.isfinite(number):
+        raise RuntimeError(f"Broker returned invalid {field}")
+    return number
 
 
 # -----------------------------------------------------------------------------
@@ -319,7 +338,7 @@ async def sync_exchange_rates() -> None:
     from sentinel.currency import Currency
 
     currency = Currency()
-    rates = await currency.sync_rates()
+    rates = await currency.sync_rates(raise_on_error=True)
     logger.info(f"Exchange rates synced: {len(rates)} currencies")
 
 
@@ -355,8 +374,7 @@ async def sync_trades(db, broker) -> None:
     Existing trades (by broker_trade_id) are skipped.
     """
     if not broker.connected:
-        logger.warning("Broker not connected, skipping trades sync")
-        return
+        raise RuntimeError("Broker is not connected")
 
     start_date = "2020-01-01"
     get_trades = getattr(db, "get_trades", None)
@@ -382,7 +400,7 @@ async def sync_trades(db, broker) -> None:
                 start_date = overlap_start.strftime("%Y-%m-%d")
 
     # Fetch trades from broker
-    trades = await broker.get_trades_history(start_date=start_date)
+    trades = await broker.get_trades_history(start_date=start_date, raise_on_error=True)
 
     if not trades:
         logger.info("No trades returned from broker")
@@ -392,23 +410,32 @@ async def sync_trades(db, broker) -> None:
     skipped_count = 0
 
     for trade in trades:
-        trade_id = str(trade.get("id", ""))
-        symbol = trade.get("symbol", trade.get("instr_nm", ""))
-        side = trade.get("side", "BUY")
-        quantity = float(trade.get("q", 0))
-        price = float(trade.get("p", 0))
-        date_str = trade.get("date", "")
+        if not isinstance(trade, dict):
+            raise RuntimeError("Broker returned invalid trade row")
+        raw_trade_id = trade.get("id")
+        trade_id = "" if raw_trade_id is None or isinstance(raw_trade_id, bool) else str(raw_trade_id).strip()
+        if not trade_id:
+            raise RuntimeError("Broker returned invalid trade id")
+        symbol = _required_text(trade.get("symbol", trade.get("instr_nm")), "trade symbol")
+        side = _required_text(trade.get("side"), "trade side").upper()
+        if side not in {"BUY", "SELL"}:
+            raise RuntimeError("Broker returned invalid trade side")
+        quantity = _required_finite_float(
+            trade.get("q", trade.get("quantity", trade.get("qty"))),
+            "trade quantity",
+        )
+        price = _required_finite_float(trade.get("p", trade.get("price")), "trade price")
+        date_str = _required_text(trade.get("date"), "trade date")
 
         # Extract commission
-        commission = float(trade.get("commission", 0) or 0)
-        commission_currency = trade.get("commission_currency", "EUR")
-
-        if not trade_id or not symbol:
-            continue
+        commission = _required_finite_float(trade.get("commission", 0) or 0, "trade commission")
+        commission_currency = _required_text(trade.get("commission_currency", "EUR"), "trade commission currency")
 
         # Parse broker date to unix timestamp. Handles ISO 8601 ("...T..."),
         # space-separated, and date-only forms (see _parse_broker_timestamp).
         executed_at_ts = _parse_broker_timestamp(date_str)
+        if executed_at_ts <= 0:
+            raise RuntimeError("Broker returned invalid trade date")
 
         row_id = await db.upsert_trade(
             broker_trade_id=trade_id,
@@ -438,11 +465,10 @@ async def sync_cashflows(db, broker) -> None:
     Existing entries are deduplicated using a content hash of the raw data.
     """
     if not broker.connected:
-        logger.warning("Broker not connected, skipping cashflows sync")
-        return
+        raise RuntimeError("Broker is not connected")
 
     # Fetch all cash flows from broker
-    cash_flows = await broker.get_cash_flows(start_date="2020-01-01")
+    cash_flows = await broker.get_cash_flows(start_date="2020-01-01", raise_on_error=True)
 
     if not cash_flows:
         logger.info("No cash flows returned from broker")
@@ -452,32 +478,27 @@ async def sync_cashflows(db, broker) -> None:
     skipped_count = 0
 
     for flow in cash_flows:
-        try:
-            date = flow.get("date", "")
-            type_id = flow.get("type_id", "")
-            amount = float(flow.get("amount", 0) or 0)
-            currency = flow.get("currency", "EUR")
-            comment = flow.get("comment", "")
+        if not isinstance(flow, dict):
+            raise RuntimeError("Broker returned invalid cash-flow row")
+        date = _required_text(flow.get("date"), "cash-flow date")
+        type_id = _required_text(flow.get("type_id"), "cash-flow type")
+        amount = _required_finite_float(flow.get("amount"), "cash-flow amount")
+        currency = _required_text(flow.get("currency"), "cash-flow currency")
+        comment = str(flow.get("comment") or "")
 
-            if not date or not type_id:
-                continue
+        row_id = await db.upsert_cash_flow(
+            date=date,
+            type_id=type_id,
+            amount=amount,
+            currency=currency,
+            comment=comment,
+            raw_data=flow,
+        )
 
-            row_id = await db.upsert_cash_flow(
-                date=date,
-                type_id=type_id,
-                amount=amount,
-                currency=currency,
-                comment=comment,
-                raw_data=flow,
-            )
-
-            if row_id and row_id > 0:
-                new_count += 1
-            else:
-                skipped_count += 1
-        except (ValueError, TypeError) as e:
-            logger.warning(f"Skipping invalid cash flow entry: {e}")
-            continue
+        if row_id and row_id > 0:
+            new_count += 1
+        else:
+            skipped_count += 1
 
     logger.info(f"Cash flows sync complete: {new_count} new, {skipped_count} existing")
 

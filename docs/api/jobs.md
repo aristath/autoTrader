@@ -25,7 +25,7 @@ Returns the current running job (if any), the next scheduled jobs, and recent jo
 
 ---
 
-## `POST /api/jobs/{job_type}/run`
+## `POST /api/jobs/{job_type:path}/run`
 
 Manually trigger a job by type. Runs immediately, regardless of schedule.
 
@@ -52,6 +52,8 @@ Manually trigger a job by type. Runs immediately, regardless of schedule.
 | `trading:rebalance` | Generate new trade recommendations via Planner |
 | `trading:balance_fix` | Fix quantity mismatches between DB and broker |
 | `planning:refresh` | Refresh planner state without generating trades |
+| `forecast:run` | Generate forecasts for the eligible universe when all markets are closed |
+| `forecast:evaluate` | Evaluate forecasts whose prediction horizon has matured |
 | `backup:r2` | Upload DB backup to Cloudflare R2 |
 
 **Response**
@@ -110,7 +112,7 @@ Returns all job schedule configurations, enriched with last execution info and n
 
 ---
 
-## `PUT /api/jobs/schedules/{job_type}`
+## `PUT /api/jobs/schedules/{job_type:path}`
 
 Update the schedule configuration for a job. Takes effect immediately — the job is rescheduled in APScheduler.
 

@@ -1,6 +1,9 @@
 # Tradernet API Documentation
 
-This directory contains the complete Tradernet API documentation scraped from https://tradernet.com/tradernet-api/
+This directory is a generated snapshot of Tradernet API documentation scraped
+from https://tradernet.com/tradernet-api/. It is retained for offline reference;
+it is not Sentinel's API contract and is not guaranteed to match the current
+upstream navigation or behavior.
 
 ## Documentation Structure
 
@@ -95,7 +98,7 @@ The documentation is organized into the following categories:
 - [Safety](./miscellaneous/safety.md)
 - [Type Codes](./miscellaneous/type-codes.md)
 
-## Scraping
+## Refreshing the snapshot
 
 The documentation was scraped using the script at `scripts/scrape_tradernet_docs.py`.
 
@@ -113,6 +116,10 @@ python scripts/scrape_tradernet_docs.py auth-login
 
 ## Source
 
+Generated pages preserve upstream examples, including examples that are
+JavaScript-like rather than strict JSON. Validate an operation against current
+upstream documentation and the broker sandbox before changing trading code.
+
 All documentation content is copyright Tradernet and sourced from their official API documentation website.
 
-Last updated: 2026-05-11 12:15:43
+Snapshot generated: 2026-05-11 12:15:43

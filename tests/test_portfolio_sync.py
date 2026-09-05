@@ -1,6 +1,7 @@
 """Tests for portfolio synchronization side effects."""
 
 import os
+import sqlite3
 import tempfile
 from unittest.mock import AsyncMock
 
@@ -104,3 +105,102 @@ async def test_sync_self_heals_when_metadata_is_temporarily_unavailable(temp_db)
     assert prices == []
     assert position is not None
     assert position["quantity"] == 2
+
+
+@pytest.mark.asyncio
+async def test_sync_preserves_positions_and_cash_when_broker_fetch_fails(temp_db):
+    await temp_db.upsert_security("KEEP.EU", name="Keep", currency="EUR", active=1)
+    await temp_db.upsert_position("KEEP.EU", quantity=7, current_price=12.0, currency="EUR")
+    await temp_db.set_cash_balances({"EUR": 345.0})
+    broker = AsyncMock()
+    broker.get_portfolio = AsyncMock(side_effect=RuntimeError("broker unavailable"))
+    portfolio = Portfolio(db=temp_db, broker=broker)
+
+    with pytest.raises(RuntimeError, match="broker unavailable"):
+        await portfolio.sync()
+
+    position = await temp_db.get_position("KEEP.EU")
+    assert position is not None
+    assert position["quantity"] == 7
+    assert await temp_db.get_cash_balances() == {"EUR": 345.0}
+    broker.get_portfolio.assert_awaited_once_with(raise_on_error=True)
+
+
+@pytest.mark.asyncio
+async def test_portfolio_state_replacement_rolls_back_positions_and_cash_together(temp_db):
+    await temp_db.upsert_security("KEEP.EU", name="Keep", currency="EUR", active=1)
+    await temp_db.upsert_position("KEEP.EU", quantity=7, current_price=12.0, currency="EUR")
+    await temp_db.set_cash_balances({"EUR": 345.0})
+
+    with pytest.raises(sqlite3.IntegrityError):
+        await temp_db.replace_portfolio_state(
+            [{"symbol": "KEEP.EU", "quantity": 2, "current_price": 99.0, "currency": "EUR"}],
+            {"EUR": None},  # type: ignore[dict-item]
+        )
+
+    position = await temp_db.get_position("KEEP.EU")
+    assert position is not None
+    assert position["quantity"] == 7
+    assert position["current_price"] == 12.0
+    assert await temp_db.get_cash_balances() == {"EUR": 345.0}
+
+
+@pytest.mark.asyncio
+async def test_sync_replaces_positions_and_cash_as_one_snapshot(temp_db):
+    await temp_db.upsert_security("OLD.EU", name="Old", currency="EUR", active=1)
+    await temp_db.upsert_security("KEEP.EU", name="Keep", currency="EUR", active=1)
+    await temp_db.upsert_position("OLD.EU", quantity=7, current_price=12.0, currency="EUR")
+    await temp_db.set_cash_balances({"EUR": 345.0})
+    broker = AsyncMock()
+    broker.get_portfolio.return_value = {
+        "positions": [{"symbol": "KEEP.EU", "quantity": 2, "current_price": 99.0, "currency": "EUR"}],
+        "cash": {"USD": 25.0},
+    }
+
+    portfolio = Portfolio(db=temp_db, broker=broker)
+    await portfolio.sync()
+
+    old_position = await temp_db.get_position("OLD.EU")
+    kept_position = await temp_db.get_position("KEEP.EU")
+    assert old_position is not None and old_position["quantity"] == 0
+    assert kept_position is not None and kept_position["quantity"] == 2
+    assert kept_position["current_price"] == 99.0
+    assert await temp_db.get_cash_balances() == {"USD": 25.0}
+
+
+@pytest.mark.asyncio
+async def test_missing_price_sync_fails_when_broker_returns_no_data():
+    from sentinel.app import _sync_missing_prices
+
+    db = AsyncMock()
+    db.get_all_positions.return_value = [{"symbol": "KEEP.EU"}]
+    db.get_price_count.return_value = 0
+    broker = AsyncMock()
+    broker.get_historical_prices_bulk.return_value = {}
+
+    with pytest.raises(RuntimeError, match="no usable prices"):
+        await _sync_missing_prices(db, broker)
+
+    broker.get_historical_prices_bulk.assert_awaited_once_with(
+        ["KEEP.EU"],
+        years=10,
+        raise_on_error=True,
+    )
+    db.save_prices.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_missing_price_sync_reports_every_symbol_without_data():
+    from sentinel.app import _sync_missing_prices
+
+    db = AsyncMock()
+    db.get_all_positions.return_value = [{"symbol": "GOOD.EU"}, {"symbol": "MISSING.EU"}]
+    db.get_price_count.return_value = 0
+    prices = [{"date": "2026-01-01", "close": 100.0}]
+    broker = AsyncMock()
+    broker.get_historical_prices_bulk.return_value = {"GOOD.EU": prices}
+
+    with pytest.raises(RuntimeError, match="MISSING.EU"):
+        await _sync_missing_prices(db, broker)
+
+    db.save_prices.assert_awaited_once_with("GOOD.EU", prices)

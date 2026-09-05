@@ -127,9 +127,21 @@ Returns the calculated ideal portfolio allocation vs current, as percentages.
 ```json
 {
   "ideal": { "AAPL.US": 4.50, "MSFT.US": 5.00 },
-  "current": { "AAPL.US": 3.82, "MSFT.US": 6.20 }
+  "current": { "AAPL.US": 3.82, "MSFT.US": 6.20 },
+  "allocation_decomposition": {
+    "global": {
+      "target_model": "ai_research",
+      "ai_research_target_pct": 1.0,
+      "algo_blend_pct": 0.0
+    },
+    "securities": {}
+  }
 }
 ```
+
+`allocation_decomposition` is the most recently cached explanation of the
+target model and per-security target fields. It may be null before a successful
+allocation calculation.
 
 ---
 

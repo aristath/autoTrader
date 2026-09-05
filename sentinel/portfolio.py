@@ -40,9 +40,9 @@ class Portfolio:
 
     async def sync(self) -> "Portfolio":
         """Sync portfolio state from broker to database."""
-        data = await self._broker.get_portfolio()
+        data = await self._broker.get_portfolio(raise_on_error=True)
 
-        # Update positions and securities
+        # Ensure every held security exists before replacing the account state.
         for pos in data.get("positions", []):
             symbol = pos["symbol"]
 
@@ -57,26 +57,10 @@ class Portfolio:
                     universe_source=BROKER_POSITION_UNIVERSE_SOURCE,
                 )
 
-            # Update position
-            await self._db.upsert_position(
-                symbol,
-                quantity=pos["quantity"],
-                avg_cost=pos.get("avg_cost"),
-                current_price=pos.get("current_price"),
-                currency=pos.get("currency", "EUR"),
-                updated_at="now",
-            )
-
-        # Zero out positions that no longer exist in the broker account
-        broker_symbols = {pos["symbol"] for pos in data.get("positions", [])}
-        db_positions = await self._db.get_all_positions()
-        for pos in db_positions:
-            if pos["symbol"] not in broker_symbols:
-                await self._db.upsert_position(pos["symbol"], quantity=0, updated_at="now")
-
-        # Store cash balances in memory and database
-        self._cash = data.get("cash", {})
-        await self._db.set_cash_balances(self._cash)
+        positions = data.get("positions", [])
+        cash = data.get("cash", {})
+        await self._db.replace_portfolio_state(positions, cash)
+        self._cash = cash
         return self
 
     # -------------------------------------------------------------------------

@@ -125,10 +125,15 @@ class Security:
     async def sync_prices(self, days: int = 365) -> int:
         """Sync historical prices from broker to database."""
         years = max(1, days // 365)
-        prices_data = await self._broker.get_historical_prices_bulk([self.symbol], years=years)
+        prices_data = await self._broker.get_historical_prices_bulk(
+            [self.symbol],
+            years=years,
+            raise_on_error=True,
+        )
         prices = prices_data.get(self.symbol, [])
-        if prices:
-            await self._db.save_prices(self.symbol, prices)
+        if not prices:
+            raise RuntimeError(f"Price sync returned no usable prices for {self.symbol}")
+        await self._db.save_prices(self.symbol, prices)
         return len(prices)
 
     async def get_historical_prices(

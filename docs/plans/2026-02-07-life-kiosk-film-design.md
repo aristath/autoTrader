@@ -1,5 +1,7 @@
 # Life Kiosk Film Design (Sentinel)
 
+> Status: abandoned/not implemented. Retained only as a design record.
+
 Date: 2026-02-07
 Status: Validated brainstorm design
 
