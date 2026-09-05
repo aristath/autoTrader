@@ -70,6 +70,8 @@ class SentinelSecurities extends LitElement {
     visibleColumns: { state: true },
     columnsBusy: { state: true },
     activeRowSymbol: { state: true },
+    inactiveOnly: { type: Boolean, attribute: "inactive-only" },
+    bare: { type: Boolean },
   };
 
   constructor() {
@@ -87,11 +89,22 @@ class SentinelSecurities extends LitElement {
     this.visibleColumns = undefined;
     this.columnsBusy = false;
     this.activeRowSymbol = undefined;
+    this.inactiveOnly = false;
+    this.bare = false;
+    this.securityListChanged = (event) => {
+      if (event.target !== this) {
+        this.securities.refresh();
+      }
+    };
   }
 
   securities = new LiveResource(
     this,
-    (signal) => getJson(`/api/unified?period=${this.period}`, { signal }),
+    (signal) =>
+      getJson(
+        `/api/unified?period=${this.period}${this.inactiveOnly ? "&inactive_only=true" : ""}`,
+        { signal },
+      ),
     { interval: 60_000 },
   );
 
@@ -103,6 +116,22 @@ class SentinelSecurities extends LitElement {
 
   createRenderRoot() {
     return this;
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener(
+      "sentinel-security-list-change",
+      this.securityListChanged,
+    );
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener(
+      "sentinel-security-list-change",
+      this.securityListChanged,
+    );
+    super.disconnectedCallback();
   }
 
   get allSecurities() {
@@ -234,6 +263,13 @@ class SentinelSecurities extends LitElement {
   changePeriod(event) {
     this.period = event.currentTarget.value;
     this.securities.refresh();
+    this.dispatchEvent(
+      new CustomEvent("sentinel-security-period-change", {
+        bubbles: true,
+        composed: true,
+        detail: { period: this.period },
+      }),
+    );
   }
 
   changeSearch(event) {
@@ -438,9 +474,44 @@ class SentinelSecurities extends LitElement {
           (symbol) => symbol !== security.symbol,
         ),
       );
-      this.message = `${security.symbol} removed`;
+      this.message = this.inactiveOnly
+        ? `${security.symbol} permanently deleted`
+        : `${security.symbol} removed`;
       this.deleteCandidate = undefined;
       await this.securities.refresh();
+      this.dispatchEvent(
+        new CustomEvent("sentinel-security-list-change", {
+          bubbles: true,
+          composed: true,
+        }),
+      );
+    } catch (error) {
+      this.errorMessage = error.message;
+    } finally {
+      this.busyAction = "";
+    }
+  }
+
+  async activateSecurity(security) {
+    this.busyAction = `activate:${security.symbol}`;
+    this.errorMessage = "";
+    this.message = "";
+
+    try {
+      await postJson("/api/securities", { symbol: security.symbol });
+      this.expandedSymbols = new Set(
+        [...this.expandedSymbols].filter(
+          (symbol) => symbol !== security.symbol,
+        ),
+      );
+      this.message = `${security.symbol} activated`;
+      await this.securities.refresh();
+      this.dispatchEvent(
+        new CustomEvent("sentinel-security-list-change", {
+          bubbles: true,
+          composed: true,
+        }),
+      );
     } catch (error) {
       this.errorMessage = error.message;
     } finally {
@@ -449,6 +520,10 @@ class SentinelSecurities extends LitElement {
   }
 
   renderControls() {
+    if (this.inactiveOnly) {
+      return "";
+    }
+
     return html`
       <tui-flex align="baseline" wrap>
         <span>Period&nbsp;</span>
@@ -481,6 +556,10 @@ class SentinelSecurities extends LitElement {
   }
 
   renderStats() {
+    if (this.inactiveOnly) {
+      return "";
+    }
+
     const stats = this.stats;
 
     return html`
@@ -682,19 +761,31 @@ class SentinelSecurities extends LitElement {
                 style="text-align: left; vertical-align: top; white-space: nowrap"
               >
                 <span aria-hidden="true">│&nbsp;</span>
-                <tui-toggle
-                  aria-label="Allow buying ${security.symbol}"
-                  ?checked=${security.allow_buy === 1}
-                  @change=${(event) =>
-                    this.updatePermission(event, security, "allow_buy")}
-                  >B</tui-toggle
-                >&nbsp;<tui-toggle
-                  aria-label="Allow selling ${security.symbol}"
-                  ?checked=${security.allow_sell === 1}
-                  @change=${(event) =>
-                    this.updatePermission(event, security, "allow_sell")}
-                  >S</tui-toggle
-                >
+                ${
+                  this.inactiveOnly
+                    ? "Inactive"
+                    : html`<tui-toggle
+                          aria-label="Allow buying ${security.symbol}"
+                          ?checked=${security.allow_buy === 1}
+                          @change=${(event) =>
+                            this.updatePermission(
+                              event,
+                              security,
+                              "allow_buy",
+                            )}
+                          >B</tui-toggle
+                        >&nbsp;<tui-toggle
+                          aria-label="Allow selling ${security.symbol}"
+                          ?checked=${security.allow_sell === 1}
+                          @change=${(event) =>
+                            this.updatePermission(
+                              event,
+                              security,
+                              "allow_sell",
+                            )}
+                          >S</tui-toggle
+                        >`
+                }
               </td>`
             : ""
         }
@@ -863,12 +954,35 @@ class SentinelSecurities extends LitElement {
                 }
                 ${this.renderDetailRow(
                   "Actions",
-                  html`<tui-button
-                    variant="error"
-                    @click=${() => this.openDeleteDialog(security)}
-                    >Remove</tui-button
-                  >`,
+                  this.inactiveOnly
+                    ? html`<tui-button
+                          ?disabled=${this.busyAction ===
+                          `activate:${security.symbol}`}
+                          @click=${() => this.activateSecurity(security)}
+                          >Activate</tui-button
+                        >&nbsp;<tui-button
+                          variant="error"
+                          title=${security.can_delete
+                            ? "Permanently delete unused security"
+                            : `Cannot delete: ${security.transaction_count || 0} historical transaction(s)`}
+                          ?disabled=${!security.can_delete}
+                          @click=${() => this.openDeleteDialog(security)}
+                          >Delete Permanently</tui-button
+                        >`
+                    : html`<tui-button
+                        variant="error"
+                        @click=${() => this.openDeleteDialog(security)}
+                        >Remove</tui-button
+                      >`,
                 )}
+                ${
+                  this.inactiveOnly && !security.can_delete
+                    ? this.renderDetailRow(
+                        "Deletion",
+                        `Permanent deletion is unavailable because this security has ${security.transaction_count || 0} historical transaction(s).`,
+                      )
+                    : ""
+                }
               </tbody>
             </table>
           </tui-box>
@@ -888,9 +1002,13 @@ class SentinelSecurities extends LitElement {
     }
 
     return html`
-      <table aria-label="Securities" style="width: 100%; border-spacing: 0">
-        <thead>
-          <tr>
+      <div style="width: 100%; min-width: 0; overflow-x: auto">
+        <table
+          aria-label=${this.inactiveOnly ? "Inactive Securities" : "Securities"}
+          style="width: 100%; border-spacing: 0"
+        >
+          <thead>
+            <tr>
             <th scope="col" style="text-align: left; vertical-align: top">
               ${
                 allExpanded
@@ -927,16 +1045,18 @@ class SentinelSecurities extends LitElement {
                     scope="col"
                     style="text-align: left; vertical-align: top"
                   >
-                    <span aria-hidden="true">│&nbsp;</span>Trade
+                    <span aria-hidden="true">│&nbsp;</span
+                    >${this.inactiveOnly ? "Status" : "Trade"}
                   </th>`
                 : ""
             }
-          </tr>
-        </thead>
-        <tbody>
-          ${visible.map((security) => this.renderSecurityRow(security))}
-        </tbody>
-      </table>
+            </tr>
+          </thead>
+          <tbody>
+            ${visible.map((security) => this.renderSecurityRow(security))}
+          </tbody>
+        </table>
+      </div>
     `;
   }
 
@@ -1064,14 +1184,25 @@ class SentinelSecurities extends LitElement {
     return html`
       <dialog
         id="delete-security-dialog"
-        aria-label="Remove Security"
+        aria-label=${this.inactiveOnly
+          ? "Delete Security Permanently"
+          : "Remove Security"}
         style="color: var(--tui-color); background: var(--tui-background); border: 0; padding: 0; max-width: calc(100% - 2ch)"
       >
-        <tui-box heading="Remove Security" border="single">
+        <tui-box
+          heading=${this.inactiveOnly
+            ? "Delete Security Permanently"
+            : "Remove Security"}
+          border="single"
+        >
           ${
             security
               ? html`
-                  <div>Remove ${security.symbol} from the active universe?</div>
+                  <div>
+                    ${this.inactiveOnly
+                      ? `Permanently delete ${security.symbol}?`
+                      : `Remove ${security.symbol} from the active universe?`}
+                  </div>
                   ${
                     security.has_position
                       ? html`<div>
@@ -1098,7 +1229,9 @@ class SentinelSecurities extends LitElement {
                       variant="error"
                       ?disabled=${this.busyAction === `delete:${security.symbol}`}
                       @click=${this.deleteSecurity}
-                      >Remove</tui-button
+                      >${this.inactiveOnly
+                        ? "Delete Permanently"
+                        : "Remove"}</tui-button
                     >&nbsp;
                     <tui-button
                       ?disabled=${this.busyAction === `delete:${security.symbol}`}
@@ -1133,8 +1266,18 @@ class SentinelSecurities extends LitElement {
     }
 
     return html`
-      <tui-box heading="Securities" border="single">${content}</tui-box>
-      ${this.renderColumnsDialog()} ${this.renderAddDialog()}
+      ${this.bare
+        ? content
+        : html`<tui-box
+            heading=${this.inactiveOnly
+              ? "Inactive Securities"
+              : "Securities"}
+            border="single"
+            >${content}</tui-box
+          >`}
+      ${this.inactiveOnly
+        ? ""
+        : html`${this.renderColumnsDialog()} ${this.renderAddDialog()}`}
       ${this.renderDeleteDialog()}
     `;
   }

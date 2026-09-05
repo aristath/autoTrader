@@ -26,6 +26,13 @@ class SentinelApp extends LitElement {
             style="display: block"
           ></sentinel-portfolio-pnl>
           <sentinel-securities style="display: block"></sentinel-securities>
+          <sentinel-inactive-securities
+            style="display: block"
+          ></sentinel-inactive-securities>
+          <sentinel-risk-return style="display: block"></sentinel-risk-return>
+          <sentinel-security-allocation
+            style="display: block"
+          ></sentinel-security-allocation>
         </main>
         <sentinel-status-bar
           style="display: block; flex: 0 0 auto"

@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/dist-qUpxMwR-.js","assets/dist-CzEUVXDC.js","assets/dist-CFtxRP70.js","assets/dist-n09HnSQH.js","assets/dist-CtvrPQL3.js","assets/dist-BtjFFX5g.js","assets/dist-Dp7zcg8q.js","assets/dist-CWt5MqEz.js","assets/dist-D8zCp1Lk.js","assets/dist-CQJ0t7Tg.js","assets/dist-DGm0tJyr.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/dist-qUpxMwR-.js","assets/dist-CzEUVXDC.js","assets/dist-CFtxRP70.js","assets/dist-n09HnSQH.js","assets/dist-CtvrPQL3.js","assets/dist-BtjFFX5g.js","assets/dist-Dp7zcg8q.js","assets/dist-CWt5MqEz.js","assets/dist-D8zCp1Lk.js","assets/dist-DViDkAME.js","assets/dist-DGm0tJyr.js"])))=>i.map(i=>d[i]);
 //#region \0vite/modulepreload-polyfill.js
 (function polyfill() {
 	const relList = document.createElement("link").relList;
@@ -2945,7 +2945,7 @@ var SentinelCodeEditor = class extends HTMLElement {
 				__vitePreload(() => import("./dist-qUpxMwR-.js"), __vite__mapDeps([0,1,2,3])),
 				__vitePreload(() => import("./dist-CzEUVXDC.js").then((n) => n.x), []),
 				__vitePreload(() => import("./dist-CtvrPQL3.js"), __vite__mapDeps([4,1,2,3,5,6,7,8])),
-				__vitePreload(() => import("./dist-CQJ0t7Tg.js"), __vite__mapDeps([9,2,1])),
+				__vitePreload(() => import("./dist-DViDkAME.js"), __vite__mapDeps([9,2,1])),
 				__vitePreload(() => import("./dist-CFtxRP70.js"), __vite__mapDeps([2,1]))
 			]);
 			if (!this.isConnected || initialization !== this.#initialization) return;
@@ -6389,7 +6389,12 @@ var SentinelSecurities = class extends i {
 		deleteCandidate: { state: true },
 		visibleColumns: { state: true },
 		columnsBusy: { state: true },
-		activeRowSymbol: { state: true }
+		activeRowSymbol: { state: true },
+		inactiveOnly: {
+			type: Boolean,
+			attribute: "inactive-only"
+		},
+		bare: { type: Boolean }
 	};
 	constructor() {
 		super();
@@ -6406,11 +6411,24 @@ var SentinelSecurities = class extends i {
 		this.visibleColumns = void 0;
 		this.columnsBusy = false;
 		this.activeRowSymbol = void 0;
+		this.inactiveOnly = false;
+		this.bare = false;
+		this.securityListChanged = (event) => {
+			if (event.target !== this) this.securities.refresh();
+		};
 	}
-	securities = new LiveResource(this, (signal) => getJson(`/api/unified?period=${this.period}`, { signal }), { interval: 6e4 });
+	securities = new LiveResource(this, (signal) => getJson(`/api/unified?period=${this.period}${this.inactiveOnly ? "&inactive_only=true" : ""}`, { signal }), { interval: 6e4 });
 	columnSettings = new LiveResource(this, (signal) => getJson("/api/settings", { signal }), { interval: 0 });
 	createRenderRoot() {
 		return this;
+	}
+	connectedCallback() {
+		super.connectedCallback();
+		window.addEventListener("sentinel-security-list-change", this.securityListChanged);
+	}
+	disconnectedCallback() {
+		window.removeEventListener("sentinel-security-list-change", this.securityListChanged);
+		super.disconnectedCallback();
 	}
 	get allSecurities() {
 		return this.securities.value ?? [];
@@ -6494,6 +6512,11 @@ var SentinelSecurities = class extends i {
 	changePeriod(event) {
 		this.period = event.currentTarget.value;
 		this.securities.refresh();
+		this.dispatchEvent(new CustomEvent("sentinel-security-period-change", {
+			bubbles: true,
+			composed: true,
+			detail: { period: this.period }
+		}));
 	}
 	changeSearch(event) {
 		this.search = event.currentTarget.value;
@@ -6639,9 +6662,32 @@ var SentinelSecurities = class extends i {
 			await deleteJson(`/api/securities/${encodeURIComponent(security.symbol)}?sell_position=false`);
 			this.closeDeleteDialog();
 			this.expandedSymbols = new Set([...this.expandedSymbols].filter((symbol) => symbol !== security.symbol));
-			this.message = `${security.symbol} removed`;
+			this.message = this.inactiveOnly ? `${security.symbol} permanently deleted` : `${security.symbol} removed`;
 			this.deleteCandidate = void 0;
 			await this.securities.refresh();
+			this.dispatchEvent(new CustomEvent("sentinel-security-list-change", {
+				bubbles: true,
+				composed: true
+			}));
+		} catch (error) {
+			this.errorMessage = error.message;
+		} finally {
+			this.busyAction = "";
+		}
+	}
+	async activateSecurity(security) {
+		this.busyAction = `activate:${security.symbol}`;
+		this.errorMessage = "";
+		this.message = "";
+		try {
+			await postJson("/api/securities", { symbol: security.symbol });
+			this.expandedSymbols = new Set([...this.expandedSymbols].filter((symbol) => symbol !== security.symbol));
+			this.message = `${security.symbol} activated`;
+			await this.securities.refresh();
+			this.dispatchEvent(new CustomEvent("sentinel-security-list-change", {
+				bubbles: true,
+				composed: true
+			}));
 		} catch (error) {
 			this.errorMessage = error.message;
 		} finally {
@@ -6649,6 +6695,7 @@ var SentinelSecurities = class extends i {
 		}
 	}
 	renderControls() {
+		if (this.inactiveOnly) return "";
 		return b`
       <tui-flex align="baseline" wrap>
         <span>Period&nbsp;</span>
@@ -6680,6 +6727,7 @@ var SentinelSecurities = class extends i {
     `;
 	}
 	renderStats() {
+		if (this.inactiveOnly) return "";
 		const stats = this.stats;
 		return b`
       <div>
@@ -6803,17 +6851,17 @@ var SentinelSecurities = class extends i {
                 style="text-align: left; vertical-align: top; white-space: nowrap"
               >
                 <span aria-hidden="true">│&nbsp;</span>
-                <tui-toggle
-                  aria-label="Allow buying ${security.symbol}"
-                  ?checked=${security.allow_buy === 1}
-                  @change=${(event) => this.updatePermission(event, security, "allow_buy")}
-                  >B</tui-toggle
-                >&nbsp;<tui-toggle
-                  aria-label="Allow selling ${security.symbol}"
-                  ?checked=${security.allow_sell === 1}
-                  @change=${(event) => this.updatePermission(event, security, "allow_sell")}
-                  >S</tui-toggle
-                >
+                ${this.inactiveOnly ? "Inactive" : b`<tui-toggle
+                          aria-label="Allow buying ${security.symbol}"
+                          ?checked=${security.allow_buy === 1}
+                          @change=${(event) => this.updatePermission(event, security, "allow_buy")}
+                          >B</tui-toggle
+                        >&nbsp;<tui-toggle
+                          aria-label="Allow selling ${security.symbol}"
+                          ?checked=${security.allow_sell === 1}
+                          @change=${(event) => this.updatePermission(event, security, "allow_sell")}
+                          >S</tui-toggle
+                        >`}
               </td>` : ""}
       </tr>
       ${expanded ? this.renderExpandedRow(security, detailsId) : ""}
@@ -6897,11 +6945,22 @@ var SentinelSecurities = class extends i {
                 ${this.renderDetailRow("Cycle turn", security.cycle_turn ? "yes" : "no")}
                 ${this.renderDetailRow("Freefall blocked", security.freefall_block ? "yes" : "no")}
                 ${security.recommendation?.reason ? this.renderDetailRow("Plan", security.recommendation.reason) : ""}
-                ${this.renderDetailRow("Actions", b`<tui-button
-                    variant="error"
-                    @click=${() => this.openDeleteDialog(security)}
-                    >Remove</tui-button
-                  >`)}
+                ${this.renderDetailRow("Actions", this.inactiveOnly ? b`<tui-button
+                          ?disabled=${this.busyAction === `activate:${security.symbol}`}
+                          @click=${() => this.activateSecurity(security)}
+                          >Activate</tui-button
+                        >&nbsp;<tui-button
+                          variant="error"
+                          title=${security.can_delete ? "Permanently delete unused security" : `Cannot delete: ${security.transaction_count || 0} historical transaction(s)`}
+                          ?disabled=${!security.can_delete}
+                          @click=${() => this.openDeleteDialog(security)}
+                          >Delete Permanently</tui-button
+                        >` : b`<tui-button
+                        variant="error"
+                        @click=${() => this.openDeleteDialog(security)}
+                        >Remove</tui-button
+                      >`)}
+                ${this.inactiveOnly && !security.can_delete ? this.renderDetailRow("Deletion", `Permanent deletion is unavailable because this security has ${security.transaction_count || 0} historical transaction(s).`) : ""}
               </tbody>
             </table>
           </tui-box>
@@ -6914,9 +6973,13 @@ var SentinelSecurities = class extends i {
 		const allExpanded = visible.length > 0 && visible.every((security) => this.expandedSymbols.has(security.symbol));
 		if (visible.length === 0) return b`<div>No securities match the current controls</div>`;
 		return b`
-      <table aria-label="Securities" style="width: 100%; border-spacing: 0">
-        <thead>
-          <tr>
+      <div style="width: 100%; min-width: 0; overflow-x: auto">
+        <table
+          aria-label=${this.inactiveOnly ? "Inactive Securities" : "Securities"}
+          style="width: 100%; border-spacing: 0"
+        >
+          <thead>
+            <tr>
             <th scope="col" style="text-align: left; vertical-align: top">
               ${allExpanded ? b`<tui-button
                       aria-label="Collapse all securities"
@@ -6943,14 +7006,16 @@ var SentinelSecurities = class extends i {
                     scope="col"
                     style="text-align: left; vertical-align: top"
                   >
-                    <span aria-hidden="true">│&nbsp;</span>Trade
+                    <span aria-hidden="true">│&nbsp;</span
+                    >${this.inactiveOnly ? "Status" : "Trade"}
                   </th>` : ""}
-          </tr>
-        </thead>
-        <tbody>
-          ${visible.map((security) => this.renderSecurityRow(security))}
-        </tbody>
-      </table>
+            </tr>
+          </thead>
+          <tbody>
+            ${visible.map((security) => this.renderSecurityRow(security))}
+          </tbody>
+        </table>
+      </div>
     `;
 	}
 	renderColumnsDialog() {
@@ -7070,12 +7135,17 @@ var SentinelSecurities = class extends i {
 		return b`
       <dialog
         id="delete-security-dialog"
-        aria-label="Remove Security"
+        aria-label=${this.inactiveOnly ? "Delete Security Permanently" : "Remove Security"}
         style="color: var(--tui-color); background: var(--tui-background); border: 0; padding: 0; max-width: calc(100% - 2ch)"
       >
-        <tui-box heading="Remove Security" border="single">
+        <tui-box
+          heading=${this.inactiveOnly ? "Delete Security Permanently" : "Remove Security"}
+          border="single"
+        >
           ${security ? b`
-                  <div>Remove ${security.symbol} from the active universe?</div>
+                  <div>
+                    ${this.inactiveOnly ? `Permanently delete ${security.symbol}?` : `Remove ${security.symbol} from the active universe?`}
+                  </div>
                   ${security.has_position ? b`<div>
                           <tui-text variant="warning"
                             >Position: ${security.quantity} shares
@@ -7094,7 +7164,7 @@ var SentinelSecurities = class extends i {
                       variant="error"
                       ?disabled=${this.busyAction === `delete:${security.symbol}`}
                       @click=${this.deleteSecurity}
-                      >Remove</tui-button
+                      >${this.inactiveOnly ? "Delete Permanently" : "Remove"}</tui-button
                     >&nbsp;
                     <tui-button
                       ?disabled=${this.busyAction === `delete:${security.symbol}`}
@@ -7120,13 +7190,604 @@ var SentinelSecurities = class extends i {
         ${this.renderTable()}
       `;
 		return b`
-      <tui-box heading="Securities" border="single">${content}</tui-box>
-      ${this.renderColumnsDialog()} ${this.renderAddDialog()}
+      ${this.bare ? content : b`<tui-box
+            heading=${this.inactiveOnly ? "Inactive Securities" : "Securities"}
+            border="single"
+            >${content}</tui-box
+          >`}
+      ${this.inactiveOnly ? "" : b`${this.renderColumnsDialog()} ${this.renderAddDialog()}`}
       ${this.renderDeleteDialog()}
     `;
 	}
 };
 customElements.define("sentinel-securities", SentinelSecurities);
+//#endregion
+//#region src/widget-state.js
+var STORAGE_KEY = "sentinel.collapsedWidgets";
+var DEFAULTS = {
+	"inactive-securities": true,
+	composition: true,
+	"forward-return": true
+};
+function readState() {
+	try {
+		const stored = window.localStorage?.getItem(STORAGE_KEY);
+		return stored ? {
+			...DEFAULTS,
+			...JSON.parse(stored)
+		} : { ...DEFAULTS };
+	} catch {
+		return { ...DEFAULTS };
+	}
+}
+function widgetCollapsed(id) {
+	return Boolean(readState()[id]);
+}
+function storeWidgetCollapsed(id, collapsed) {
+	try {
+		window.localStorage?.setItem(STORAGE_KEY, JSON.stringify({
+			...readState(),
+			[id]: Boolean(collapsed)
+		}));
+	} catch {}
+}
+//#endregion
+//#region src/sentinel-inactive-securities.js
+var SentinelInactiveSecurities = class extends i {
+	static properties = {
+		detailsRequested: { state: true },
+		period: { state: true }
+	};
+	constructor() {
+		super();
+		this.detailsRequested = !widgetCollapsed("inactive-securities");
+		this.period = "1Y";
+		this.periodChanged = (event) => {
+			this.period = event.detail?.period || "1Y";
+			const table = this.querySelector("sentinel-securities");
+			if (table) {
+				table.period = this.period;
+				table.securities.refresh();
+			}
+		};
+		this.securityListChanged = (event) => {
+			this.summaries.refresh();
+			const table = this.querySelector("sentinel-securities");
+			if (table && event.target !== table) table.securities.refresh();
+		};
+	}
+	summaries = new LiveResource(this, (signal) => getJson("/api/securities", { signal }), { interval: 6e4 });
+	createRenderRoot() {
+		return this;
+	}
+	connectedCallback() {
+		super.connectedCallback();
+		window.addEventListener("sentinel-security-period-change", this.periodChanged);
+		window.addEventListener("sentinel-security-list-change", this.securityListChanged);
+	}
+	disconnectedCallback() {
+		window.removeEventListener("sentinel-security-period-change", this.periodChanged);
+		window.removeEventListener("sentinel-security-list-change", this.securityListChanged);
+		super.disconnectedCallback();
+	}
+	toggleDetails(event) {
+		const open = event.currentTarget.open;
+		storeWidgetCollapsed("inactive-securities", !open);
+		if (open && !this.detailsRequested) this.detailsRequested = true;
+	}
+	render() {
+		if (this.summaries.loading && !this.summaries.value) return "";
+		if (this.summaries.error) return "";
+		const count = (this.summaries.value || []).filter((security) => !security.active).length;
+		if (count === 0) return "";
+		return b`
+      <details
+        ?open=${!widgetCollapsed("inactive-securities")}
+        @toggle=${this.toggleDetails}
+      >
+        <summary style="cursor: pointer; font-weight: 600">
+          Inactive Securities (${count})
+        </summary>
+        ${this.detailsRequested ? b`<tui-box border="single">
+              <sentinel-securities
+                inactive-only
+                bare
+                .period=${this.period}
+              ></sentinel-securities>
+            </tui-box>` : ""}
+      </details>
+    `;
+	}
+};
+customElements.define("sentinel-inactive-securities", SentinelInactiveSecurities);
+//#endregion
+//#region src/sentinel-risk-return.js
+function clamp01(value) {
+	if (!Number.isFinite(value)) return 0;
+	return Math.max(0, Math.min(1, value));
+}
+function percent$1(value, digits = 1) {
+	if (value === null || value === void 0 || Number.isNaN(value)) return "—";
+	return `${(value * 100).toFixed(digits)}%`;
+}
+function number(value, digits = 2) {
+	if (value === null || value === void 0 || Number.isNaN(value)) return "—";
+	return Number(value).toFixed(digits);
+}
+var SentinelRiskReturn = class extends i {
+	composition = new LiveResource(this, (signal) => getJson("/api/portfolio/composition", { signal }), { interval: 3e5 });
+	createRenderRoot() {
+		return this;
+	}
+	storeCollapsed(event) {
+		storeWidgetCollapsed("risk-return", !event.currentTarget.open);
+	}
+	metricRows(metrics) {
+		const rows = [
+			{
+				label: "Last year",
+				subLabel: "1Y return — money made (or lost) after subtracting deposits",
+				value: metrics.return_1y,
+				formatted: percent$1(metrics.return_1y),
+				min: -.3,
+				max: .3,
+				reference: 0,
+				minLabel: "-30%",
+				maxLabel: "+30%",
+				referenceLabel: "break-even",
+				goodDirection: "high"
+			},
+			{
+				label: "Since the beginning",
+				subLabel: `CAGR — annualized growth since first deposit (${number(metrics.inception_years || 0, 1)} years)`,
+				value: metrics.return_since_inception_cagr,
+				formatted: percent$1(metrics.return_since_inception_cagr),
+				min: -.3,
+				max: .3,
+				reference: 0,
+				minLabel: "-30%",
+				maxLabel: "+30%",
+				referenceLabel: "break-even",
+				goodDirection: "high"
+			},
+			{
+				label: "Bumpiness",
+				subLabel: "Annual volatility — how wild the daily price swings are",
+				value: metrics.volatility,
+				formatted: percent$1(metrics.volatility),
+				min: 0,
+				max: .4,
+				reference: .18,
+				minLabel: "calm",
+				maxLabel: "wild",
+				referenceLabel: "typical",
+				goodDirection: "low"
+			},
+			{
+				label: "Worst drop",
+				subLabel: "Max drawdown — biggest dip from peak to bottom",
+				value: metrics.max_drawdown,
+				formatted: percent$1(metrics.max_drawdown),
+				min: 0,
+				max: .5,
+				reference: .2,
+				minLabel: "no dips",
+				maxLabel: "crash",
+				referenceLabel: "tolerable",
+				goodDirection: "low"
+			},
+			{
+				label: "Reward for the bumps",
+				subLabel: "Sharpe ratio — return per unit of risk, vs cash",
+				value: metrics.sharpe,
+				formatted: number(metrics.sharpe),
+				min: -1,
+				max: 3,
+				reference: 1,
+				minLabel: "-1",
+				maxLabel: "3",
+				referenceLabel: "good",
+				goodDirection: "high"
+			},
+			{
+				label: "All in one basket?",
+				subLabel: "Concentration (HHI) — 0 spread evenly, 1 single position",
+				value: metrics.hhi,
+				formatted: number(metrics.hhi, 3),
+				min: 0,
+				max: 1,
+				reference: .1,
+				minLabel: "spread",
+				maxLabel: "all-in",
+				referenceLabel: "diversified",
+				goodDirection: "low"
+			}
+		];
+		if ((this.composition.value?.home_markets || []).length > 0 && (metrics.home_coverage_pct || 0) > 0) {
+			const coverage = `covers ${percent$1(metrics.home_coverage_pct, 0)} of holdings`;
+			rows.push({
+				label: "Tracks home markets?",
+				subLabel: `Beta vs each holding's own market index, value-weighted (${coverage})`,
+				value: metrics.beta_vs_home,
+				formatted: number(metrics.beta_vs_home),
+				min: -1,
+				max: 2,
+				reference: 1,
+				minLabel: "-1",
+				maxLabel: "+2",
+				referenceLabel: "in step",
+				goodDirection: "neutral"
+			}, {
+				label: "Beating home markets?",
+				subLabel: `Alpha — value-weighted outperformance vs each holding's home index (${coverage})`,
+				value: metrics.alpha_1y_vs_home,
+				formatted: percent$1(metrics.alpha_1y_vs_home),
+				min: -.2,
+				max: .2,
+				reference: 0,
+				minLabel: "-20%",
+				maxLabel: "+20%",
+				referenceLabel: "matches",
+				goodDirection: "high"
+			});
+		}
+		return rows;
+	}
+	metricColor(row) {
+		if (row.goodDirection === "neutral") return "var(--tui-color)";
+		return (row.goodDirection === "high" ? row.value >= row.reference : row.value <= row.reference) ? "var(--tui-success-color)" : "var(--tui-error-color)";
+	}
+	renderMetric(row) {
+		const span = row.max - row.min;
+		const valuePosition = span > 0 ? clamp01((row.value - row.min) / span) : .5;
+		const referencePosition = span > 0 ? clamp01((row.reference - row.min) / span) : .5;
+		const color = this.metricColor(row);
+		return b`
+      <div style="display: grid; gap: 2px">
+        <div
+          style="display: flex; justify-content: space-between; gap: 1ch; align-items: baseline"
+        >
+          <div style="flex: 1 1 auto; min-width: 0">
+            <div style="font-weight: 600">${row.label}</div>
+            <div style="color: var(--tui-disabled-color); font-size: 0.75em">
+              ${row.subLabel}
+            </div>
+          </div>
+          <div style="color: ${color}; flex: 0 0 auto; font-weight: 600">
+            ${row.formatted}
+          </div>
+        </div>
+        <div
+          aria-hidden="true"
+          style="position: relative; height: 10px; margin: 4px 0 2px; overflow: hidden; background: color-mix(in srgb, var(--tui-color) 18%, transparent)"
+        >
+          <div
+            style="position: absolute; left: ${Math.min(referencePosition, valuePosition) * 100}%; width: ${Math.abs(valuePosition - referencePosition) * 100}%; top: 0; bottom: 0; background: ${color}"
+          ></div>
+          <div
+            style="position: absolute; left: ${referencePosition * 100}%; top: -2px; bottom: -2px; width: 1px; background: var(--tui-disabled-color); transform: translateX(-0.5px)"
+          ></div>
+        </div>
+        <div
+          aria-hidden="true"
+          style="position: relative; height: 1.1em; color: var(--tui-disabled-color); font-size: 0.75em"
+        >
+          <span style="position: absolute; left: 0">${row.minLabel}</span>
+          <span
+            style="position: absolute; left: ${referencePosition * 100}%; transform: translateX(-50%); white-space: nowrap"
+            >${row.referenceLabel}</span
+          >
+          <span style="position: absolute; right: 0">${row.maxLabel}</span>
+        </div>
+      </div>
+    `;
+	}
+	renderHomeMarkets(data) {
+		const markets = data.home_markets || [];
+		if (markets.length === 0 || !(data.metrics.home_coverage_pct > 0)) return b`<div
+        style="color: var(--tui-disabled-color); font-size: 0.75em; font-style: italic"
+      >
+        Benchmarks not yet synced — home-market comparison will populate on
+        next sync cycle.
+      </div>`;
+		return b`
+      <div style="display: grid; gap: 2px">
+        <div
+          style="color: var(--tui-disabled-color); font-size: 0.75em; font-weight: 600; text-transform: uppercase"
+        >
+          vs home markets
+        </div>
+        ${markets.map((market) => b`
+            <div
+              style="display: flex; justify-content: space-between; gap: 1ch; font-size: 0.75em"
+            >
+              <span style="color: var(--tui-disabled-color)"
+                >${market.group} (${percent$1(market.weight_pct, 0)})</span
+              >
+              <span
+                style="color: ${market.alpha_1y >= 0 ? "var(--tui-success-color)" : "var(--tui-error-color)"}"
+                >${percent$1(market.alpha_1y)} α · β
+                ${number(market.beta)}</span
+              >
+            </div>
+          `)}
+      </div>
+    `;
+	}
+	render() {
+		const data = this.composition.value;
+		if (this.composition.loading && !data || this.composition.error || !data?.metrics) return "";
+		return b`
+      <details
+        ?open=${!widgetCollapsed("risk-return")}
+        @toggle=${this.storeCollapsed}
+      >
+        <summary style="cursor: pointer; font-weight: 600">Risk / Return</summary>
+        <tui-box heading="Risk / Return" border="single">
+          <div style="display: grid; gap: 1em">
+            ${this.metricRows(data.metrics).map((row) => this.renderMetric(row))}
+            ${this.renderHomeMarkets(data)}
+          </div>
+        </tui-box>
+      </details>
+    `;
+	}
+};
+customElements.define("sentinel-risk-return", SentinelRiskReturn);
+//#endregion
+//#region src/sentinel-security-allocation.js
+function percent(value) {
+	return `${Number(value || 0).toFixed(1)}%`;
+}
+var SentinelSecurityAllocation = class extends i {
+	static properties = {
+		sortBy: { state: true },
+		showIdeal: { state: true },
+		compact: { state: true }
+	};
+	constructor() {
+		super();
+		this.sortBy = "allocation";
+		this.showIdeal = true;
+		this.compact = false;
+	}
+	allocation = new LiveResource(this, async (signal) => {
+		const [securities, planner] = await Promise.all([getJson("/api/unified?period=1Y", { signal }), getJson("/api/planner/recommendations", { signal })]);
+		return {
+			securities,
+			planner
+		};
+	}, { interval: 6e4 });
+	createRenderRoot() {
+		return this;
+	}
+	connectedCallback() {
+		super.connectedCallback();
+		if (typeof ResizeObserver !== "undefined") {
+			this.resizeObserver = new ResizeObserver(([entry]) => {
+				const compact = entry.contentRect.width <= 520;
+				if (compact !== this.compact) this.compact = compact;
+			});
+			this.resizeObserver.observe(this);
+		}
+	}
+	disconnectedCallback() {
+		this.resizeObserver?.disconnect();
+		super.disconnectedCallback();
+	}
+	storeCollapsed(event) {
+		storeWidgetCollapsed("security-allocation", !event.currentTarget.open);
+	}
+	changeSort(event) {
+		this.sortBy = event.currentTarget.value;
+	}
+	changeIdeal(event) {
+		this.showIdeal = event.currentTarget.checked;
+	}
+	get rows() {
+		const securities = this.allocation.value?.securities || [];
+		const planner = this.allocation.value?.planner || {};
+		const recommendations = planner.recommendations || [];
+		const longTermPlan = planner.plan;
+		const targets = new Map((longTermPlan?.targets || []).map((target) => [target.symbol, target]));
+		const rows = securities.filter((security) => {
+			const hasPosition = security.has_position && security.value_eur > 0;
+			const hasRecommendation = recommendations.some((recommendation) => recommendation.symbol === security.symbol);
+			const hasIdeal = this.showIdeal && targets.has(security.symbol);
+			return hasPosition || hasRecommendation || hasIdeal;
+		}).map((security) => {
+			const recommendation = recommendations.find((candidate) => candidate.symbol === security.symbol);
+			const delta = recommendation ? recommendation.value_delta_eur : 0;
+			const target = targets.get(security.symbol);
+			const current = security.value_eur || 0;
+			const final = current + delta;
+			const ideal = Number(target?.target_value_eur ?? recommendation?.target_value_eur ?? current);
+			const modelIdeal = Number(target?.model_target_value_eur ?? ideal);
+			if (final <= 0 && current <= 0 && ideal <= 0) return;
+			return {
+				symbol: security.symbol,
+				current,
+				final: Math.max(0, final),
+				delta,
+				ideal,
+				currentAllocation: security.current_allocation || 0,
+				postPlanAllocation: security.post_plan_allocation ?? security.current_allocation ?? 0,
+				idealAllocation: target?.target_allocation_pct ?? security.ideal_allocation ?? 0,
+				targetGap: Number(target?.gap_eur || 0),
+				quantityDelta: Number(target?.quantity_delta || 0),
+				modelIdeal,
+				sellLocked: Boolean(target?.sell_locked),
+				isBuy: delta > 0,
+				isSell: delta < 0,
+				maxBar: this.showIdeal ? Math.max(current, final, ideal) : Math.max(current, final)
+			};
+		}).filter(Boolean);
+		const currentCash = Number(longTermPlan?.current_cash_eur || 0);
+		const targetCash = Number(longTermPlan?.target_cash_value_eur || 0);
+		if (currentCash > 0 || targetCash > 0) {
+			const currentTotal = Number(longTermPlan?.current_total_value_eur || 0);
+			const plannedCash = Number.isFinite(Number(planner.summary?.cash_after_plan)) ? Math.max(0, Number(planner.summary.cash_after_plan)) : currentCash;
+			const delta = plannedCash - currentCash;
+			rows.push({
+				symbol: "CASH",
+				current: currentCash,
+				final: plannedCash,
+				delta,
+				ideal: targetCash,
+				currentAllocation: currentTotal > 0 ? currentCash / currentTotal * 100 : 0,
+				postPlanAllocation: currentTotal > 0 ? plannedCash / currentTotal * 100 : 0,
+				idealAllocation: Number(longTermPlan?.target_cash_allocation_pct || 0),
+				targetGap: Number(longTermPlan?.cash_gap_eur || 0),
+				quantityDelta: 0,
+				modelIdeal: targetCash,
+				sellLocked: false,
+				isBuy: delta > 0,
+				isSell: delta < 0,
+				maxBar: this.showIdeal ? Math.max(currentCash, plannedCash, targetCash) : Math.max(currentCash, plannedCash)
+			});
+		}
+		rows.sort((left, right) => this.sortBy === "ideal" ? right.ideal - left.ideal : Math.max(right.final, right.current) - Math.max(left.final, left.current));
+		return rows;
+	}
+	renderRow(row, maximum) {
+		const grayWidth = maximum > 0 ? (row.isBuy ? row.final - row.delta : row.final) / maximum * 100 : 0;
+		const deltaWidth = maximum > 0 ? Math.abs(row.delta) / maximum * 100 : 0;
+		const idealPosition = maximum > 0 ? row.ideal / maximum * 100 : 0;
+		const targetGapText = `${row.targetGap >= 0 ? "+" : "-"}${formatCurrency(Math.abs(row.targetGap), "EUR")}`;
+		const quantityText = Math.abs(row.quantityDelta || 0) > 1e-4 ? `; ${row.quantityDelta > 0 ? "+" : "-"}${Math.abs(row.quantityDelta).toLocaleString()} shares` : "";
+		const idealTitle = row.sellLocked ? `No-sell holding remains unchanged; model target: ${formatCurrency(row.modelIdeal, "EUR")}` : `12-month target: ${formatCurrency(row.ideal, "EUR")}; gap: ${targetGapText}${quantityText}`;
+		return b`
+      <tr>
+        <td
+          title=${row.symbol}
+          style="width: ${this.compact ? "62px" : "76px"}; padding: 4px 8px 4px 0; font-size: 0.75em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"
+        >
+          ${row.symbol}
+        </td>
+        <td style="width: 100%; padding: 4px 8px 4px 0">
+          <div
+            style="position: relative; display: flex; width: 100%; height: 16px; overflow: hidden; background: color-mix(in srgb, var(--tui-color) 8%, transparent); border: 1px solid color-mix(in srgb, var(--tui-color) 30%, transparent)"
+          >
+            ${grayWidth > 0 ? b`<div
+                  style="height: 100%; width: ${grayWidth}%; background: var(--tui-disabled-color)"
+                ></div>` : ""}
+            ${row.isBuy && deltaWidth > 0 ? b`<div
+                  style="height: 100%; width: ${deltaWidth}%; background: var(--tui-success-color)"
+                ></div>` : ""}
+            ${row.isSell && deltaWidth > 0 ? b`<div
+                  style="height: 100%; width: ${deltaWidth}%; background: var(--tui-error-color)"
+                ></div>` : ""}
+            ${this.showIdeal ? b`<div
+                  title=${idealTitle}
+                  style="position: absolute; left: ${idealPosition}%; top: -2px; bottom: -2px; width: 2px; background: light-dark(blue, deepskyblue); transform: translateX(-1px)"
+                ></div>` : ""}
+          </div>
+        </td>
+        <td
+          style="width: ${this.compact ? "118px" : "174px"}; padding: 4px 0; color: var(--tui-disabled-color); font-size: 0.6875em; text-align: right; white-space: ${this.compact ? "normal" : "nowrap"}"
+        >
+          ${this.compact ? "" : b`<div>
+                <span>${percent(row.currentAllocation)}</span>
+                <span style="padding: 0 4px">→</span>
+                <span
+                  style="color: ${row.isBuy ? "var(--tui-success-color)" : row.isSell ? "var(--tui-error-color)" : "inherit"}; font-weight: ${row.isBuy || row.isSell ? "600" : "inherit"}"
+                  >${percent(row.postPlanAllocation)}</span
+                >
+                <span style="padding-left: 4px; color: light-dark(blue, deepskyblue)"
+                  >/ ${percent(row.idealAllocation)}</span
+                >
+              </div>`}
+          <div
+            style="margin-top: 2px; color: var(--tui-disabled-color); font-size: ${this.compact ? "0.82em" : "0.91em"}"
+          >
+            ${formatCurrency(row.ideal, "EUR")} ·
+            ${row.sellLocked ? "unchanged" : targetGapText}
+          </div>
+        </td>
+      </tr>
+    `;
+	}
+	legend(color, label, ideal = false) {
+		return b`<span
+      style="display: inline-flex; align-items: center; gap: 0.5ch; white-space: nowrap"
+    >
+      <span
+        aria-hidden="true"
+        style="display: inline-block; flex: 0 0 auto; width: ${ideal ? "2px" : "12px"}; height: ${ideal ? "12px" : "10px"}; background: ${color}; border: ${ideal ? "none" : "1px solid color-mix(in srgb, var(--tui-color) 30%, transparent)"}"
+      ></span>
+      <span style="color: var(--tui-disabled-color); font-size: 0.75em"
+        >${label}</span
+      >
+    </span>`;
+	}
+	render() {
+		if (this.allocation.loading && !this.allocation.value || this.allocation.error || !this.allocation.value) return "";
+		const rows = this.rows;
+		const maximum = Math.max(...rows.map((row) => row.maxBar), 0);
+		return b`
+      <details
+        ?open=${!widgetCollapsed("security-allocation")}
+        @toggle=${this.storeCollapsed}
+      >
+        <summary style="cursor: pointer; font-weight: 600">
+          Security Allocation
+        </summary>
+        <tui-box heading="Security Allocation" border="single">
+          <div style="display: grid; gap: 0.75em">
+            <div
+              style="display: flex; justify-content: space-between; align-items: baseline; gap: 1ch; flex-wrap: wrap"
+            >
+              <span
+                style="color: var(--tui-disabled-color); font-size: 0.75em; font-weight: 600; text-transform: uppercase"
+                >Security Allocation</span
+              >
+              <span style="display: inline-flex; gap: 1ch; align-items: baseline">
+                <tui-radio-buttonset
+                  aria-label="Security allocation sorting"
+                  value=${this.sortBy}
+                  @change=${this.changeSort}
+                >
+                  <tui-radio-button value="allocation"
+                    >By allocation</tui-radio-button
+                  >
+                  <tui-radio-button value="ideal">By ideal</tui-radio-button>
+                </tui-radio-buttonset>
+                <tui-toggle
+                  ?checked=${this.showIdeal}
+                  @change=${this.changeIdeal}
+                  >Ideal</tui-toggle
+                >
+              </span>
+            </div>
+            ${rows.length > 0 ? b`<div style="min-width: 0; overflow-x: auto">
+                  <table
+                    aria-label="Security Allocation"
+                    style="width: 100%; border-collapse: collapse; table-layout: ${this.compact ? "auto" : "fixed"}"
+                  >
+                    <tbody>
+                      ${rows.map((row) => this.renderRow(row, maximum))}
+                    </tbody>
+                  </table>
+                </div>` : b`<div
+                  style="padding: 2em 0; color: var(--tui-disabled-color); text-align: center"
+                >
+                  No allocation data available
+                </div>`}
+            <div
+              style="display: flex; gap: 1em; flex-wrap: wrap; padding-top: 4px"
+            >
+              ${this.legend("var(--tui-disabled-color)", "Current holding")}
+              ${this.legend("var(--tui-success-color)", "Today's increase")}
+              ${this.legend("var(--tui-error-color)", "Today's decrease")}
+              ${this.showIdeal ? this.legend("light-dark(blue, deepskyblue)", "12-month target", true) : ""}
+            </div>
+          </div>
+        </tui-box>
+      </details>
+    `;
+	}
+};
+customElements.define("sentinel-security-allocation", SentinelSecurityAllocation);
 //#endregion
 //#region src/sentinel-status-bar.js
 var SentinelStatusBar = class extends i {
@@ -7246,6 +7907,13 @@ var SentinelApp = class extends i {
             style="display: block"
           ></sentinel-portfolio-pnl>
           <sentinel-securities style="display: block"></sentinel-securities>
+          <sentinel-inactive-securities
+            style="display: block"
+          ></sentinel-inactive-securities>
+          <sentinel-risk-return style="display: block"></sentinel-risk-return>
+          <sentinel-security-allocation
+            style="display: block"
+          ></sentinel-security-allocation>
         </main>
         <sentinel-status-bar
           style="display: block; flex: 0 0 auto"

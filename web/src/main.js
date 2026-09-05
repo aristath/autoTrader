@@ -6,5 +6,8 @@ import "./sentinel-portfolio-pnl.js";
 import "./sentinel-portfolio-status.js";
 import "./sentinel-portfolio-value.js";
 import "./sentinel-securities.js";
+import "./sentinel-inactive-securities.js";
+import "./sentinel-risk-return.js";
+import "./sentinel-security-allocation.js";
 import "./sentinel-status-bar.js";
 import "./sentinel-app.js";
