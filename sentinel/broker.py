@@ -11,6 +11,7 @@ Usage:
 import asyncio
 import json
 import logging
+import math
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
@@ -34,40 +35,112 @@ def _as_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def _broker_report_rows(response: Any, block_name: str) -> list[dict]:
+def _finite_float(value: Any, field: str) -> float:
+    """Return a finite broker number or fail with a field-specific error."""
+    if isinstance(value, bool):
+        raise RuntimeError(f"Broker returned invalid {field}")
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(f"Broker returned invalid {field}") from exc
+    if not math.isfinite(number):
+        raise RuntimeError(f"Broker returned invalid {field}")
+    return number
+
+
+def _report_dict_rows(rows: list[Any], block_name: str, *, raise_on_error: bool) -> list[dict]:
+    if raise_on_error and any(not isinstance(row, dict) for row in rows):
+        raise RuntimeError(f"Broker returned malformed {block_name} cash-flow row data")
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _broker_report_rows(response: Any, block_name: str, *, raise_on_error: bool = False) -> list[dict]:
     if isinstance(response, list):
-        return [row for row in response if isinstance(row, dict)]
+        return _report_dict_rows(response, block_name, raise_on_error=raise_on_error)
     if not isinstance(response, dict):
+        if raise_on_error:
+            raise RuntimeError(f"Broker returned malformed {block_name} cash-flow data")
         return []
 
     report = response.get("report", response)
     if isinstance(report, list):
-        return [row for row in report if isinstance(row, dict)]
+        return _report_dict_rows(report, block_name, raise_on_error=raise_on_error)
     if not isinstance(report, dict):
+        if raise_on_error:
+            raise RuntimeError(f"Broker returned malformed {block_name} cash-flow data")
         return []
 
     for key in ("detailed", block_name, f"{block_name}_json"):
         rows = report.get(key)
         if isinstance(rows, list):
-            return [row for row in rows if isinstance(row, dict)]
+            return _report_dict_rows(rows, block_name, raise_on_error=raise_on_error)
+    if raise_on_error:
+        raise RuntimeError(f"Broker returned malformed {block_name} cash-flow data")
     return []
 
 
-def _normalize_non_trade_commission(row: dict) -> dict | None:
-    commission_type = str(row.get("type") or "")
+def _normalize_cash_flow(row: dict, *, raise_on_error: bool) -> dict | None:
+    date = row.get("date")
+    type_id = row.get("type_id")
+    currency = row.get("currency")
+    if not isinstance(date, str) or not date.strip():
+        if raise_on_error:
+            raise RuntimeError("Broker returned malformed in_outs cash-flow date")
+        return None
+    if not isinstance(type_id, str) or not type_id.strip():
+        if raise_on_error:
+            raise RuntimeError("Broker returned malformed in_outs cash-flow type")
+        return None
+    if not isinstance(currency, str) or not currency.strip():
+        if raise_on_error:
+            raise RuntimeError("Broker returned malformed in_outs cash-flow currency")
+        return None
+    try:
+        amount = _finite_float(row.get("amount"), "in_outs cash-flow amount")
+    except RuntimeError:
+        if raise_on_error:
+            raise
+        return None
+    return {**row, "date": date.strip(), "type_id": type_id.strip(), "amount": amount, "currency": currency.strip()}
+
+
+def _normalize_non_trade_commission(row: dict, *, raise_on_error: bool = False) -> dict | None:
+    raw_commission_type = row.get("type")
+    if raise_on_error and (not isinstance(raw_commission_type, str) or not raw_commission_type.strip()):
+        raise RuntimeError("Broker returned malformed commission cash-flow type")
+    commission_type = str(raw_commission_type or "")
     if commission_type.startswith("For trade:"):
         return None
 
-    amount = _as_float(row.get("sum"))
+    if not commission_type.strip():
+        if raise_on_error:
+            raise RuntimeError("Broker returned malformed commission cash-flow type")
+        return None
+    try:
+        amount = _finite_float(row.get("sum"), "commission cash-flow amount")
+    except RuntimeError:
+        if raise_on_error:
+            raise
+        return None
     if amount == 0:
         return None
 
-    raw_date = str(row.get("datetime") or row.get("date") or "")
+    raw_date_value = row.get("datetime") or row.get("date")
+    if raise_on_error and (not isinstance(raw_date_value, str) or not raw_date_value.strip()):
+        raise RuntimeError("Broker returned malformed commission cash-flow date")
+    raw_date = str(raw_date_value or "")
     date = raw_date[:10]
     if not date:
+        if raise_on_error:
+            raise RuntimeError("Broker returned malformed commission cash-flow date")
         return None
 
-    currency = str(row.get("currency") or "EUR")
+    raw_currency = row.get("currency")
+    if not isinstance(raw_currency, str) or not raw_currency.strip():
+        if raise_on_error:
+            raise RuntimeError("Broker returned malformed commission cash-flow currency")
+        raw_currency = "EUR"
+    currency = raw_currency.strip()
     return {
         **row,
         "date": date,
@@ -408,43 +481,107 @@ class Broker:
     # Portfolio
     # -------------------------------------------------------------------------
 
-    async def get_portfolio(self) -> dict:
+    async def get_portfolio(self, *, raise_on_error: bool = False) -> dict:
         """Get current portfolio from broker."""
         if not self._api:
+            if raise_on_error:
+                raise RuntimeError("Broker is not connected")
             return {"positions": [], "cash": {}}
         try:
             response = self._api.account_summary()
+            if not response or "result" not in response:
+                if raise_on_error:
+                    raise RuntimeError("Broker returned no portfolio data")
+                return {"positions": [], "cash": {}}
             positions = []
             cash = {}
 
-            if response and "result" in response:
-                ps = response["result"].get("ps", {})
+            result = response["result"]
+            ps = result.get("ps") if isinstance(result, dict) else None
+            if not isinstance(ps, dict):
+                if raise_on_error:
+                    raise RuntimeError("Broker returned malformed portfolio data")
+                return {"positions": [], "cash": {}}
 
-                # Parse positions from ps.pos
-                for pos in ps.get("pos", []):
-                    positions.append(
-                        {
-                            "symbol": pos.get("i"),  # instrument
-                            "quantity": pos.get("q"),
-                            "avg_cost": pos.get("bal_price_a"),  # average cost
-                            "current_price": pos.get("mkt_price"),
-                            "close_price": pos.get("close_price"),
-                            "previous_close_price": pos.get("profit_price") or pos.get("close_price"),
-                            "currency": pos.get("curr", "EUR"),
-                            "name": pos.get("name"),
-                            "market_value": pos.get("market_value"),
-                            "profit": pos.get("profit_close"),
-                        }
-                    )
+            raw_positions = ps.get("pos")
+            raw_cash = ps.get("acc")
+            if not isinstance(raw_positions, list) or not isinstance(raw_cash, list):
+                if raise_on_error:
+                    raise RuntimeError("Broker returned incomplete portfolio data")
+                raw_positions = raw_positions if isinstance(raw_positions, list) else []
+                raw_cash = raw_cash if isinstance(raw_cash, list) else []
 
-                # Parse cash balances from ps.acc
-                for acc in ps.get("acc", []):
-                    curr = acc.get("curr", "EUR")
-                    cash[curr] = acc.get("s", 0)  # 's' is the balance
+            # Parse positions from ps.pos
+            for pos in raw_positions:
+                if not isinstance(pos, dict) or not isinstance(pos.get("i"), str) or not pos["i"].strip():
+                    if raise_on_error:
+                        raise RuntimeError("Broker returned malformed portfolio position data")
+                    continue
+                try:
+                    quantity = _finite_float(pos.get("q"), "portfolio position quantity")
+                    numeric_fields = {
+                        key: _finite_float(pos[key], f"portfolio position {key}")
+                        for key in (
+                            "bal_price_a",
+                            "mkt_price",
+                            "close_price",
+                            "profit_price",
+                            "market_value",
+                            "profit_close",
+                        )
+                        if pos.get(key) is not None
+                    }
+                except RuntimeError:
+                    if raise_on_error:
+                        raise
+                    continue
+                raw_currency = pos.get("curr", "EUR")
+                if not isinstance(raw_currency, str) or not raw_currency.strip():
+                    if raise_on_error:
+                        raise RuntimeError("Broker returned malformed portfolio position currency")
+                    raw_currency = "EUR"
+                previous_close = numeric_fields.get("profit_price")
+                if previous_close is None:
+                    previous_close = numeric_fields.get("close_price")
+                positions.append(
+                    {
+                        "symbol": pos["i"].strip(),  # instrument
+                        "quantity": quantity,
+                        "avg_cost": numeric_fields.get("bal_price_a"),  # average cost
+                        "current_price": numeric_fields.get("mkt_price"),
+                        "close_price": numeric_fields.get("close_price"),
+                        "previous_close_price": previous_close,
+                        "currency": raw_currency.strip(),
+                        "name": pos.get("name"),
+                        "market_value": numeric_fields.get("market_value"),
+                        "profit": numeric_fields.get("profit_close"),
+                    }
+                )
+
+            # Parse cash balances from ps.acc
+            for acc in raw_cash:
+                if (
+                    not isinstance(acc, dict)
+                    or not isinstance(acc.get("curr"), str)
+                    or not acc["curr"].strip()
+                    or "s" not in acc
+                ):
+                    if raise_on_error:
+                        raise RuntimeError("Broker returned malformed portfolio cash data")
+                    continue
+                try:
+                    balance = _finite_float(acc["s"], "portfolio cash balance")
+                except RuntimeError:
+                    if raise_on_error:
+                        raise
+                    continue
+                cash[acc["curr"].strip()] = balance  # 's' is the balance
 
             return {"positions": positions, "cash": cash}
         except Exception as e:
             logger.error(f"Failed to get portfolio: {e}")
+            if raise_on_error:
+                raise
             return {"positions": [], "cash": {}}
 
     # -------------------------------------------------------------------------
@@ -761,6 +898,8 @@ class Broker:
         self,
         start_date: str = "2020-01-01",
         end_date: str | None = None,
+        *,
+        raise_on_error: bool = False,
     ) -> list[dict]:
         """
         Fetch trade history from Tradernet API.
@@ -773,6 +912,8 @@ class Broker:
             List of trade dicts with extracted symbol and side fields
         """
         if not self._api:
+            if raise_on_error:
+                raise RuntimeError("Broker is not connected")
             return []
 
         if end_date is None:
@@ -785,34 +926,70 @@ class Broker:
                 limit=1000,  # Fetch all available trades
             )
 
+            trade_data = response.get("trades") if isinstance(response, dict) else None
+            raw_trades = trade_data.get("trade") if isinstance(trade_data, dict) else None
+            if not isinstance(raw_trades, list):
+                if raise_on_error:
+                    raise RuntimeError("Broker returned malformed trade history data")
+                raw_trades = []
+
             trades = []
-            if response and "trades" in response:
-                # API returns {"trades": {"trade": [...], "max_trade_id": [...]}}
-                raw_trades = response.get("trades", {}).get("trade", [])
+            for trade in raw_trades:
+                if not isinstance(trade, dict):
+                    if raise_on_error:
+                        raise RuntimeError("Broker returned malformed trade history row data")
+                    continue
+                # Extract key fields for indexing
+                symbol = trade.get("instr_nm")
+                trade_type = str(trade.get("type", ""))  # API returns "1" = BUY, "2" = SELL as strings
+                raw_trade_id = trade.get("id")
+                trade_id = "" if raw_trade_id is None or isinstance(raw_trade_id, bool) else str(raw_trade_id).strip()
+                date = trade.get("date")
+                if raise_on_error:
+                    if not trade_id:
+                        raise RuntimeError("Broker returned malformed trade history id")
+                    if not isinstance(symbol, str) or not symbol.strip():
+                        raise RuntimeError("Broker returned malformed trade history symbol")
+                    if trade_type not in {"1", "2"}:
+                        raise RuntimeError("Broker returned malformed trade history type")
+                    if not isinstance(date, str) or not date.strip():
+                        raise RuntimeError("Broker returned malformed trade history date")
+                    quantity = _finite_float(trade.get("q"), "trade history quantity")
+                    price = _finite_float(trade.get("p"), "trade history price")
+                    commission = _finite_float(trade.get("commission", 0) or 0, "trade history commission")
+                else:
+                    quantity = trade.get("q")
+                    price = trade.get("p")
+                    commission = trade.get("commission")
+                side = "BUY" if trade_type == "1" else "SELL"
 
-                for trade in raw_trades:
-                    # Extract key fields for indexing
-                    symbol = trade.get("instr_nm", "")
-                    trade_type = str(trade.get("type", ""))  # API returns "1" = BUY, "2" = SELL as strings
-                    side = "BUY" if trade_type == "1" else "SELL"
-
-                    # Add convenience fields to the trade dict
-                    trade["symbol"] = symbol
-                    trade["side"] = side
-
-                    trades.append(trade)
+                # Add convenience fields to the trade dict
+                trades.append(
+                    {
+                        **trade,
+                        "q": quantity,
+                        "p": price,
+                        "commission": commission,
+                        "symbol": symbol.strip() if isinstance(symbol, str) else "",
+                        "side": side,
+                    }
+                )
 
             logger.info(f"Fetched {len(trades)} trades from Tradernet API")
             return trades
 
         except Exception as e:
             logger.error(f"Failed to get trades history: {e}")
+            if raise_on_error:
+                raise
             return []
 
     async def get_cash_flows(
         self,
         start_date: str = "2020-01-01",
         end_date: str | None = None,
+        *,
+        raise_on_error: bool = False,
     ) -> list[dict]:
         """
         Fetch cash flow history from Tradernet API.
@@ -825,6 +1002,8 @@ class Broker:
             List of cash flow entries. Includes in/out rows and non-trade commission rows.
         """
         if not self._api:
+            if raise_on_error:
+                raise RuntimeError("Broker is not connected")
             return []
 
         if end_date is None:
@@ -834,18 +1013,28 @@ class Broker:
 
         try:
             response = self._api.get_broker_report(start=start_date, end=end_date, data_block_type="in_outs")
-            cash_flows.extend(_broker_report_rows(response, "in_outs"))
+            cash_flows.extend(
+                flow
+                for row in _broker_report_rows(response, "in_outs", raise_on_error=raise_on_error)
+                if (flow := _normalize_cash_flow(row, raise_on_error=raise_on_error)) is not None
+            )
         except Exception as e:
             logger.error(f"Failed to get in/out cash flows: {e}")
+            if raise_on_error:
+                raise
 
         try:
             response = self._api.get_broker_report(start=start_date, end=end_date, data_block_type="commissions")
-            commission_rows = _broker_report_rows(response, "commissions")
+            commission_rows = _broker_report_rows(response, "commissions", raise_on_error=raise_on_error)
             cash_flows.extend(
-                flow for row in commission_rows if (flow := _normalize_non_trade_commission(row)) is not None
+                flow
+                for row in commission_rows
+                if (flow := _normalize_non_trade_commission(row, raise_on_error=raise_on_error)) is not None
             )
         except Exception as e:
             logger.error(f"Failed to get commission cash flows: {e}")
+            if raise_on_error:
+                raise
 
         logger.info(f"Fetched {len(cash_flows)} cash flow entries from Tradernet API")
         return cash_flows

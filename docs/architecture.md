@@ -29,6 +29,10 @@ shared services, the database, fixed jobs, the editable folder-task runtime, and
 the optional LED controller. Shutdown stops those runtimes and closes shared
 resources.
 
+The same process exposes a built-in [MCP server](mcp.md) at `/mcp`. MCP is a
+transport adapter over the same services and runtimes, not a separate control
+plane or process.
+
 ## Major packages
 
 | Path | Ownership |
@@ -44,6 +48,7 @@ resources.
 | `sentinel/ai/` | LLM client, tools, research units, pgvector memory |
 | `sentinel/forecasting/` | Forecast service/client, series construction, scoring |
 | `sentinel/led/` | Optional LED controller and bridge state |
+| `sentinel/mcp_server.py` | MCP tool definitions and FastAPI-mounted ASGI application |
 | `web/src/` | Lit/Teract browser application |
 | `TUI/` | Independent Go terminal client |
 | `arduino-app/`, `firmware/` | UNO Q application and MCU sketches |

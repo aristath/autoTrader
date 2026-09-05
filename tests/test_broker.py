@@ -225,6 +225,55 @@ class TestGetSecurityMetadata:
 
 class TestGetPortfolio:
     @pytest.mark.asyncio
+    async def test_strict_fetch_rejects_disconnected_broker(self):
+        broker = Broker()
+        broker._api = None
+
+        with pytest.raises(RuntimeError, match="Broker is not connected"):
+            await broker.get_portfolio(raise_on_error=True)
+
+    @pytest.mark.asyncio
+    async def test_strict_fetch_rejects_missing_portfolio_payload(self, broker):
+        broker._api.account_summary.return_value = {}
+
+        with pytest.raises(RuntimeError, match="no portfolio data"):
+            await broker.get_portfolio(raise_on_error=True)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("portfolio", [{}, {"pos": []}, {"acc": []}])
+    async def test_strict_fetch_rejects_incomplete_portfolio_payload(self, broker, portfolio):
+        broker._api.account_summary.return_value = {"result": {"ps": portfolio}}
+
+        with pytest.raises(RuntimeError, match="incomplete portfolio data"):
+            await broker.get_portfolio(raise_on_error=True)
+
+    @pytest.mark.asyncio
+    async def test_strict_fetch_accepts_explicitly_empty_portfolio(self, broker):
+        broker._api.account_summary.return_value = {"result": {"ps": {"pos": [], "acc": []}}}
+
+        assert await broker.get_portfolio(raise_on_error=True) == {"positions": [], "cash": {}}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("quantity", [None, "not-a-number", float("nan"), float("inf"), True])
+    async def test_strict_fetch_rejects_invalid_position_quantity(self, broker, quantity):
+        broker._api.account_summary.return_value = {
+            "result": {"ps": {"pos": [{"i": "BAD.EU", "q": quantity}], "acc": []}}
+        }
+
+        with pytest.raises(RuntimeError, match="invalid portfolio position quantity"):
+            await broker.get_portfolio(raise_on_error=True)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("balance", [None, "not-a-number", float("nan"), float("inf"), True])
+    async def test_strict_fetch_rejects_invalid_cash_balance(self, broker, balance):
+        broker._api.account_summary.return_value = {
+            "result": {"ps": {"pos": [], "acc": [{"curr": "EUR", "s": balance}]}}
+        }
+
+        with pytest.raises(RuntimeError, match="invalid portfolio cash balance"):
+            await broker.get_portfolio(raise_on_error=True)
+
+    @pytest.mark.asyncio
     async def test_maps_account_position_and_exposes_previous_close(self, broker):
         broker._api.account_summary.return_value = {
             "result": {

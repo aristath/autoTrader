@@ -49,6 +49,7 @@ from sentinel.database import Database
 from sentinel.jobs import init as init_jobs
 from sentinel.jobs import stop as stop_jobs
 from sentinel.jobs.market import BrokerMarketChecker
+from sentinel.mcp_server import mcp, mcp_app
 from sentinel.portfolio import Portfolio
 from sentinel.settings import Settings
 from sentinel.version import VERSION
@@ -61,8 +62,20 @@ _led_controller = None
 _led_task: asyncio.Task | None = None
 
 
+class ExactMCPPathMiddleware:
+    """Route the documented slashless MCP URL to the mounted application root."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope.get("path") == "/mcp":
+            scope = {**scope, "path": "/mcp/", "raw_path": b"/mcp/"}
+        await self.app(scope, receive, send)
+
+
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def _sentinel_lifespan(app: FastAPI):
     """Initialize services on startup, cleanup on shutdown."""
     global _scheduler, _led_controller, _led_task
 
@@ -146,6 +159,13 @@ async def lifespan(app: FastAPI):
     await db.close()
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Run Sentinel services and the mounted MCP session manager together."""
+    async with mcp.session_manager.run(), _sentinel_lifespan(app):
+        yield
+
+
 async def _sync_missing_prices(db: Database, broker: Broker):
     """Sync historical prices for securities that don't have price data."""
     # Get all positions (these are the securities we care about)
@@ -169,15 +189,24 @@ async def _sync_missing_prices(db: Database, broker: Broker):
     logger.info(f"Syncing historical prices for {len(missing)} securities: {missing}")
 
     # Fetch in bulk
-    prices_data = await broker.get_historical_prices_bulk(missing, years=10)
+    prices_data = await broker.get_historical_prices_bulk(missing, years=10, raise_on_error=True)
 
     # Save to database
-    for symbol, prices in prices_data.items():
+    synced = 0
+    missing_results = []
+    for symbol in missing:
+        prices = prices_data.get(symbol, []) if isinstance(prices_data, dict) else []
         if prices:
             await db.save_prices(symbol, prices)
+            synced += 1
             logger.info(f"Saved {len(prices)} prices for {symbol}")
+        else:
+            missing_results.append(symbol)
 
-    logger.info("Historical price sync complete")
+    if missing_results:
+        raise RuntimeError(f"Price sync returned no usable prices for: {', '.join(missing_results)}")
+
+    logger.info("Historical price sync complete: %s/%s securities updated", synced, len(missing))
 
 
 app = FastAPI(
@@ -186,6 +215,7 @@ app = FastAPI(
     version=VERSION,
     lifespan=lifespan,
 )
+app.add_middleware(ExactMCPPathMiddleware)
 
 # CORS for development
 app.add_middleware(
@@ -220,6 +250,9 @@ app.include_router(exchange_rates_router, prefix="/api")
 app.include_router(markets_router, prefix="/api")
 app.include_router(meta_router, prefix="/api")
 app.include_router(pulse_router, prefix="/api")
+
+# The MCP server shares Sentinel's process, port, lifespan, and application state.
+app.mount("/mcp", mcp_app, name="mcp")
 
 # -----------------------------------------------------------------------------
 # Static Files (Web UI)

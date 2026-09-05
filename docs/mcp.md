@@ -1,0 +1,173 @@
+# Model Context Protocol
+
+Sentinel exposes a Streamable HTTP MCP server at `/mcp` (and `/mcp/`). It runs inside the
+existing FastAPI application, on the same port and with the same lifespan. The
+production URL is therefore:
+
+```text
+http://clara.local:8000/mcp
+```
+
+There is no second service, port, database connection, or MCP-specific
+configuration. MCP tools call the same application operations as the web API,
+so settings persistence, task execution, job scheduling, broker access, and
+research/live trading behavior remain identical.
+
+An MCP client that accepts URL-based server configuration can use the endpoint
+directly. The exact surrounding configuration format depends on the client;
+the server entry itself is simply:
+
+```json
+{
+  "url": "http://clara.local:8000/mcp"
+}
+```
+
+## Tools
+
+### System and portfolio
+
+| Tool | Purpose |
+|---|---|
+| `sentinel_status` | Health, version, broker connection, and trading mode |
+| `portfolio_get` | Current positions, cash, and value |
+| `portfolio_composition_get` | Composition and portfolio metrics |
+| `portfolio_structure_get` | Freedom24 structure analysis |
+| `portfolio_performance_get` | P/L history for a selected period |
+| `portfolio_period_stats_get` | Return statistics for every supported period |
+| `portfolio_projection_get` | Long-range portfolio-value projection |
+| `portfolio_sync` | Synchronize the portfolio from the broker |
+| `portfolio_cagr_get` | Lightweight since-inception CAGR calculation |
+| `plan_get` | Recommendations and long-term plan |
+| `ideal_portfolio_get` | Current and ideal allocations |
+| `plan_summary_get` | Rebalance summary |
+| `markets_get` | Relevant market open/closed state |
+| `cache_stats_get` | Application cache statistics |
+| `cache_clear` | Clear one named cache or every cache |
+| `exchange_rates_get` | Stored exchange rates to EUR |
+| `exchange_rates_sync` | Synchronize exchange rates from the broker |
+| `exchange_rate_set` | Manually set one exchange rate to EUR |
+| `categories_get` | Distinct security categories in the database |
+| `pulse_labels_get` | Active geography and industry labels used by Pulse |
+| `led_status_get` | Optional LED display state and bridge health |
+| `led_enabled_set` | Enable or disable the LED display |
+| `led_refresh` | Force an immediate LED refresh |
+| `led_bridge_health_get` | Read the latest LED bridge health report |
+| `led_bridge_health_update` | Store an LED bridge health report |
+
+Synchronization tools return failures when their broker request fails rather
+than presenting cached or empty data as a successful refresh. Manual exchange
+rates require a three-letter currency code and a positive finite rate.
+EUR remains fixed at `1.0`.
+
+### Securities and account history
+
+| Tool | Purpose |
+|---|---|
+| `securities_overview_get` | Unified positions, prices, allocation, and plan view |
+| `securities_list` | Active and inactive universe rows |
+| `security_get` | One security and its controls |
+| `security_prices_get` | Validated historical prices |
+| `security_aliases_get` | Symbol, name, and aliases for active securities |
+| `security_ai_preference_update` | Store an AI-sourced multiplier and analysis |
+| `security_prices_sync` | Synchronize one security's historical prices |
+| `security_prices_sync_all` | Synchronize missing prices for held securities |
+| `security_add` | Add or re-enable a broker security |
+| `security_update` | Update aliases, execution controls, or AI multiplier |
+| `security_remove` | Apply the normal safe universe-removal rules |
+| `trades_get` | Filtered, paginated trade history |
+| `trades_sync` | Synchronize trade history from the broker |
+| `cashflows_get` | Deposits, withdrawals, dividends, taxes, fees, and profit |
+| `cashflows_sync` | Synchronize cash-flow history from the broker |
+| `security_buy` | Submit a buy through Sentinel's trading path |
+| `security_sell` | Submit a sell through Sentinel's trading path |
+
+`security_buy` and `security_sell` do not bypass Sentinel. They instantiate the
+same `Security` service used by the HTTP API, including its trading-mode,
+broker, quantity, and price protections.
+
+### Settings and scheduled jobs
+
+| Tool | Purpose |
+|---|---|
+| `settings_get` | Read all database-backed settings |
+| `setting_set` | Persist one non-strategy setting and perform normal cache invalidation |
+| `strategy_settings_set` | Atomically validate and replace all strategy settings |
+| `jobs_get` | Current, upcoming, and recent job state |
+| `job_schedules_get` | Schedule definitions and runtime timestamps |
+| `job_history_get` | All or per-job execution history |
+| `job_run` | Run a registered job immediately |
+| `job_schedule_update` | Update and reschedule a registered job |
+| `jobs_reschedule_all` | Make all jobs eligible and reschedule them |
+
+`job_schedule_update` accepts the same fields as `PUT
+/api/jobs/schedules/{job_type}`: `interval_minutes`,
+`interval_market_open_minutes`, and `market_timing`.
+
+Strategy tuning values are deliberately not writable one at a time through
+`setting_set`. Use `strategy_settings_set`, which requires the complete strategy
+settings group and applies Sentinel's existing range and cross-field validation
+before committing the group atomically.
+
+### Editable tasks
+
+| Tool | Purpose |
+|---|---|
+| `tasks_list` | List task definitions |
+| `task_get` | Read a task definition |
+| `task_create` | Create a task |
+| `task_save` | Replace `task.js` |
+| `task_meta_update` | Update metadata and resync the schedule |
+| `task_delete` | Delete an idle task |
+| `task_validate` | Validate a task definition |
+| `task_files_list` | List a task's files |
+| `task_file_get` | Read a task file |
+| `task_file_save` | Create or replace a task file |
+| `task_file_delete` | Delete a task file |
+| `task_run` | Queue a task with inputs |
+| `tasks_schedule` | Queue a batch with optional delay, priority, and deduplication |
+| `task_runs_get` | List a task's executions |
+| `task_run_get` | Read one execution and its output |
+| `task_run_stop` | Stop queued or running work |
+
+Edits use the same active-run protection and schedule resynchronization as the
+web task editor. `task_meta_update` exposes the supported metadata fields
+directly: `name`, `description`, `tags`, `enabled`, `schedule`, `cwd`,
+`statePath`, `timeout`, and `schedulePolicy`.
+
+`tasks_schedule` accepts one or more task requests. `eligible_at` is a Unix
+timestamp in seconds or milliseconds; a task remains queued until that time.
+Each request may also carry `inputs`, `title`, `dedupe_key`, and `priority`.
+The complete batch is validated first and its work items are committed
+atomically.
+
+### AI research and forecasts
+
+| Tool | Purpose |
+|---|---|
+| `ai_status_get` | Pipeline queue, running unit, staleness, and last run |
+| `ai_units_get` | List research units, optionally filtered or stale-only |
+| `ai_history_get` | Completed and failed research work |
+| `ai_artifact_get` | Read an allowlisted research artifact |
+| `ai_research_run` | Queue analysis or rating for a research unit |
+| `ai_models_get` | Discover models available to the configured AI service |
+| `memories_get` | Read AI memories with optional tag and time filters |
+| `memory_store` | Store an AI memory through the deduplicating memory operation |
+| `forecast_status_get` | Forecast service and recent-run status |
+| `forecast_get` | Latest path, scores, and evaluation for a symbol |
+
+### Backups
+
+| Tool | Purpose |
+|---|---|
+| `backup_status_get` | List backup configuration state and available R2 backups |
+| `backup_run` | Run the registered R2 backup job |
+
+## Implementation
+
+The server definition and tool adapters live in `sentinel/mcp_server.py`.
+`sentinel/app.py` mounts its ASGI application before the frontend catch-all and
+runs the MCP session manager inside the existing application lifespan.
+
+The dependency is the official Python MCP SDK, pinned to the compatible major
+release in `pyproject.toml` and resolved in `uv.lock`.

@@ -1,8 +1,16 @@
 import { LitElement, html } from "lit";
 import { deleteJson, getJson, postJson, putJson } from "./api.js";
 import { formatDateTime, statusVariant } from "./modal-utils.js";
+import "./sentinel-code-editor.js";
 
-const runModeKey = "sentinel.taskRunMode";
+const editorColorSchemeKey = "sentinel.codeEditorColorScheme";
+const editorColorSchemes = new Set([
+  "monochrome",
+  "latte",
+  "frappe",
+  "macchiato",
+  "mocha",
+]);
 const defaultCron = "0 9 * * *";
 const defaultIntervalSeconds = 12 * 60 * 60;
 const cronFields = [
@@ -118,7 +126,6 @@ class SentinelTasks extends LitElement {
     metadata: { state: true },
     metadataBaseline: { state: true },
     tab: { state: true },
-    runMode: { state: true },
     runInputs: { state: true },
     runs: { state: true },
     runId: { state: true },
@@ -127,6 +134,7 @@ class SentinelTasks extends LitElement {
     busyAction: { state: true },
     notice: { state: true },
     actionError: { state: true },
+    editorColorScheme: { state: true },
   };
 
   constructor() {
@@ -141,7 +149,6 @@ class SentinelTasks extends LitElement {
     this.metadata = undefined;
     this.metadataBaseline = "";
     this.tab = "files";
-    this.runMode = globalThis.localStorage?.getItem(runModeKey) || "balanced";
     this.runInputs = "{}";
     this.runs = [];
     this.runId = undefined;
@@ -150,6 +157,12 @@ class SentinelTasks extends LitElement {
     this.busyAction = "";
     this.notice = "";
     this.actionError = "";
+    const storedEditorColorScheme = globalThis.localStorage?.getItem(
+      editorColorSchemeKey,
+    );
+    this.editorColorScheme = editorColorSchemes.has(storedEditorColorScheme)
+      ? storedEditorColorScheme
+      : "monochrome";
   }
 
   createRenderRoot() {
@@ -393,7 +406,7 @@ class SentinelTasks extends LitElement {
     try {
       const run = await postJson(
         `/api/tasks/${encodeURIComponent(this.selectedId)}/run`,
-        { runMode: this.runMode, inputs },
+        { inputs },
       );
       this.runId = run.id;
       this.run = run;
@@ -441,6 +454,16 @@ class SentinelTasks extends LitElement {
     } finally {
       this.busyAction = "";
     }
+  }
+
+  setEditorColorScheme(value) {
+    this.editorColorScheme = editorColorSchemes.has(value)
+      ? value
+      : "monochrome";
+    globalThis.localStorage?.setItem(
+      editorColorSchemeKey,
+      this.editorColorScheme,
+    );
   }
 
   async createFile() {
@@ -679,19 +702,6 @@ class SentinelTasks extends LitElement {
           │ ${this.task.source} │ ${this.task.id}
         </span>
         <span>
-          <tui-radio-buttonset
-            aria-label="Task run mode"
-            value=${this.runMode}
-            ?disabled=${this.running}
-            @change=${(event) => {
-              this.runMode = event.currentTarget.value;
-              globalThis.localStorage?.setItem(runModeKey, this.runMode);
-            }}
-          >
-            <tui-radio-button value="fast">Fast</tui-radio-button>
-            <tui-radio-button value="balanced">Balanced</tui-radio-button>
-            <tui-radio-button value="deep">Deep</tui-radio-button>
-          </tui-radio-buttonset>
           <tui-button
             ?disabled=${this.dirty || this.running || this.busyAction !== ""}
             @click=${this.validateTask}
@@ -777,20 +787,36 @@ class SentinelTasks extends LitElement {
             ${this.activeFile ?? "No file selected"}
             ${active?.protected ? "│ protected" : ""}
             ${dirty ? html`│ <tui-text variant="warning">unsaved</tui-text>` : ""}
+            <label
+              >Scheme&nbsp;<tui-select
+                aria-label="Code editor color scheme"
+                value=${this.editorColorScheme}
+                @change=${(event) =>
+                  this.setEditorColorScheme(event.currentTarget.value)}
+              >
+                <option value="monochrome">Monochrome</option>
+                <option value="latte">Latte</option>
+                <option value="frappe">Frappé</option>
+                <option value="macchiato">Macchiato</option>
+                <option value="mocha">Mocha</option>
+              </tui-select></label
+            >
             <tui-button
               ?disabled=${!dirty || this.running || this.busyAction !== ""}
               @click=${this.saveFile}
               >Save</tui-button
             >
           </div>
-          <tui-textarea
+          <sentinel-code-editor
             aria-label="${this.activeFile ?? "Task file"} content"
-            block
-            rows="30"
-            value=${draft}
+            document-id="${this.selectedId ?? ""}/${this.activeFile ?? ""}"
+            filename=${this.activeFile ?? "file.txt"}
+            language=${active?.language ?? "plaintext"}
+            color-scheme=${this.editorColorScheme}
+            .value=${draft}
             ?disabled=${!this.activeFile || this.running}
             @input=${(event) => this.updateDraft(event.currentTarget.value)}
-          ></tui-textarea>
+          ></sentinel-code-editor>
         </section>
       </tui-flex>
     `;

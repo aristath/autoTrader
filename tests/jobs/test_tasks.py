@@ -619,7 +619,7 @@ class TestSyncExchangeRates:
 
             await sync_exchange_rates()
 
-            mock_currency.sync_rates.assert_awaited_once()
+            mock_currency.sync_rates.assert_awaited_once_with(raise_on_error=True)
 
 
 class TestTradingCheckMarkets:

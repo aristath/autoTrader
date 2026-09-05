@@ -6,6 +6,7 @@ import {
   formatRelativeTime,
   statusVariant,
 } from "./modal-utils.js";
+import "./sentinel-tasks.js";
 
 class SentinelResearch extends LitElement {
   static properties = {
@@ -78,6 +79,20 @@ class SentinelResearch extends LitElement {
   changeUnitsFilter(name, value) {
     this[name] = value;
     this.units.refresh();
+  }
+
+  changeTab(event) {
+    const nextTab = event.currentTarget.value;
+
+    if (this.tab === "tasks" && nextTab !== "tasks") {
+      const tasks = this.querySelector("sentinel-tasks");
+      if (tasks?.confirmClose && !tasks.confirmClose()) {
+        event.currentTarget.value = "tasks";
+        return;
+      }
+    }
+
+    this.tab = nextTab;
   }
 
   async refreshAll() {
@@ -545,43 +560,51 @@ ${this.artifactContent}</pre>`
       (!this.status.value && this.status.loading) ||
       (!this.allUnits.value && this.allUnits.loading);
 
-    if (loading) {
-      return html`<div>Loading research pipeline…</div>`;
-    }
-
-    if (error && !this.status.value) {
-      return html`<tui-text variant="error">${error.message}</tui-text>`;
-    }
-
     const enabled = this.status.value?.enabled;
+    const pipelineState = loading
+      ? html`<tui-text>loading</tui-text>`
+      : error && !this.status.value
+        ? html`<tui-text variant="error">unavailable</tui-text>`
+        : html`<tui-text variant=${enabled ? "success" : ""}
+            >${enabled ? "enabled" : "paused"}</tui-text
+          >`;
+
+    let content;
+    if (this.tab === "tasks") {
+      content = html`<sentinel-tasks></sentinel-tasks>`;
+    } else if (loading) {
+      content = html`<div>Loading research pipeline…</div>`;
+    } else if (error && !this.status.value) {
+      content = html`<tui-text variant="error">${error.message}</tui-text>`;
+    } else if (this.tab === "units") {
+      content = this.renderUnits();
+    } else if (this.tab === "history") {
+      content = this.renderHistory();
+    } else {
+      content = this.renderStatus();
+    }
 
     return html`
-      <div>
-        Pipeline
-        <tui-text variant=${enabled ? "success" : ""}
-          >${enabled ? "enabled" : "paused"}</tui-text
-        >
-      </div>
+      <div>Pipeline ${pipelineState}</div>
       <tui-radio-buttonset
         aria-label="Research pipeline view"
         value=${this.tab}
-        @change=${(event) => (this.tab = event.currentTarget.value)}
+        @change=${this.changeTab}
       >
         <tui-radio-button value="status">Status</tui-radio-button>
         <tui-radio-button value="units">Units</tui-radio-button>
         <tui-radio-button value="history">History</tui-radio-button>
+        <tui-radio-button value="tasks">Tasks</tui-radio-button>
       </tui-radio-buttonset>
       <div aria-hidden="true">&nbsp;</div>
+      ${content}
       ${
-        this.tab === "units"
-          ? this.renderUnits()
-          : this.tab === "history"
-            ? this.renderHistory()
-            : this.renderStatus()
+        this.tab !== "tasks" && this.notice
+          ? html`<div aria-live="polite">${this.notice}</div>`
+          : ""
       }
-      ${this.notice ? html`<div aria-live="polite">${this.notice}</div>` : ""}
       ${
-        this.actionError
+        this.tab !== "tasks" && this.actionError
           ? html`<tui-text variant="error">${this.actionError}</tui-text>`
           : ""
       }

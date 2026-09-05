@@ -5,7 +5,6 @@ import "./sentinel-backtest.js";
 import "./sentinel-research.js";
 import "./sentinel-scheduler.js";
 import "./sentinel-settings.js";
-import "./sentinel-tasks.js";
 import "./sentinel-trades.js";
 
 const actions = [
@@ -18,7 +17,6 @@ const actions = [
   { id: "trades", label: "Trades", heading: "Trade History" },
   { id: "scheduler", label: "Scheduler", heading: "Scheduler" },
   { id: "research", label: "Research", heading: "Research Pipeline" },
-  { id: "tasks", label: "Tasks", heading: "Task Administration" },
   { id: "settings", label: "Settings", heading: "Settings" },
 ];
 
@@ -65,12 +63,15 @@ class SentinelHeader extends LitElement {
   }
 
   requestModalClose(event) {
-    const content = event.currentTarget.querySelector(
+    const contents = event.currentTarget.querySelectorAll(
       "sentinel-backtest, sentinel-research, sentinel-scheduler, sentinel-settings, sentinel-tasks, sentinel-trades",
     );
 
-    if (content?.confirmClose && !content.confirmClose()) {
-      event.preventDefault();
+    for (const content of contents) {
+      if (content.confirmClose && !content.confirmClose()) {
+        event.preventDefault();
+        return;
+      }
     }
   }
 
@@ -105,8 +106,6 @@ class SentinelHeader extends LitElement {
         return html`<sentinel-scheduler></sentinel-scheduler>`;
       case "research":
         return html`<sentinel-research></sentinel-research>`;
-      case "tasks":
-        return html`<sentinel-tasks></sentinel-tasks>`;
       case "settings":
         return html`<sentinel-settings></sentinel-settings>`;
       default:

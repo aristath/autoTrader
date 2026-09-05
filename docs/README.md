@@ -25,6 +25,7 @@ update the relevant document in the same change that alters a contract.
 | [Universe management](universe_management.md) | Freedom24 Favorites reconciliation and deletion rules |
 | [Forecasting](forecasting.md) | Optional forecasting service and planner influence |
 | [Scheduler](scheduler.md) | Fixed jobs and editable-task schedules |
+| [Model Context Protocol](mcp.md) | External control through the built-in MCP server |
 
 ## AI and user interface
 

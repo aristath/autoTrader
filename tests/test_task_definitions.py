@@ -225,6 +225,37 @@ async def test_queue_allows_distinct_inputs_for_the_same_task(task_db):
 
 
 @pytest.mark.asyncio
+async def test_queue_batch_rolls_back_every_item_when_one_insert_fails(task_db):
+    source = await task_db.ensure_task_queue_source("analysis", "queue")
+
+    with pytest.raises(TypeError, match="JSON serializable"):
+        await task_db.enqueue_task_work_batch(
+            [
+                {"schedule_id": source, "task_id": "analysis", "inputs": {"symbol": "AAA"}},
+                {"schedule_id": source, "task_id": "analysis", "inputs": {"bad": object()}},
+            ]
+        )
+
+    assert await task_db.list_task_work() == []
+
+
+@pytest.mark.asyncio
+async def test_runtime_validates_complete_batch_before_enqueuing(task_tree, task_db, fake_runtime):
+    core, _user, _home = task_tree
+    make_task(core, "valid-task")
+
+    with pytest.raises(FileNotFoundError):
+        await runtime.enqueue_tasks(
+            [
+                {"task": "valid-task", "inputs": {"symbol": "AAA"}},
+                {"task": "missing-task", "inputs": {}},
+            ]
+        )
+
+    assert await task_db.list_task_work() == []
+
+
+@pytest.mark.asyncio
 async def test_schedule_state_stays_running_with_other_work_queued(task_db):
     schedule_id = await task_db.ensure_task_queue_source("analyze-security", "queue")
     older = await task_db.enqueue_task_work(schedule_id, "analyze-security", {"symbol": "AAA"})

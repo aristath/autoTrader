@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from typing_extensions import Annotated
 
@@ -237,15 +237,22 @@ async def get_exchange_rates() -> dict:
 async def sync_exchange_rates() -> dict:
     """Sync exchange rates from Tradernet API."""
     currency = Currency()
-    rates = await currency.sync_rates()
-    return rates
+    try:
+        return await currency.sync_rates(raise_on_error=True)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @exchange_rates_router.put("/{curr}")
 async def set_exchange_rate(curr: str, data: dict) -> dict:
     """Manually set exchange rate for a currency to EUR."""
+    if "rate" not in data:
+        raise HTTPException(status_code=400, detail="rate is required")
     currency = Currency()
-    await currency.set_rate(curr, data.get("rate", 1.0))
+    try:
+        await currency.set_rate(curr, data["rate"])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "ok"}
 
 
