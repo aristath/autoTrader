@@ -560,7 +560,7 @@ var InputStream = class {
 	Look at a code unit near the stream position. `.peek(0)` equals
 	`.next`, `.peek(-1)` gives you the previous character, and so
 	on.
-
+	
 	Note that looking around during tokenizing creates dependencies
 	on potentially far-away content, which may reduce the
 	effectiveness incremental parsing—when looking forward—or even

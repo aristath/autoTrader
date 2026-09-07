@@ -161,11 +161,11 @@ async def test_setting_set_calls_existing_settings_operation(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_setting_set_rejects_individual_strategy_setting(monkeypatch):
-    async def unexpected_call(*_args, **_kwargs):
-        pytest.fail("protected strategy setting reached the single-setting operation")
-
-    monkeypatch.setattr(server.settings_api, "set_setting", unexpected_call)
+async def test_setting_set_forwards_individual_strategy_setting(monkeypatch):
+    deps = SimpleNamespace()
+    operation = AsyncMock(return_value={"status": "ok"})
+    monkeypatch.setattr(server, "_deps", AsyncMock(return_value=deps))
+    monkeypatch.setattr(server.settings_api, "set_setting", operation)
 
     async with Client(server.mcp) as client:
         result = await client.call_tool(
@@ -173,12 +173,16 @@ async def test_setting_set_rejects_individual_strategy_setting(monkeypatch):
             {"key": "strategy_min_opp_score", "value": 0.7},
         )
 
-    assert result.is_error is True
-    assert "Strategy settings must be updated together" in result.content[0].text
+    assert result.is_error is False
+    operation.assert_awaited_once_with(
+        "strategy_min_opp_score",
+        {"value": 0.7},
+        deps,
+    )
 
 
 @pytest.mark.asyncio
-async def test_strategy_settings_set_calls_atomic_settings_operation(monkeypatch):
+async def test_strategy_settings_set_calls_existing_settings_operation(monkeypatch):
     deps = SimpleNamespace()
     seen = {}
     values = strategy_values()
@@ -202,18 +206,19 @@ async def test_strategy_settings_set_calls_atomic_settings_operation(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_strategy_settings_set_does_not_coerce_boolean_to_number(monkeypatch):
-    async def unexpected_call(*_args, **_kwargs):
-        pytest.fail("invalid strategy settings reached the batch operation")
-
-    monkeypatch.setattr(server.settings_api, "set_settings_batch", unexpected_call)
+async def test_strategy_settings_set_leaves_validation_to_existing_operation(monkeypatch):
+    deps = SimpleNamespace()
+    operation = AsyncMock(return_value={"status": "ok"})
+    monkeypatch.setattr(server, "_deps", AsyncMock(return_value=deps))
+    monkeypatch.setattr(server.settings_api, "set_settings_batch", operation)
     values = strategy_values()
     values["strategy_min_opp_score"] = True
 
     async with Client(server.mcp) as client:
         result = await client.call_tool("strategy_settings_set", {"values": values})
 
-    assert result.is_error is True
+    assert result.is_error is False
+    operation.assert_awaited_once_with({"values": values}, deps)
 
 
 @pytest.mark.asyncio
@@ -259,42 +264,29 @@ async def test_runtime_operation_error_becomes_mcp_tool_error(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_exchange_rate_schema_rejects_non_positive_rate(monkeypatch):
-    async def unexpected_call(*_args, **_kwargs):
-        pytest.fail("invalid exchange rate reached the application operation")
-
-    monkeypatch.setattr(server.system_api, "set_exchange_rate", unexpected_call)
+async def test_exchange_rate_set_leaves_validation_to_existing_operation(monkeypatch):
+    operation = AsyncMock(return_value={"status": "ok"})
+    monkeypatch.setattr(server.system_api, "set_exchange_rate", operation)
 
     async with Client(server.mcp) as client:
         result = await client.call_tool("exchange_rate_set", {"currency": "USD", "rate": -0.5})
 
-    assert result.is_error is True
+    assert result.is_error is False
+    operation.assert_awaited_once_with("USD", {"rate": -0.5})
 
 
 @pytest.mark.asyncio
-async def test_mutation_tools_publish_explicit_closed_schemas():
+async def test_mutation_tools_accept_payloads_owned_by_existing_operations():
     async with Client(server.mcp) as client:
         result = await client.list_tools()
 
     schemas = {tool.name: tool.input_schema for tool in result.tools}
-    expected = {
-        "security_update": (
-            "SecurityChanges",
-            {"aliases", "allow_buy", "allow_sell", "ai_research_multiplier", "ai_research_multiplier_analysis"},
-        ),
-        "job_schedule_update": (
-            "JobScheduleChanges",
-            {"interval_minutes", "interval_market_open_minutes", "market_timing"},
-        ),
-        "task_meta_update": (
-            "TaskMetadataChanges",
-            {"name", "description", "tags", "enabled", "schedule", "cwd", "statePath", "timeout", "schedulePolicy"},
-        ),
-    }
-    for tool_name, (definition_name, properties) in expected.items():
-        definition = schemas[tool_name]["$defs"][definition_name]
-        assert definition["additionalProperties"] is False
-        assert set(definition["properties"]) == properties
+    for tool_name, argument_name in (
+        ("security_update", "changes"),
+        ("job_schedule_update", "schedule"),
+        ("task_meta_update", "changes"),
+    ):
+        assert schemas[tool_name]["properties"][argument_name]["additionalProperties"] is True
 
 
 @pytest.mark.asyncio
@@ -324,7 +316,7 @@ async def test_task_metadata_schema_preserves_api_field_names(monkeypatch):
         "task_id": "daily-research",
         "changes": {
             "statePath": "state.json",
-            "schedulePolicy": {"runWhen": "idle", "priority": 2.0},
+            "schedulePolicy": {"runWhen": "idle", "priority": 2},
         },
     }
 
@@ -346,6 +338,7 @@ async def test_tasks_schedule_forwards_batch_and_delayed_fields(monkeypatch):
                         "dedupe_key": "rate-portfolio-2026-09-04",
                         "priority": 4,
                         "eligible_at": 1_788_480_000,
+                        "runMode": "deep",
                     },
                 ]
             },
@@ -360,9 +353,28 @@ async def test_tasks_schedule_forwards_batch_and_delayed_fields(monkeypatch):
                 "title": "Later portfolio rating",
                 "dedupe_key": "rate-portfolio-2026-09-04",
                 "priority": 4,
-                "eligible_at": 1_788_480_000.0,
+                "eligible_at": 1_788_480_000,
+                "runMode": "deep",
             },
         ]
+    )
+
+
+@pytest.mark.asyncio
+async def test_task_run_forwards_optional_run_mode(monkeypatch):
+    operation = AsyncMock(return_value={"id": "run-1"})
+    monkeypatch.setattr(server.tasks_api, "task_run", operation)
+
+    async with Client(server.mcp) as client:
+        result = await client.call_tool(
+            "task_run",
+            {"task_id": "daily-research", "inputs": {"symbol": "AIR.EU"}, "run_mode": "deep"},
+        )
+
+    assert result.is_error is False
+    operation.assert_awaited_once_with(
+        "daily-research",
+        {"inputs": {"symbol": "AIR.EU"}, "runMode": "deep"},
     )
 
 

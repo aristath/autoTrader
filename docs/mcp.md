@@ -55,10 +55,8 @@ the server entry itself is simply:
 | `led_bridge_health_get` | Read the latest LED bridge health report |
 | `led_bridge_health_update` | Store an LED bridge health report |
 
-Synchronization tools return failures when their broker request fails rather
-than presenting cached or empty data as a successful refresh. Manual exchange
-rates require a three-letter currency code and a positive finite rate.
-EUR remains fixed at `1.0`.
+Synchronization and manual-rate tools delegate directly to Sentinel's existing
+operations and preserve their return values and failure behavior.
 
 ### Securities and account history
 
@@ -91,7 +89,7 @@ broker, quantity, and price protections.
 | Tool | Purpose |
 |---|---|
 | `settings_get` | Read all database-backed settings |
-| `setting_set` | Persist one non-strategy setting and perform normal cache invalidation |
+| `setting_set` | Persist one setting and perform normal cache invalidation |
 | `strategy_settings_set` | Atomically validate and replace all strategy settings |
 | `jobs_get` | Current, upcoming, and recent job state |
 | `job_schedules_get` | Schedule definitions and runtime timestamps |
@@ -104,10 +102,9 @@ broker, quantity, and price protections.
 /api/jobs/schedules/{job_type}`: `interval_minutes`,
 `interval_market_open_minutes`, and `market_timing`.
 
-Strategy tuning values are deliberately not writable one at a time through
-`setting_set`. Use `strategy_settings_set`, which requires the complete strategy
-settings group and applies Sentinel's existing range and cross-field validation
-before committing the group atomically.
+`strategy_settings_set` exposes Sentinel's existing complete-group strategy
+settings operation. `setting_set` exposes the existing individual-setting
+operation without adding MCP-specific restrictions.
 
 ### Editable tasks
 
@@ -124,7 +121,7 @@ before committing the group atomically.
 | `task_file_get` | Read a task file |
 | `task_file_save` | Create or replace a task file |
 | `task_file_delete` | Delete a task file |
-| `task_run` | Queue a task with inputs |
+| `task_run` | Queue a task with inputs and an optional run mode |
 | `tasks_schedule` | Queue a batch with optional delay, priority, and deduplication |
 | `task_runs_get` | List a task's executions |
 | `task_run_get` | Read one execution and its output |
@@ -138,8 +135,8 @@ directly: `name`, `description`, `tags`, `enabled`, `schedule`, `cwd`,
 `tasks_schedule` accepts one or more task requests. `eligible_at` is a Unix
 timestamp in seconds or milliseconds; a task remains queued until that time.
 Each request may also carry `inputs`, `title`, `dedupe_key`, and `priority`.
-The complete batch is validated first and its work items are committed
-atomically.
+Requests are passed to Sentinel's existing scheduler operation in their supplied
+order, preserving its validation, deduplication, and enqueue behavior.
 
 ### AI research and forecasts
 

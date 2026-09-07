@@ -193,7 +193,7 @@ var Text = class Text {
 	Return a cursor that iterates over the given range of lines,
 	_without_ returning the line breaks between, and yielding empty
 	strings for empty lines.
-
+	
 	When `from` and `to` are given, they should be 1-based line numbers.
 	*/
 	iterLines(from, to) {
@@ -736,7 +736,7 @@ var ChangeDesc = class ChangeDesc {
 	`fromA`/`toA` provides the extent of the change in the starting
 	document, `fromB`/`toB` the extent of the replacement in the
 	changed document.
-
+	
 	When `individual` is true, adjacent changes (which are kept
 	separate for [position mapping](https://codemirror.net/6/docs/ref/#state.ChangeDesc.mapPos)) are
 	reported separately.
@@ -893,7 +893,7 @@ var ChangeSet = class ChangeSet extends ChangeDesc {
 	applied to the document produced by applying `other`. When
 	`before` is `true`, order changes as if `this` comes before
 	`other`, otherwise (the default) treat `other` as coming first.
-
+	
 	Given two changes `A` and `B`, `A.compose(B.map(A))` and
 	`B.compose(A.map(B, true))` will produce the same document. This
 	provides a basic form of [operational
@@ -908,7 +908,7 @@ var ChangeSet = class ChangeSet extends ChangeDesc {
 	each, with the range in the original document (`fromA`-`toA`)
 	and the range that replaces it in the new document
 	(`fromB`-`toB`).
-
+	
 	When `individual` is true, adjacent changes are reported
 	separately.
 	*/
@@ -1500,7 +1500,7 @@ var Facet = class Facet {
 	state. You must take care to declare the parts of the state that
 	this value depends on, since your function is only called again
 	for a new state when one of those parts changed.
-
+	
 	In cases where your value depends only on a single field, you'll
 	want to use the [`from`](https://codemirror.net/6/docs/ref/#state.Facet.from) method instead.
 	*/
@@ -2561,7 +2561,7 @@ var EditorState = class EditorState {
 	Look up a translation for the given phrase (via the
 	[`phrases`](https://codemirror.net/6/docs/ref/#state.EditorState^phrases) facet), or return the
 	original string if no translation is found.
-
+	
 	If additional arguments are passed, they will be inserted in
 	place of markers like `$1` (for the first value) and `$2`, etc.
 	A single `$` is equivalent to `$1`, and `$$` will produce a
@@ -2582,9 +2582,9 @@ var EditorState = class EditorState {
 	/**
 	Find the values for a given language data field, provided by the
 	the [`languageData`](https://codemirror.net/6/docs/ref/#state.EditorState^languageData) facet.
-
+	
 	Examples of language data fields are...
-
+	
 	- [`"commentTokens"`](https://codemirror.net/6/docs/ref/#commands.CommentTokens) for specifying
 	comment syntax.
 	- [`"autocomplete"`](https://codemirror.net/6/docs/ref/#autocomplete.autocompletion^config.override)
@@ -2604,7 +2604,7 @@ var EditorState = class EditorState {
 	Return a function that can categorize strings (expected to
 	represent a single [grapheme cluster](https://codemirror.net/6/docs/ref/#state.findClusterBreak))
 	into one of:
-
+	
 	- Word (contains an alphanumeric character or a character
 	explicitly listed in the local language's `"wordChars"`
 	language data, which should be a string)
@@ -2922,7 +2922,7 @@ var RangeSet = class RangeSet {
 	/**
 	Update the range set, optionally adding new ranges or filtering
 	out existing ones.
-
+	
 	(Note: The type parameter is just there as a kludge to work
 	around TypeScript variance issues that prevented `RangeSet<X>`
 	from being a subtype of `RangeSet<Y>` when `X` is a subtype of

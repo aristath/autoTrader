@@ -135,74 +135,6 @@ class TaskDatabaseMixin:
                 )
         return len(rows)
 
-    async def _enqueue_task_work(
-        self,
-        conn: aiosqlite.Connection,
-        schedule_id: str,
-        task_id: str,
-        inputs: dict[str, str],
-        *,
-        title: str | None = None,
-        dedupe_key: str | None = None,
-        priority: int = 0,
-        run_mode: str = "balanced",
-        eligible_at: int | None = None,
-    ) -> dict[str, Any]:
-        if dedupe_key:
-            row = await (
-                await conn.execute(
-                    """SELECT * FROM work_queue WHERE dedupe_key=?
-                       AND status IN ('queued','claimed','running') ORDER BY created_at LIMIT 1""",
-                    (dedupe_key,),
-                )
-            ).fetchone()
-            if row:
-                return dict(row)
-
-        now = int(time.time() * 1000)
-        run_id = str(uuid.uuid4())
-        mode = run_mode if run_mode in {"fast", "balanced", "deep"} else "balanced"
-        inputs_json = json.dumps(inputs)
-        await conn.execute(
-            """INSERT INTO work_queue
-               (id, schedule_id, task_id, run_as_user_id, title, inputs_json, dedupe_key,
-                priority, run_mode, status, eligible_at, created_at, updated_at)
-               VALUES (?, ?, ?, 'sentinel', ?, ?, ?, ?, ?, 'queued', ?, ?, ?)""",
-            (
-                run_id,
-                schedule_id,
-                task_id,
-                title,
-                inputs_json,
-                dedupe_key,
-                max(-1000, min(1000, int(priority))),
-                mode,
-                eligible_at or now,
-                now,
-                now,
-            ),
-        )
-        source_mode = (
-            "manual" if schedule_id.endswith(":manual") else "queued" if schedule_id.endswith(":queue") else "scheduled"
-        )
-        await conn.execute(
-            """INSERT INTO task_runs
-               (id, task_id, mode, run_as_user_id, title, status, inputs_json,
-                output_artifacts_json, work_item_id, created_at, updated_at)
-               VALUES (?, ?, ?, 'sentinel', ?, 'queued', ?, '[]', ?, ?, ?)""",
-            (run_id, task_id, source_mode, title, inputs_json, run_id, now, now),
-        )
-        await conn.execute(
-            """UPDATE scheduled_task_state
-               SET status=CASE WHEN status='running' THEN 'running' ELSE 'queued' END,
-                   last_error=NULL, updated_at=? WHERE schedule_id=?""",
-            (now, schedule_id),
-        )
-        row = await (await conn.execute("SELECT * FROM work_queue WHERE id=?", (run_id,))).fetchone()
-        if row is None:
-            raise RuntimeError("Queued task disappeared before it could be returned")
-        return dict(cast(Any, row))
-
     async def enqueue_task_work(
         self,
         schedule_id: str,
@@ -216,37 +148,63 @@ class TaskDatabaseMixin:
         eligible_at: int | None = None,
     ) -> dict[str, Any]:
         async with self._task_transaction() as conn:
-            return await self._enqueue_task_work(
-                conn,
-                schedule_id,
-                task_id,
-                inputs,
-                title=title,
-                dedupe_key=dedupe_key,
-                priority=priority,
-                run_mode=run_mode,
-                eligible_at=eligible_at,
-            )
-
-    async def enqueue_task_work_batch(self, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Insert a prepared task batch in one transaction."""
-        rows: list[dict[str, Any]] = []
-        async with self._task_transaction() as conn:
-            for item in items:
-                rows.append(
-                    await self._enqueue_task_work(
-                        conn,
-                        str(item["schedule_id"]),
-                        str(item["task_id"]),
-                        cast(dict[str, str], item["inputs"]),
-                        title=cast(str | None, item.get("title")),
-                        dedupe_key=cast(str | None, item.get("dedupe_key")),
-                        priority=int(item.get("priority") or 0),
-                        run_mode=str(item.get("run_mode") or "balanced"),
-                        eligible_at=cast(int | None, item.get("eligible_at")),
+            if dedupe_key:
+                row = await (
+                    await conn.execute(
+                        """SELECT * FROM work_queue WHERE dedupe_key=?
+                           AND status IN ('queued','claimed','running') ORDER BY created_at LIMIT 1""",
+                        (dedupe_key,),
                     )
-                )
-        return rows
+                ).fetchone()
+                if row:
+                    return dict(row)
+
+            now = int(time.time() * 1000)
+            run_id = str(uuid.uuid4())
+            mode = run_mode if run_mode in {"fast", "balanced", "deep"} else "balanced"
+            await conn.execute(
+                """INSERT INTO work_queue
+                   (id, schedule_id, task_id, run_as_user_id, title, inputs_json, dedupe_key,
+                    priority, run_mode, status, eligible_at, created_at, updated_at)
+                   VALUES (?, ?, ?, 'sentinel', ?, ?, ?, ?, ?, 'queued', ?, ?, ?)""",
+                (
+                    run_id,
+                    schedule_id,
+                    task_id,
+                    title,
+                    json.dumps(inputs),
+                    dedupe_key,
+                    max(-1000, min(1000, int(priority))),
+                    mode,
+                    eligible_at or now,
+                    now,
+                    now,
+                ),
+            )
+            source_mode = (
+                "manual"
+                if schedule_id.endswith(":manual")
+                else "queued"
+                if schedule_id.endswith(":queue")
+                else "scheduled"
+            )
+            await conn.execute(
+                """INSERT INTO task_runs
+                   (id, task_id, mode, run_as_user_id, title, status, inputs_json,
+                    output_artifacts_json, work_item_id, created_at, updated_at)
+                   VALUES (?, ?, ?, 'sentinel', ?, 'queued', ?, '[]', ?, ?, ?)""",
+                (run_id, task_id, source_mode, title, json.dumps(inputs), run_id, now, now),
+            )
+            await conn.execute(
+                """UPDATE scheduled_task_state
+                   SET status=CASE WHEN status='running' THEN 'running' ELSE 'queued' END,
+                       last_error=NULL, updated_at=? WHERE schedule_id=?""",
+                (now, schedule_id),
+            )
+            row = await (await conn.execute("SELECT * FROM work_queue WHERE id=?", (run_id,))).fetchone()
+            if row is None:
+                raise RuntimeError("Queued task disappeared before it could be returned")
+            return dict(cast(Any, row))
 
     async def claim_next_task_work(self) -> dict[str, Any] | None:
         now = int(time.time() * 1000)

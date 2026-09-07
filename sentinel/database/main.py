@@ -147,32 +147,6 @@ class Database(TaskDatabaseMixin, BaseDatabase):
             await self.conn.execute("ROLLBACK")
             raise
 
-    async def set_setting_and_cache(
-        self,
-        key: str,
-        value: Any,
-        cache_key: str,
-        cache_value: str,
-        *,
-        ttl_seconds: int | None = None,
-    ) -> None:
-        """Persist one setting and its materialized cache entry atomically."""
-        import time
-
-        json_value = json.dumps(value) if not isinstance(value, str) else value
-        expires_at = int(time.time()) + ttl_seconds if ttl_seconds else None
-        await self.conn.execute("BEGIN")
-        try:
-            await self.conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, json_value))
-            await self.conn.execute(
-                "INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)",
-                (cache_key, cache_value, expires_at),
-            )
-            await self.conn.commit()
-        except Exception:
-            await self.conn.rollback()
-            raise
-
     async def get_all_settings(self) -> dict:
         """Get all settings as a dictionary."""
         cursor = await self.conn.execute("SELECT key, value FROM settings")

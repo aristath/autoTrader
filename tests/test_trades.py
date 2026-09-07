@@ -512,49 +512,6 @@ class TestBrokerGetTradesHistory:
 
             assert trades[0]["symbol"] == "AAPL.US"
 
-    @pytest.mark.asyncio
-    async def test_strict_trade_history_fetch_propagates_broker_failure(self):
-        from sentinel.broker import Broker
-
-        broker = Broker()
-        with patch.object(broker, "_api") as mock_api:
-            mock_api.get_trades_history.side_effect = RuntimeError("trade report unavailable")
-            broker._api = mock_api
-
-            with pytest.raises(RuntimeError, match="trade report unavailable"):
-                await broker.get_trades_history(raise_on_error=True)
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        ("field", "value", "message"),
-        [
-            ("id", None, "trade history id"),
-            ("type", None, "trade history type"),
-            ("q", None, "trade history quantity"),
-            ("p", float("nan"), "trade history price"),
-            ("date", "", "trade history date"),
-        ],
-    )
-    async def test_strict_trade_history_rejects_malformed_rows(self, field, value, message):
-        from sentinel.broker import Broker
-
-        broker = Broker()
-        trade = {
-            "id": "1",
-            "instr_nm": "AAPL.US",
-            "type": "1",
-            "q": 2,
-            "p": 100,
-            "date": "2026-01-15",
-        }
-        trade[field] = value
-        with patch.object(broker, "_api") as mock_api:
-            mock_api.get_trades_history.return_value = {"trades": {"trade": [trade]}}
-            broker._api = mock_api
-
-            with pytest.raises(RuntimeError, match=message):
-                await broker.get_trades_history(raise_on_error=True)
-
 
 class TestBrokerGetCashFlows:
     """Tests for broker.get_cash_flows method."""
@@ -627,60 +584,6 @@ class TestBrokerGetCashFlows:
                 "source": "broker_report.commissions",
             },
         ]
-
-    @pytest.mark.asyncio
-    async def test_strict_cash_flow_fetch_propagates_broker_failure(self):
-        from sentinel.broker import Broker
-
-        broker = Broker()
-        with patch.object(broker, "_api") as mock_api:
-            mock_api.get_broker_report.side_effect = RuntimeError("cash-flow report unavailable")
-            broker._api = mock_api
-
-            with pytest.raises(RuntimeError, match="cash-flow report unavailable"):
-                await broker.get_cash_flows(raise_on_error=True)
-
-    @pytest.mark.asyncio
-    async def test_strict_cash_flow_fetch_rejects_malformed_report(self):
-        from sentinel.broker import Broker
-
-        broker = Broker()
-        with patch.object(broker, "_api") as mock_api:
-            mock_api.get_broker_report.return_value = {"error": "temporary upstream failure"}
-            broker._api = mock_api
-
-            with pytest.raises(RuntimeError, match="malformed in_outs cash-flow data"):
-                await broker.get_cash_flows(raise_on_error=True)
-
-            mock_api.get_broker_report.assert_called_once()
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        ("field", "value", "message"),
-        [
-            ("date", "", "cash-flow date"),
-            ("type_id", None, "cash-flow type"),
-            ("amount", float("nan"), "cash-flow amount"),
-            ("currency", "", "cash-flow currency"),
-        ],
-    )
-    async def test_strict_cash_flow_fetch_rejects_malformed_rows(self, field, value, message):
-        from sentinel.broker import Broker
-
-        broker = Broker()
-        flow = {"date": "2026-01-15", "type_id": "card", "amount": 100, "currency": "EUR"}
-        flow[field] = value
-
-        def get_broker_report(*, data_block_type, **_kwargs):
-            rows = [flow] if data_block_type == "in_outs" else []
-            return {"report": {data_block_type: rows}}
-
-        with patch.object(broker, "_api") as mock_api:
-            mock_api.get_broker_report.side_effect = get_broker_report
-            broker._api = mock_api
-
-            with pytest.raises(RuntimeError, match=message):
-                await broker.get_cash_flows(raise_on_error=True)
 
 
 class TestBrokerHasPendingOrders:
@@ -975,8 +878,6 @@ class TestSyncTradesJob:
                     "symbol": "AAPL.US",
                     "side": "BUY",
                     "date": "2024-01-15 10:30:00",
-                    "q": 10,
-                    "p": 150,
                     "new_field": True,  # Different data
                 },
                 {
@@ -984,8 +885,6 @@ class TestSyncTradesJob:
                     "symbol": "MSFT.US",
                     "side": "SELL",
                     "date": "2024-01-16 11:00:00",
-                    "q": 5,
-                    "p": 380,
                 },
             ]
         )
@@ -998,60 +897,6 @@ class TestSyncTradesJob:
         # Original trade should keep original data
         original_trade = next(t for t in trades if t["broker_trade_id"] == "123")
         assert original_trade["raw_data"].get("original") is True
-
-    @pytest.mark.asyncio
-    async def test_sync_trades_fails_when_broker_is_disconnected(self, temp_db):
-        from sentinel.jobs.tasks import sync_trades
-
-        mock_broker = AsyncMock()
-        mock_broker.connected = False
-
-        with pytest.raises(RuntimeError, match="Broker is not connected"):
-            await sync_trades(temp_db, mock_broker)
-
-        mock_broker.get_trades_history.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_sync_cashflows_fails_when_broker_is_disconnected(self, temp_db):
-        from sentinel.jobs.tasks import sync_cashflows
-
-        mock_broker = AsyncMock()
-        mock_broker.connected = False
-
-        with pytest.raises(RuntimeError, match="Broker is not connected"):
-            await sync_cashflows(temp_db, mock_broker)
-
-        mock_broker.get_cash_flows.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_sync_trades_rejects_malformed_rows_instead_of_defaulting_values(self, temp_db):
-        from sentinel.jobs.tasks import sync_trades
-
-        mock_broker = AsyncMock()
-        mock_broker.connected = True
-        mock_broker.get_trades_history.return_value = [
-            {"id": "123", "symbol": "AAPL.US", "side": "BUY", "date": "2026-01-15"}
-        ]
-
-        with pytest.raises(RuntimeError, match="trade quantity"):
-            await sync_trades(temp_db, mock_broker)
-
-        assert await temp_db.get_trades() == []
-
-    @pytest.mark.asyncio
-    async def test_sync_cashflows_rejects_malformed_rows_instead_of_skipping_them(self, temp_db):
-        from sentinel.jobs.tasks import sync_cashflows
-
-        mock_broker = AsyncMock()
-        mock_broker.connected = True
-        mock_broker.get_cash_flows.return_value = [
-            {"date": "2026-01-15", "type_id": "card", "amount": None, "currency": "EUR"}
-        ]
-
-        with pytest.raises(RuntimeError, match="cash-flow amount"):
-            await sync_cashflows(temp_db, mock_broker)
-
-        assert await temp_db.get_cash_flows() == []
 
 
 class TestCooloffIntegration:

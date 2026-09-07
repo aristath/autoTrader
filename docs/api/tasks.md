@@ -123,6 +123,4 @@ array, or `{ "items": [...] }`:
 `eligibleAt` accepts a Unix timestamp; values that look like seconds are
 converted to milliseconds. A single request returns `{ "item": ... }`; a batch
 returns `{ "items": [...] }`. Dedupe and eligibility are enforced by the task
-runtime. The complete batch is validated before queueing, and its work items are
-inserted in one transaction; an invalid or failed item therefore leaves no work
-from that batch queued.
+runtime.

@@ -7,13 +7,12 @@ trading, scheduling, task, or research rules.
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Awaitable, Literal, TypeVar
+from typing import Any, Awaitable, TypeVar
 
 from fastapi import HTTPException
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
-from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 
 from sentinel.api.dependencies import CommonDependencies, get_common_deps
 from sentinel.api.routers import ai as ai_api
@@ -31,105 +30,6 @@ from sentinel.api.routers import trading as trading_api
 from sentinel.version import VERSION
 
 T = TypeVar("T")
-
-
-class StrategySettings(BaseModel):
-    """The complete, atomically validated strategy settings group."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    strategy_min_opp_score: StrictFloat = Field(ge=0, le=1)
-    strategy_ideal_qualifying_threshold: StrictFloat = Field(ge=0, le=1)
-    strategy_core_timing_min_score: StrictFloat = Field(ge=0, le=1)
-    strategy_core_timing_min_dip_score: StrictFloat = Field(ge=0, le=1)
-    strategy_fallback_wait_days: StrictFloat = Field(ge=0, le=365)
-    strategy_entry_t1_dd: StrictFloat = Field(ge=-0.9, le=0)
-    strategy_entry_t2_dd: StrictFloat = Field(ge=-0.9, le=0)
-    strategy_entry_t3_dd: StrictFloat = Field(ge=-0.9, le=0)
-    strategy_entry_memory_days: StrictFloat = Field(ge=1, le=252)
-    strategy_memory_max_boost: StrictFloat = Field(ge=0, le=0.5)
-    strategy_opportunity_addon_threshold: StrictFloat = Field(ge=0, le=1)
-    strategy_max_opportunity_buys_per_cycle: StrictFloat = Field(ge=0, le=50)
-    strategy_max_new_opportunity_buys_per_cycle: StrictFloat = Field(ge=0, le=50)
-
-
-class SecurityChanges(BaseModel):
-    """Fields accepted by Sentinel's security update operation."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    aliases: str | None = None
-    allow_buy: bool | None = None
-    allow_sell: bool | None = None
-    ai_research_multiplier: StrictFloat | None = Field(default=None, ge=0, le=1)
-    ai_research_multiplier_analysis: str | None = Field(default=None, min_length=1, max_length=20_000)
-
-
-class JobScheduleChanges(BaseModel):
-    """Fields accepted by Sentinel's job schedule update operation."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    interval_minutes: int | None = Field(default=None, ge=1, le=10_080)
-    interval_market_open_minutes: int | None = Field(default=None, ge=1, le=10_080)
-    market_timing: int | None = Field(default=None, ge=0, le=3)
-
-
-class TaskSchedulePolicy(BaseModel):
-    """Optional execution policy for an editable task schedule."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True, allow_inf_nan=False)
-
-    stale_after_seconds: StrictFloat | None = Field(default=None, alias="staleAfterSeconds", ge=0, le=365 * 86_400)
-    run_when: Literal["idle", "immediate"] | None = Field(default=None, alias="runWhen")
-    priority: StrictFloat | None = Field(default=None, ge=-1000, le=1000)
-
-
-class TaskMetadataChanges(BaseModel):
-    """Fields accepted by Sentinel's editable-task metadata operation."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True, allow_inf_nan=False)
-
-    name: str | None = Field(default=None, min_length=1)
-    description: str | None = None
-    tags: list[str] | None = None
-    enabled: bool | None = None
-    schedule: str | None = None
-    cwd: str | None = None
-    state_path: str | None = Field(default=None, alias="statePath")
-    timeout: StrictFloat | None = Field(default=None, ge=0)
-    schedule_policy: TaskSchedulePolicy | None = Field(default=None, alias="schedulePolicy")
-
-
-class ScheduledTask(BaseModel):
-    """One task request in a batch submitted to Sentinel's task scheduler."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    task: str = Field(min_length=1)
-    inputs: dict[str, Any] = Field(default_factory=dict)
-    title: str | None = None
-    dedupe_key: str | None = None
-    priority: StrictInt = 0
-    eligible_at: StrictFloat | None = Field(
-        default=None,
-        description="Unix timestamp in seconds or milliseconds after which the task may run.",
-    )
-
-
-class LEDBridgeHealthChanges(BaseModel):
-    """Health fields accepted from Sentinel's optional LED bridge."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    bridge_ok: bool | None = None
-    consecutive_failures: StrictInt | None = Field(default=None, ge=0)
-    last_attempt_ts: StrictInt | None = None
-    last_success_ts: StrictInt | None = None
-    last_error_ts: StrictInt | None = None
-    last_error: str | None = None
-    watchdog_action: str | None = None
-    app_instance: str | None = None
 
 
 mcp = MCPServer(
@@ -267,8 +167,8 @@ async def security_aliases_get() -> list[dict[str, Any]]:
 @mcp.tool()
 async def security_ai_preference_update(
     symbol: str,
-    ai_research_multiplier: Annotated[StrictFloat, Field(ge=0, le=1)],
-    analysis: Annotated[str, Field(min_length=1, max_length=20_000)],
+    ai_research_multiplier: Any,
+    analysis: Any,
 ) -> dict[str, Any]:
     """Store an AI-sourced research multiplier and its supporting analysis."""
     return await _call(
@@ -302,12 +202,12 @@ async def security_add(symbol: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def security_update(symbol: str, changes: SecurityChanges) -> dict[str, Any]:
+async def security_update(symbol: str, changes: dict[str, Any]) -> dict[str, Any]:
     """Update a security's aliases, buy/sell controls, or AI research multiplier."""
     return await _call(
         securities_api.update_security(
             symbol,
-            changes.model_dump(exclude_unset=True),
+            changes,
             await _deps(),
         )
     )
@@ -408,8 +308,8 @@ async def exchange_rates_sync() -> dict[str, Any]:
 
 @mcp.tool()
 async def exchange_rate_set(
-    currency: Annotated[str, Field(min_length=3, max_length=3)],
-    rate: Annotated[StrictFloat, Field(gt=0, allow_inf_nan=False)],
+    currency: str,
+    rate: Any,
 ) -> dict[str, Any]:
     """Set one currency's exchange rate to EUR manually."""
     return await _call(system_api.set_exchange_rate(currency, {"rate": rate}))
@@ -452,9 +352,9 @@ async def led_bridge_health_get() -> dict[str, Any]:
 
 
 @mcp.tool()
-async def led_bridge_health_update(changes: LEDBridgeHealthChanges) -> dict[str, Any]:
+async def led_bridge_health_update(changes: dict[str, Any]) -> dict[str, Any]:
     """Store a health report from the optional LED bridge."""
-    return await _call(settings_api.set_led_bridge_health(changes.model_dump(exclude_unset=True)))
+    return await _call(settings_api.set_led_bridge_health(changes))
 
 
 @mcp.tool()
@@ -466,17 +366,15 @@ async def settings_get() -> dict[str, Any]:
 @mcp.tool()
 async def setting_set(key: str, value: Any) -> dict[str, str]:
     """Set one Sentinel setting using the same storage and cache invalidation as the UI."""
-    if key in settings_api.STRATEGY_KEYS:
-        raise ToolError("Strategy settings must be updated together with strategy_settings_set")
     return await _call(settings_api.set_setting(key, {"value": value}, await _deps()))
 
 
 @mcp.tool()
-async def strategy_settings_set(values: StrategySettings) -> dict[str, str]:
+async def strategy_settings_set(values: dict[str, Any]) -> dict[str, str]:
     """Atomically validate and replace the complete strategy settings group."""
     return await _call(
         settings_api.set_settings_batch(
-            {"values": values.model_dump()},
+            {"values": values},
             await _deps(),
         )
     )
@@ -507,12 +405,12 @@ async def job_run(job_type: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def job_schedule_update(job_type: str, schedule: JobScheduleChanges) -> dict[str, Any]:
+async def job_schedule_update(job_type: str, schedule: dict[str, Any]) -> dict[str, Any]:
     """Update interval_minutes, interval_market_open_minutes, and/or market_timing for a job."""
     return await _call(
         jobs_api.update_job_schedule(
             job_type,
-            schedule.model_dump(exclude_unset=True),
+            schedule,
             await _deps(),
         )
     )
@@ -549,12 +447,12 @@ async def task_save(task_id: str, source: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def task_meta_update(task_id: str, changes: TaskMetadataChanges) -> dict[str, Any]:
+async def task_meta_update(task_id: str, changes: dict[str, Any]) -> dict[str, Any]:
     """Update editable task metadata and resync its schedule."""
     return await _call(
         tasks_api.task_meta_save(
             task_id,
-            changes.model_dump(exclude_unset=True, by_alias=True),
+            changes,
         )
     )
 
@@ -600,16 +498,22 @@ async def task_file_delete(task_id: str, name: str) -> dict[str, str]:
 
 
 @mcp.tool()
-async def task_run(task_id: str, inputs: dict[str, Any] | None = None) -> dict[str, Any]:
+async def task_run(
+    task_id: str,
+    inputs: dict[str, Any] | None = None,
+    run_mode: str | None = None,
+) -> dict[str, Any]:
     """Queue an editable task with optional input values."""
-    return await _call(tasks_api.task_run(task_id, {"inputs": inputs or {}}))
+    body: dict[str, Any] = {"inputs": inputs or {}}
+    if run_mode is not None:
+        body["runMode"] = run_mode
+    return await _call(tasks_api.task_run(task_id, body))
 
 
 @mcp.tool()
-async def tasks_schedule(items: list[ScheduledTask]) -> dict[str, Any]:
+async def tasks_schedule(items: list[dict[str, Any]]) -> dict[str, Any]:
     """Queue one or more tasks, optionally with deduplication, priority, or delayed eligibility."""
-    payload = [item.model_dump(exclude_unset=True) for item in items]
-    return await _call(tasks_api.scheduler_enqueue(payload))
+    return await _call(tasks_api.scheduler_enqueue(items))
 
 
 @mcp.tool()
@@ -674,8 +578,8 @@ async def ai_research_run(kind: str, unit_kind: str, unit_key: str) -> dict[str,
 @mcp.tool()
 async def memories_get(
     tag: str = "",
-    limit: Annotated[int, Field(ge=1, le=500)] = 100,
-    offset: Annotated[int, Field(ge=0)] = 0,
+    limit: int = 100,
+    offset: int = 0,
     since: str | None = None,
 ) -> dict[str, Any]:
     """Read Sentinel AI memories, optionally filtered by tags and time."""
@@ -684,7 +588,7 @@ async def memories_get(
 
 @mcp.tool()
 async def memory_store(
-    memory: Annotated[str, Field(min_length=1)],
+    memory: str,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:

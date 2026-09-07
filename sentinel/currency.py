@@ -10,7 +10,6 @@ Usage:
 
 import json
 import logging
-import math
 from typing import Optional
 
 import requests
@@ -37,44 +36,28 @@ class Currency:
         self._settings = Settings()
         self._rates_cache = None
 
-    async def _persist_rates(self, rates: dict[str, float]) -> None:
-        """Persist the authoritative rates and their read cache in one transaction."""
-        await self._db.set_setting_and_cache(
-            "exchange_rates",
-            rates,
-            "currency:rates",
-            json.dumps(rates),
-            ttl_seconds=7200,
-        )
-        self._rates_cache = rates
-
-    async def sync_rates(self, *, raise_on_error: bool = False) -> dict:
+    async def sync_rates(self) -> dict:
         """Fetch current exchange rates from Tradernet API."""
         try:
             params = {"cmd": "getCrossRatesForDate", "params": {"base_currency": "EUR", "currencies": self.CURRENCIES}}
             response = requests.get("https://tradernet.com/api/", params={"q": json.dumps(params)}, timeout=10)
             data = response.json()
 
-            if "rates" not in data or not isinstance(data["rates"], dict):
-                raise RuntimeError("Tradernet returned no exchange-rate data")
+            if "rates" in data:
+                # Tradernet returns: 1 EUR = X other_currency
+                # We need: 1 other_currency = Y EUR (invert the rates)
+                rates = {"EUR": 1.0}
+                for curr, rate in data["rates"].items():
+                    if rate > 0:
+                        rates[curr] = 1.0 / rate  # Invert: 1 USD = 1/1.17 EUR
 
-            # Tradernet returns: 1 EUR = X other_currency
-            # We need: 1 other_currency = Y EUR (invert the rates)
-            rates = {"EUR": 1.0}
-            for curr, rate in data["rates"].items():
-                if isinstance(rate, int | float) and not isinstance(rate, bool) and math.isfinite(rate) and rate > 0:
-                    rates[curr] = 1.0 / rate  # Invert: 1 USD = 1/1.17 EUR
-
-            if len(rates) == 1:
-                raise RuntimeError("Tradernet returned no usable exchange rates")
-
-            # Save the setting and its two-hour read cache atomically.
-            await self._persist_rates(rates)
-            return rates
+                # Save to settings and cache (2 hours = 7200 seconds)
+                await self._settings.set("exchange_rates", rates)
+                await self._db.cache_set("currency:rates", json.dumps(rates), ttl_seconds=7200)
+                self._rates_cache = rates
+                return rates
         except Exception as e:
             logger.error(f"Failed to fetch exchange rates: {e}")
-            if raise_on_error:
-                raise RuntimeError(f"Failed to synchronize exchange rates: {e}") from e
 
         # Return cached/default rates on failure
         return await self.get_rates()
@@ -146,17 +129,10 @@ class Currency:
 
     async def set_rate(self, currency: str, rate: float) -> None:
         """Manually set exchange rate for a currency."""
-        normalized_currency = currency.strip().upper()
-        if len(normalized_currency) != 3 or not normalized_currency.isascii() or not normalized_currency.isalpha():
-            raise ValueError("currency must be a three-letter code")
-        if isinstance(rate, bool) or not isinstance(rate, int | float) or not math.isfinite(rate) or rate <= 0:
-            raise ValueError("rate must be a positive finite number")
-        if normalized_currency == "EUR" and rate != 1:
-            raise ValueError("EUR rate must be 1.0")
-
-        rates = dict(await self.get_rates())
-        rates[normalized_currency] = float(rate)
-        await self._persist_rates(rates)
+        rates = await self.get_rates()
+        rates[currency.upper()] = rate
+        await self._settings.set("exchange_rates", rates)
+        self._rates_cache = rates
 
     def clear_cache(self) -> None:
         """Clear the rates cache."""

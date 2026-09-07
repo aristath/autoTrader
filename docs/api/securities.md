@@ -232,7 +232,6 @@ Each record includes `symbol` (same as the path param).
 ## `POST /api/securities/{symbol}/sync-prices`
 
 Triggers a price sync for a single security from the broker.
-Broker failures and responses containing no usable prices are reported as errors.
 
 **Query params**
 - `days` (int, default `365`) — Number of days to fetch

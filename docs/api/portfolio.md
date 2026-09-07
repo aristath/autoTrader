@@ -45,7 +45,7 @@ Returns the full current portfolio state: positions, cash balances, and aggregat
 | `value_eur` | Position value converted to EUR |
 | `invested_eur` | Cost basis of the position in EUR (`avg_cost × quantity` converted) |
 | `profit_pct` | Unrealised P&L as a percentage of invested cost |
-| `updated_at` | Timestamp of the last live portfolio synchronization |
+| `updated_at` | Timestamp of last quote update (`"now"` when synced live) |
 
 **Top-level fields**
 
@@ -62,8 +62,6 @@ Returns the full current portfolio state: positions, cash balances, and aggregat
 ## `POST /api/portfolio/sync`
 
 Triggers a live sync of portfolio positions from the broker. Equivalent to running the `sync:portfolio` job manually.
-The broker response is validated before it is applied. Positions and cash are then replaced in one database transaction, so a
-disconnection, malformed quantity/balance, or database failure leaves the previously stored account state intact.
 
 **Response**
 ```json

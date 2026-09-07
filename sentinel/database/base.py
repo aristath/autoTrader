@@ -209,44 +209,6 @@ class BaseDatabase:
             )
         await self.conn.commit()
 
-    async def replace_portfolio_state(self, positions: list[dict], balances: dict[str, float]) -> None:
-        """Replace positions and cash as one indivisible broker snapshot."""
-        await self.conn.execute("BEGIN IMMEDIATE")
-        try:
-            await self.conn.execute(
-                "UPDATE positions SET quantity = 0, updated_at = datetime('now') WHERE quantity != 0"
-            )
-            for position in positions:
-                await self.conn.execute(
-                    """INSERT INTO positions
-                       (symbol, quantity, avg_cost, current_price, currency, updated_at)
-                       VALUES (?, ?, ?, ?, ?, datetime('now'))
-                       ON CONFLICT(symbol) DO UPDATE SET
-                           quantity = excluded.quantity,
-                           avg_cost = excluded.avg_cost,
-                           current_price = excluded.current_price,
-                           currency = excluded.currency,
-                           updated_at = excluded.updated_at""",
-                    (
-                        position["symbol"],
-                        position["quantity"],
-                        position.get("avg_cost"),
-                        position.get("current_price"),
-                        position.get("currency", "EUR"),
-                    ),
-                )
-
-            await self.conn.execute("DELETE FROM cash_balances")
-            await self.conn.executemany(
-                """INSERT INTO cash_balances (currency, amount, updated_at)
-                   VALUES (?, ?, datetime('now'))""",
-                balances.items(),
-            )
-            await self.conn.commit()
-        except BaseException:
-            await self.conn.rollback()
-            raise
-
     # -------------------------------------------------------------------------
     # Trades
     # -------------------------------------------------------------------------

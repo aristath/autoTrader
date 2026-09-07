@@ -1724,12 +1724,12 @@ var SearchCursor = class {
 	/**
 	Create a text cursor. The query is the search string, `from` to
 	`to` provides the region to search.
-
+	
 	When `normalize` is given, it will be called, on both the query
 	string and the content it is matched against, before comparing.
 	You can, for example, create a case-insensitive search by
 	passing `s => s.toLowerCase()`.
-
+	
 	Text is always normalized with
 	[`.normalize("NFKD")`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize)
 	(when supported).
@@ -1740,7 +1740,7 @@ var SearchCursor = class {
 		The current match (only holds a meaningful value after
 		[`next`](https://codemirror.net/6/docs/ref/#search.SearchCursor.next) has been called and when
 		`done` is false).
-
+		
 		The `precise` flag will be set to false if the match starts or
 		ends _inside_ a character that, when normalized, expands to
 		multiple characters. It indicates that the `from`-`to` range

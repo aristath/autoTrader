@@ -64,7 +64,7 @@ var CompletionContext = class {
 	Allows you to register abort handlers, which will be called when
 	the query is
 	[aborted](https://codemirror.net/6/docs/ref/#autocomplete.CompletionContext.aborted).
-
+	
 	By default, running queries will not be aborted for regular
 	typing or backspacing, on the assumption that they are likely to
 	return a result with a

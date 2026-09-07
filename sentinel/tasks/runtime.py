@@ -144,43 +144,6 @@ async def enqueue_task(
     return await _serialize_run(row)
 
 
-async def enqueue_tasks(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Validate and enqueue a task batch atomically."""
-    if not items:
-        raise ValueError("At least one task enqueue request is required")
-
-    prepared: list[dict[str, Any]] = []
-    for item in items:
-        task_id = str(item.get("task") or "").strip()
-        if not task_id:
-            raise ValueError("task is required")
-        get_task(task_id)
-
-        raw_inputs = item.get("inputs") or {}
-        if not isinstance(raw_inputs, dict):
-            raise ValueError("inputs must be an object")
-        prepared.append(
-            {
-                "task_id": task_id,
-                "inputs": _normalize_inputs(raw_inputs),
-                "title": item.get("title"),
-                "dedupe_key": item.get("dedupe_key"),
-                "priority": int(item.get("priority") or 0),
-                "run_mode": str(item.get("run_mode") or "balanced"),
-                "eligible_at": item.get("eligible_at"),
-            }
-        )
-
-    db = Database()
-    for item in prepared:
-        item["schedule_id"] = await db.ensure_task_queue_source(str(item["task_id"]), "queue")
-
-    rows = await db.enqueue_task_work_batch(prepared)
-    await _ensure_worker()
-    _wake_worker()
-    return [await _serialize_run(row) for row in rows]
-
-
 async def list_runs(task_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
     rows = await Database().list_task_work(task_id, limit)
     return [await _serialize_run(row) for row in rows]

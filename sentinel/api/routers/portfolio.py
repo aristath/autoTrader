@@ -540,10 +540,7 @@ async def get_portfolio_structure(force: bool = False) -> dict[str, Any]:
 async def sync_portfolio() -> dict[str, str]:
     """Sync portfolio from broker."""
     service = PortfolioService()
-    try:
-        return await service.sync_portfolio()
-    except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return await service.sync_portfolio()
 
 
 @router.get("/composition")

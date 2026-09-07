@@ -11,7 +11,6 @@ These tests verify the intended behavior of the Database class:
 
 import json
 import os
-import sqlite3
 import tempfile
 from datetime import datetime
 
@@ -129,21 +128,6 @@ class TestSettings:
         await temp_db.set_setting("float_key", 3.14159)
         result = await temp_db.get_setting("float_key")
         assert abs(result - 3.14159) < 0.00001
-
-    @pytest.mark.asyncio
-    async def test_setting_and_cache_write_is_atomic(self, temp_db):
-        await temp_db.set_setting("exchange_rates", {"EUR": 1.0, "USD": 0.8})
-
-        with pytest.raises(sqlite3.IntegrityError):
-            await temp_db.set_setting_and_cache(
-                "exchange_rates",
-                {"EUR": 1.0, "USD": 0.9},
-                "currency:rates",
-                None,  # type: ignore[arg-type] - deliberately violates the cache constraint
-            )
-
-        assert await temp_db.get_setting("exchange_rates") == {"EUR": 1.0, "USD": 0.8}
-        assert await temp_db.cache_get("currency:rates") is None
 
 
 class TestPlannerState:
@@ -858,12 +842,11 @@ class TestPortfolioSnapshots:
         assert dates == [ts1, ts2, ts3]
 
     @pytest.mark.asyncio
-    async def test_get_snapshots_days_filter(self, temp_db, monkeypatch):
+    async def test_get_snapshots_days_filter(self, temp_db):
         """Insert 30 days of snapshots, request last 7, verify only 7 returned."""
         import time
 
         now = int(time.time())
-        monkeypatch.setattr("sentinel.database.base.time.time", lambda: now)
         base = now - 30 * 86400  # 30 days ago
         for i in range(30):
             ts = base + i * 86400

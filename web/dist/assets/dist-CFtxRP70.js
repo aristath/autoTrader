@@ -7142,7 +7142,7 @@ var EditorView = class EditorView {
 	When the start position was the last one on the line, the
 	returned position will be across the line break. If there is no
 	further line, the original position is returned.
-
+	
 	By default, this method moves over a single cluster. The
 	optional `by` argument can be used to move across more. It will
 	be called with the first cluster as argument, and should return
@@ -7186,7 +7186,7 @@ var EditorView = class EditorView {
 	it defaults to moving to the next line (including wrapped
 	lines). Otherwise, `distance` should provide a positive distance
 	in pixels.
-
+	
 	When `start` has a
 	[`goalColumn`](https://codemirror.net/6/docs/ref/#state.SelectionRange.goalColumn), the vertical
 	motion will use that as a target horizontal position. Otherwise,
@@ -7201,7 +7201,7 @@ var EditorView = class EditorView {
 	Find the DOM parent node and offset (child offset if `node` is
 	an element, character offset when it is a text node) at the
 	given document position.
-
+	
 	Note that for positions that aren't currently in
 	`visibleRanges`, the resulting DOM position isn't necessarily
 	meaningful (it may just point before or after a placeholder
@@ -7373,7 +7373,7 @@ var EditorView = class EditorView {
 	only affects the editor's own scrollable element, not parents.
 	See also
 	[`EditorViewConfig.scrollTo`](https://codemirror.net/6/docs/ref/#view.EditorViewConfig.scrollTo).
-
+	
 	The effect should be used with a document identical to the one
 	it was created for. Failing to do so is not an error, but may
 	not scroll to the expected position. You can
@@ -7389,7 +7389,7 @@ var EditorView = class EditorView {
 	for Tab and Shift-Tab, letting the browser's default
 	focus-changing behavior go through instead. This is useful to
 	prevent trapping keyboard users in your editor.
-
+	
 	Without argument, this toggles the mode. With a boolean, it
 	enables (true) or disables it (false). Given a number, it
 	temporarily enables the mode until that number of milliseconds
@@ -7431,14 +7431,14 @@ var EditorView = class EditorView {
 	[`style-mod`](https://code.haverbeke.berlin/marijn/style-mod#documentation)
 	style spec providing the styles for the theme. These will be
 	prefixed with a generated class for the style.
-
+	
 	Because the selectors will be prefixed with a scope class, rule
 	that directly match the editor's [wrapper
 	element](https://codemirror.net/6/docs/ref/#view.EditorView.dom)—to which the scope class will be
 	added—need to be explicitly differentiated by adding an `&` to
 	the selector for that element—for example
 	`&.cm-focused`.
-
+	
 	When `dark` is set to true, the theme will be marked as dark,
 	which will cause the `&dark` rules from [base
 	themes](https://codemirror.net/6/docs/ref/#view.EditorView^baseTheme) to be used (as opposed to
@@ -10420,7 +10420,7 @@ var Tree = class Tree {
 	position. If 1, it'll move into nodes that start at the
 	position. With 0, it'll only enter nodes that cover the position
 	from both sides.
-
+	
 	Note that this will not enter
 	[overlays](#common.MountedTree.overlay), and you often want
 	[`resolveInner`](#common.Tree.resolveInner) instead.
@@ -11565,7 +11565,7 @@ var Parser = class {
 	Start a parse, returning a [partial parse](#common.PartialParse)
 	object. [`fragments`](#common.TreeFragment) can be passed in to
 	make the parse incremental.
-
+	
 	By default, the entire input is parsed. You can pass `ranges`,
 	which should be a sorted array of non-empty, non-overlapping
 	ranges, to parse only those ranges. The tree returned in that
@@ -11989,7 +11989,7 @@ var Tag = class Tag {
 	same modifier to a twice tag will return the same value (`m1(t1)
 	== m1(t1)`) and applying multiple modifiers will, regardless or
 	order, produce the same tag (`m1(m2(t1)) == m2(m1(t1))`).
-
+	
 	When multiple modifiers are applied to a given base tag, each
 	smaller set of modifiers is registered as a parent, so that for
 	example `m1(m2(m3(t1)))` is a subtype of `m1(m2(t1))`,
@@ -13232,7 +13232,7 @@ var ParseContext = class ParseContext {
 	asynchronously loading a nested parser. It'll skip its input and
 	mark it as not-really-parsed, so that the next update will parse
 	it again.
-
+	
 	When `until` is given, a reparse will be scheduled when that
 	promise resolves.
 	*/
@@ -14371,7 +14371,7 @@ var HighlightStyle = class HighlightStyle {
 	that rely on external styling), or a
 	[`style-mod`](https://code.haverbeke.berlin/marijn/style-mod#documentation)-style
 	set of CSS properties (which define the styling for those tags).
-
+	
 	The CSS rules created for a highlighter will be emitted in the
 	order of the spec's properties. That means that for elements that
 	have multiple tags associated with them, styles defined further
@@ -14860,10 +14860,10 @@ var StringStream = class {
 	Match the input against the given string or regular expression
 	(which should start with a `^`). Return true or the regexp match
 	if it matches.
-
+	
 	Unless `consume` is set to `false`, this will move `this.pos`
 	past the matched text.
-
+	
 	When matching a string `caseInsensitive` can be set to true to
 	make the match case-insensitive.
 	*/
