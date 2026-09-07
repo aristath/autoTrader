@@ -46,7 +46,7 @@ mcp = MCPServer(
 
 async def _deps() -> CommonDependencies:
     """Return the singleton-backed dependencies used by the HTTP API."""
-    return await get_common_deps()
+    return await _call(get_common_deps())
 
 
 async def _call(awaitable: Awaitable[T]) -> T:
@@ -63,19 +63,21 @@ async def _call(awaitable: Awaitable[T]) -> T:
 async def sentinel_status() -> dict[str, Any]:
     """Get Sentinel health, broker connection state, trading mode, and version."""
     deps = await _deps()
-    return {**await system_api.health(deps), **await system_api.version()}
+    health = await _call(system_api.health(deps))
+    version = await _call(system_api.version())
+    return {**health, **version}
 
 
 @mcp.tool()
 async def portfolio_get() -> dict[str, Any]:
     """Get the current portfolio positions, cash, and total value."""
-    return await portfolio_api.get_portfolio(await _deps())
+    return await _call(portfolio_api.get_portfolio(await _deps()))
 
 
 @mcp.tool()
 async def portfolio_composition_get() -> dict[str, Any]:
     """Get portfolio composition, risk, return, concentration, and allocation data."""
-    return await portfolio_api.get_portfolio_composition(await _deps())
+    return await _call(portfolio_api.get_portfolio_composition(await _deps()))
 
 
 @mcp.tool()
@@ -93,7 +95,7 @@ async def portfolio_performance_get(period: str = "1Y") -> dict[str, Any]:
 @mcp.tool()
 async def portfolio_period_stats_get() -> dict[str, Any]:
     """Get current portfolio return statistics for every supported period."""
-    return await portfolio_api.get_portfolio_period_stats(await _deps())
+    return await _call(portfolio_api.get_portfolio_period_stats(await _deps()))
 
 
 @mcp.tool()
@@ -120,7 +122,7 @@ async def portfolio_sync() -> dict[str, str]:
 @mcp.tool()
 async def portfolio_cagr_get() -> dict[str, Any]:
     """Get the lightweight since-inception portfolio CAGR calculation."""
-    return await portfolio_api.get_portfolio_cagr(await _deps())
+    return await _call(portfolio_api.get_portfolio_cagr(await _deps()))
 
 
 @mcp.tool()
@@ -131,19 +133,21 @@ async def securities_overview_get(
     inactive_only: bool = False,
 ) -> list[dict[str, Any]]:
     """Get the unified securities view with positions, prices, allocations, and plan data."""
-    return await securities_api.get_unified_view(
-        await _deps(),
-        period,
-        as_of,
-        include_inactive,
-        inactive_only,
+    return await _call(
+        securities_api.get_unified_view(
+            await _deps(),
+            period,
+            as_of,
+            include_inactive,
+            inactive_only,
+        )
     )
 
 
 @mcp.tool()
 async def securities_list() -> list[dict[str, Any]]:
     """List all active and inactive securities in Sentinel's universe."""
-    return await securities_api.get_securities(await _deps())
+    return await _call(securities_api.get_securities(await _deps()))
 
 
 @mcp.tool()
@@ -155,13 +159,13 @@ async def security_get(symbol: str) -> dict[str, Any]:
 @mcp.tool()
 async def security_prices_get(symbol: str, days: int = 365) -> list[dict[str, Any]]:
     """Get validated historical prices for a security."""
-    return await securities_api.get_prices(symbol, days)
+    return await _call(securities_api.get_prices(symbol, days))
 
 
 @mcp.tool()
 async def security_aliases_get() -> list[dict[str, Any]]:
     """Get symbol, name, and aliases for every active security."""
-    return await securities_api.get_all_aliases(await _deps())
+    return await _call(securities_api.get_all_aliases(await _deps()))
 
 
 @mcp.tool()
@@ -222,19 +226,19 @@ async def security_remove(symbol: str) -> dict[str, Any]:
 @mcp.tool()
 async def plan_get(minimum_trade_value_eur: float | None = None) -> dict[str, Any]:
     """Get current trade recommendations and the long-term portfolio plan."""
-    return await planner_api.get_recommendations(await _deps(), minimum_trade_value_eur)
+    return await _call(planner_api.get_recommendations(await _deps(), minimum_trade_value_eur))
 
 
 @mcp.tool()
 async def ideal_portfolio_get() -> dict[str, Any]:
     """Get current and ideal portfolio allocations."""
-    return await planner_api.get_ideal_portfolio(await _deps())
+    return await _call(planner_api.get_ideal_portfolio(await _deps()))
 
 
 @mcp.tool()
 async def plan_summary_get() -> dict[str, Any]:
     """Get the portfolio rebalance summary."""
-    return await planner_api.get_rebalance_summary()
+    return await _call(planner_api.get_rebalance_summary())
 
 
 @mcp.tool()
@@ -247,21 +251,23 @@ async def trades_get(
     offset: int = 0,
 ) -> dict[str, Any]:
     """Get paginated trade history with optional symbol, side, and date filters."""
-    return await trading_api.get_trades(
-        await _deps(),
-        symbol,
-        side,
-        start_date,
-        end_date,
-        limit,
-        offset,
+    return await _call(
+        trading_api.get_trades(
+            await _deps(),
+            symbol,
+            side,
+            start_date,
+            end_date,
+            limit,
+            offset,
+        )
     )
 
 
 @mcp.tool()
 async def cashflows_get() -> dict[str, Any]:
     """Get deposits, withdrawals, dividends, taxes, fees, and total profit."""
-    return await trading_api.get_cashflows(await _deps())
+    return await _call(trading_api.get_cashflows(await _deps()))
 
 
 @mcp.tool()
@@ -279,13 +285,13 @@ async def cashflows_sync() -> dict[str, Any]:
 @mcp.tool()
 async def markets_get() -> dict[str, Any]:
     """Get open/closed state for markets represented in the active universe."""
-    return await system_api.get_markets_status(await _deps())
+    return await _call(system_api.get_markets_status(await _deps()))
 
 
 @mcp.tool()
 async def cache_stats_get() -> dict[str, Any]:
     """Get statistics for Sentinel's application caches."""
-    return await system_api.get_cache_stats()
+    return await _call(system_api.get_cache_stats())
 
 
 @mcp.tool()
@@ -297,7 +303,7 @@ async def cache_clear(name: str | None = None) -> dict[str, Any]:
 @mcp.tool()
 async def exchange_rates_get() -> dict[str, Any]:
     """Get all stored exchange rates to EUR."""
-    return await system_api.get_exchange_rates()
+    return await _call(system_api.get_exchange_rates())
 
 
 @mcp.tool()
@@ -318,19 +324,19 @@ async def exchange_rate_set(
 @mcp.tool()
 async def categories_get() -> dict[str, Any]:
     """Get distinct security categories in Sentinel's database."""
-    return await system_api.get_categories(await _deps())
+    return await _call(system_api.get_categories(await _deps()))
 
 
 @mcp.tool()
 async def pulse_labels_get() -> dict[str, Any]:
     """Get active geography and industry labels used by Pulse classification."""
-    return await system_api.get_pulse_labels(await _deps())
+    return await _call(system_api.get_pulse_labels(await _deps()))
 
 
 @mcp.tool()
 async def led_status_get() -> dict[str, Any]:
     """Get optional LED display state and bridge health."""
-    return await settings_api.get_led_status()
+    return await _call(settings_api.get_led_status())
 
 
 @mcp.tool()
@@ -348,7 +354,7 @@ async def led_refresh() -> dict[str, Any]:
 @mcp.tool()
 async def led_bridge_health_get() -> dict[str, Any]:
     """Get the latest health report from the optional LED bridge."""
-    return await settings_api.get_led_bridge_health()
+    return await _call(settings_api.get_led_bridge_health())
 
 
 @mcp.tool()
@@ -360,7 +366,7 @@ async def led_bridge_health_update(changes: dict[str, Any]) -> dict[str, Any]:
 @mcp.tool()
 async def settings_get() -> dict[str, Any]:
     """Get all Sentinel settings."""
-    return await settings_api.get_settings(await _deps())
+    return await _call(settings_api.get_settings(await _deps()))
 
 
 @mcp.tool()
@@ -383,19 +389,19 @@ async def strategy_settings_set(values: dict[str, Any]) -> dict[str, str]:
 @mcp.tool()
 async def jobs_get() -> dict[str, Any]:
     """Get the running job, upcoming jobs, and recent job activity."""
-    return await jobs_api.get_jobs()
+    return await _call(jobs_api.get_jobs())
 
 
 @mcp.tool()
 async def job_schedules_get() -> dict[str, Any]:
     """Get all job schedules and their latest and next execution times."""
-    return await jobs_api.get_job_schedules(await _deps())
+    return await _call(jobs_api.get_job_schedules(await _deps()))
 
 
 @mcp.tool()
 async def job_history_get(job_type: str | None = None, limit: int = 50) -> dict[str, Any]:
     """Get job execution history, optionally for one job type."""
-    return await jobs_api.get_job_history(await _deps(), job_type, limit)
+    return await _call(jobs_api.get_job_history(await _deps(), job_type, limit))
 
 
 @mcp.tool()
@@ -419,13 +425,13 @@ async def job_schedule_update(job_type: str, schedule: dict[str, Any]) -> dict[s
 @mcp.tool()
 async def jobs_reschedule_all() -> dict[str, Any]:
     """Make every registered job eligible again and reschedule it."""
-    return await jobs_api.refresh_all(await _deps())
+    return await _call(jobs_api.refresh_all(await _deps()))
 
 
 @mcp.tool()
 async def tasks_list() -> list[dict[str, Any]]:
     """List editable Sentinel tasks."""
-    return await tasks_api.tasks_list()
+    return await _call(tasks_api.tasks_list())
 
 
 @mcp.tool()
@@ -519,7 +525,7 @@ async def tasks_schedule(items: list[dict[str, Any]]) -> dict[str, Any]:
 @mcp.tool()
 async def task_runs_get(task_id: str, limit: int = 50) -> list[dict[str, Any]]:
     """Get recent executions of an editable task."""
-    return await tasks_api.task_runs(task_id, limit)
+    return await _call(tasks_api.task_runs(task_id, limit))
 
 
 @mcp.tool()
@@ -537,25 +543,25 @@ async def task_run_stop(run_id: str) -> dict[str, Any]:
 @mcp.tool()
 async def ai_status_get() -> dict[str, Any]:
     """Get AI research pipeline status, queue, staleness, and last run."""
-    return await ai_api.get_ai_status(await _deps())
+    return await _call(ai_api.get_ai_status(await _deps()))
 
 
 @mcp.tool()
 async def ai_models_get() -> dict[str, Any]:
     """Discover models available to Sentinel's configured AI service."""
-    return await ai_api.get_ai_models(await _deps())
+    return await _call(ai_api.get_ai_models(await _deps()))
 
 
 @mcp.tool()
 async def ai_units_get(kind: str | None = None, stale_only: bool = False) -> dict[str, Any]:
     """List portfolio, macro, or security AI research units."""
-    return await ai_api.get_ai_units(await _deps(), kind, stale_only)
+    return await _call(ai_api.get_ai_units(await _deps(), kind, stale_only))
 
 
 @mcp.tool()
 async def ai_history_get(limit: int = 50) -> dict[str, Any]:
     """Get completed and failed AI research pipeline runs."""
-    return await ai_api.get_ai_history(await _deps(), limit)
+    return await _call(ai_api.get_ai_history(await _deps(), limit))
 
 
 @mcp.tool()
@@ -583,7 +589,7 @@ async def memories_get(
     since: str | None = None,
 ) -> dict[str, Any]:
     """Read Sentinel AI memories, optionally filtered by tags and time."""
-    return await memory_api.memories(await _deps(), tag, limit, offset, since)
+    return await _call(memory_api.memories(await _deps(), tag, limit, offset, since))
 
 
 @mcp.tool()
@@ -604,7 +610,7 @@ async def memory_store(
 @mcp.tool()
 async def forecast_status_get() -> dict[str, Any]:
     """Get forecasting configuration, service health, and recent run status."""
-    return await forecasts_api.get_forecast_status(await _deps())
+    return await _call(forecasts_api.get_forecast_status(await _deps()))
 
 
 @mcp.tool()
@@ -628,13 +634,13 @@ async def security_sell(symbol: str, quantity: int) -> dict[str, Any]:
 @mcp.tool()
 async def backup_status_get() -> dict[str, Any]:
     """Get R2 backup configuration state and available backups."""
-    return await backup_api.get_backup_status(await _deps())
+    return await _call(backup_api.get_backup_status(await _deps()))
 
 
 @mcp.tool()
 async def backup_run() -> dict[str, Any]:
     """Run the configured R2 backup job now."""
-    return await backup_api.run_backup()
+    return await _call(backup_api.run_backup())
 
 
 mcp_app = mcp.streamable_http_app(
