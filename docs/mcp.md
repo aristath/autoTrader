@@ -32,30 +32,15 @@ the server entry itself is simply:
 | `sentinel_status` | Health, version, broker connection, and trading mode |
 | `portfolio_get` | Current positions, cash, and value |
 | `portfolio_composition_get` | Composition and portfolio metrics |
-| `portfolio_structure_get` | Freedom24 structure analysis |
 | `portfolio_performance_get` | P/L history for a selected period |
 | `portfolio_period_stats_get` | Return statistics for every supported period |
 | `portfolio_projection_get` | Long-range portfolio-value projection |
-| `portfolio_sync` | Synchronize the portfolio from the broker |
-| `portfolio_cagr_get` | Lightweight since-inception CAGR calculation |
-| `plan_get` | Recommendations and long-term plan |
-| `ideal_portfolio_get` | Current and ideal allocations |
-| `plan_summary_get` | Rebalance summary |
+| `portfolio_plan_get` | Buy/sell recommendations and twelve-month target portfolio |
+| `portfolio_alignment_get` | Allocation deviation and rebalance status |
 | `markets_get` | Relevant market open/closed state |
-| `cache_stats_get` | Application cache statistics |
-| `cache_clear` | Clear one named cache or every cache |
 | `exchange_rates_get` | Stored exchange rates to EUR |
-| `exchange_rates_sync` | Synchronize exchange rates from the broker |
-| `exchange_rate_set` | Manually set one exchange rate to EUR |
-| `categories_get` | Distinct security categories in the database |
-| `pulse_labels_get` | Active geography and industry labels used by Pulse |
-| `led_status_get` | Optional LED display state and bridge health |
-| `led_enabled_set` | Enable or disable the LED display |
-| `led_refresh` | Force an immediate LED refresh |
-| `led_bridge_health_get` | Read the latest LED bridge health report |
-| `led_bridge_health_update` | Store an LED bridge health report |
 
-Synchronization and manual-rate tools delegate directly to Sentinel's existing
+Synchronization tools delegate directly to Sentinel's existing
 operations and preserve their return values and failure behavior.
 
 ### Securities and account history
@@ -66,17 +51,12 @@ operations and preserve their return values and failure behavior.
 | `securities_list` | Active and inactive universe rows |
 | `security_get` | One security and its controls |
 | `security_prices_get` | Validated historical prices |
-| `security_aliases_get` | Symbol, name, and aliases for active securities |
-| `security_ai_preference_update` | Store an AI-sourced multiplier and analysis |
 | `security_prices_sync` | Synchronize one security's historical prices |
-| `security_prices_sync_all` | Synchronize missing prices for held securities |
 | `security_add` | Add or re-enable a broker security |
 | `security_update` | Update aliases, execution controls, or AI multiplier |
 | `security_remove` | Apply the normal safe universe-removal rules |
 | `trades_get` | Filtered, paginated trade history |
-| `trades_sync` | Synchronize trade history from the broker |
-| `cashflows_get` | Deposits, withdrawals, dividends, taxes, fees, and profit |
-| `cashflows_sync` | Synchronize cash-flow history from the broker |
+| `cashflow_summary_get` | Aggregated EUR cash flows and portfolio profit |
 | `security_buy` | Submit a buy through Sentinel's trading path |
 | `security_sell` | Submit a sell through Sentinel's trading path |
 
@@ -91,12 +71,11 @@ broker, quantity, and price protections.
 | `settings_get` | Read all database-backed settings |
 | `setting_set` | Persist one setting and perform normal cache invalidation |
 | `strategy_settings_set` | Atomically validate and replace all strategy settings |
-| `jobs_get` | Current, upcoming, and recent job state |
+| `job_status_get` | Running job, next three scheduled jobs, and recent activity |
 | `job_schedules_get` | Schedule definitions and runtime timestamps |
 | `job_history_get` | All or per-job execution history |
 | `job_run` | Run a registered job immediately |
 | `job_schedule_update` | Update and reschedule a registered job |
-| `jobs_reschedule_all` | Make all jobs eligible and reschedule them |
 
 `job_schedule_update` accepts the same fields as `PUT
 /api/jobs/schedules/{job_type}`: `interval_minutes`,
@@ -113,7 +92,6 @@ operation without adding MCP-specific restrictions.
 | `tasks_list` | List task definitions |
 | `task_get` | Read a task definition |
 | `task_create` | Create a task |
-| `task_save` | Replace `task.js` |
 | `task_meta_update` | Update metadata and resync the schedule |
 | `task_delete` | Delete an idle task |
 | `task_validate` | Validate a task definition |
@@ -121,8 +99,7 @@ operation without adding MCP-specific restrictions.
 | `task_file_get` | Read a task file |
 | `task_file_save` | Create or replace a task file |
 | `task_file_delete` | Delete a task file |
-| `task_run` | Queue a task with inputs and an optional run mode |
-| `tasks_schedule` | Queue a batch with optional delay, priority, and deduplication |
+| `task_runs_enqueue` | Queue immediate or delayed task runs, individually or in batches |
 | `task_runs_get` | List a task's executions |
 | `task_run_get` | Read one execution and its output |
 | `task_run_stop` | Stop queued or running work |
@@ -132,9 +109,9 @@ web task editor. `task_meta_update` exposes the supported metadata fields
 directly: `name`, `description`, `tags`, `enabled`, `schedule`, `cwd`,
 `statePath`, `timeout`, and `schedulePolicy`.
 
-`tasks_schedule` accepts one or more task requests. `eligible_at` is a Unix
+`task_runs_enqueue` accepts one or more task requests. `eligibleAt` is a Unix
 timestamp in seconds or milliseconds; a task remains queued until that time.
-Each request may also carry `inputs`, `title`, `dedupe_key`, and `priority`.
+Each request may also carry `inputs`, `title`, `dedupeKey`, and `priority`.
 Requests are passed to Sentinel's existing scheduler operation in their supplied
 order, preserving its validation, deduplication, and enqueue behavior.
 
@@ -148,8 +125,6 @@ order, preserving its validation, deduplication, and enqueue behavior.
 | `ai_artifact_get` | Read an allowlisted research artifact |
 | `ai_research_run` | Queue analysis or rating for a research unit |
 | `ai_models_get` | Discover models available to the configured AI service |
-| `memories_get` | Read AI memories with optional tag and time filters |
-| `memory_store` | Store an AI memory through the deduplicating memory operation |
 | `forecast_status_get` | Forecast service and recent-run status |
 | `forecast_get` | Latest path, scores, and evaluation for a symbol |
 
@@ -158,7 +133,6 @@ order, preserving its validation, deduplication, and enqueue behavior.
 | Tool | Purpose |
 |---|---|
 | `backup_status_get` | List backup configuration state and available R2 backups |
-| `backup_run` | Run the registered R2 backup job |
 
 ## Implementation
 

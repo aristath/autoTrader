@@ -28,56 +28,34 @@ EXPECTED_TOOLS = {
     "sentinel_status",
     "portfolio_get",
     "portfolio_composition_get",
-    "portfolio_structure_get",
     "portfolio_performance_get",
     "portfolio_period_stats_get",
     "portfolio_projection_get",
-    "portfolio_sync",
-    "portfolio_cagr_get",
     "securities_overview_get",
     "securities_list",
     "security_get",
     "security_prices_get",
-    "security_aliases_get",
-    "security_ai_preference_update",
     "security_prices_sync",
-    "security_prices_sync_all",
     "security_add",
     "security_update",
     "security_remove",
-    "plan_get",
-    "ideal_portfolio_get",
-    "plan_summary_get",
+    "portfolio_plan_get",
+    "portfolio_alignment_get",
     "trades_get",
-    "cashflows_get",
-    "trades_sync",
-    "cashflows_sync",
+    "cashflow_summary_get",
     "markets_get",
-    "cache_stats_get",
-    "cache_clear",
     "exchange_rates_get",
-    "exchange_rates_sync",
-    "exchange_rate_set",
-    "categories_get",
-    "pulse_labels_get",
-    "led_status_get",
-    "led_enabled_set",
-    "led_refresh",
-    "led_bridge_health_get",
-    "led_bridge_health_update",
     "settings_get",
     "setting_set",
     "strategy_settings_set",
-    "jobs_get",
+    "job_status_get",
     "job_schedules_get",
     "job_history_get",
     "job_run",
     "job_schedule_update",
-    "jobs_reschedule_all",
     "tasks_list",
     "task_get",
     "task_create",
-    "task_save",
     "task_meta_update",
     "task_delete",
     "task_validate",
@@ -85,8 +63,7 @@ EXPECTED_TOOLS = {
     "task_file_get",
     "task_file_save",
     "task_file_delete",
-    "task_run",
-    "tasks_schedule",
+    "task_runs_enqueue",
     "task_runs_get",
     "task_run_get",
     "task_run_stop",
@@ -96,14 +73,11 @@ EXPECTED_TOOLS = {
     "ai_history_get",
     "ai_artifact_get",
     "ai_research_run",
-    "memories_get",
-    "memory_store",
     "forecast_status_get",
     "forecast_get",
     "security_buy",
     "security_sell",
     "backup_status_get",
-    "backup_run",
 }
 
 
@@ -169,7 +143,6 @@ STRATEGY_VALUES = {
 BASE_CASES = [
     _case("portfolio_get", "portfolio_api", "get_portfolio", {}, (DEPS,)),
     _case("portfolio_composition_get", "portfolio_api", "get_portfolio_composition", {}, (DEPS,)),
-    _case("portfolio_structure_get", "portfolio_api", "get_portfolio_structure", {}, (False,)),
     _case("portfolio_performance_get", "portfolio_api", "get_portfolio_pnl_history", {}, (DEPS, "1Y")),
     _case("portfolio_period_stats_get", "portfolio_api", "get_portfolio_period_stats", {}, (DEPS,)),
     _case(
@@ -177,10 +150,8 @@ BASE_CASES = [
         "portfolio_api",
         "get_portfolio_value_projection",
         {},
-        (DEPS, 25, None),
+        (DEPS, 10, None),
     ),
-    _case("portfolio_sync", "portfolio_api", "sync_portfolio", {}, ()),
-    _case("portfolio_cagr_get", "portfolio_api", "get_portfolio_cagr", {}, (DEPS,)),
     _case(
         "securities_overview_get",
         "securities_api",
@@ -207,28 +178,6 @@ BASE_CASES = [
         result=_list_result("security_prices_get"),
     ),
     _case(
-        "security_aliases_get",
-        "securities_api",
-        "get_all_aliases",
-        {},
-        (DEPS,),
-        result=_list_result("security_aliases_get"),
-    ),
-    _case(
-        "security_ai_preference_update",
-        "securities_api",
-        "update_security_preference",
-        {"symbol": "AIR.EU", "ai_research_multiplier": 0.8, "analysis": "Evidence"},
-        (
-            {
-                "symbol": "AIR.EU",
-                "ai_research_multiplier": 0.8,
-                "analysis": "Evidence",
-            },
-            DEPS,
-        ),
-    ),
-    _case(
         "security_prices_sync",
         "securities_api",
         "sync_prices",
@@ -236,7 +185,6 @@ BASE_CASES = [
         ("AIR.EU", 365),
         result={"synced": 10},
     ),
-    _case("security_prices_sync_all", "securities_api", "sync_all_prices", {}, (DEPS,)),
     _case(
         "security_add",
         "securities_api",
@@ -258,9 +206,8 @@ BASE_CASES = [
         {"symbol": "AIR.EU"},
         ("AIR.EU", DEPS, False),
     ),
-    _case("plan_get", "planner_api", "get_recommendations", {}, (DEPS, None)),
-    _case("ideal_portfolio_get", "planner_api", "get_ideal_portfolio", {}, (DEPS,)),
-    _case("plan_summary_get", "planner_api", "get_rebalance_summary", {}, ()),
+    _case("portfolio_plan_get", "planner_api", "get_recommendations", {}, (DEPS, None)),
+    _case("portfolio_alignment_get", "planner_api", "get_rebalance_summary", {}, ()),
     _case(
         "trades_get",
         "trading_api",
@@ -268,41 +215,9 @@ BASE_CASES = [
         {},
         (DEPS, None, None, None, None, 100, 0),
     ),
-    _case("cashflows_get", "trading_api", "get_cashflows", {}, (DEPS,)),
-    _case("trades_sync", "trading_api", "sync_trades_endpoint", {}, ()),
-    _case("cashflows_sync", "trading_api", "sync_cashflows_endpoint", {}, ()),
+    _case("cashflow_summary_get", "trading_api", "get_cashflows", {}, (DEPS,)),
     _case("markets_get", "system_api", "get_markets_status", {}, (DEPS,)),
-    _case("cache_stats_get", "system_api", "get_cache_stats", {}, ()),
-    _case("cache_clear", "system_api", "clear_cache", {}, (DEPS, None)),
     _case("exchange_rates_get", "system_api", "get_exchange_rates", {}, ()),
-    _case("exchange_rates_sync", "system_api", "sync_exchange_rates", {}, ()),
-    _case(
-        "exchange_rate_set",
-        "system_api",
-        "set_exchange_rate",
-        {"currency": "USD", "rate": 0.85},
-        ("USD", {"rate": 0.85}),
-    ),
-    _case("categories_get", "system_api", "get_categories", {}, (DEPS,)),
-    _case("pulse_labels_get", "system_api", "get_pulse_labels", {}, (DEPS,)),
-    _case("led_status_get", "settings_api", "get_led_status", {}, ()),
-    _case(
-        "led_enabled_set",
-        "settings_api",
-        "set_led_enabled",
-        {"enabled": True},
-        ({"enabled": True},),
-        result={"enabled": True},
-    ),
-    _case("led_refresh", "settings_api", "refresh_led_display", {}, ()),
-    _case("led_bridge_health_get", "settings_api", "get_led_bridge_health", {}, ()),
-    _case(
-        "led_bridge_health_update",
-        "settings_api",
-        "set_led_bridge_health",
-        {"changes": {"bridge_ok": True, "unknown": [1, 2]}},
-        ({"bridge_ok": True, "unknown": [1, 2]},),
-    ),
     _case("settings_get", "settings_api", "get_settings", {}, (DEPS,)),
     _case(
         "setting_set",
@@ -318,7 +233,7 @@ BASE_CASES = [
         {"values": STRATEGY_VALUES},
         ({"values": STRATEGY_VALUES}, DEPS),
     ),
-    _case("jobs_get", "jobs_api", "get_jobs", {}, ()),
+    _case("job_status_get", "jobs_api", "get_jobs", {}, ()),
     _case("job_schedules_get", "jobs_api", "get_job_schedules", {}, (DEPS,)),
     _case("job_history_get", "jobs_api", "get_job_history", {}, (DEPS, None, 50)),
     _case(
@@ -335,7 +250,6 @@ BASE_CASES = [
         {"job_type": "sync:portfolio", "schedule": {"interval_minutes": 30, "raw": "preserved"}},
         ("sync:portfolio", {"interval_minutes": 30, "raw": "preserved"}, DEPS),
     ),
-    _case("jobs_reschedule_all", "jobs_api", "refresh_all", {}, (DEPS,)),
     _case(
         "tasks_list",
         "tasks_api",
@@ -351,13 +265,6 @@ BASE_CASES = [
         "tasks_create",
         {"name": "New task"},
         ({"name": "New task"},),
-    ),
-    _case(
-        "task_save",
-        "tasks_api",
-        "task_save",
-        {"task_id": "analyze-security", "source": "export default {};"},
-        ("analyze-security", {"markdown": "export default {};"}),
     ),
     _case(
         "task_meta_update",
@@ -418,14 +325,7 @@ BASE_CASES = [
         output={"status": "deleted", "task_id": "custom-task", "name": "notes.md"},
     ),
     _case(
-        "task_run",
-        "tasks_api",
-        "task_run",
-        {"task_id": "analyze-security"},
-        ("analyze-security", {"inputs": {}}),
-    ),
-    _case(
-        "tasks_schedule",
+        "task_runs_enqueue",
         "tasks_api",
         "scheduler_enqueue",
         {"items": [{"task": "analyze-security"}]},
@@ -459,14 +359,6 @@ BASE_CASES = [
         {"kind": "analyze", "unit_kind": "security", "unit_key": "AIR.EU"},
         ({"kind": "analyze", "unit_kind": "security", "unit_key": "AIR.EU"}, DEPS),
     ),
-    _case("memories_get", "memory_api", "memories", {}, (DEPS, "", 100, 0, None)),
-    _case(
-        "memory_store",
-        "memory_api",
-        "dedup_store",
-        {"memory": "Remember this"},
-        ({"memory": "Remember this", "tags": None, "metadata": None}, DEPS),
-    ),
     _case("forecast_status_get", "forecasts_api", "get_forecast_status", {}, (DEPS,)),
     _case(
         "forecast_get",
@@ -490,17 +382,16 @@ BASE_CASES = [
         ("AIR.EU", 2),
     ),
     _case("backup_status_get", "backup_api", "get_backup_status", {}, (DEPS,)),
-    _case("backup_run", "backup_api", "run_backup", {}, ()),
 ]
 
 VARIANT_CASES = [
     _case(
-        "portfolio_structure_get",
-        "portfolio_api",
-        "get_portfolio_structure",
-        {"force_refresh": True},
-        (True,),
-        suffix="force-refresh",
+        "portfolio_plan_get",
+        "planner_api",
+        "get_recommendations",
+        {"minimum_trade_value_eur": 250.0},
+        (DEPS, 250.0),
+        suffix="minimum-trade-value",
     ),
     _case(
         "portfolio_performance_get",
@@ -552,22 +443,6 @@ VARIANT_CASES = [
         suffix="filters",
     ),
     _case(
-        "cache_clear",
-        "system_api",
-        "clear_cache",
-        {"name": "planner"},
-        (DEPS, "planner"),
-        suffix="named",
-    ),
-    _case(
-        "exchange_rate_set",
-        "system_api",
-        "set_exchange_rate",
-        {"currency": "usd", "rate": "-0.5"},
-        ("usd", {"rate": "-0.5"}),
-        suffix="raw-values",
-    ),
-    _case(
         "setting_set",
         "settings_api",
         "set_setting",
@@ -600,19 +475,7 @@ VARIANT_CASES = [
         suffix="create",
     ),
     _case(
-        "task_run",
-        "tasks_api",
-        "task_run",
-        {
-            "task_id": "analyze-security",
-            "inputs": {"symbol": "AIR.EU"},
-            "run_mode": "deep",
-        },
-        ("analyze-security", {"inputs": {"symbol": "AIR.EU"}, "runMode": "deep"}),
-        suffix="inputs-and-mode",
-    ),
-    _case(
-        "tasks_schedule",
+        "task_runs_enqueue",
         "tasks_api",
         "scheduler_enqueue",
         {
@@ -665,29 +528,6 @@ VARIANT_CASES = [
         {"limit": 7},
         (DEPS, 7),
         suffix="limit",
-    ),
-    _case(
-        "memories_get",
-        "memory_api",
-        "memories",
-        {"tag": "portfolio,decision", "limit": 7, "offset": 3, "since": "2026-01-01"},
-        (DEPS, "portfolio,decision", 7, 3, "2026-01-01"),
-        suffix="filters",
-    ),
-    _case(
-        "memory_store",
-        "memory_api",
-        "dedup_store",
-        {"memory": "Remember this", "tags": ["portfolio"], "metadata": {"source": "test"}},
-        (
-            {
-                "memory": "Remember this",
-                "tags": ["portfolio"],
-                "metadata": {"source": "test"},
-            },
-            DEPS,
-        ),
-        suffix="metadata",
     ),
 ]
 
@@ -970,7 +810,7 @@ async def test_required_arguments_are_enforced_before_endpoint_execution(monkeyp
                 checked += 1
             endpoint.assert_not_awaited()
 
-    assert checked == 53
+    assert checked == 42
 
 
 @pytest.mark.asyncio
@@ -984,14 +824,7 @@ async def test_required_arguments_are_enforced_before_endpoint_execution(monkeyp
             "securities_api",
             "sync_prices",
         ),
-        ("led_enabled_set", {"enabled": "sometimes"}, "settings_api", "set_led_enabled"),
-        ("tasks_schedule", {"items": {}}, "tasks_api", "scheduler_enqueue"),
-        (
-            "memory_store",
-            {"memory": "remember", "tags": {}},
-            "memory_api",
-            "dedup_store",
-        ),
+        ("task_runs_enqueue", {"items": {}}, "tasks_api", "scheduler_enqueue"),
         (
             "security_buy",
             {"symbol": "TEST.EU", "quantity": 1.5},
@@ -1023,11 +856,10 @@ async def test_invalid_argument_types_are_rejected_before_execution(
     [
         (next(case for case in BASE_CASES if case.tool == "portfolio_get"), []),
         (next(case for case in BASE_CASES if case.tool == "securities_list"), {"not": "a list"}),
-        (next(case for case in BASE_CASES if case.tool == "portfolio_sync"), {"status": {}}),
+        (next(case for case in BASE_CASES if case.tool == "setting_set"), {"status": {}}),
         (next(case for case in BASE_CASES if case.tool == "security_prices_sync"), {"synced": {}}),
-        (next(case for case in BASE_CASES if case.tool == "led_enabled_set"), {"enabled": {}}),
     ],
-    ids=["dict", "list", "string-values", "integer-values", "boolean-values"],
+    ids=["dict", "list", "string-values", "integer-values"],
 )
 async def test_structured_output_validation_rejects_wrong_endpoint_shape(monkeypatch, case, malformed_result):
     module, operation = _target(case)
@@ -1049,7 +881,6 @@ async def test_open_payloads_preserve_unknown_fields_for_application_validation(
         ("security_update", "changes"),
         ("job_schedule_update", "schedule"),
         ("task_meta_update", "changes"),
-        ("led_bridge_health_update", "changes"),
     ):
         payload_schema = schemas[tool_name]["properties"][argument_name]
         assert payload_schema["type"] == "object"

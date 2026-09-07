@@ -19,7 +19,6 @@ from sentinel.api.routers import ai as ai_api
 from sentinel.api.routers import backup as backup_api
 from sentinel.api.routers import forecasts as forecasts_api
 from sentinel.api.routers import jobs as jobs_api
-from sentinel.api.routers import memory as memory_api
 from sentinel.api.routers import planner as planner_api
 from sentinel.api.routers import portfolio as portfolio_api
 from sentinel.api.routers import securities as securities_api
@@ -61,7 +60,7 @@ async def _call(awaitable: Awaitable[T]) -> T:
 
 @mcp.tool()
 async def sentinel_status() -> dict[str, Any]:
-    """Get Sentinel health, broker connection state, trading mode, and version."""
+    """Get Sentinel health, broker state, trading mode (research cannot trade; live can), and version."""
     deps = await _deps()
     health = await _call(system_api.health(deps))
     version = await _call(system_api.version())
@@ -76,34 +75,28 @@ async def portfolio_get() -> dict[str, Any]:
 
 @mcp.tool()
 async def portfolio_composition_get() -> dict[str, Any]:
-    """Get portfolio composition, risk, return, concentration, and allocation data."""
+    """Get local current, ideal, and post-plan allocations plus risk, return, and concentration metrics."""
     return await _call(portfolio_api.get_portfolio_composition(await _deps()))
 
 
 @mcp.tool()
-async def portfolio_structure_get(force_refresh: bool = False) -> dict[str, Any]:
-    """Get Freedom24 portfolio structure analysis and optionally refresh it."""
-    return await _call(portfolio_api.get_portfolio_structure(force_refresh))
-
-
-@mcp.tool()
 async def portfolio_performance_get(period: str = "1Y") -> dict[str, Any]:
-    """Get portfolio P/L history for 1Y, 5Y, 10Y, or ALL."""
+    """Get portfolio P/L history and summary for 3M, 6M, 1Y, or ALL."""
     return await _call(portfolio_api.get_portfolio_pnl_history(await _deps(), period))
 
 
 @mcp.tool()
 async def portfolio_period_stats_get() -> dict[str, Any]:
-    """Get current portfolio return statistics for every supported period."""
+    """Get portfolio P/L, return, benchmark return, and alpha for 1D, 1W, 1M, 3M, 6M, and 1Y."""
     return await _call(portfolio_api.get_portfolio_period_stats(await _deps()))
 
 
 @mcp.tool()
 async def portfolio_projection_get(
-    years: int = 25,
+    years: int = 10,
     monthly_net_deposit_eur: float | None = None,
 ) -> dict[str, Any]:
-    """Project portfolio value for a supported horizon, optionally overriding monthly deposits."""
+    """Project value for 5, 10, 15, 20, or 25 years from historical returns and monthly deposits; not a forecast."""
     return await _call(
         portfolio_api.get_portfolio_value_projection(
             await _deps(),
@@ -114,25 +107,13 @@ async def portfolio_projection_get(
 
 
 @mcp.tool()
-async def portfolio_sync() -> dict[str, str]:
-    """Synchronize the portfolio from the broker now."""
-    return await _call(portfolio_api.sync_portfolio())
-
-
-@mcp.tool()
-async def portfolio_cagr_get() -> dict[str, Any]:
-    """Get the lightweight since-inception portfolio CAGR calculation."""
-    return await _call(portfolio_api.get_portfolio_cagr(await _deps()))
-
-
-@mcp.tool()
 async def securities_overview_get(
     period: str = "1Y",
     as_of: str | None = None,
     include_inactive: bool = False,
     inactive_only: bool = False,
 ) -> list[dict[str, Any]]:
-    """Get the unified securities view with positions, prices, allocations, and plan data."""
+    """Get securities with 1M/1Y/5Y/10Y prices, positions, allocations, signals, and recommendations."""
     return await _call(
         securities_api.get_unified_view(
             await _deps(),
@@ -152,7 +133,7 @@ async def securities_list() -> list[dict[str, Any]]:
 
 @mcp.tool()
 async def security_get(symbol: str) -> dict[str, Any]:
-    """Get one security and its execution and AI-research settings."""
+    """Get one security's metadata, current position, buy/sell permissions, and AI research preference."""
     return await _call(securities_api.get_security(symbol, await _deps()))
 
 
@@ -163,51 +144,20 @@ async def security_prices_get(symbol: str, days: int = 365) -> list[dict[str, An
 
 
 @mcp.tool()
-async def security_aliases_get() -> list[dict[str, Any]]:
-    """Get symbol, name, and aliases for every active security."""
-    return await _call(securities_api.get_all_aliases(await _deps()))
-
-
-@mcp.tool()
-async def security_ai_preference_update(
-    symbol: str,
-    ai_research_multiplier: Any,
-    analysis: Any,
-) -> dict[str, Any]:
-    """Store an AI-sourced research multiplier and its supporting analysis."""
-    return await _call(
-        securities_api.update_security_preference(
-            {
-                "symbol": symbol,
-                "ai_research_multiplier": ai_research_multiplier,
-                "analysis": analysis,
-            },
-            await _deps(),
-        )
-    )
-
-
-@mcp.tool()
 async def security_prices_sync(symbol: str, days: int = 365) -> dict[str, int]:
     """Synchronize historical prices for one security from the broker."""
     return await _call(securities_api.sync_prices(symbol, days))
 
 
 @mcp.tool()
-async def security_prices_sync_all() -> dict[str, str]:
-    """Synchronize missing historical prices for all held securities."""
-    return await _call(securities_api.sync_all_prices(await _deps()))
-
-
-@mcp.tool()
 async def security_add(symbol: str) -> dict[str, Any]:
-    """Add or re-enable a broker security in Sentinel's universe."""
+    """Add or reactivate a broker symbol in Sentinel's tracked universe; does not place an order."""
     return await _call(securities_api.add_security({"symbol": symbol}, await _deps()))
 
 
 @mcp.tool()
 async def security_update(symbol: str, changes: dict[str, Any]) -> dict[str, Any]:
-    """Update a security's aliases, buy/sell controls, or AI research multiplier."""
+    """Update aliases, allow_buy, allow_sell, ai_research_multiplier, or ai_research_multiplier_analysis."""
     return await _call(
         securities_api.update_security(
             symbol,
@@ -219,25 +169,19 @@ async def security_update(symbol: str, changes: dict[str, Any]) -> dict[str, Any
 
 @mcp.tool()
 async def security_remove(symbol: str) -> dict[str, Any]:
-    """Apply Sentinel's safe universe-removal rules to a security."""
+    """Remove from Favorites and the active universe without selling; repeating may delete inactive derived data."""
     return await _call(securities_api.delete_security(symbol, await _deps(), False))
 
 
 @mcp.tool()
-async def plan_get(minimum_trade_value_eur: float | None = None) -> dict[str, Any]:
-    """Get current trade recommendations and the long-term portfolio plan."""
+async def portfolio_plan_get(minimum_trade_value_eur: float | None = None) -> dict[str, Any]:
+    """Get current buy/sell recommendations and the twelve-month target portfolio; does not place orders."""
     return await _call(planner_api.get_recommendations(await _deps(), minimum_trade_value_eur))
 
 
 @mcp.tool()
-async def ideal_portfolio_get() -> dict[str, Any]:
-    """Get current and ideal portfolio allocations."""
-    return await _call(planner_api.get_ideal_portfolio(await _deps()))
-
-
-@mcp.tool()
-async def plan_summary_get() -> dict[str, Any]:
-    """Get the portfolio rebalance summary."""
+async def portfolio_alignment_get() -> dict[str, Any]:
+    """Get alignment with ideal allocations, including deviation, threshold, and rebalance status."""
     return await _call(planner_api.get_rebalance_summary())
 
 
@@ -250,7 +194,7 @@ async def trades_get(
     limit: int = 100,
     offset: int = 0,
 ) -> dict[str, Any]:
-    """Get paginated trade history with optional symbol, side, and date filters."""
+    """Get paginated trades filtered by symbol, BUY/SELL side, and inclusive YYYY-MM-DD date range."""
     return await _call(
         trading_api.get_trades(
             await _deps(),
@@ -265,21 +209,9 @@ async def trades_get(
 
 
 @mcp.tool()
-async def cashflows_get() -> dict[str, Any]:
-    """Get deposits, withdrawals, dividends, taxes, fees, and total profit."""
+async def cashflow_summary_get() -> dict[str, Any]:
+    """Get EUR totals for deposits, withdrawals, dividends, taxes, fees, net deposits, and portfolio profit."""
     return await _call(trading_api.get_cashflows(await _deps()))
-
-
-@mcp.tool()
-async def trades_sync() -> dict[str, Any]:
-    """Synchronize trade history from the broker now."""
-    return await _call(trading_api.sync_trades_endpoint())
-
-
-@mcp.tool()
-async def cashflows_sync() -> dict[str, Any]:
-    """Synchronize cash-flow history from the broker now."""
-    return await _call(trading_api.sync_cashflows_endpoint())
 
 
 @mcp.tool()
@@ -289,95 +221,29 @@ async def markets_get() -> dict[str, Any]:
 
 
 @mcp.tool()
-async def cache_stats_get() -> dict[str, Any]:
-    """Get statistics for Sentinel's application caches."""
-    return await _call(system_api.get_cache_stats())
-
-
-@mcp.tool()
-async def cache_clear(name: str | None = None) -> dict[str, Any]:
-    """Clear one named cache, or every cache when no name is supplied."""
-    return await _call(system_api.clear_cache(await _deps(), name))
-
-
-@mcp.tool()
 async def exchange_rates_get() -> dict[str, Any]:
     """Get all stored exchange rates to EUR."""
     return await _call(system_api.get_exchange_rates())
 
 
 @mcp.tool()
-async def exchange_rates_sync() -> dict[str, Any]:
-    """Synchronize exchange rates from the broker now."""
-    return await _call(system_api.sync_exchange_rates())
-
-
-@mcp.tool()
-async def exchange_rate_set(
-    currency: str,
-    rate: Any,
-) -> dict[str, Any]:
-    """Set one currency's exchange rate to EUR manually."""
-    return await _call(system_api.set_exchange_rate(currency, {"rate": rate}))
-
-
-@mcp.tool()
-async def categories_get() -> dict[str, Any]:
-    """Get distinct security categories in Sentinel's database."""
-    return await _call(system_api.get_categories(await _deps()))
-
-
-@mcp.tool()
-async def pulse_labels_get() -> dict[str, Any]:
-    """Get active geography and industry labels used by Pulse classification."""
-    return await _call(system_api.get_pulse_labels(await _deps()))
-
-
-@mcp.tool()
-async def led_status_get() -> dict[str, Any]:
-    """Get optional LED display state and bridge health."""
-    return await _call(settings_api.get_led_status())
-
-
-@mcp.tool()
-async def led_enabled_set(enabled: bool) -> dict[str, bool]:
-    """Enable or disable the optional LED display."""
-    return await _call(settings_api.set_led_enabled({"enabled": enabled}))
-
-
-@mcp.tool()
-async def led_refresh() -> dict[str, Any]:
-    """Force an immediate refresh of the optional LED display."""
-    return await _call(settings_api.refresh_led_display())
-
-
-@mcp.tool()
-async def led_bridge_health_get() -> dict[str, Any]:
-    """Get the latest health report from the optional LED bridge."""
-    return await _call(settings_api.get_led_bridge_health())
-
-
-@mcp.tool()
-async def led_bridge_health_update(changes: dict[str, Any]) -> dict[str, Any]:
-    """Store a health report from the optional LED bridge."""
-    return await _call(settings_api.set_led_bridge_health(changes))
-
-
-@mcp.tool()
 async def settings_get() -> dict[str, Any]:
-    """Get all Sentinel settings."""
+    """Get all Sentinel settings with defaults applied."""
     return await _call(settings_api.get_settings(await _deps()))
 
 
 @mcp.tool()
 async def setting_set(key: str, value: Any) -> dict[str, str]:
-    """Set one Sentinel setting using the same storage and cache invalidation as the UI."""
+    """Set one Sentinel setting by key."""
     return await _call(settings_api.set_setting(key, {"value": value}, await _deps()))
 
 
 @mcp.tool()
 async def strategy_settings_set(values: dict[str, Any]) -> dict[str, str]:
-    """Atomically validate and replace the complete strategy settings group."""
+    """Validate and atomically replace the complete strategy-tuning group.
+
+    Use settings_get to preserve unchanged values.
+    """
     return await _call(
         settings_api.set_settings_batch(
             {"values": values},
@@ -387,32 +253,36 @@ async def strategy_settings_set(values: dict[str, Any]) -> dict[str, str]:
 
 
 @mcp.tool()
-async def jobs_get() -> dict[str, Any]:
-    """Get the running job, upcoming jobs, and recent job activity."""
+async def job_status_get() -> dict[str, Any]:
+    """Get the running job, next three scheduled jobs, and recent job activity."""
     return await _call(jobs_api.get_jobs())
 
 
 @mcp.tool()
 async def job_schedules_get() -> dict[str, Any]:
-    """Get all job schedules and their latest and next execution times."""
+    """Get every fixed job's schedule, market timing, and latest and next execution."""
     return await _call(jobs_api.get_job_schedules(await _deps()))
 
 
 @mcp.tool()
 async def job_history_get(job_type: str | None = None, limit: int = 50) -> dict[str, Any]:
-    """Get job execution history, optionally for one job type."""
+    """Get recent fixed-job executions, optionally filtered by job type."""
     return await _call(jobs_api.get_job_history(await _deps(), job_type, limit))
 
 
 @mcp.tool()
 async def job_run(job_type: str) -> dict[str, Any]:
-    """Run a registered Sentinel job immediately."""
+    """Run a registered fixed job immediately, bypassing its schedule and market-timing check."""
     return await _call(jobs_api.run_job_endpoint(job_type))
 
 
 @mcp.tool()
 async def job_schedule_update(job_type: str, schedule: dict[str, Any]) -> dict[str, Any]:
-    """Update interval_minutes, interval_market_open_minutes, and/or market_timing for a job."""
+    """Update and reschedule a fixed job.
+
+    market_timing: 0 any time, 1 after market close, 2 during market open,
+    3 all markets closed.
+    """
     return await _call(
         jobs_api.update_job_schedule(
             job_type,
@@ -423,38 +293,30 @@ async def job_schedule_update(job_type: str, schedule: dict[str, Any]) -> dict[s
 
 
 @mcp.tool()
-async def jobs_reschedule_all() -> dict[str, Any]:
-    """Make every registered job eligible again and reschedule it."""
-    return await _call(jobs_api.refresh_all(await _deps()))
-
-
-@mcp.tool()
 async def tasks_list() -> list[dict[str, Any]]:
-    """List editable Sentinel tasks."""
+    """List the task definitions that make up Sentinel's editable AI pipeline, including enabled state and schedules."""
     return await _call(tasks_api.tasks_list())
 
 
 @mcp.tool()
 async def task_get(task_id: str) -> dict[str, Any]:
-    """Get an editable task definition."""
+    """Get one editable AI pipeline task's metadata and task.js source."""
     return await _call(tasks_api.task_get(task_id))
 
 
 @mcp.tool()
 async def task_create(name: str) -> dict[str, Any]:
-    """Create an editable Sentinel task."""
+    """Create a disabled, editable AI pipeline task from a name."""
     return await _call(tasks_api.tasks_create({"name": name}))
 
 
 @mcp.tool()
-async def task_save(task_id: str, source: str) -> dict[str, Any]:
-    """Replace an editable task's task.js source."""
-    return await _call(tasks_api.task_save(task_id, {"markdown": source}))
-
-
-@mcp.tool()
 async def task_meta_update(task_id: str, changes: dict[str, Any]) -> dict[str, Any]:
-    """Update editable task metadata and resync its schedule."""
+    """Update an AI pipeline task's metadata.
+
+    Accepts name, description, tags, enabled, schedule, cwd, statePath, timeout,
+    and schedulePolicy.
+    """
     return await _call(
         tasks_api.task_meta_save(
             task_id,
@@ -465,32 +327,32 @@ async def task_meta_update(task_id: str, changes: dict[str, Any]) -> dict[str, A
 
 @mcp.tool()
 async def task_delete(task_id: str) -> dict[str, str]:
-    """Delete an editable task if it has no queued or running work."""
+    """Delete an idle user-defined AI pipeline task or remove an idle bundled-task override."""
     await _call(tasks_api.task_delete(task_id))
     return {"status": "deleted", "task_id": task_id}
 
 
 @mcp.tool()
 async def task_validate(task_id: str) -> dict[str, Any]:
-    """Validate an editable task definition."""
+    """Validate an AI pipeline task's metadata, task.js syntax, and referenced files without running it."""
     return await _call(tasks_api.task_validate(task_id))
 
 
 @mcp.tool()
 async def task_files_list(task_id: str) -> list[dict[str, Any]]:
-    """List files belonging to an editable task."""
+    """List an AI pipeline task's files with their language, size, protection, and source."""
     return await _call(tasks_api.task_files(task_id))
 
 
 @mcp.tool()
 async def task_file_get(task_id: str, name: str) -> dict[str, Any]:
-    """Read one file belonging to an editable task."""
+    """Read one AI pipeline task file, including its content, language, and source."""
     return await _call(tasks_api.task_file_get(task_id, name))
 
 
 @mcp.tool()
 async def task_file_save(task_id: str, name: str, content: str, create: bool = False) -> dict[str, Any]:
-    """Create or replace one file belonging to an editable task."""
+    """Create or replace an AI pipeline task file; set create=true only for a new filename."""
     if create:
         return await _call(tasks_api.task_file_create(task_id, {"name": name, "content": content}))
     return await _call(tasks_api.task_file_save(task_id, name, {"content": content}))
@@ -498,33 +360,24 @@ async def task_file_save(task_id: str, name: str, content: str, create: bool = F
 
 @mcp.tool()
 async def task_file_delete(task_id: str, name: str) -> dict[str, str]:
-    """Delete one file belonging to an editable task."""
+    """Delete a non-protected AI pipeline task file when the task has no queued or running work."""
     await _call(tasks_api.task_file_delete(task_id, name))
     return {"status": "deleted", "task_id": task_id, "name": name}
 
 
 @mcp.tool()
-async def task_run(
-    task_id: str,
-    inputs: dict[str, Any] | None = None,
-    run_mode: str | None = None,
-) -> dict[str, Any]:
-    """Queue an editable task with optional input values."""
-    body: dict[str, Any] = {"inputs": inputs or {}}
-    if run_mode is not None:
-        body["runMode"] = run_mode
-    return await _call(tasks_api.task_run(task_id, body))
+async def task_runs_enqueue(items: list[dict[str, Any]]) -> dict[str, Any]:
+    """Queue 1-500 AI pipeline runs.
 
-
-@mcp.tool()
-async def tasks_schedule(items: list[dict[str, Any]]) -> dict[str, Any]:
-    """Queue one or more tasks, optionally with deduplication, priority, or delayed eligibility."""
+    Each item requires task; optional fields are inputs, title, dedupeKey,
+    priority, and eligibleAt as a Unix timestamp.
+    """
     return await _call(tasks_api.scheduler_enqueue(items))
 
 
 @mcp.tool()
 async def task_runs_get(task_id: str, limit: int = 50) -> list[dict[str, Any]]:
-    """Get recent executions of an editable task."""
+    """List recent runs of one AI pipeline task, including status, timing, output, and errors."""
     return await _call(tasks_api.task_runs(task_id, limit))
 
 
@@ -536,7 +389,7 @@ async def task_run_get(run_id: str) -> dict[str, Any]:
 
 @mcp.tool()
 async def task_run_stop(run_id: str) -> dict[str, Any]:
-    """Stop a queued or running editable task execution."""
+    """Stop one queued or running AI pipeline run by ID."""
     return await _call(tasks_api.task_run_stop(run_id))
 
 
@@ -548,13 +401,16 @@ async def ai_status_get() -> dict[str, Any]:
 
 @mcp.tool()
 async def ai_models_get() -> dict[str, Any]:
-    """Discover models available to Sentinel's configured AI service."""
+    """List model IDs available from Sentinel's configured LLM endpoint."""
     return await _call(ai_api.get_ai_models(await _deps()))
 
 
 @mcp.tool()
 async def ai_units_get(kind: str | None = None, stale_only: bool = False) -> dict[str, Any]:
-    """List portfolio, macro, or security AI research units."""
+    """List portfolio, security, and macro subjects tracked by AI research.
+
+    Includes staleness, run status, errors, and artifacts.
+    """
     return await _call(ai_api.get_ai_units(await _deps(), kind, stale_only))
 
 
@@ -566,7 +422,7 @@ async def ai_history_get(limit: int = 50) -> dict[str, Any]:
 
 @mcp.tool()
 async def ai_artifact_get(kind: str, unit_key: str, name: str) -> dict[str, Any]:
-    """Read an allowlisted AI research artifact for a unit."""
+    """Read a generated AI research artifact listed by ai_units_get for a portfolio, security, or macro subject."""
     return await _call(ai_api.get_ai_artifact(kind, unit_key, name, await _deps()))
 
 
@@ -582,32 +438,6 @@ async def ai_research_run(kind: str, unit_kind: str, unit_key: str) -> dict[str,
 
 
 @mcp.tool()
-async def memories_get(
-    tag: str = "",
-    limit: int = 100,
-    offset: int = 0,
-    since: str | None = None,
-) -> dict[str, Any]:
-    """Read Sentinel AI memories, optionally filtered by tags and time."""
-    return await _call(memory_api.memories(await _deps(), tag, limit, offset, since))
-
-
-@mcp.tool()
-async def memory_store(
-    memory: str,
-    tags: list[str] | None = None,
-    metadata: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Store an AI memory through Sentinel's deduplicating memory operation."""
-    return await _call(
-        memory_api.dedup_store(
-            {"memory": memory, "tags": tags, "metadata": metadata},
-            await _deps(),
-        )
-    )
-
-
-@mcp.tool()
 async def forecast_status_get() -> dict[str, Any]:
     """Get forecasting configuration, service health, and recent run status."""
     return await _call(forecasts_api.get_forecast_status(await _deps()))
@@ -615,19 +445,25 @@ async def forecast_status_get() -> dict[str, Any]:
 
 @mcp.tool()
 async def forecast_get(symbol: str) -> dict[str, Any]:
-    """Get the latest forecast path and evaluation for one security."""
+    """Get the latest stored forecast scores, projected path, and evaluation for one security."""
     return await _call(forecasts_api.get_symbol_forecast(symbol, await _deps()))
 
 
 @mcp.tool()
 async def security_buy(symbol: str, quantity: int) -> dict[str, Any]:
-    """Buy a security through Sentinel's existing trading path."""
+    """Buy through Sentinel's guards; research simulates, while live may place a real order.
+
+    Quantity is rounded down to the security's lot size.
+    """
     return await _call(trading_api.buy_security(symbol, quantity))
 
 
 @mcp.tool()
 async def security_sell(symbol: str, quantity: int) -> dict[str, Any]:
-    """Sell a security through Sentinel's existing trading path."""
+    """Sell through Sentinel's guards; research simulates, while live may place a real order.
+
+    Quantity is rounded down to the security's lot size.
+    """
     return await _call(trading_api.sell_security(symbol, quantity))
 
 
@@ -635,12 +471,6 @@ async def security_sell(symbol: str, quantity: int) -> dict[str, Any]:
 async def backup_status_get() -> dict[str, Any]:
     """Get R2 backup configuration state and available backups."""
     return await _call(backup_api.get_backup_status(await _deps()))
-
-
-@mcp.tool()
-async def backup_run() -> dict[str, Any]:
-    """Run the configured R2 backup job now."""
-    return await _call(backup_api.run_backup())
 
 
 mcp_app = mcp.streamable_http_app(
