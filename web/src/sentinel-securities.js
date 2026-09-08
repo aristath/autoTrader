@@ -79,8 +79,8 @@ class SentinelSecurities extends LitElement {
     this.period = "1Y";
     this.search = "";
     this.expandedSymbols = new Set();
-    this.sortColumn = "priority";
-    this.sortReversed = false;
+    this.sortColumn = "ideal";
+    this.sortReversed = true;
     this.busyAction = "";
     this.message = "";
     this.errorMessage = "";
